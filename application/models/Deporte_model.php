@@ -67,4 +67,35 @@ class Deporte_model extends CI_Model {
 
         return $this->db->insert('lugares', $datos);
     }
+
+    /**
+     * Guarda las respuestas del sondeo previo incluyendo sexo
+     */
+    public function guardar_encuesta_anonima($delegacion, $fecha_nacimiento, $sexo, $deportes_array) {
+        $this->db->trans_start();
+
+        // Insertamos el registro principal incluyendo el sexo
+        $datos_encuesta = array(
+            'delegacion'       => trim($delegacion),
+            'fecha_nacimiento' => $fecha_nacimiento,
+            'sexo'             => $sexo 
+        );
+        $this->db->insert('encuestas_respuestas', $datos_encuesta);
+        
+        $id_respuesta = $this->db->insert_id();
+
+        // Guardamos los deportes elegidos
+        foreach ($deportes_array as $id_deporte) {
+            $datos_deporte = array(
+                'id_respuesta' => $id_respuesta,
+                'id_deporte'   => intval($id_deporte)
+            );
+            $this->db->insert('encuestas_deportes', $datos_deporte);
+        }
+
+        // --- EL FIX ESTÁ ACÁ: Cambiar complete() por trans_complete() ---
+        $this->db->trans_complete(); 
+        
+        return $this->db->trans_status();
+    }
 }

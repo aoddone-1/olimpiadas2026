@@ -21,9 +21,7 @@ class Inscripciones extends CI_Controller {
         $data['deportes'] = $this->Deporte_model->get_all();
         $this->load->view('formulario_inscripcion', $data);
     }*/
-    public function encuestras(){
-        
-    }
+    
 
     public function getCategorias($id_deporte) {
         $categorias = $this->Categoria_model->get_by_deporte($id_deporte);

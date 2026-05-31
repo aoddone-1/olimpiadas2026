@@ -44,8 +44,9 @@
 
 <div class="hero-section text-center">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase">Encuesthhhha Previa Incripciones</h1>
-        <p class="lead m-0">XXXVIII Olimpiadas Nacionales IV - La Pampa 2026</p>
+        <h1 class="display-6 fw-bold text-uppercase">Encuesta Previa a Incripciones</h1>
+        <p class="lead m-0">XXXVIII Olimpiadas Nacionales IV de Empleados de Institutos de Vivienda</p>
+        <p class="lead mt-2"><i class="bi bi-geo-alt-fill"></i> La Pampa 2026</p>
         <small class="text-white-50">Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.</small>
     </div>
 </div>
@@ -62,11 +63,12 @@
 
     <form action="<?= base_url('encuesta/guardar_respuesta') ?>" method="POST" class="needs-validation" novalidate>
         
+        <!-- DATOS DEMOGRÁFICOS -->
         <h3 class="section-title">1. Datos Generales</h3>
         <div class="card mb-4">
             <div class="card-body p-4">
                 <div class="row g-3">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Delegación (Provincia)</label>
                         <select name="delegacion" class="form-select" required>
                             <option value="">Seleccione su delegación...</option>
@@ -96,10 +98,21 @@
                             <option value="Tucumán">Tucumán</option>
                         </select>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Fecha de Nacimiento</label>
                         <input type="date" name="fecha_nacimiento" class="form-control" required>
-                        <div class="form-text">La usamos para calcular los rangos de edad de las futuras categorías.</div>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Sexo</label>
+                        <select name="sexo" class="form-select" required>
+                            <option value="">Seleccione...</option>
+                            <option value="Masculino">Masculino</option>
+                            <option value="Femenino">Femenino</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-text text-muted"><i class="bi bi-info-circle"></i> Usamos la edad y el sexo para calcular qué categorías reales conviene abrir en base a los interesados.</div>
                     </div>
                 </div>
             </div>
