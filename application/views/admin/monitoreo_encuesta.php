@@ -125,6 +125,66 @@
                 </div>
             </div>
         </div>
+
+        <div class="col-12 ">
+
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-white border-0 pt-3 fw-bold text-secondary">
+                    <i class="bi bi-ui-checks-grid text-primary me-2"></i> Matriz de Segmentación para Apertura de Categorías
+                </div>
+                <div class="card-body">
+                    <?php if(!empty($ranking_deportes)): ?>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-hover align-middle m-0 text-center">
+                                <thead class="table-dark small text-uppercase">
+                                    <tr>
+                                        <th class="text-start" rowspan="2" style="vertical-align: middle; width: 250px;">Disciplina Deportiva</th>
+                                        <th rowspan="2" style="vertical-align: middle; background-color: #1e3c72;">Total Interesados</th>
+                                        <th colspan="3" class="bg-primary">Segmentación por Sexo</th>
+                                        <th colspan="3" class="bg-success">Segmentación por Edad</th>
+                                    </tr>
+                                    <tr>
+                                        <th class="table-primary text-primary small">Masc</th>
+                                        <th class="table-primary text-primary small">Fem</th>
+                                        <th class="table-primary text-primary small">Otro</th>
+                                        <th class="table-success text-success small">&lt; 35 años</th>
+                                        <th class="table-success text-success small">35 a 45</th>
+                                        <th class="table-success text-success small">&gt; 45 años</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach($ranking_deportes as $rd): ?>
+                                        <tr>
+                                            <!-- Nombre del Deporte -->
+                                            <td class="text-start fw-bold text-dark text-uppercase small" style="background-color: #f8f9fa;">
+                                                <?= htmlspecialchars($rd['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
+                                            </td>
+                                            
+                                            <!-- Total General -->
+                                            <td class="fw-bold fs-5 table-light text-dark">
+                                                <?= $rd['total_interesados'] ?>
+                                            </td>
+                                            
+                                            <!-- Sexo -->
+                                            <td class="text-secondary font-monospace"><?= $rd['masclino'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['femenino'] ?></td>
+                                            <td class="text-muted font-monospace"><?= $rd['otro'] ?></td>
+                                            
+                                            <!-- Edad -->
+                                            <td class="text-secondary font-monospace"><?= $rd['menos_35'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_35_45'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['mayores_45'] ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <p class="text-muted small m-0 text-center py-4">No hay datos suficientes para procesar la matriz.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>

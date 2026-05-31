@@ -104,15 +104,6 @@ class Deporte_model extends CI_Model {
         return $this->db->count_all('encuestas_respuestas');
     }
 
-    // Devuelve cuáles son los deportes más votados (de mayor a menor)
-    public function obtener_ranking_deportes_sondeo() {
-        $this->db->select('d.nombre_deporte, COUNT(ed.id_deporte) as votos');
-        $this->db->from('encuestas_deportes ed');
-        $this->db->join('deportes d', 'd.id_deporte = ed.id_deporte', 'inner');
-        $this->db->group_by('ed.id_deporte');
-        $this->db->order_by('votos', 'DESC');
-        return $this->db->get()->result_array();
-    }
 
     // Cuenta cuántas respuestas llegaron agrupadas por Provincia
     public function obtener_respuestas_por_delegacion() {
@@ -121,5 +112,29 @@ class Deporte_model extends CI_Model {
         $this->db->group_by('delegacion');
         $this->db->order_by('cantidad', 'DESC');
         return $this->db->get()->result_array();
+    }
+
+    public function obtener_ranking_deportes_sondeo() {
+        $sql = "SELECT 
+                    d.nombre_deporte,
+                    COUNT(ed.id_respuesta) as total_interesados,
+                    
+                    -- Conteo por Sexo
+                    SUM(CASE WHEN er.sexo = 'Masculino' THEN 1 ELSE 0 END) as masclino,
+                    SUM(CASE WHEN er.sexo = 'Femenino' THEN 1 ELSE 0 END) as femenino,
+                    SUM(CASE WHEN er.sexo = 'Otro' THEN 1 ELSE 0 END) as otro,
+                    
+                    -- Conteo por Franja Etaria (Calculando la edad actual en base a nacimiento)
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 35 THEN 1 ELSE 0 END) as menos_35,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 35 AND 45 THEN 1 ELSE 0 END) as entre_35_45,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) > 45 THEN 1 ELSE 0 END) as mayores_45
+                    
+                FROM encuestas_deportes ed
+                INNER JOIN deportes d ON d.id_deporte = ed.id_deporte
+                INNER JOIN encuestas_respuestas er ON er.id_respuesta = ed.id_respuesta
+                GROUP BY ed.id_deporte
+                ORDER BY total_interesados DESC";
+                
+        return $this->db->query($sql)->result_array();
     }
 }
