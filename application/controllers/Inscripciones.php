@@ -293,4 +293,31 @@ public function guardar_categoria() {
 
         $this->load->view('admin/monitoreo_encuesta', $data);
     }
+
+    /**
+     * Guarda un nuevo deporte general desde la ventana modal
+     */
+    public function guardar_deporte() {
+        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login_staff'); }
+
+        $nombre = $this->input->post('nombre_deporte', TRUE);
+        if (!empty($nombre)) {
+            $this->db->insert('deportes', ['nombre_deporte' => $nombre]);
+        }
+        redirect('Inscripciones/gestion_deportes');
+    }
+
+    /**
+     * Elimina un deporte y sus categorías asociadas por ID
+     */
+    public function eliminar_deporte($id_deporte) {
+        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login_staff'); }
+
+        if (!empty($id_deporte) && is_numeric($id_deporte)) {
+            // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
+            $this->db->delete('categorias', ['id_deporte' => $id_deporte]);
+            $this->db->delete('deportes', ['id_deporte' => $id_deporte]);
+        }
+        redirect('Inscripciones/gestion_deportes');
+    }
 }

@@ -18,6 +18,8 @@
         .nav-menu { background: #fff; border-bottom: 1px solid #dee2e6; }
         .nav-menu .nav-link { color: #495057; font-weight: 500; padding: 12px 20px; }
         .nav-menu .nav-link.active { color: #1e3c72; border-bottom: 3px solid #1e3c72; border-radius: 0; }
+        .btn-eliminar-deporte { opacity: 0.6; transition: all 0.2s ease-in-out; }
+        .btn-eliminar-deporte:hover { opacity: 1; color: #dc3545 !important; transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -36,6 +38,10 @@
             <li class="nav-item">
                 <a class="nav-link active" href="<?= base_url('Inscripciones/gestion_deportes') ?>"><i class="bi bi-trophy-fill me-1"></i> Gestión Deportiva</a>
             </li>
+            <!-- Agregamos también acá el acceso al Sondeo que armamos antes -->
+            <li class="nav-item">
+                <a class="nav-link" href="<?= base_url('Inscripciones/monitoreo_encuesta') ?>"><i class="bi bi-bar-chart-line-fill me-1"></i> Sondeo Inicial</a>
+            </li>
         </ul>
         <a href="<?= base_url('Inscripciones/logout_staff') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
             <i class="bi bi-box-arrow-right me-1"></i> Salir
@@ -48,7 +54,11 @@
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
             <h5 class="fw-bold text-dark m-0"><i class="bi bi-calendar-event text-primary me-2"></i>Fixture y Cronograma de Deportes</h5>
-            <div class="gap-2 d-flex">
+            <div class="gap-2 d-flex flex-wrap">
+                <!-- NUEVO BOTÓN: REGISTRAR DEPORTE -->
+                <button class="btn btn-sm btn-success rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalDeporte">
+                    <i class="bi bi-trophy me-1"></i> + Nuevo Deporte
+                </button>
                 <button class="btn btn-sm btn-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#modalCategoria">
                     <i class="bi bi-plus-circle me-1"></i> Nueva Categoría
                 </button>
@@ -67,6 +77,14 @@
                                     <h6 class="fw-bold text-primary m-0 text-uppercase">
                                         <i class="bi bi-trophy-fill me-2 text-warning"></i><?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
                                     </h6>
+                                    
+                                    <!-- BOTÓN PARA ELIMINAR EL DEPORTE -->
+                                    <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) ?>" 
+                                       class="text-muted btn-eliminar-deporte" 
+                                       onclick="return confirm('¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán también sus categorías asociadas.');"
+                                       title="Eliminar Deporte">
+                                        <i class="bi bi-trash3-fill fs-6"></i>
+                                    </a>
                                 </div>
                                 
                                 <div class="list-group list-group-flush bg-transparent">
@@ -105,6 +123,33 @@
     </div>
 </div>
 
+<!-- ===================================================
+     NUEVO MODAL: REGISTRAR DEPORTE
+     =================================================== -->
+<div class="modal fade" id="modalDeporte" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <form action="<?= base_url('Inscripciones/guardar_deporte') ?>" method="POST">
+                <div class="modal-header bg-success text-white rounded-top-4">
+                    <h5 class="modal-title fw-bold fs-6"><i class="bi bi-trophy-fill me-2 text-warning"></i>Nuevo Deporte General</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Nombre de la Disciplina</label>
+                        <input type="text" name="nombre_deporte" class="form-control" placeholder="Ej: Básquet, Pádel, Hockey" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 rounded-bottom-4">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-success px-3 fw-bold">Guardar Deporte</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: NUEVA CATEGORÍA -->
 <div class="modal fade" id="modalCategoria" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
@@ -166,6 +211,7 @@
     </div>
 </div>
 
+<!-- MODAL: REGISTRAR LUGAR -->
 <div class="modal fade" id="modalLugar" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
