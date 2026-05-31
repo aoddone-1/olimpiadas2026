@@ -40,6 +40,9 @@
             <li class="nav-item">
                 <a class="nav-link" href="<?= base_url('Inscripciones/gestion_deportes') ?>"><i class="bi bi-trophy-fill me-1"></i> Gestión Deportiva</a>
             </li>
+            <li class="nav-item">
+                <a class="nav-link" href="<?= base_url('Inscripciones/monitoreo_encuesta') ?>"><i class="bi bi-bar-chart-line-fill me-1"></i> Sondeo Inicial</a>
+            </li>
         </ul>
         <a href="<?= base_url('Inscripciones/logout_staff') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
             <i class="bi bi-box-arrow-right me-1"></i> Salir

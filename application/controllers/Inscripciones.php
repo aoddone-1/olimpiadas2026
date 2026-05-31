@@ -275,4 +275,22 @@ public function guardar_categoria() {
         // Cargamos la vista especial de impresión
         $this->load->view('admin/imprimir_credencial', $data);
     }
+
+    /**
+     * Nueva pantalla de visualización y monitoreo de los resultados del sondeo preliminar
+     */
+    public function monitoreo_encuesta() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('Deporte_model');
+
+        // Consultamos datos rápidos al modelo para armar las métricas básicas
+        $data['total_encuestas'] = $this->Deporte_model->contar_total_encuestas();
+        $data['ranking_deportes'] = $this->Deporte_model->obtener_ranking_deportes_sondeo();
+        $data['respuestas_por_delegacion'] = $this->Deporte_model->obtener_respuestas_por_delegacion();
+
+        $this->load->view('admin/monitoreo_encuesta', $data);
+    }
 }

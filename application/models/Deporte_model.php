@@ -98,4 +98,28 @@ class Deporte_model extends CI_Model {
         
         return $this->db->trans_status();
     }
+
+    // Cuenta cuántas encuestas únicas se respondieron
+    public function contar_total_encuestas() {
+        return $this->db->count_all('encuestas_respuestas');
+    }
+
+    // Devuelve cuáles son los deportes más votados (de mayor a menor)
+    public function obtener_ranking_deportes_sondeo() {
+        $this->db->select('d.nombre_deporte, COUNT(ed.id_deporte) as votos');
+        $this->db->from('encuestas_deportes ed');
+        $this->db->join('deportes d', 'd.id_deporte = ed.id_deporte', 'inner');
+        $this->db->group_by('ed.id_deporte');
+        $this->db->order_by('votos', 'DESC');
+        return $this->db->get()->result_array();
+    }
+
+    // Cuenta cuántas respuestas llegaron agrupadas por Provincia
+    public function obtener_respuestas_por_delegacion() {
+        $this->db->select('delegacion, COUNT(id_respuesta) as cantidad');
+        $this->db->from('encuestas_respuestas');
+        $this->db->group_by('delegacion');
+        $this->db->order_by('cantidad', 'DESC');
+        return $this->db->get()->result_array();
+    }
 }
