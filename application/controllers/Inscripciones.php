@@ -1,0 +1,280 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+class Inscripciones extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        // Cargamos los modelos esenciales
+        $this->load->model('Deporte_model');
+        $this->load->model('Categoria_model');
+    }
+
+    public function index() {
+        redirect('Inscripciones/panel');
+    }
+    public function panel(){
+        $data['deportes'] = $this->Deporte_model->get_all();
+        $this->load->view('encuesta_previa', $data);
+    }
+    /*public function panel(){
+        $data['deportes'] = $this->Deporte_model->get_all();
+        $this->load->view('formulario_inscripcion', $data);
+    }*/
+    public function encuestras(){
+        
+    }
+
+    public function getCategorias($id_deporte) {
+        $categorias = $this->Categoria_model->get_by_deporte($id_deporte);
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($categorias));
+    }
+
+    public function guardar() {
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        // --- GENERACIÓN DEL TOKEN ---
+        $semilla = $post['dni'] . 'olimpiadas2026' . time();
+        $token = sha1($semilla);
+
+        $data_persona = [
+            'dni'                 => trim($post['dni']),
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), // El email siempre en minúsculas
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => mb_strtoupper(trim($post['delegacion']), 'UTF-8'),
+            'sexo'                => mb_strtoupper(trim($post['sexo']), 'UTF-8'),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], // Formato fecha Y-m-d, no se toca
+            'grupo_sanguineo'     => mb_strtoupper(trim($post['grupo_sanguineo']), 'UTF-8'),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => mb_strtoupper(trim($post['tipo_empleado']), 'UTF-8'),
+            'dieta_especial'      => mb_strtoupper(trim($post['dieta_especial']), 'UTF-8'),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            'token_qr'            => $token,
+            'fecha_inscripcion'   => date('Y-m-d H:i:s')
+        ];
+
+        $resultado = $this->Participante_model->insertar_completo(
+            $data_persona, 
+            $post['categoria_id']
+        );
+
+        if (!$resultado) {
+            $db_error = $this->db->error();
+            $mensaje = 'Verifique si el DNI ya está registrado o si faltan datos obligatorios.';
+            
+            if (isset($db_error['code']) && $db_error['code'] == 1062) {
+                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado en nuestro sistema.';
+            }
+
+            $data_error = [
+                'mensaje' => $mensaje,
+                'dni'     => $post['dni']
+            ];
+            $this->load->view('inscripcion_erronea', $data_error);
+        } else {
+            // --- 1. ENVIAR EL CORREO REAL ---
+            // Podés descomentar esta línea cuando quieras activar los mails
+            // $this->enviar_comprobante_real($data_persona, $token);
+
+            // --- 2. CARGAR VISTA DE ÉXITO CON EL TOKEN ---
+            $this->load->view('inscripcion_exitosa', [
+                'nombre' => $post['nombre_completo'],
+                'token'  => $token
+            ]);
+        }
+    }
+
+    // 1. Pantalla que abre el código QR
+    public function acreditacion($token = NULL) {
+        if (!$token) { show_404(); }
+
+        $this->load->model('Participante_model');
+        $participante = $this->Participante_model->obtener_por_token($token);
+
+        if (!$participante) {
+            echo "<h3>Código QR inválido.</h3>";
+            return;
+        }
+
+        // Guardamos los datos del participante para las vistas
+        $data['participante'] = $participante;
+
+        // NUEVO: Buscamos las inscripciones deportivas asociadas usando tu modelo real
+        $data['deportes'] = $this->Participante_model->obtener_deportes_inscriptos($participante['id_participante']);
+
+        // ¿Es organizador logueado?
+        if ($this->session->userdata('is_organizador')) {
+            // PANTALLA PRO: Vos organizadora ves las opciones de deportes
+            $this->load->view('admin/panel_acreditacion', $data);
+        } else {
+            // PANTALLA PÚBLICA: El participante escanea su propio QR
+            // NUEVO: Guardamos en sesión a qué QR querías ir, por si el staff inicia sesión desde acá
+            $this->session->set_userdata('url_retorno_qr', 'Inscripciones/acreditacion/' . $token);
+            
+            $this->load->view('public/pase_valido', $data);
+        }
+    }
+
+    // 2. Mostrar formulario de Login manual
+   public function login_staff() {
+        if ($this->session->userdata('is_organizador')) {
+            if ($this->session->userdata('url_retorno_qr')) {
+                $redirigir = $this->session->userdata('url_retorno_qr');
+                $this->session->unset_userdata('url_retorno_qr');
+                redirect($redirigir);
+            }
+
+            // --- DASHBOARD PRINCIPAL: SOLAMENTE PARTICIPANTES ---
+            $this->load->model('Participante_model');
+            
+            $data['participantes'] = $this->Participante_model->obtener_todos_los_participantes();
+            $data['total_inscriptos'] = count($data['participantes']);
+            $data['total_kits'] = $this->Participante_model->contar_kits_entregados();
+
+            // Cargamos la vista principal (limpia)
+            $this->load->view('admin/dashboard', $data);
+            return;
+        }
+        $this->load->view('admin/login');
+    }
+
+    // --- NUEVA PANTALLA: GESTIÓN DE DEPORTES ---
+    public function gestion_deportes() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('Deporte_model');
+        
+        // Cargamos todo lo necesario para los fixtures y modales deportivos
+        $data['deportes'] = $this->Deporte_model->obtener_fixture_completo(); 
+        $data['todos_los_deportes'] = $this->Deporte_model->obtener_todos_los_deportes(); 
+        $data['todos_los_lugares'] = $this->Deporte_model->obtener_todos_los_lugares(); 
+
+        $this->load->view('admin/gestion_deportes', $data);
+    }
+
+    
+
+// --- PROCESAR EL MODAL DE NUEVA CATEGORÍA ---
+public function guardar_categoria() {
+    if (!$this->session->userdata('is_organizador')) {
+        redirect('Inscripciones/login_staff');
+    }
+
+    $this->load->model('Deporte_model');
+    
+    // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
+    $guardado = $this->Deporte_model->insertar_categoria_desde_post($this->input->post());
+
+    if ($guardado) {
+        $this->session->set_flashdata('mensaje_exito', 'Categoría registrada correctamente.');
+    } else {
+        $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
+    }
+
+    redirect('Inscripciones/gestion_deportes');
+}
+    public function guardar_lugar() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('Deporte_model');
+        
+        $guardado = $this->Deporte_model->insertar_lugar_desde_post($this->input->post());
+
+        if ($guardado) {
+            $this->session->set_flashdata('mensaje_exito', 'Predio registrado correctamente.');
+        } else {
+            $this->session->set_flashdata('mensaje_error', 'El nombre del predio es obligatorio.');
+        }
+
+        redirect('Inscripciones/gestion_deportes');
+    }
+
+
+    // 3. Procesar el formulario de Login
+    public function procesar_login() {
+        $this->load->model('Usuario_model');
+        $usuario = $this->input->post('usuario');
+        $password = $this->input->post('password');
+
+        $logged_user = $this->Usuario_model->login($usuario, $password);
+
+        if ($logged_user) {
+            $this->session->set_userdata([
+                'is_organizador' => TRUE,
+                'user_id'        => $logged_user['id_usuario'], 
+                'user_nombre'    => $logged_user['nombre_usuario'], 
+                'user_rol'       => $logged_user['rol']
+            ]);
+            
+            // NUEVO: ¡El redireccionador inteligente!
+            // Si venías de escanear un QR, te devuelve derecho a ese participante
+            if ($this->session->userdata('url_retorno_qr')) {
+                $redirigir_a = $this->session->userdata('url_retorno_qr');
+                $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
+                redirect($redirigir_a);
+            } else {               
+                redirect('Inscripciones/login_staff');
+            }
+        } else {
+            $this->session->set_flashdata('error', 'Usuario o contraseña incorrectos.');
+            redirect('Inscripciones/login_staff');
+        }
+    }
+
+    // 4. Cerrar sesión
+    public function logout_staff() {
+        $this->session->sess_destroy();
+        redirect('Inscripciones/login_staff');
+    }
+
+    // --- NUEVO: ACCIÓN PARA CAMBIAR EL KIT ENTREGADO A 1 ---
+    public function acreditar_kit() {
+        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+        
+        $this->load->model('Participante_model');
+        $id_participante = $this->input->post('id_participante');
+        $token = $this->input->post('token_qr');
+        
+        $this->Participante_model->marcar_kit_entregado($id_participante);
+        redirect('Inscripciones/acreditacion/' . $token);
+    }
+
+    // --- NUEVO: ACCIÓN PARA CAMBIAR EL ASISTIO DEL DEPORTE A 1 ---
+    public function acreditar_deporte() {
+        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+        
+        $this->load->model('Participante_model');
+        $id_inscripcion = $this->input->post('id_inscripcion');
+        $token = $this->input->post('token_qr');
+        
+        $this->Participante_model->marcar_asistencia_deporte($id_inscripcion);
+        redirect('Inscripciones/acreditacion/' . $token);
+    }
+
+        public function imprimir_credencial($token = NULL) {
+        // Seguridad: solo el staff logueado puede generar credenciales
+        if (!$this->session->userdata('is_organizador') || empty($token)) {
+            show_error('No autorizado o token no válido', 403);
+        }
+
+        $this->load->model('Participante_model');
+        // Buscamos al participante por su token QR
+        $data['participante'] = $this->Participante_model->obtener_por_token($token);
+
+        if (empty($data['participante'])) {
+            show_error('Participante no encontrado', 404);
+        }
+
+        // Cargamos la vista especial de impresión
+        $this->load->view('admin/imprimir_credencial', $data);
+    }
+}
