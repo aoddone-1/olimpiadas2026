@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inscripción - XXXVIII Olimpiadas Nacionales IV</title>
+    <meta name="description" content="Inscripción para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
+    <meta name="author" content="Comisión Organizadora">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= current_url() ?>">
+    <meta property="og:title" content="Inscripción - Olimpiadas Nacionales 2026">
+    <meta property="og:description" content="Inscripción para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
+    <meta property="og:image" content="<?= base_url('assets/img/compartir-card.png') ?>">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:site_name" content="Olimpiadas Vivienda 2026">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

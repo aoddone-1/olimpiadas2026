@@ -14,11 +14,11 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/panel');
     }
     public function panel(){
-        $data['deportes'] = $this->Deporte_model->get_all();
+        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('encuesta_previa', $data);
     }
     /*public function panel(){
-        $data['deportes'] = $this->Deporte_model->get_all();
+        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('formulario_inscripcion', $data);
     }*/
     

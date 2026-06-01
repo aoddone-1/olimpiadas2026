@@ -23,25 +23,42 @@ class Encuesta extends CI_Controller {
      * Procesa y guarda las respuestas enviadas por el formulario
      */
     public function guardar_respuesta() {
+        $post = $this->input->post();
+
+        $dni              = $this->input->post('dni');
         $delegacion       = $this->input->post('delegacion');
         $fecha_nacimiento = $this->input->post('fecha_nacimiento');
         $sexo             = $this->input->post('sexo');
         $deportes_interes = $this->input->post('deportes_interes');
 
-        if (empty($delegacion) || empty($fecha_nacimiento) || empty($sexo) || empty($deportes_interes)) {
+        // Validación de campos obligatorios
+        if (empty($delegacion) || empty($dni) || empty($fecha_nacimiento) || empty($sexo) || empty($deportes_interes)) {
             $this->session->set_flashdata('mensaje_error', 'Todos los campos son obligatorios.');
-            redirect('Inscripciones/encuesta'); // O la ruta donde tengas tu formulario
+            redirect('Inscripciones');
         }
 
-        $this->load->model('Deporte_model');
-        $guardado_exitoso = $this->Deporte_model->guardar_encuesta_anonima($delegacion, $fecha_nacimiento, $sexo, $deportes_interes);
+        // Si pasa todas las validaciones individuales, agrupamos
+        $data = [
+            'dni'              => trim($dni),
+            'delegacion'       => mb_strtoupper(trim($delegacion), 'UTF-8'),
+            'fecha_nacimiento' => $fecha_nacimiento,
+            'sexo'             => mb_strtoupper(trim($sexo), 'UTF-8'),
+            'deportes_interes' => $deportes_interes
+        ];
 
-        if ($guardado_exitoso) {
-            // En vez de flashdata, mandamos directo a la pantalla de éxito
-            redirect('Encuesta/gracias');
+        $this->load->model('Deporte_model');
+        $guardado_exitoso = $this->Deporte_model->guardar_encuesta_anonima($data);
+
+        if (!$guardado_exitoso) {
+            $db_error = $this->db->error();
+            $mensaje = 'Verifique si el DNI ya está registrado o si faltan datos obligatorios.';
+            
+            if (isset($db_error['code']) ) {
+                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado en nuestro sistema.';
+            }
+            $this->load->view('encuesta_resultado', ['error' => $mensaje]);
         } else {
-            $this->session->set_flashdata('mensaje_error', 'Hubo un error al procesar tus respuestas.');
-            redirect('Inscripciones/encuesta');
+           $this->load->view('encuesta_resultado');
         }
     }
 

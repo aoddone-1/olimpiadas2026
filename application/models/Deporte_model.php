@@ -71,32 +71,42 @@ class Deporte_model extends CI_Model {
     /**
      * Guarda las respuestas del sondeo previo incluyendo sexo
      */
-    public function guardar_encuesta_anonima($delegacion, $fecha_nacimiento, $sexo, $deportes_array) {
+    public function guardar_encuesta_anonima($data) {
         $this->db->trans_start();
 
-        // Insertamos el registro principal incluyendo el sexo
+        // 1. Estructuramos los datos principales mapeando desde el array unificado $data
         $datos_encuesta = array(
-            'delegacion'       => trim($delegacion),
-            'fecha_nacimiento' => $fecha_nacimiento,
-            'sexo'             => $sexo 
+            'dni'              => $data['dni'], // Sacá esta línea si tu tabla encuestas_respuestas es 100% anónima y no guarda DNI
+            'delegacion'       => $data['delegacion'],
+            'fecha_nacimiento' => $data['fecha_nacimiento'],
+            'sexo'             => $data['sexo'] 
         );
+        
         $this->db->insert('encuestas_respuestas', $datos_encuesta);
         
+        // Obtenemos el ID generado para esta respuesta
         $id_respuesta = $this->db->insert_id();
 
-        // Guardamos los deportes elegidos
-        foreach ($deportes_array as $id_deporte) {
-            $datos_deporte = array(
-                'id_respuesta' => $id_respuesta,
-                'id_deporte'   => intval($id_deporte)
-            );
-            $this->db->insert('encuestas_deportes', $datos_deporte);
+        // 2. Guardamos los deportes elegidos iterando el sub-array que viene dentro de $data
+        if (!empty($data['deportes_interes']) && is_array($data['deportes_interes'])) {
+            foreach ($data['deportes_interes'] as $id_deporte) {
+                if (!empty($id_deporte)) {
+                    $datos_deporte = array(
+                        'id_respuesta' => $id_respuesta,
+                        'id_deporte'   => intval($id_deporte)
+                    );
+                    $this->db->insert('encuestas_deportes', $datos_deporte);
+                }
+            }
         }
 
-        // --- EL FIX ESTÁ ACÁ: Cambiar complete() por trans_complete() ---
         $this->db->trans_complete(); 
         
-        return $this->db->trans_status();
+         if ($this->db->trans_status() === FALSE) {
+            return FALSE;
+        }
+
+        return TRUE;
     }
 
     // Cuenta cuántas encuestas únicas se respondieron
@@ -117,23 +127,25 @@ class Deporte_model extends CI_Model {
     public function obtener_ranking_deportes_sondeo() {
         $sql = "SELECT 
                     d.nombre_deporte,
-                    COUNT(ed.id_respuesta) as total_interesados,
+                    COUNT(ed.id_respuesta) as votos,
                     
-                    -- Conteo por Sexo
-                    SUM(CASE WHEN er.sexo = 'Masculino' THEN 1 ELSE 0 END) as masclino,
+                    -- Conteo por Sexo (Corregido 'masculino')
+                    SUM(CASE WHEN er.sexo = 'Masculino' THEN 1 ELSE 0 END) as masculino,
                     SUM(CASE WHEN er.sexo = 'Femenino' THEN 1 ELSE 0 END) as femenino,
                     SUM(CASE WHEN er.sexo = 'Otro' THEN 1 ELSE 0 END) as otro,
                     
-                    -- Conteo por Franja Etaria (Calculando la edad actual en base a nacimiento)
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 35 THEN 1 ELSE 0 END) as menos_35,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 35 AND 45 THEN 1 ELSE 0 END) as entre_35_45,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) > 45 THEN 1 ELSE 0 END) as mayores_45
+                    -- Conteo por Franja Etaria segmentado cada 10 años
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 30 THEN 1 ELSE 0 END) as menos_30,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 30 AND 39 THEN 1 ELSE 0 END) as entre_30_39,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 40 AND 49 THEN 1 ELSE 0 END) as entre_40_49,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 50 AND 59 THEN 1 ELSE 0 END) as entre_50_59,
+                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) >= 60 THEN 1 ELSE 0 END) as mayores_60
                     
                 FROM encuestas_deportes ed
                 INNER JOIN deportes d ON d.id_deporte = ed.id_deporte
                 INNER JOIN encuestas_respuestas er ON er.id_respuesta = ed.id_respuesta
-                GROUP BY ed.id_deporte
-                ORDER BY total_interesados DESC";
+                GROUP BY ed.id_deporte, d.nombre_deporte
+                ORDER BY votos DESC";
                 
         return $this->db->query($sql)->result_array();
     }

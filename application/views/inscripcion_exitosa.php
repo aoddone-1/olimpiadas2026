@@ -78,7 +78,7 @@
             <div class="alert alert-info d-flex align-items-center text-start" role="alert">
                 <i class="bi bi-pin-angle-fill me-3 fs-4 text-primary"></i>
                 <div>
-                    <strong>Importante:</strong> Por favor, haz una captura de pantalla de este código o revisa tu correo electrónico. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
+                    <strong>Importante:</strong> Por favor, haz una captura de pantalla de este códigoo. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
                 </div>
             </div>
 

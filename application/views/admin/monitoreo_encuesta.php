@@ -133,47 +133,48 @@
                     <i class="bi bi-ui-checks-grid text-primary me-2"></i> Matriz de Segmentación para Apertura de Categorías
                 </div>
                 <div class="card-body">
-                    <?php if(!empty($ranking_deportes)): ?>
+                   <?php if(!empty($ranking_deportes)): ?>
                         <div class="table-responsive">
                             <table class="table table-bordered table-hover align-middle m-0 text-center">
                                 <thead class="table-dark small text-uppercase">
                                     <tr>
-                                        <th class="text-start" rowspan="2" style="vertical-align: middle; width: 250px;">Disciplina Deportiva</th>
+                                        <th class="text-start" rowspan="2" style="vertical-align: middle;">Disciplina Deportiva</th>
                                         <th rowspan="2" style="vertical-align: middle; background-color: #1e3c72;">Total Interesados</th>
                                         <th colspan="3" class="bg-primary">Segmentación por Sexo</th>
-                                        <th colspan="3" class="bg-success">Segmentación por Edad</th>
+                                        <th colspan="5" class="bg-success">Segmentación por Edad</th>
                                     </tr>
                                     <tr>
                                         <th class="table-primary text-primary small">Masc</th>
                                         <th class="table-primary text-primary small">Fem</th>
                                         <th class="table-primary text-primary small">Otro</th>
-                                        <th class="table-success text-success small">&lt; 35 años</th>
-                                        <th class="table-success text-success small">35 a 45</th>
-                                        <th class="table-success text-success small">&gt; 45 años</th>
+                                        
+                                        <th class="table-success text-success small">&lt; 30 años</th>
+                                        <th class="table-success text-success small">30 a 39</th>
+                                        <th class="table-success text-success small">40 a 49</th>
+                                        <th class="table-success text-success small">50 a 59</th>
+                                        <th class="table-success text-success small">&gt;= 60 años</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach($ranking_deportes as $rd): ?>
                                         <tr>
-                                            <!-- Nombre del Deporte -->
                                             <td class="text-start fw-bold text-dark text-uppercase small" style="background-color: #f8f9fa;">
                                                 <?= htmlspecialchars($rd['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
                                             </td>
                                             
-                                            <!-- Total General -->
                                             <td class="fw-bold fs-5 table-light text-dark">
-                                                <?= $rd['total_interesados'] ?>
+                                                <?= $rd['votos'] ?>
                                             </td>
                                             
-                                            <!-- Sexo -->
-                                            <td class="text-secondary font-monospace"><?= $rd['masclino'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['masculino'] ?></td>
                                             <td class="text-secondary font-monospace"><?= $rd['femenino'] ?></td>
                                             <td class="text-muted font-monospace"><?= $rd['otro'] ?></td>
                                             
-                                            <!-- Edad -->
-                                            <td class="text-secondary font-monospace"><?= $rd['menos_35'] ?></td>
-                                            <td class="text-secondary font-monospace"><?= $rd['entre_35_45'] ?></td>
-                                            <td class="text-secondary font-monospace"><?= $rd['mayores_45'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['menos_30'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_30_39'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_40_49'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_50_59'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['mayores_60'] ?></td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>

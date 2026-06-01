@@ -4,6 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sondeo Previo - Olimpiadas Nacionales 2026</title>
+    <meta name="description" content="Participá del sondeo previo para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
+    <meta name="author" content="Comisión Organizadora">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="<?= current_url() ?>">
+    <meta property="og:title" content="Sondeo Previo - Olimpiadas Nacionales 2026">
+    <meta property="og:description" content="Ayudanos a dimensionar la logística y categorías del evento. ¡Tu participación es clave!">
+    <meta property="og:image" content="<?= base_url('assets/img/compartir-card.png') ?>">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:site_name" content="Olimpiadas Vivienda 2026">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
@@ -44,8 +57,8 @@
 
 <div class="hero-section text-center">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase">Encuesta Previa a Incripciones</h1>
-        <p class="lead m-0">XXXVIII Olimpiadas Nacionales IV de Empleados de Institutos de Vivienda</p>
+        <h1 class="display-6 fw-bold text-uppercase">Encuesta <u>Previa a Incripciones</u></h1>
+        <p class="lead m-0">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
         <p class="lead mt-2"><i class="bi bi-geo-alt-fill"></i> La Pampa 2026</p>
         <small class="text-white-50">Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.</small>
     </div>
@@ -61,14 +74,18 @@
         </div>
     <?php else: ?>
 
-    <form action="<?= base_url('encuesta/guardar_respuesta') ?>" method="POST" class="needs-validation" novalidate>
+    <form autocomplete='off' action="<?= base_url('encuesta/guardar_respuesta') ?>" method="POST" class="needs-validation" novalidate>
         
         <!-- DATOS DEMOGRÁFICOS -->
         <h3 class="section-title">1. Datos Generales</h3>
         <div class="card mb-4">
             <div class="card-body p-4">
                 <div class="row g-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">DNI</label>
+                        <input type="number" name="dni" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
                         <label class="form-label fw-bold">Delegación (Provincia)</label>
                         <select name="delegacion" class="form-select" required>
                             <option value="">Seleccione su delegación...</option>
@@ -98,11 +115,11 @@
                             <option value="Tucumán">Tucumán</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label fw-bold">Fecha de Nacimiento</label>
                         <input type="date" name="fecha_nacimiento" class="form-control" required>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <label class="form-label fw-bold">Sexo</label>
                         <select name="sexo" class="form-select" required>
                             <option value="">Seleccione...</option>
@@ -119,7 +136,7 @@
         </div>
 
         <h3 class="section-title">2. ¿En qué deportes tenés intención de participar?</h3>
-        <p class="text-muted small px-2 mb-3"><i class="bi bi-info-circle"></i> Podés marcar todas las opciones que consideres. No es una inscripción definitiva.</p>
+        <p class="text-muted small px-2 mb-3"><i class="bi bi-info-circle"></i> Podés marcar todas las opciones que consideres. <u class="text-danger"><strong>NO es una inscripción definitiva.</strong></u></p>
         
         <div class="card mb-4">
             <div class="card-body p-4">
