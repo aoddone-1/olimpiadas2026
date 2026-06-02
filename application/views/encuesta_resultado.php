@@ -37,8 +37,8 @@
 
 <div class="hero-section text-center">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase"><?= isset($error) ? 'Atención' : 'Sondeo Completado' ?></h1>
-        <p class="lead m-0">XXXVIII Olimpiadas Nacionales IV de Empleados de Institutos de Vivienda</p>
+        <h1 class="display-6 fw-bold text-uppercase"><?= isset($error) ? 'Atención' : 'Encuesta Completada' ?></h1>
+        <p class="lead m-0">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
     </div>
 </div>
 
