@@ -4,9 +4,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Participante_model extends CI_Model {
 
     public function insertar_completo($datos_persona, $categorias_ids) {
-        // Desactivamos el debug temporalmente para capturar el error nosotros
         $this->db->db_debug = FALSE; 
-
         $this->db->trans_start();
 
         $this->db->insert('participantes', $datos_persona);
@@ -24,14 +22,38 @@ class Participante_model extends CI_Model {
         }
 
         $this->db->trans_complete();
-        
-        // Si la transacción falló (por ejemplo, por DNI duplicado)
-        if ($this->db->trans_status() === FALSE) {
-            return FALSE;
+        return ($this->db->trans_status() !== FALSE);
+    }
+
+    public function actualizar_completo($id_participante, $datos_persona, $categorias_ids) {
+        $this->db->db_debug = FALSE; 
+        $this->db->trans_start();
+
+        // Actualizamos los datos personales
+        $this->db->where('id_participante', $id_participante);
+        $this->db->update('participantes', $datos_persona);
+
+        // Volamos las disciplinas viejas
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('inscripciones_deportivas');
+
+        // Insertamos las nuevas
+        if (!empty($categorias_ids)) {
+            foreach ($categorias_ids as $id_categoria) {
+                if (!empty($id_categoria)) {
+                    $this->db->insert('inscripciones_deportivas', [
+                        'id_participante' => $id_participante,
+                        'id_categoria'    => $id_categoria
+                    ]);
+                }
+            }
         }
 
-        return TRUE;
+        $this->db->trans_complete();
+        return ($this->db->trans_status() !== FALSE);
     }
+
+    
 
     public function obtener_por_token($token) {
         $this->db->where('token_qr', $token);

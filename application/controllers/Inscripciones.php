@@ -17,10 +17,10 @@ class Inscripciones extends CI_Controller {
         $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('encuesta_previa', $data);
     }
-    /*public function panel(){
+    public function formulario_inscripcion(){
         $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('formulario_inscripcion', $data);
-    }*/
+    }
     
 
     public function getCategorias($id_deporte) {
@@ -30,56 +30,115 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode($categorias));
     }
 
+    public function buscar_por_dni() {
+        // Usamos GET o POST según prefieras, pero mantengamos consistencia con el AJAX
+        $dni = $this->input->post('dni');
+
+        if (empty($dni)) {
+            echo json_encode(['existe' => false]);
+            return;
+        }
+
+        $this->load->model('Participante_model');
+
+        // 1. Buscamos los datos en la tabla 'participantes'
+        $this->db->where('dni', trim($dni));
+        $query_participante = $this->db->get('participantes');
+
+        if ($query_participante->num_rows() > 0) {
+            $participante = $query_participante->row_array();
+            $id_p = $participante['id_participante'];
+
+            // 2. Buscamos sus deportes y categorías vinculadas
+            // Hacemos un JOIN con la tabla categorias para obtener el id_deporte que pide tu UI
+            $this->db->select('i.id_categoria, c.id_deporte');
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
+            $this->db->where('i.id_participante', $id_p);
+            $query_deportes = $this->db->get();
+            
+            $disciplinas = $query_deportes->result_array();
+
+            // Enviamos la respuesta completa
+            echo json_encode([
+                'existe'      => true,
+                'datos'       => $participante,
+                'disciplinas' => $disciplinas // Array de objetos {id_categoria, id_deporte}
+            ]);
+        } else {
+            echo json_encode(['existe' => false]);
+        }
+    }
+
     public function guardar() {
         $this->load->model('Participante_model');
         $post = $this->input->post();
 
-        // --- GENERACIÓN DEL TOKEN ---
-        $semilla = $post['dni'] . 'olimpiadas2026' . time();
-        $token = sha1($semilla);
+        // 1. Preguntamos al modelo si el participante existe (usando la query de control básica)
+        $this->db->where('dni', trim($post['dni']));
+        $query_check = $this->db->get('participantes');
+        $existe = ($query_check->num_rows() > 0);
 
+        if ($existe) {
+            // [MODO ACTUALIZACIÓN]
+            $participante_viejo = $query_check->row_array();
+            $id_participante = $participante_viejo['id_participante'];
+            $token = $participante_viejo['token_qr']; 
+        } else {
+            // [MODO NUEVA INSCRIPCIÓN]
+            $semilla = $post['dni'] . 'olimpiadas2026' . time();
+            $token = sha1($semilla);
+        }
+
+        // Data estructurada
         $data_persona = [
-            'dni'                 => trim($post['dni']),
             'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
-            'email'               => strtolower(trim($post['email'])), // El email siempre en minúsculas
+            'email'               => strtolower(trim($post['email'])), 
             'telefono'            => trim($post['telefono']),
-            'delegacion'          => mb_strtoupper(trim($post['delegacion']), 'UTF-8'),
-            'sexo'                => mb_strtoupper(trim($post['sexo']), 'UTF-8'),
-            'fecha_nacimiento'    => $post['fecha_nacimiento'], // Formato fecha Y-m-d, no se toca
-            'grupo_sanguineo'     => mb_strtoupper(trim($post['grupo_sanguineo']), 'UTF-8'),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
             'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
-            'tipo_empleado'       => mb_strtoupper(trim($post['tipo_empleado']), 'UTF-8'),
-            'dieta_especial'      => mb_strtoupper(trim($post['dieta_especial']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
             'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
             'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
-            'token_qr'            => $token,
-            'fecha_inscripcion'   => date('Y-m-d H:i:s')
+            'token_qr'            => $token
         ];
 
-        $resultado = $this->Participante_model->insertar_completo(
-            $data_persona, 
-            $post['categoria_id']
-        );
+        // 2. DELEGAMOS TODO AL MODELO SEGÚN CORRESPONDA
+        if ($existe) {
+            $resultado = $this->Participante_model->actualizar_completo(
+                $id_participante, 
+                $data_persona, 
+                $post['categoria_id']
+            );
+        } else {
+            $data_persona['dni'] = trim($post['dni']);
+            $data_persona['fecha_inscripcion'] = date('Y-m-d H:i:s');
 
+            $resultado = $this->Participante_model->insertar_completo(
+                $data_persona, 
+                $post['categoria_id']
+            );
+        }
+
+        // 3. RESPUESTA DE VISTAS
         if (!$resultado) {
             $db_error = $this->db->error();
-            $mensaje = 'Verifique si el DNI ya está registrado o si faltan datos obligatorios.';
+            $mensaje = 'Verifique si ocurrió un error en el sistema o si faltan datos obligatorios.';
             
             if (isset($db_error['code']) && $db_error['code'] == 1062) {
-                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado en nuestro sistema.';
+                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado.';
             }
 
-            $data_error = [
+            $this->load->view('inscripcion_erronea', [
                 'mensaje' => $mensaje,
                 'dni'     => $post['dni']
-            ];
-            $this->load->view('inscripcion_erronea', $data_error);
+            ]);
         } else {
-            // --- 1. ENVIAR EL CORREO REAL ---
-            // Podés descomentar esta línea cuando quieras activar los mails
             // $this->enviar_comprobante_real($data_persona, $token);
-
-            // --- 2. CARGAR VISTA DE ÉXITO CON EL TOKEN ---
             $this->load->view('inscripcion_exitosa', [
                 'nombre' => $post['nombre_completo'],
                 'token'  => $token
@@ -117,6 +176,8 @@ class Inscripciones extends CI_Controller {
             $this->load->view('public/pase_valido', $data);
         }
     }
+
+
 
     // 2. Mostrar formulario de Login manual
    public function login_staff() {

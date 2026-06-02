@@ -83,7 +83,7 @@
             </div>
 
             <div class="mt-5">
-                <a href="<?= base_url('inscripciones') ?>" class="btn btn-home">
+                <a href="<?= base_url('inscripciones/formulario_inscripcion') ?>" class="btn btn-home">
                     <i class="bi bi-house-door-fill me-2"></i> VOLVER AL INICIO
                 </a>
             </div>

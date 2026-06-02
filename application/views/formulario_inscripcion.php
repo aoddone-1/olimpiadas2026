@@ -4,18 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inscripción - XXXVIII Olimpiadas Nacionales IV</title>
-    <meta name="description" content="Inscripción para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
-    <meta name="author" content="Comisión Organizadora">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="<?= current_url() ?>">
-    <meta property="og:title" content="Inscripción - Olimpiadas Nacionales 2026">
-    <meta property="og:description" content="Inscripción para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
-    <meta property="og:image" content="<?= base_url('assets/img/compartir-card.png') ?>">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:site_name" content="Olimpiadas Vivienda 2026">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -60,28 +48,37 @@
         
         <!-- DATOS PERSONALES -->
        <h3 class="section-title">1. Información Personal</h3>
+       <div id="cartel-modo" class="alert alert-warning border-warning shadow-sm mb-4" style="display: none;">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill fs-3 me-3 text-dark"></i>
+                <div>
+                    <h4 class="alert-heading fw-bold m-0 text-dark">¡DNI ya registrado!</h4>
+                    <p class="m-0 text-dark small">Detectamos que ya posees una inscripción activa. Hemos cargado tus datos para que puedas modificarlos o actualizar tus disciplinas.</p>
+                </div>
+            </div>
+        </div>
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">DNI</label>
-                        <input type="text" name="dni" class="form-control" placeholder="Sin puntos" required>
+                        <input type="text" name="dni" id="txt-dni" class="form-control" placeholder="Sin puntos" required>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label fw-bold">Nombre Completo</label>
-                        <input type="text" name="nombre_completo" class="form-control" required>
+                        <input type="text" name="nombre_completo" id="txt-nombre" class="form-control" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Email</label>
-                        <input type="email" name="email" class="form-control" required>
+                        <input type="email" name="email" id="txt-email" class="form-control" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Teléfono</label>
-                        <input type="text" name="telefono" class="form-control" placeholder="Ej: 2954123456" required>
+                        <input type="text" name="telefono" id="txt-telefono" class="form-control" placeholder="Ej: 2954123456" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Delegación (Provincia)</label>
-                        <select name="delegacion" class="form-select" required>
+                        <select name="delegacion" id="cmb-delegacion" class="form-select" required>
                             <option value="">Seleccione su delegación...</option>
                             <option value="Buenos Aires">Buenos Aires</option>
                             <option value="CABA">CABA</option>
@@ -111,7 +108,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Sexo</label>
-                        <select name="sexo" class="form-select" required>
+                        <select name="sexo" id="cmb-sexo" class="form-select" required>
                             <option value="Masculino">Masculino</option>
                             <option value="Femenino">Femenino</option>
                             <option value="Otro">Otro</option>
@@ -119,11 +116,11 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Fecha Nacimiento</label>
-                        <input type="date" name="fecha_nacimiento" class="form-control" required>
+                        <input type="date" name="fecha_nacimiento" id="txt-nacimiento" class="form-control" max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Tipo Empleado</label>
-                        <select name="tipo_empleado" class="form-select" required>
+                        <select name="tipo_empleado" id="cmb-empleado" class="form-select" required>
                             <option value="Planta Permanente">Planta Permanente</option>
                             <option value="Jubilado">Jubilado</option>
                             <option value="Contratado">Contratado</option>
@@ -141,7 +138,7 @@
                 <div class="row g-3">
                     <div class="col-md-3">
                         <label class="form-label fw-bold">Grupo Sanguíneo</label>
-                        <select name="grupo_sanguineo" class="form-select" required>
+                        <select name="grupo_sanguineo" id="cmb-sangre" class="form-select" required>
                             <option value="">Seleccione...</option>
                             <option value="A+">A+</option>
                             <option value="A-">A-</option>
@@ -155,15 +152,15 @@
                     </div>
                     <div class="col-md-5">
                         <label class="form-label fw-bold">Obra Social</label>
-                        <input type="text" name="obra_social" class="form-control" placeholder="Nombre de la cobertura">
+                        <input type="text" name="obra_social" id="txt-osocial" class="form-control" placeholder="Nombre de la cobertura">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Contacto Emergencia</label>
-                        <input type="text" name="contacto_emergencia" class="form-control" placeholder="Nombre y Tel." required>
+                        <input type="text" name="contacto_emergencia" id="txt-emergencia" class="form-control" placeholder="Nombre y Tel." required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Dieta Especial</label>
-                        <select name="dieta_especial" class="form-select" required>
+                        <select name="dieta_especial" id="cmb-dieta" class="form-select" required>
                             <option value="Sin restricciones" selected>Sin restricciones</option>
                             <option value="Celiaco">Celiaco</option>
                             <option value="Vegetariano">Vegetariano</option>
@@ -173,8 +170,8 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Hotel de Alojamiento</label>
-                        <input type="text" name="hotel_alojamiento" class="form-control" placeholder="Nombre del hotel asignado">
+                        <label class="form-label fw-bold">Alojamiento</label>
+                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" placeholder="Nombre del hotel asignado">
                     </div>
                 </div>
             </div>
@@ -215,8 +212,9 @@
         </div>
 
         <div class="card bg-white p-4 text-center border-top border-4 border-warning">
-            <p class="text-muted small">Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.</p>
-            <button type="submit" class="btn btn-primary btn-lg shadow-lg px-5">
+            <p id="leyenda-boton" class="text-muted small">Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.</p>
+            
+            <button type="submit" id="btn-submit-principal" class="btn btn-primary btn-lg shadow-lg px-5">
                 <i class="bi bi-check-circle-fill"></i> CONFIRMAR INSCRIPCIÓN
             </button>
         </div>
@@ -226,6 +224,103 @@
 
 <script>
 $(document).ready(function() {
+    // Detectamos cuando el usuario termina de escribir el DNI y sale del input
+    $('#txt-dni').on('input', function() {
+        let dni = $(this).val().trim();
+        
+        if (dni.length < 6) return; // Evitamos disparar AJAX con campos vacíos o incompletos
+
+        $.post('<?= base_url("Inscripciones/buscar_por_dni") ?>', { dni: dni }, function(response) {
+            let res = JSON.parse(response);
+
+            if (res.existe) {
+                // 1. Encendemos el cartel de "Modo Edición" con animación
+                $('#cartel-modo').slideDown(400);
+
+                // 2. Rellenamos los inputs de Información Personal
+                $('#txt-nombre').val(res.datos.nombre_completo);
+                $('#txt-email').val(res.datos.email);
+                $('#txt-telefono').val(res.datos.telefono);
+                $('#cmb-delegacion').val(res.datos.delegacion);
+                $('#cmb-sexo').val(res.datos.sexo);
+                $('#txt-nacimiento').val(res.datos.fecha_nacimiento);
+                $('#cmb-empleado').val(res.datos.tipo_empleado);
+
+                // 3. Rellenamos la sección de Logística y Salud
+                $('#cmb-sangre').val(res.datos.grupo_sanguineo);
+                $('#txt-osocial').val(res.datos.obra_social);
+                $('#txt-emergencia').val(res.datos.contacto_emergencia);
+                $('#cmb-dieta').val(res.datos.dieta_especial);
+                $('#txt-hotel').val(res.datos.hotel_alojamiento);
+
+                // 4. Cambiamos los textos del botón para avisar que está editando
+                $('#btn-submit-principal').html('<i class="bi bi-pencil-square"></i> ACTUALIZAR INSCRIPCIÓN').removeClass('btn-primary').addClass('btn-warning text-dark fw-bold');
+                $('#leyenda-boton').html('Al hacer clic en "Actualizar", se guardarán las modificaciones sobre tu registro existente.');
+
+                // 5. CARGA DE DISCIPLINAS EXISTENTES
+                // Limpiamos el contenedor dejando una sola fila vacía para trabajar sobre ella
+                let moldeOriginal = $('.row-deporte:first').clone();
+                
+                // Ahora sí, vaciamos el contenedor de forma segura
+                $('#contenedor-deportes').html('');
+
+                if (res.disciplinas && res.disciplinas.length > 0) {
+                    res.disciplinas.forEach(function(disc, index) {
+                        // 1. Clonamos usando el molde que guardamos a salvo en memoria
+                        let nuevoBloque = moldeOriginal.clone();
+                        
+                        // 2. Buscamos los selectores internos de esta nueva fila
+                        let selectDeporte = nuevoBloque.find('.select-deporte');
+                        let selectCategoria = nuevoBloque.find('.select-categoria');
+                        
+                        // 3. Seteamos el valor del deporte
+                        selectDeporte.val(disc.id_deporte).prop('disabled', false);
+                        
+                        // 4. Si no es la primera fila, mostramos el botón de eliminar (la cruz roja)
+                        if (index > 0) {
+                            nuevoBloque.find('.btn-remove').show();
+                        } else {
+                            nuevoBloque.find('.btn-remove').hide();
+                        }
+                        
+                        // 5. Inyectamos la fila en el contenedor
+                        $('#contenedor-deportes').append(nuevoBloque);
+
+                        // 6. Hacemos la petición para traer las categorías de ESTE deporte en particular
+                        // Usamos dataType: 'json' para asegurarnos de que jQuery entienda el bucle
+                        $.get('<?= base_url("Inscripciones/getCategorias/") ?>' + disc.id_deporte, function(data) {
+                            selectCategoria.empty().append('<option value="">Seleccione categoría...</option>');
+                            
+                            // Si CodeIgniter te devuelve un JSON como texto, nos aseguramos de parsearlo
+                            let categorias = (typeof data === 'string') ? JSON.parse(data) : data;
+                            
+                            categorias.forEach(function(cat) {
+                                selectCategoria.append(`<option value="${cat.id_categoria}">${cat.nombre_categoria}</option>`);
+                            });
+                            
+                            // 7. Activamos el select y seleccionamos la categoría guardada
+                            selectCategoria.prop('disabled', false);
+                            selectCategoria.val(disc.id_categoria);
+                        });
+                    });
+                } else {
+                    // Si el DNI existía pero justo no tenía disciplinas (raro, pero por las dudas)
+                    // le inyectamos un bloque limpio del molde original
+                    let bloqueLimpio = moldeOriginal.clone();
+                    bloqueLimpio.find('.select-deporte').val('');
+                    bloqueLimpio.find('.select-categoria').val('').prop('disabled', true).html('<option value="">Elija el deporte primero</option>');
+                    bloqueLimpio.find('.btn-remove').hide();
+                    $('#contenedor-deportes').append(bloqueLimpio);
+                }
+
+            } else {
+                // Si el DNI NO existe (Es una inscripción limpia), reseteamos los estilos por si antes cargó uno que sí existía
+                $('#cartel-modo').slideUp(300);
+                $('#btn-submit-principal').html('<i class="bi bi-check-circle-fill"></i> CONFIRMAR INSCRIPCIÓN').removeClass('btn-warning text-dark').addClass('btn-primary');
+                $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.');
+            }
+        });
+    });
     // Carga de categorías
     $(document).on('change', '.select-deporte', function() {
         let id_deporte = $(this).val();
