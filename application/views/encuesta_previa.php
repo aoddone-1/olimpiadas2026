@@ -16,7 +16,7 @@
     <meta property="og:image:height" content="630">
     <meta property="og:image:type" content="image/png">
     <meta property="og:site_name" content="Olimpiadas Vivienda 2026">
-    
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
@@ -117,7 +117,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Fecha de Nacimiento</label>
-                        <input type="date" name="fecha_nacimiento" class="form-control" required>
+                        <input type="date" name="fecha_nacimiento" id="txt-nacimiento" class="form-control" max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Sexo</label>
