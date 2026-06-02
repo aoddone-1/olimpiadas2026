@@ -28,7 +28,7 @@
 
 <div class="hero-section text-center">
     <h1 class="h4 fw-bold text-uppercase m-0">Panel General de Monitoreo</h1>
-    <p class="lead small m-0 text-white-50">XXXVIII Olimpiadas Nacionales IV - La Pampa 2026</p>
+    <p class="lead small m-0 text-white-50">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
 </div>
 
 <div class="nav-menu mb-4 shadow-sm">

@@ -71,29 +71,20 @@ class Participante_model extends CI_Model {
         return $this->db->get()->result_array();
     }
 
-    public function marcar_kit_entregado($id_participante) {
-        // 1. Especificamos qué fila queremos modificar mediante el ID
+    public function marcar_kit_entregado($id_participante, $nuevo_estado = 1) {
         $this->db->where('id_participante', $id_participante);
-        
-        // 2. Definimos el campo que queremos cambiar y su nuevo valor
         $data = [
-            'kit_entregado' => 1
+            'kit_entregado' => $nuevo_estado
         ];
-        
-        // 3. Ejecutamos la actualización en la tabla 'participantes'
         return $this->db->update('participantes', $data);
     }
-    public function marcar_asistencia_deporte($id_inscripcion) {
-        // Apuntamos a la fila correcta en la tabla intermedia
+
+    public function marcar_asistencia_deporte($id_inscripcion, $nuevo_estado = 1) {
         $this->db->where('id_inscripcion', $id_inscripcion);
-        
-        // Cambiamos el campo 'asistio' a 1 y guardamos la fecha/hora exacta actual
         $data = [
-            'asistio'    => 1,
-            'fecha_hora' => date('Y-m-d H:i:s') // <--- Guarda Año-Mes-Día Hora:Minuto:Segundo
+            'asistio'    => $nuevo_estado,
+            'fecha_hora' => ($nuevo_estado == 1) ? date('Y-m-d H:i:s') : NULL // Si es 0, limpia la fecha
         ];
-        
-        // Impactamos en la tabla 'inscripciones_deportivas'
         return $this->db->update('inscripciones_deportivas', $data);
     }
 

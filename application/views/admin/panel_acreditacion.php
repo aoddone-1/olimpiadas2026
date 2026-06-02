@@ -64,6 +64,24 @@
             background: #fff;
             border-radius: 12px;
         }
+
+        .btn-control-listo-revertir {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            transition: all 0.25s ease-in-out;
+        }
+
+        /* El cambio a rojo suave SOLO ocurre cuando se pasa el mouse por arriba */
+        .btn-control-listo-revertir:hover {
+            background-color: #f8d7da !important;
+            color: #842029 !important;
+            border: none !important;
+        }
+
+        /* Opcional: Cambia el texto del badge a "Quitar" al pasar el mouse */
+        .btn-control-listo-revertir:hover .badge {
+            background-color: #dc3545 !important;
+        }
     </style>
 </head>
 <body>
@@ -116,10 +134,16 @@
         <?php if ($participante['kit_entregado'] == 1): ?>
             <div class="card row-accion-lista shadow-sm">
                 <div class="card-body p-2">
-                    <div class="btn btn-control btn-control-listo w-100 d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-box-seam-fill me-2"></i> ENTREGA DE KIT / INICIAL</span>
-                        <span class="badge bg-success text-white text-uppercase">Entregado</span>
-                    </div>
+                    <form action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
+                        <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
+                        <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
+                        <input type="hidden" name="nuevo_estado" value="0">
+                        
+                        <button type="submit" class="btn btn-control btn-control-listo-revertir w-100 d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-box-seam-fill me-2"></i> ENTREGA DE KIT / INICIAL</span>
+                            <span class="badge bg-success text-white text-uppercase">Entregado</span>
+                        </button>
+                    </form>
                 </div>
             </div>
         <?php else: ?>
@@ -128,6 +152,7 @@
                     <form action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
                         <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
                         <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
+                        <input type="hidden" name="nuevo_estado" value="1">
                         
                         <button type="submit" class="btn btn-control btn-control-pendiente w-100 text-start">
                             <i class="bi bi-box-seam me-2 text-warning"></i> Acreditar Entrega de Kit
@@ -142,12 +167,18 @@
                 <?php if ($dep['asistio'] == 1): ?>
                     <div class="card row-accion-lista shadow-sm">
                         <div class="card-body p-2">
-                            <div class="btn btn-control btn-control-listo w-100 d-flex justify-content-between align-items-center">
-                                <span class="text-truncate me-2">
-                                    <i class="bi bi-check-circle-fill me-2"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)
-                                </span>
-                                <span class="badge bg-success text-white text-uppercase">Asistió</span>
-                            </div>
+                            <form action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
+                                <input type="hidden" name="id_inscripcion" value="<?= $dep['id_inscripcion'] ?>">
+                                <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
+                                <input type="hidden" name="nuevo_estado" value="0">
+
+                                <button type="submit" class="btn btn-control btn-control-listo-revertir w-100 d-flex justify-content-between align-items-center">
+                                    <span class="text-truncate me-2">
+                                        <i class="bi bi-check-circle-fill me-2"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)
+                                    </span>
+                                    <span class="badge bg-success text-white text-uppercase">Asistió</span>
+                                </button>
+                            </form>
                         </div>
                     </div>
                 <?php else: ?>
@@ -156,6 +187,7 @@
                             <form action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
                                 <input type="hidden" name="id_inscripcion" value="<?= $dep['id_inscripcion'] ?>">
                                 <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
+                                <input type="hidden" name="nuevo_estado" value="1">
                                 
                                 <button type="submit" class="btn btn-control btn-control-deporte w-100 text-start">
                                     <i class="bi bi-trophy-fill me-2 text-warning"></i> Confirmar: <?= $dep['nombre_deporte'] ?>

@@ -57,7 +57,7 @@
 
 <div class="hero-section text-center">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase">Encuesta <u>Previa a Incripciones</u></h1>
+        <h1 class="display-6 fw-bold text-uppercase">Encuesta <u>Previa a Inscripciones</u></h1>
         <p class="lead m-0">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
         <p class="lead mt-2"><i class="bi bi-geo-alt-fill"></i> La Pampa 2026</p>
         <small class="text-white-50">Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.</small>

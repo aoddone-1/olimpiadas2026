@@ -302,8 +302,10 @@ public function guardar_categoria() {
         $this->load->model('Participante_model');
         $id_participante = $this->input->post('id_participante');
         $token = $this->input->post('token_qr');
+        $nuevo_estado = $this->input->post('nuevo_estado'); // Recibe 1 o 0 desde la Vista
         
-        $this->Participante_model->marcar_kit_entregado($id_participante);
+        // Pasamos el ID y el nuevo valor
+        $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado);
         redirect('Inscripciones/acreditacion/' . $token);
     }
 
@@ -314,12 +316,14 @@ public function guardar_categoria() {
         $this->load->model('Participante_model');
         $id_inscripcion = $this->input->post('id_inscripcion');
         $token = $this->input->post('token_qr');
+        $nuevo_estado = $this->input->post('nuevo_estado'); // Recibe 1 o 0 desde la Vista
         
-        $this->Participante_model->marcar_asistencia_deporte($id_inscripcion);
+        // Pasamos el ID y el nuevo valor
+        $this->Participante_model->marcar_asistencia_deporte($id_inscripcion, $nuevo_estado);
         redirect('Inscripciones/acreditacion/' . $token);
     }
 
-        public function imprimir_credencial($token = NULL) {
+    public function imprimir_credencial($token = NULL) {
         // Seguridad: solo el staff logueado puede generar credenciales
         if (!$this->session->userdata('is_organizador') || empty($token)) {
             show_error('No autorizado o token no válido', 403);
