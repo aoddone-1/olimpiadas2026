@@ -28,6 +28,42 @@ class Deporte_model extends CI_Model {
         return $this->db->get('deportes')->result_array();
     }
 
+    public function guardar_deporte($post_data){
+        if (empty($post_data['nombre_deporte']) || empty($post_data['genero'])) {
+            return FALSE;
+        }
+        $datos = array(
+            'nombre_deporte'  => trim($post_data['nombre_deporte']),
+            'genero'  => trim($post_data['genero'])
+        );
+
+        return $this->db->insert('deportes', $datos);
+    }
+    public function actualizar_deporte($id_deporte, $data) {
+        $this->db->where('id_deporte', $id_deporte);
+        return $this->db->update('deportes', $data);
+    }
+
+    public function obtener_deportes_por_sexo($sexo_participante) {
+        // Pasamos a mayúsculas para que coincida exactamente con el ENUM de la base de datos
+        $sexo = strtoupper(trim($sexo_participante));
+
+        // Por defecto, todos ven los deportes MIXTO
+        $generos_permitidos = ['MIXTO'];
+
+        // Sumamos el género específico según corresponda
+        if ($sexo === 'MASCULINO') {
+            $generos_permitidos[] = 'MASCULINO';
+        } elseif ($sexo === 'FEMENINO') {
+            $generos_permitidos[] = 'FEMENINO';
+        }
+
+        // Filtramos usando el array de géneros válidos
+        $this->db->where_in('genero', $generos_permitidos);
+        $this->db->order_by('nombre_deporte', 'ASC');
+        
+        return $this->db->get('deportes')->result_array();
+    }
     // 3. Trae el listado plano de predios para el select del modal (mapeando id y nombre)
     public function obtener_todos_los_lugares() {
         $this->db->order_by('nombre', 'ASC');

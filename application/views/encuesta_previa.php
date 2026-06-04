@@ -120,8 +120,8 @@
                         <input type="date" name="fecha_nacimiento" id="txt-nacimiento" class="form-control" max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold">Sexo</label>
-                        <select name="sexo" class="form-select" required>
+                        <label class="form-label fw-bold">Género</label>
+                        <select name="sexo" id="cmb-sexo" class="form-select" required>
                             <option value="">Seleccione...</option>
                             <option value="Masculino">Masculino</option>
                             <option value="Femenino">Femenino</option>
@@ -129,7 +129,7 @@
                         </select>
                     </div>
                     <div class="col-12">
-                        <div class="form-text text-muted"><i class="bi bi-info-circle"></i> Usamos la edad y el sexo para calcular qué categorías reales conviene abrir en base a los interesados.</div>
+                        <div class="form-text text-muted"><i class="bi bi-info-circle"></i> Usamos la edad y el género para calcular qué categorías reales conviene abrir en base a los interesados.</div>
                     </div>
                 </div>
             </div>
@@ -141,9 +141,15 @@
         <div class="card mb-4">
             <div class="card-body p-4">
                 <div class="row g-3">
+                    
+                    <div id="msg-espera" class="col-12 text-center text-muted py-4">
+                        <i class="bi bi-person-fill-check fs-2 text-primary d-block mb-2"></i>
+                        <p class="m-0 fw-semibold">Por favor, seleccioná tu género arriba para desplegar los deportes disponibles.</p>
+                    </div>
+
                     <?php if(!empty($deportes)): ?>
                         <?php foreach($deportes as $d): ?>
-                            <div class="col-6 col-sm-4">
+                            <div class="col-6 col-sm-4 sport-container" data-genero="<?= $d['genero'] ?>">
                                 <input type="checkbox" name="deportes_interes[]" value="<?= $d['id_deporte'] ?>" id="sport_<?= $d['id_deporte'] ?>" class="sport-checkbox">
                                 <label for="sport_<?= $d['id_deporte'] ?>" class="sport-label text-center h-100 d-flex flex-column justify-content-center">
                                     <i class="bi bi-trophy mb-1 text-muted"></i>
@@ -154,6 +160,7 @@
                     <?php else: ?>
                         <div class="col-12 text-center text-muted">No hay deportes cargados.</div>
                     <?php endif; ?>
+
                 </div>
             </div>
         </div>
@@ -169,26 +176,89 @@
 </div>
 
 <script>
-// Validación básica de Bootstrap
 (function () {
     'use strict'
+
+    var selectSexo = document.getElementById('cmb-sexo');
+    var deportes = document.querySelectorAll('.sport-container');
+
+    // --- LÓGICA DE FILTRADO DINÁMICO ---
+    var msgEspera = document.getElementById('msg-espera'); // Capturamos el cartel
+
+    function filtrarDeportes() {
+        var valorSeleccionado = selectSexo.value.toUpperCase(); // 'MASCULINO', 'FEMENINO' o 'OTRO'
+
+        if (valorSeleccionado === '') {
+            // Si está vacío, MOSTRAMOS el cartel y ocultamos deportes
+            if (msgEspera) msgEspera.style.display = 'block';
+            
+            deportes.forEach(function (contenedor) {
+                contenedor.style.display = 'none';
+                contenedor.querySelector('.sport-checkbox').checked = false;
+            });
+        } else {
+            // Si ya eligió sexo, OCULTAMOS el cartel de espera
+            if (msgEspera) msgEspera.style.display = 'none';
+
+            deportes.forEach(function (contenedor) {
+                var generoDeporte = contenedor.getAttribute('data-genero');
+                var checkbox = contenedor.querySelector('.sport-checkbox');
+
+                if (valorSeleccionado === 'MASCULINO') {
+                    if (generoDeporte === 'MASCULINO' || generoDeporte === 'MIXTO') {
+                        contenedor.style.display = 'block';
+                    } else {
+                        contenedor.style.display = 'none';
+                        checkbox.checked = false;
+                    }
+                } else if (valorSeleccionado === 'FEMENINO') {
+                    if (generoDeporte === 'FEMENINO' || generoDeporte === 'MIXTO') {
+                        contenedor.style.display = 'block';
+                    } else {
+                        contenedor.style.display = 'none';
+                        checkbox.checked = false;
+                    }
+                } else {
+                    if (generoDeporte === 'MIXTO') {
+                        contenedor.style.display = 'block';
+                    } else {
+                        contenedor.style.display = 'none';
+                        checkbox.checked = false;
+                    }
+                }
+            });
+        }
+    }
+
+    // Ejecutamos al cambiar el select y al cargar la página (por si hay recarga con datos)
+    if (selectSexo) {
+        selectSexo.addEventListener('change', filtrarDeportes);
+        filtrarDeportes(); 
+    }
+
+
+    // --- VALIDACIÓN DE FORMULARIO DE BOOTSTRAP ---
     var forms = document.querySelectorAll('.needs-validation')
-    Array.prototype.slice.call(forms).forEach(function (forms) {
-        forms.addEventListener('submit', function (event) {
-            // Verificar si marcó al menos un deporte
-            var checkboxes = document.querySelectorAll('input[name="deportes_interes[]"]:checked');
-            if (checkboxes.length === 0) {
-                alert('Por favor, seleccioná al menos un deporte de tu interés.');
+    Array.prototype.slice.call(forms).forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            
+            // Solo validar deportes si el formulario en general es válido hasta acá
+            if (form.checkValidity()) {
+                // Verificar si marcó al menos un deporte VISIBLE
+                var checkboxesVisibles = document.querySelectorAll('.sport-container[style*="display: block"] .sport-checkbox:checked');
+                
+                if (checkboxesVisibles.length === 0) {
+                    alert('Por favor, seleccioná al menos un deporte de tu interés para continuar.');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+            } else {
                 event.preventDefault();
                 event.stopPropagation();
-                return;
             }
 
-            if (!forms.checkValidity()) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            forms.classList.add('was-validated')
+            form.classList.add('was-validated')
         }, false)
     })
 })()

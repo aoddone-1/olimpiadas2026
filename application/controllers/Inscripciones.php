@@ -365,10 +365,9 @@ public function guardar_categoria() {
     public function guardar_deporte() {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login_staff'); }
 
-        $nombre = $this->input->post('nombre_deporte', TRUE);
-        if (!empty($nombre)) {
-            $this->db->insert('deportes', ['nombre_deporte' => $nombre]);
-        }
+        $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
+        $data['genero'] = $this->input->post('genero', TRUE);
+        $this->Deporte_model->guardar_deporte($data);
         redirect('Inscripciones/gestion_deportes');
     }
 
@@ -383,6 +382,19 @@ public function guardar_categoria() {
             $this->db->delete('categorias', ['id_deporte' => $id_deporte]);
             $this->db->delete('deportes', ['id_deporte' => $id_deporte]);
         }
+        redirect('Inscripciones/gestion_deportes');
+    }
+
+    public function editar_deporte() {
+        $id_deporte = $this->input->post('id_deporte');
+        $data = [
+            'nombre_deporte' => $this->input->post('nombre_deporte'),
+            'genero'         => $this->input->post('genero')
+        ];
+        
+        // Acá llamas a tu modelo para hacer el update correspondinte, por ej:
+        $this->Deporte_model->actualizar_deporte($id_deporte, $data);
+        
         redirect('Inscripciones/gestion_deportes');
     }
 }
