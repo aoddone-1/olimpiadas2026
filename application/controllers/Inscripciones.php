@@ -220,25 +220,53 @@ class Inscripciones extends CI_Controller {
 
     
 
-// --- PROCESAR EL MODAL DE NUEVA CATEGORÍA ---
-public function guardar_categoria() {
-    if (!$this->session->userdata('is_organizador')) {
-        redirect('Inscripciones/login_staff');
+    // --- PROCESAR EL MODAL DE NUEVA CATEGORÍA ---
+    public function guardar_categoria() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('Categoria_model');
+        
+        // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
+        $guardado = $this->Categoria_model->insertar_categoria_desde_post($this->input->post());
+
+        if ($guardado) {
+            $this->session->set_flashdata('mensaje_exito', 'Categoría registrada correctamente.');
+        } else {
+            $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
+        }
+
+        redirect('Inscripciones/gestion_deportes');
+    }
+    public function eliminar_categoria($id_categoria) {
+        if (!empty($id_categoria)) {
+            $this->Categoria_model->eliminar_categoria($id_categoria);
+            $this->session->set_flashdata('msg_ok', 'Categoría eliminada correctamente.');
+        }
+        redirect('Inscripciones/gestion_deportes');
     }
 
-    $this->load->model('Deporte_model');
-    
-    // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
-    $guardado = $this->Deporte_model->insertar_categoria_desde_post($this->input->post());
+    // --- EDITAR CATEGORÍA ---
+    public function editar_categoria() {
+        $id_categoria = $this->input->post('id_categoria');
+        
+        $data = [
+            'nombre_categoria' => $this->input->post('nombre_categoria'),
+            'genero_categoria' => $this->input->post('genero_categoria'),
+            'cupo_maximo'      => $this->input->post('cupo_maximo'),
+            'id_lugar'         => $this->input->post('id_lugar'),
+            'dia_competencia'  => $this->input->post('dia_competencia'),
+            'hora_competencia' => $this->input->post('hora_competencia')
+        ];
 
-    if ($guardado) {
-        $this->session->set_flashdata('mensaje_exito', 'Categoría registrada correctamente.');
-    } else {
-        $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
+        if (!empty($id_categoria)) {
+            $this->Categoria_model->actualizar_categoria($id_categoria, $data);
+            $this->session->set_flashdata('msg_ok', 'Categoría actualizada correctamente.');
+        }
+        redirect('Inscripciones/gestion_deportes');
     }
 
-    redirect('Inscripciones/gestion_deportes');
-}
     public function guardar_lugar() {
         if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login_staff');
@@ -254,6 +282,31 @@ public function guardar_categoria() {
             $this->session->set_flashdata('mensaje_error', 'El nombre del predio es obligatorio.');
         }
 
+        redirect('Inscripciones/gestion_deportes');
+    }
+
+    // --- ELIMINAR LUGAR ---
+    public function eliminar_lugar($id_lugar) {
+        if (!empty($id_lugar)) {
+            $this->Deporte_model->eliminar_lugar($id_lugar);
+            $this->session->set_flashdata('msg_ok', 'Sede/Predio eliminado correctamente.');
+        }
+        redirect('Inscripciones/gestion_deportes');
+    }
+
+    // --- EDITAR LUGAR ---
+    public function editar_lugar() {
+        $id_lugar = $this->input->post('id_lugar');
+        
+        $data = [
+            'nombre'    => $this->input->post('nombre'),
+            'direccion' => $this->input->post('direccion')
+        ];
+
+        if (!empty($id_lugar)) {
+            $this->Deporte_model->actualizar_lugar($id_lugar, $data);
+            $this->session->set_flashdata('msg_ok', 'Predio actualizado correctamente.');
+        }
         redirect('Inscripciones/gestion_deportes');
     }
 

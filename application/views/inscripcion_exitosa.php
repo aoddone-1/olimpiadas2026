@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inscripción Exitosa - Olimpiadas 2026</title>
+    <title>Inscripción Exitosa - <?= NOMBRE_META; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
@@ -62,7 +62,7 @@
         </div>
         <div class="card-body p-5 text-center">
             <p class="lead">¡Muchas gracias, <strong><?= $nombre ?></strong>!</p>
-            <p class="text-muted">Tu inscripción para las <strong>XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026</strong> ha sido procesada con éxito.</p>
+            <p class="text-muted">Tu inscripción para las <strong><?= NOMBRE_SITIO; ?> - <?= LUGAR_OLIMPICO; ?></strong> ha sido procesada con éxito.</p>
             
             <hr class="my-4">
             
@@ -78,7 +78,7 @@
             <div class="alert alert-info d-flex align-items-center text-start" role="alert">
                 <i class="bi bi-pin-angle-fill me-3 fs-4 text-primary"></i>
                 <div>
-                    <strong>Importante:</strong> Por favor, haz una captura de pantalla de este códigoo. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
+                    <strong>Importante:</strong> Por favor, hacé una captura de pantalla de este códigoo. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
                 </div>
             </div>
 
@@ -89,7 +89,7 @@
             </div>
         </div>
         <div class="card-footer text-center py-3 bg-light" style="border-radius: 0 0 20px 20px;">
-            <small class="text-muted">Olimpiadas Nacionales de Vivienda | La Pampa 2026</small>
+            <small class="text-muted"><?= NOMBRE_SITIO; ?> | <?= LUGAR_OLIMPICO; ?></small>
         </div>
     </div>
 </div>

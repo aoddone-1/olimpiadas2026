@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inscripción - XXXVIII Olimpiadas Nacionales IV</title>
+    <title>Inscripción - <?= NOMBRE_META; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -37,14 +37,14 @@
 
 <div class="hero-section">
     <div class="container text-center">
-        <h1 class="display-5 fw-bold">INSCRIPCION XXXVIII OLIMPIADAS NACIONALES</h1>
-        <h2 class="h4">de Empleados de Institutos de Vivienda</h2>
-        <p class="lead mt-2"><i class="bi bi-geo-alt-fill"></i> La Pampa 2026</p>
+        <h1 class="display-6 fw-bold text-uppercase">FORMULARIO DE INSCRIPCIÓN</h1>
+        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
+        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
     </div>
 </div>
 
 <div class="container mb-5">
-    <form action="<?= base_url('Inscripciones/guardar') ?>" autocomplete="off" method="POST" class="needs-validation" >
+    <form autocomplete='off' action="<?= base_url('Inscripciones/guardar') ?>" autocomplete="off" method="POST" class="needs-validation" >
         
         <!-- DATOS PERSONALES -->
        <h3 class="section-title">1. Información Personal</h3>
@@ -107,7 +107,7 @@
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label fw-bold">Sexo</label>
+                        <label class="form-label fw-bold">Género</label>
                         <select name="sexo" id="cmb-sexo" class="form-select" required>
                             <option value="Masculino">Masculino</option>
                             <option value="Femenino">Femenino</option>

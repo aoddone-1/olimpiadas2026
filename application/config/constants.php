@@ -83,3 +83,9 @@ defined('EXIT_USER_INPUT')     OR define('EXIT_USER_INPUT', 7); // invalid user 
 defined('EXIT_DATABASE')       OR define('EXIT_DATABASE', 8); // database error
 defined('EXIT__AUTO_MIN')      OR define('EXIT__AUTO_MIN', 9); // lowest automatically-assigned error code
 defined('EXIT__AUTO_MAX')      OR define('EXIT__AUTO_MAX', 125); // highest automatically-assigned error code
+
+define('EDICION','XXXVIII');
+define('NOMBRE_META', EDICION.' Olimpiadas Nacionales - La Pampa 2026');
+define('NOMBRE_SITIO', EDICION.' Olimpiadas Nacionales de Empleados de Institutos de Vivienda');
+define('LUGAR_OLIMPICO', '<i class="bi bi-geo-alt-fill"></i> La Pampa 2026');
+define('LUGAR_OLIMPICO2', 'La Pampa 2026');

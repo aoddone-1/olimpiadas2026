@@ -3,19 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sondeo Previo - Olimpiadas Nacionales 2026</title>
-    <meta name="description" content="Participá del sondeo previo para las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda - La Pampa 2026.">
-    <meta name="author" content="Comisión Organizadora">
-
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="<?= current_url() ?>">
-    <meta property="og:title" content="Sondeo Previo - Olimpiadas Nacionales 2026">
-    <meta property="og:description" content="Ayudanos a dimensionar la logística y categorías del evento. ¡Tu participación es clave!">
-    <meta property="og:image" content="<?= base_url('assets/img/compartir-card.png') ?>">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:type" content="image/png">
-    <meta property="og:site_name" content="Olimpiadas Vivienda 2026">
+    <title>Sondeo Previo - <?= NOMBRE_META; ?></title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -58,8 +46,8 @@
 <div class="hero-section text-center">
     <div class="container">
         <h1 class="display-6 fw-bold text-uppercase">Encuesta <u>Previa a Inscripciones</u></h1>
-        <p class="lead m-0">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
-        <p class="lead mt-2"><i class="bi bi-geo-alt-fill"></i> La Pampa 2026</p>
+        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
+        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
         <small class="text-white-50">Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.</small>
     </div>
 </div>

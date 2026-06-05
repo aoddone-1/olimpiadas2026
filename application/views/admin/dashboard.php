@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard General - Olimpiadas 2026</title>
+    <title>Dashboard General - <?= NOMBRE_META; ?></title>
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -28,7 +28,7 @@
 
 <div class="hero-section text-center">
     <h1 class="h4 fw-bold text-uppercase m-0">Panel General de Monitoreo</h1>
-    <p class="lead small m-0 text-white-50">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
+    <p class="lead small m-0 text-white-50"><?= NOMBRE_SITIO; ?> <br/> <?= LUGAR_OLIMPICO; ?></p>
 </div>
 
 <div class="nav-menu mb-4 shadow-sm">

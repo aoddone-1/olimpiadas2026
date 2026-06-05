@@ -70,23 +70,7 @@ class Deporte_model extends CI_Model {
         return $this->db->get('lugares')->result_array();
     }
 
-    public function insertar_categoria_desde_post($post_data) {
-        // Validación de negocio interna del modelo
-        if (empty($post_data['id_deporte']) || empty($post_data['nombre_categoria'])) {
-            return FALSE;
-        }
-
-        $datos = array(
-            'id_deporte'        => intval($post_data['id_deporte']),
-            'nombre_categoria'  => trim($post_data['nombre_categoria']),
-            'cupo_maximo'       => !empty($post_data['cupo_maximo']) ? intval($post_data['cupo_maximo']) : 0,
-            'id_lugar'          => !empty($post_data['id_lugar']) ? intval($post_data['id_lugar']) : NULL,
-            'dia_competencia'   => !empty($post_data['dia_competencia']) ? $post_data['dia_competencia'] : NULL,
-            'hora_competencia'  => !empty($post_data['hora_competencia']) ? $post_data['hora_competencia'] : NULL
-        );
-
-        return $this->db->insert('categorias', $datos);
-    }
+    
 
     /**
      * Recibe el POST del controlador, procesa los datos y hace el INSERT del predio
@@ -102,6 +86,15 @@ class Deporte_model extends CI_Model {
         );
 
         return $this->db->insert('lugares', $datos);
+    }
+    public function eliminar_lugar($id_lugar) {
+        $this->db->where('id', $id_lugar); // Ajustá 'id' si tu clave primaria se llama distinto (ej: id_lugar)
+        return $this->db->delete('lugares'); // Cambiá 'lugares' por el nombre real de tu tabla
+    }
+
+    public function actualizar_lugar($id_lugar, $data) {
+        $this->db->where('id', $id_lugar);
+        return $this->db->update('lugares', $data);
     }
 
     /**

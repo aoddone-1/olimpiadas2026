@@ -155,9 +155,8 @@
             <img src="<?= base_url('assets/img/icon.png') ?>" alt="Icono Olimpiadas" class="logo-olimpiadas-icono me-3">
             
             <div class="text-start text-white dynamic-text-brand">
-                <div class="fw-bold text-uppercase m-0 line-1">XXXVIII Olimpiadas Nacionales</div>
-                <div class="m-0 line-2">de Empleados de Institutos de Vivienda</div>
-                <div class="fw-bold text-warning text-uppercase m-0 line-3">La Pampa 2026</div>
+                <div class="fw-bold text-uppercase m-0 line-1"><?= NOMBRE_SITIO; ?></div>
+                <div class="fw-bold text-warning text-uppercase m-0 line-3"><?= LUGAR_OLIMPICO; ?></div>
             </div>
         </div>
 
@@ -191,7 +190,7 @@
 
         <div class="alert alert-custom text-center p-3 m-0 mt-auto" role="alert">
             <div class="small" style="font-size: 0.72rem; line-height: 1.3;">
-                <strong>Uso Personal:</strong> Esta credencial es intransferible y debe ser presentada en cada control de asistencia deportiva.
+                <strong>Uso Personal:</strong> Esta credencial es intransferible y debe ser presentada cada vez que sea requerida.
             </div>
         </div>
 

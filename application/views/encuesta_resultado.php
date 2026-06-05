@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= isset($error) ? 'Error' : '¡Muchas Gracias!' ?> - Olimpiadas Nacionales 2026</title>
+    <title><?= isset($error) ? 'Error' : '¡Muchas Gracias!' ?> - <?= NOMBRE_META; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
@@ -38,7 +38,8 @@
 <div class="hero-section text-center">
     <div class="container">
         <h1 class="display-6 fw-bold text-uppercase"><?= isset($error) ? 'Atención' : 'Encuesta Completada' ?></h1>
-        <p class="lead m-0">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p>
+        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
+        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
     </div>
 </div>
 
@@ -62,7 +63,7 @@
                 <?php if (isset($error)): ?>
                     <?= $error ?>
                 <?php else: ?>
-                    Tus respuestas nos ayudan un montón a dimensionar la logística general y a definir con precisión las categorías en **La Pampa 2026**.
+                    Tus respuestas nos ayudan un montón a dimensionar la logística general y a definir con precisión las categorías en **<?= LUGAR_OLIMPICO2; ?>**.
                 <?php endif; ?>
             </p>
             

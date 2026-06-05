@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mesa de Control - XXXVIII Olimpiadas Nacionales</title>
+    <title>Mesa de Control - <?= NOMBRE_META; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
@@ -86,11 +86,9 @@
 </head>
 <body>
 
-<div class="hero-section">
-    <div class="container text-center px-3">
-        <h1 class="h3 fw-bold mb-1 text-uppercase">Mesa de Control</h1>
-        <p class="lead m-0 small"><i class="bi bi-geo-alt-fill text-warning"></i> La Pampa 2026</p>
-    </div>
+<div class="hero-section text-center">
+    <h1 class="h4 fw-bold text-uppercase m-0">Panel General de Monitoreo</h1>
+    <p class="lead small m-0 text-white-50"><?= NOMBRE_SITIO; ?> <br/> <?= LUGAR_OLIMPICO; ?></p>
 </div>
 
 <div class="container mb-5" style="max-width: 600px;">
@@ -134,7 +132,7 @@
         <?php if ($participante['kit_entregado'] == 1): ?>
             <div class="card row-accion-lista shadow-sm">
                 <div class="card-body p-2">
-                    <form action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
+                    <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
                         <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
                         <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
                         <input type="hidden" name="nuevo_estado" value="0">
@@ -149,7 +147,7 @@
         <?php else: ?>
             <div class="card row-accion shadow-sm">
                 <div class="card-body p-2">
-                    <form action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
+                    <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
                         <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
                         <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
                         <input type="hidden" name="nuevo_estado" value="1">
@@ -167,7 +165,7 @@
                 <?php if ($dep['asistio'] == 1): ?>
                     <div class="card row-accion-lista shadow-sm">
                         <div class="card-body p-2">
-                            <form action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
+                            <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
                                 <input type="hidden" name="id_inscripcion" value="<?= $dep['id_inscripcion'] ?>">
                                 <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
                                 <input type="hidden" name="nuevo_estado" value="0">
@@ -184,7 +182,7 @@
                 <?php else: ?>
                     <div class="card row-accion shadow-sm">
                         <div class="card-body p-2">
-                            <form action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
+                            <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_deporte') ?>" method="POST">
                                 <input type="hidden" name="id_inscripcion" value="<?= $dep['id_inscripcion'] ?>">
                                 <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
                                 <input type="hidden" name="nuevo_estado" value="1">
