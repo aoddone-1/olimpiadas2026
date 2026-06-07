@@ -31,15 +31,38 @@
             background-color: <?= isset($error) ? '#f8d7da' : '#e8f5e9' ?>;
             color: <?= isset($error) ? '#842029' : '#2e7d32' ?>;
         }
+        .logo-hero {
+            height: 100px; /* Altura calibrada para emparejar con las 3 líneas de texto */
+            width: auto;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
 
-<div class="hero-section text-center">
+<div class="hero-section">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase"><?= isset($error) ? 'Atención' : 'Encuesta Completada' ?></h1>
-        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
-        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
+       <div class="row align-items-center g-4">
+            
+            <div class="col-12 col-md-4 text-center text-md-end d-none d-md-block">
+                <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                    alt="Logo Olimpiadas" 
+                    class="img-fluid logo-hero">
+            </div>
+            
+            <div class="col-12 col-md-8 text-center text-md-start ps-md-4">
+                
+                <div class="d-block d-md-none">
+                    <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                        alt="Logo Olimpiadas" 
+                        class="img-fluid logo-hero">
+                </div>
+                
+                <h1 class="display-6 fw-bold text-uppercase"><?= isset($error) ? 'Atención' : 'Encuesta Completada' ?></h1>
+                
+            </div>
+
+        </div>
     </div>
 </div>
 

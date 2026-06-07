@@ -13,7 +13,7 @@
         .hero-section {
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
-            padding: 40px 0;
+            padding: 25px 0; /* Un toque más compacto */
             border-bottom: 5px solid #ffc107;
             margin-bottom: 30px;
         }
@@ -39,16 +39,44 @@
             background-color: #eef2f7;
             color: #1e3c72;
         }
+        .logo-hero {
+            height: 100px; /* Altura calibrada para emparejar con las 3 líneas de texto */
+            width: auto;
+            object-fit: contain;
+        }
+
     </style>
 </head>
 <body>
 
-<div class="hero-section text-center">
+<div class="hero-section">
     <div class="container">
-        <h1 class="display-6 fw-bold text-uppercase">Encuesta <u>Previa a Inscripciones</u></h1>
-        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
-        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
-        <small class="text-white-50">Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.</small>
+       <div class="row align-items-center g-4">
+            
+            <div class="col-12 col-md-4 text-center text-md-end d-none d-md-block">
+                <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                    alt="Logo Olimpiadas" 
+                    class="img-fluid logo-hero">
+            </div>
+            
+            <div class="col-12 col-md-8 text-center text-md-start ps-md-4">
+                
+                <div class="d-block d-md-none">
+                    <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                        alt="Logo Olimpiadas" 
+                        class="img-fluid logo-hero">
+                </div>
+                
+                <h1 class="h2 fw-bold text-uppercase text-white mb-2 header-title">
+                    Encuesta <u>Previa a Inscripciones</u>
+                </h1>
+                
+                <small class="d-block text-white-50 help-text">
+                    Ayudanos a dimensionar las olimpiadas respondiendo este breve cuestionario.
+                </small>
+            </div>
+
+        </div>
     </div>
 </div>
 
@@ -162,7 +190,7 @@
     </form>
     <?php endif; ?>
 </div>
-
+<?php $this->load->view('footer'); ?>
 <script>
 (function () {
     'use strict'

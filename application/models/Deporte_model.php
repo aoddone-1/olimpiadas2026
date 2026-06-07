@@ -101,6 +101,7 @@ class Deporte_model extends CI_Model {
      * Guarda las respuestas del sondeo previo incluyendo sexo
      */
     public function guardar_encuesta_anonima($data) {
+        $this->db->query("ALTER TABLE encuestas_respuestas AUTO_INCREMENT = 1");
         $this->db->trans_start();
 
         // 1. Estructuramos los datos principales mapeando desde el array unificado $data
