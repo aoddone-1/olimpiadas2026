@@ -43,6 +43,11 @@
             <li class="nav-item">
                 <a class="nav-link" href="<?= base_url('Inscripciones/monitoreo_encuesta') ?>"><i class="bi bi-bar-chart-line-fill me-1"></i> Sondeo Inicial</a>
             </li>
+            <?php if($this->session->userdata('user_rol')==='superadmin'){ ?> 
+            <li class="nav-item">
+                <a class="nav-link" href="<?= base_url('Inscripciones/control_total') ?>" ><i class="bi bi-person me-1"></i> Control Total</a>
+            </li>
+            <?php } ?> 
         </ul>
         <a href="<?= base_url('Inscripciones/logout_staff') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
             <i class="bi bi-box-arrow-right me-1"></i> Salir

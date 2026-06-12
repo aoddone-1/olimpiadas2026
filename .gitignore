@@ -36,3 +36,5 @@ user_guide_src/cilexer/pycilexer.egg-info/*
 /application/config/database.php
 .DS_Store
 Thumbs.db
+.htaccess
+web.config

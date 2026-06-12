@@ -156,26 +156,33 @@ class Deporte_model extends CI_Model {
 
     public function obtener_ranking_deportes_sondeo() {
         $sql = "SELECT 
-                    d.nombre_deporte,
-                    COUNT(ed.id_respuesta) as votos,
-                    
-                    -- Conteo por Sexo (Corregido 'masculino')
-                    SUM(CASE WHEN er.sexo = 'Masculino' THEN 1 ELSE 0 END) as masculino,
-                    SUM(CASE WHEN er.sexo = 'Femenino' THEN 1 ELSE 0 END) as femenino,
-                    SUM(CASE WHEN er.sexo = 'Otro' THEN 1 ELSE 0 END) as otro,
-                    
-                    -- Conteo por Franja Etaria segmentado cada 10 años
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 30 THEN 1 ELSE 0 END) as menos_30,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 30 AND 39 THEN 1 ELSE 0 END) as entre_30_39,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 40 AND 49 THEN 1 ELSE 0 END) as entre_40_49,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 50 AND 59 THEN 1 ELSE 0 END) as entre_50_59,
-                    SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) >= 60 THEN 1 ELSE 0 END) as mayores_60
-                    
-                FROM encuestas_deportes ed
-                INNER JOIN deportes d ON d.id_deporte = ed.id_deporte
-                INNER JOIN encuestas_respuestas er ON er.id_respuesta = ed.id_respuesta
-                GROUP BY ed.id_deporte, d.nombre_deporte
-                ORDER BY votos DESC";
+            d.id_deporte,
+            d.nombre_deporte,
+            er.sexo,
+            
+            -- Total de votos del deporte (Usamos una subconsulta para mantener el número global del deporte)
+            (SELECT COUNT(*) FROM encuestas_deportes sub_ed WHERE sub_ed.id_deporte = ed.id_deporte) as votos_totales,
+            
+            -- Votos específicos de este sexo para este deporte
+            COUNT(ed.id_respuesta) as votos_sexo,
+            
+            -- Segmentación cruzada: EDAD filtrada por el SEXO de la fila actual
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 30 THEN 1 ELSE 0 END) as menos_30,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 30 AND 39 THEN 1 ELSE 0 END) as entre_30_39,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 40 AND 49 THEN 1 ELSE 0 END) as entre_40_49,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 50 AND 59 THEN 1 ELSE 0 END) as entre_50_59,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) >= 60 THEN 1 ELSE 0 END) as mayores_60
+            
+        FROM encuestas_deportes ed
+        INNER JOIN deportes d ON d.id_deporte = ed.id_deporte
+        INNER JOIN encuestas_respuestas er ON er.id_respuesta = ed.id_respuesta
+        
+        -- Clave: Agrupamos por deporte y también por sexo
+        GROUP BY ed.id_deporte, d.nombre_deporte, er.sexo
+        
+            -- Ordenamos para que los mismos deportes queden siempre juntos (Masculino, Femenino, Otro)
+            ORDER BY votos_totales DESC, ed.id_deporte ASC, 
+                    FIELD(er.sexo, 'Masculino', 'Femenino', 'Otro') ASC";
                 
         return $this->db->query($sql)->result_array();
     }
