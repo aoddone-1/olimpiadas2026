@@ -70,6 +70,61 @@ class Deporte_model extends CI_Model {
         return $this->db->get('lugares')->result_array();
     }
 
+   public function obtener_todas_las_encuestas() {
+        $this->db->select('
+            er.id_respuesta,
+            er.dni,
+            er.delegacion,
+            er.sexo,
+            er.fecha_nacimiento,
+            er.creado_el,
+            p.nombre_completo as nombre_participante,
+            GROUP_CONCAT(d.nombre_deporte SEPARATOR ", ") as deportes_votados
+        ');
+        $this->db->from('encuestas_respuestas er');
+        $this->db->join('encuestas_deportes ed', 'ed.id_respuesta = er.id_respuesta', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = ed.id_deporte', 'inner');
+        $this->db->join('participantes p', 'p.dni = er.dni', 'left');
+        
+        // Agrupamos por el ID de la encuesta para que no se dupliquen las filas
+        $this->db->group_by('er.id_respuesta');
+        
+        $this->db->order_by('er.creado_el', 'DESC');
+        return $this->db->get()->result_array();
+    }
+    public function obtener_todas_las_inscripciones() {
+        $this->db->select('
+            id.id_inscripcion,
+            id.asistio,
+            id.fecha_hora,
+            p.id_participante,
+            p.nombre_completo,
+            p.dni,
+            p.delegacion,
+            p.hotel_alojamiento,
+            p.kit_entregado,
+            c.nombre_categoria,
+            d.nombre_deporte
+        ');
+        $this->db->from('inscripciones_deportivas id');
+        $this->db->join('participantes p', 'p.id_participante = id.id_participante', 'inner');
+        $this->db->join('categorias c', 'c.id_categoria = id.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        
+        $this->db->order_by('id.fecha_hora', 'DESC');
+        return $this->db->get()->result_array();
+    }
+    public function borrar_encuesta($id_respuesta) {
+        // Al tener ON DELETE CASCADE en la base de datos para encuestas_deportes,
+        // borrar el registro principal va a limpiar la tabla intermedia automáticamente.
+        $this->db->where('id_respuesta', $id_respuesta);
+        return $this->db->delete('encuestas_respuestas');
+    }
+    public function borrar_inscripcion($id_inscripcion) {
+        $this->db->where('id_inscripcion', $id_inscripcion);
+        return $this->db->delete('inscripciones_deportivas');
+    }
+
     
 
     /**

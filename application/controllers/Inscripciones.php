@@ -194,7 +194,7 @@ class Inscripciones extends CI_Controller {
             $data['participantes'] = $this->Participante_model->obtener_todos_los_participantes();
             $data['total_inscriptos'] = count($data['participantes']);
             $data['total_kits'] = $this->Participante_model->contar_kits_entregados();
-
+            $data['menu_activo'] = 'inscriptos';
             // Cargamos la vista principal (limpia)
             $this->load->view('admin/dashboard', $data);
             return;
@@ -214,6 +214,7 @@ class Inscripciones extends CI_Controller {
         $data['deportes'] = $this->Deporte_model->obtener_fixture_completo(); 
         $data['todos_los_deportes'] = $this->Deporte_model->obtener_todos_los_deportes(); 
         $data['todos_los_lugares'] = $this->Deporte_model->obtener_todos_los_lugares(); 
+        $data['menu_activo'] = 'deportes';
 
         $this->load->view('admin/gestion_deportes', $data);
     }
@@ -408,6 +409,7 @@ class Inscripciones extends CI_Controller {
         $data['total_encuestas'] = $this->Deporte_model->contar_total_encuestas();
         $data['ranking_deportes'] = $this->Deporte_model->obtener_ranking_deportes_sondeo();
         $data['respuestas_por_delegacion'] = $this->Deporte_model->obtener_respuestas_por_delegacion();
+        $data['menu_activo'] = 'sondeo';
 
         $this->load->view('admin/monitoreo_encuesta', $data);
     }
@@ -450,4 +452,31 @@ class Inscripciones extends CI_Controller {
         
         redirect('Inscripciones/gestion_deportes');
     }
+
+
+    public function control_total() {
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('Deporte_model'); // Asegurate de que este modelo maneje ambas tablas
+
+        // 1. Traemos los datos planos, fila por fila
+        $data['listado_encuestas'] = $this->Deporte_model->obtener_todas_las_encuestas();
+        $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
+        
+        $data['menu_activo'] = 'control';
+        $this->load->view('admin/control_total', $data);
+    }
+
+    // 2. Acción para eliminar un registro de encuesta
+    public function eliminar_encuesta($id) {
+        if ($this->session->userdata('user_rol') === 'superadmin') {
+            $this->load->model('Deporte_model');
+            $this->Deporte_model->borrar_encuesta($id);
+        }
+        redirect('Inscripciones/control_total');
+    }
+
 }
