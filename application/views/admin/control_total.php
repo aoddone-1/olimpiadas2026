@@ -6,32 +6,9 @@
     <title>Métricas de Sondeo - <?= NOMBRE_META; ?></title>
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero-section {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 20px 0;
-            border-bottom: 5px solid #ffc107;
-        }
-        .card-indicador { border: none; border-radius: 12px; border-left: 5px solid #ffc107; }
-        .nav-menu { background: #fff; border-bottom: 1px solid #dee2e6; }
-        .nav-menu .nav-link { color: #495057; font-weight: 500; padding: 12px 20px; }
-        .nav-menu .nav-link.active { color: #1e3c72; border-bottom: 3px solid #1e3c72; border-radius: 0; }
-        .card-grafico { border: none; border-radius: 15px; }
-        
-        /* Forzamos el comportamiento por si los estilos nativos fallan */
-        .tab-custom-pane { display: none; }
-        .tab-custom-pane.active-pane { display: block !important; }
 
-        /* Estilos de emergencia para el modal por si la librería JS está muerta */
-        .modal.js-force-show {
-            display: block !important;
-            background: rgba(0, 0, 0, 0.5) !important;
-            opacity: 1 !important;
-        }
-    </style>
 </head>
 <body>
 
@@ -80,121 +57,11 @@
     <div class="tab-content" id="controlTabsContent">
         
         <div class="tab-custom-pane active-pane fade show" id="panel-encuestas">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-list-check text-warning me-2"></i> Registros de Sondeo Inicial</span>
-                    <span class="badge bg-secondary"><?= count($listado_encuestas) ?> filas</span>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light small text-uppercase">
-                                <tr>
-                                    <th>Participante / DNI</th>
-                                    <th>Delegación</th>
-                                    <th class="text-center">Deportes Votados</th> 
-                                    <th>Edad / Sexo</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(!empty($listado_encuestas)): foreach($listado_encuestas as $enc): ?>
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-dark">
-                                            <?= !empty($enc['nombre_participante']) ? htmlspecialchars($enc['nombre_participante'], ENT_QUOTES, 'UTF-8') : '<span class="text-muted italic small">Sondeo Anónimo</span>'; ?>
-                                        </div>
-                                        <small class="text-muted">DNI: <?= htmlspecialchars($enc['dni'], ENT_QUOTES, 'UTF-8') ?></small>
-                                    </td>
-                                    <td><span class="badge bg-light text-primary border"><?= htmlspecialchars($enc['delegacion'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                                    
-                                    <td class="text-center">
-                                        <button type="button" 
-                                                class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold js-btn-ver-deportes" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#modalDeportesVotados"
-                                                data-participante="<?= !empty($enc['nombre_participante']) ? htmlspecialchars($enc['nombre_participante'], ENT_QUOTES, 'UTF-8') : 'Sondeo Anónimo (DNI: '.$enc['dni'].')'; ?>"
-                                                data-deportes="<?= !empty($enc['deportes_votados']) ? htmlspecialchars($enc['deportes_votados'], ENT_QUOTES, 'UTF-8') : 'Ninguno'; ?>">
-                                            <i class="bi bi-eye-fill me-1"></i> Ver Deportes
-                                        </button>
-                                    </td>
-
-                                    <td><small><?= htmlspecialchars($enc['sexo'], ENT_QUOTES, 'UTF-8') ?></small></td>
-                                    <td class="text-center">
-                                        <a href="<?= base_url('Inscripciones/eliminar_encuesta/'.$enc['id_respuesta']) ?>" 
-                                        class="btn btn-sm btn-outline-danger" 
-                                        onclick="return confirm('¿Seguro querés borrar esta encuesta?');">
-                                            <i class="bi bi-trash3-fill"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php endforeach; else: ?>
-                                    <tr><td colspan="5" class="text-center text-muted py-4">No hay encuestas en la base de datos.</td></tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <?php $this->load->view('admin/panel-encuestas'); ?>
         </div>
 
         <div class="tab-custom-pane fade" id="panel-inscripciones">
-            <div class="card shadow-sm border-0">
-                <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex justify-content-between align-items-center">
-                    <span><i class="bi bi-people-fill text-primary me-2"></i> Padrón de Inscriptos Oficiales</span>
-                    <span class="badge bg-secondary"><?= count($listado_inscripciones) ?> filas</span>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle">
-                            <thead class="table-light small text-uppercase">
-                                <tr>
-                                    <th>Competidor</th>
-                                    <th>Delegación</th>
-                                    <th>Deporte / Categoría</th>
-                                    <th>Hotel</th>
-                                    <th>Estado Kit</th>
-                                    <th class="text-center">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if(!empty($listado_inscripciones)): foreach($listado_inscripciones as $ins): ?>
-                                <tr>
-                                    <td>
-                                        <div class="fw-bold text-dark"><?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <small class="text-muted">DNI: <?= htmlspecialchars($ins['dni'], ENT_QUOTES, 'UTF-8') ?></small>
-                                    </td>
-                                    <td><span class="badge bg-light text-success border"><?= htmlspecialchars($ins['delegacion'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                                    <td>
-                                        <div class="fw-semibold text-dark text-uppercase small"><?= htmlspecialchars($ins['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></div>
-                                        <div class="text-muted" style="font-size: 0.8rem;"><?= htmlspecialchars($ins['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?></div>
-                                    </td>
-                                    <td>
-                                        <?= !empty($ins['hotel_alojamiento']) ? htmlspecialchars($ins['hotel_alojamiento'], ENT_QUOTES, 'UTF-8') : '<span class="text-danger small fw-bold">SIN ASIGNAR</span>'; ?>
-                                    </td>
-                                    <td>
-                                        <?php if($ins['kit_entregado'] == 1): ?>
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle small">Kit OK</span>
-                                        <?php else: ?>
-                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small">Pendiente</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-center">
-                                        <a href="<?= base_url('Inscripciones/eliminar_inscripcion/'.$ins['id_inscripcion']) ?>" 
-                                           class="btn btn-sm btn-outline-danger" 
-                                           onclick="return confirm('¿Seguro querés dar de baja esta inscripción deportiva?');">
-                                            <i class="bi bi-person-x-fill"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                <?php endforeach; else: ?>
-                                    <tr><td colspan="6" class="text-center text-muted py-4">No hay inscripciones registradas todavía.</td></tr>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <?php $this->load->view('admin/panel-inscripciones'); ?>
         </div>
 
     </div>

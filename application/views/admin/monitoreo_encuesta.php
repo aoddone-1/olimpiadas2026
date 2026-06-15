@@ -7,20 +7,7 @@
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero-section {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 20px 0;
-            border-bottom: 5px solid #ffc107;
-        }
-        .card-indicador { border: none; border-radius: 12px; border-left: 5px solid #ffc107; }
-        .nav-menu { background: #fff; border-bottom: 1px solid #dee2e6; }
-        .nav-menu .nav-link { color: #495057; font-weight: 500; padding: 12px 20px; }
-        .nav-menu .nav-link.active { color: #1e3c72; border-bottom: 3px solid #1e3c72; border-radius: 0; }
-        .card-grafico { border: none; border-radius: 15px; }
-    </style>
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
 </head>
 <body>
 
