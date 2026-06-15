@@ -49,7 +49,8 @@
                             </button>
                         </td>
 
-                        <td><small><?= htmlspecialchars($enc['sexo'], ENT_QUOTES, 'UTF-8') ?></small></td>
+                        <td><div class="small fw-semibold text-dark"><?= !empty($enc['edad']) ? $enc['edad'] . ' años' : '---'; ?></div>
+                                    <small class="text-muted text-capitalize"><?= htmlspecialchars($enc['sexo'], ENT_QUOTES, 'UTF-8') ?></small></td>
                         <td class="text-center">
                             <a href="<?= base_url('Inscripciones/eliminar_encuesta/'.$enc['id_respuesta']) ?>" 
                                class="btn btn-sm btn-outline-danger" 
@@ -70,45 +71,131 @@
                 </tbody>
             </table>
         </div>
+
+        <?php if(!empty($listado_encuestas)): ?>
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 border-top pt-3">
+            <div class="text-muted small" id="infoPaginacion">
+                Mostrando filas del <span id="pagStart">0</span> al <span id="pagEnd">0</span>
+            </div>
+            <nav aria-label="Navegacion de tabla">
+                <ul class="pagination pagination-sm mb-0 justify-content-center" id="ulPaginacion">
+                    </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
+
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const inputBuscar = document.getElementById('inputBuscarEncuesta');
-    if (!inputBuscar) return; // Validación por si las dudas
-
-    const filas = document.querySelectorAll('.js-fila-encuesta');
+    const filas = Array.from(document.querySelectorAll('.js-fila-encuesta'));
     const filaNoResultados = document.getElementById('filaNoResultados');
     const contador = document.getElementById('contador-encuestas');
+    
+    // Configuración del paginador
+    const filasPorPagina = 10; // <<--- CAMBIÁ ESTE NÚMERO PARA MOSTRAR MÁS O MENOS FILAS POR PÁGINA
+    let paginaActual = 1;
+    let filasFiltradas = [...filas]; // Al inicio, las filas filtradas son todas
 
-    inputBuscar.addEventListener('keyup', function () {
-        const terminoBusqueda = this.value.toLowerCase().trim();
-        let filasVisibles = 0;
+    function actualizarTabla() {
+        const totalFilas = filasFiltradas.length;
+        const totalPaginas = Math.ceil(totalFilas / filasPorPagina) || 1;
 
-        filas.forEach(fila => {
-            // Evaluamos todo el texto plano de la fila (Nombre, DNI, Delegación, Sexo)
-            const textoFila = fila.textContent.toLowerCase();
+        // Ajustar página actual si queda fuera de rango tras una búsqueda
+        if (paginaActual > totalPaginas) paginaActual = totalPaginas;
+        if (paginaActual < 1) paginaActual = 1;
 
-            if (textoFila.includes(terminoBusqueda)) {
-                fila.style.display = ''; // Muestra la fila (vuelve al valor por defecto)
-                filasVisibles++;
-            } else {
-                fila.style.display = 'none'; // Oculta la fila
+        const indiceInicio = (paginaActual - 1) * filasPorPagina;
+        const indiceFin = indiceInicio + filasPorPagina;
+
+        // Ocultar todas las filas físicas primero
+        filas.forEach(f => f.style.display = 'none');
+
+        // Mostrar solo las filas que corresponden a la página actual
+        filasFiltradas.forEach((fila, index) => {
+            if (index >= indiceInicio && index < indiceFin) {
+                fila.style.display = '';
             }
         });
 
-        // Actualizamos el contador dinámicamente con las filas encontradas
-        if (contador) {
-            contador.innerText = `${filasVisibles} ${filasVisibles === 1 ? 'fila' : 'filas'}`;
+        // Actualizar textos informativos de rangos
+        const pStart = document.getElementById('pagStart');
+        const pEnd = document.getElementById('pagEnd');
+        if(pStart && pEnd) {
+            pStart.innerText = totalFilas === 0 ? 0 : indiceInicio + 1;
+            pEnd.innerText = indiceFin > totalFilas ? totalFilas : indiceFin;
         }
 
-        // Si no hay ninguna coincidencia, mostramos el cartel de aviso
-        if (filasVisibles === 0 && filas.length > 0) {
+        // Renderizar los botones numéricos de la paginación
+        const ulPaginacion = document.getElementById('ulPaginacion');
+        if (ulPaginacion) {
+            ulPaginacion.innerHTML = '';
+
+            if (totalPaginas > 1) {
+                // Botón Anterior
+                ulPaginacion.innerHTML += `
+                    <li class="page-item ${paginaActual === 1 ? 'disabled' : ''}">
+                        <button class="page-link" data-page="${paginaActual - 1}">&laquo;</button>
+                    </li>`;
+
+                // Números de páginas
+                for (let i = 1; i <= totalPaginas; i++) {
+                    ulPaginacion.innerHTML += `
+                        <li class="page-item ${paginaActual === i ? 'active' : ''}">
+                            <button class="page-link" data-page="${i}">${i}</button>
+                        </li>`;
+                }
+
+                // Botón Siguiente
+                ulPaginacion.innerHTML += `
+                    <li class="page-item ${paginaActual === totalPaginas ? 'disabled' : ''}">
+                        <button class="page-link" data-page="${paginaActual + 1}">&raquo;</button>
+                    </li>`;
+
+                // Escuchadores de eventos para los nuevos botones
+                ulPaginacion.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const nuevaPagina = parseInt(this.getAttribute('data-page'));
+                        if (nuevaPagina >= 1 && nuevaPagina <= totalPaginas) {
+                            paginaActual = nuevaPagina;
+                            actualizarTabla();
+                        }
+                    });
+                });
+            }
+        }
+
+        // Mostrar u ocultar cartel de "Sin resultados"
+        if (totalFilas === 0 && filas.length > 0) {
             filaNoResultados.style.display = '';
         } else {
             filaNoResultados.style.display = 'none';
         }
-    });
+
+        // Actualizar badge del contador general
+        if (contador) {
+            contador.innerText = `${totalFilas} ${totalFilas === 1 ? 'fila' : 'filas'}`;
+        }
+    }
+
+    // Evento de búsqueda
+    if (inputBuscar) {
+        inputBuscar.addEventListener('input', function () {
+            const terminoBusqueda = this.value.toLowerCase().trim();
+
+            // Filtrar el array global en base al término de búsqueda
+            filasFiltradas = filas.filter(fila => {
+                return fila.textContent.toLowerCase().includes(terminoBusqueda);
+            });
+
+            paginaActual = 1; // Volvemos siempre a la página 1 al buscar
+            actualizarTabla();
+        });
+    }
+
+    // Inicializar la tabla al cargar la vista
+    actualizarTabla();
 });
 </script>

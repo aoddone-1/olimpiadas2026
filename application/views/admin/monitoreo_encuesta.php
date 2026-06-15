@@ -119,18 +119,16 @@
                 <div class="card-body">
                     <?php if(!empty($ranking_deportes)): ?>
                         <div class="table-responsive">
-                            <table class="table table-bordered border-dark table-striped align-middle m-0 text-center">
+                            <table class="table table-bordered border-dark  align-middle m-0 text-center">
                                 <thead class="table-dark small text-uppercase">
                                     <tr>
-                                        <th class="text-start" style="vertical-align: middle;">Disciplina Deportiva</th>
-                                        <th style="vertical-align: middle; background-color: #1e3c72;">Total Interesados</th>
-                                        <th style="vertical-align: middle;" class="bg-primary">Sexo</th>
-                                        <th style="vertical-align: middle;" class="bg-primary">Subtotal</th>
+                                        <th class="text-start" style="vertical-align: middle;" rowspan="2">Disciplina Deportiva</th>
+                                        <th style="vertical-align: middle; background-color: #1e3c72;" rowspan="2">Total Interesados</th>
+                                        <th style="vertical-align: middle;" class="bg-primary" rowspan="2">Sexo</th>
+                                        <th style="vertical-align: middle;" class="bg-primary" rowspan="2">Subtotal</th>
                                         <th colspan="5" class="bg-success">Rangos de Edad por Sexo</th>
                                     </tr>
-                                    <tr>
-                                        <!-- Espacios vacíos para las columnas con rowspan de arriba -->
-                                        <th></th> <th></th> <th></th> <th></th>
+                                    <tr> 
                                         
                                         <th class="table-success text-success small">&lt; 30 años</th>
                                         <th class="table-success text-success small">30 a 39</th>

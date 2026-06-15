@@ -77,19 +77,20 @@ class Deporte_model extends CI_Model {
             er.delegacion,
             er.sexo,
             er.fecha_nacimiento,
+            TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) as edad,
             er.creado_el,
             p.nombre_completo as nombre_participante,
             GROUP_CONCAT(d.nombre_deporte SEPARATOR ", ") as deportes_votados
-        ');
+        ', FALSE); // Ponemos FALSE para que CodeIgniter no intente escapar las funciones de MySQL
+        
         $this->db->from('encuestas_respuestas er');
         $this->db->join('encuestas_deportes ed', 'ed.id_respuesta = er.id_respuesta', 'inner');
         $this->db->join('deportes d', 'd.id_deporte = ed.id_deporte', 'inner');
         $this->db->join('participantes p', 'p.dni = er.dni', 'left');
         
-        // Agrupamos por el ID de la encuesta para que no se dupliquen las filas
         $this->db->group_by('er.id_respuesta');
+        $this->db->order_by('er.creado_el', 'ASC');
         
-        $this->db->order_by('er.creado_el', 'DESC');
         return $this->db->get()->result_array();
     }
     public function obtener_todas_las_inscripciones() {

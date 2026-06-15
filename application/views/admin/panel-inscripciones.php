@@ -59,7 +59,7 @@
                         </td>
                     </tr>
                     <?php endforeach; else: ?>
-                        <tr><td colspan="6" class="text-center text-muted py-4">No hay inscripciones registradas todavía.</td></tr>
+                        <tr id="filaNoHayDatosIns"><td colspan="6" class="text-center text-muted py-4">No hay inscripciones registradas todavía.</td></tr>
                     <?php endif; ?>
                     
                     <tr id="filaNoResultadosIns" style="display: none;">
@@ -70,44 +70,129 @@
                 </tbody>
             </table>
         </div>
+
+        <?php if(!empty($listado_inscripciones)): ?>
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 border-top pt-3">
+            <div class="text-muted small">
+                Mostrando filas del <span id="pagStartIns">0</span> al <span id="pagEndIns">0</span>
+            </div>
+            <nav aria-label="Navegacion de inscriptos">
+                <ul class="pagination pagination-sm mb-0 justify-content-center" id="ulPaginacionIns">
+                    </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
+
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const inputBuscarIns = document.getElementById('inputBuscarInscripcion');
-    if (!inputBuscarIns) return;
-
-    const filasIns = document.querySelectorAll('.js-fila-inscripcion');
+    const filasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
     const filaNoResultadosIns = document.getElementById('filaNoResultadosIns');
     const contadorIns = document.getElementById('contador-inscripciones');
+    
+    // Configuración local del paginador
+    const filasPorPaginaIns = 10; // Cambialo si querés ver más o menos por página
+    let paginaActualIns = 1;
+    let filasFiltradasIns = [...filasIns];
 
-    inputBuscarIns.addEventListener('keyup', function () {
-        const termino = this.value.toLowerCase().trim();
-        let enco = 0;
+    function actualizarTablaInscripciones() {
+        const totalFilasIns = filasFiltradasIns.length;
+        const totalPaginasIns = Math.ceil(totalFilasIns / filasPorPaginaIns) || 1;
 
-        filasIns.forEach(fila => {
-            const textoFila = fila.textContent.toLowerCase();
+        if (paginaActualIns > totalPaginasIns) paginaActualIns = totalPaginasIns;
+        if (paginaActualIns < 1) paginaActualIns = 1;
 
-            if (textoFila.includes(termino)) {
+        const inicioIns = (paginaActualIns - 1) * filasPorPaginaIns;
+        const finIns = inicioIns + filasPorPaginaIns;
+
+        // Ocultamos todas primero
+        filasIns.forEach(f => f.style.display = 'none');
+
+        // Mostramos las de la página actual
+        filasFiltradasIns.forEach((fila, index) => {
+            if (index >= inicioIns && index < finIns) {
                 fila.style.display = '';
-                enco++;
-            } else {
-                fila.style.display = 'none';
             }
         });
 
-        // Actualiza el contador de inscriptos superior
-        if (contadorIns) {
-            contadorIns.innerText = `${enco} ${enco === 1 ? 'fila' : 'filas'}`;
+        // Actualizar textos de rangos (Ins)
+        const pStartIns = document.getElementById('pagStartIns');
+        const pEndIns = document.getElementById('pagEndIns');
+        if(pStartIns && pEndIns) {
+            pStartIns.innerText = totalFilasIns === 0 ? 0 : inicioIns + 1;
+            pEndIns.innerText = finIns > totalFilasIns ? totalFilasIns : finIns;
         }
 
-        // Muestra o tapa el mensaje de alerta "sin resultados"
-        if (enco === 0 && filasIns.length > 0) {
+        // Renderizar botones de paginación (Ins)
+        const ulPaginacionIns = document.getElementById('ulPaginacionIns');
+        if (ulPaginacionIns) {
+            ulPaginacionIns.innerHTML = '';
+
+            if (totalPaginasIns > 1) {
+                // Anterior
+                ulPaginacionIns.innerHTML += `
+                    <li class="page-item ${paginaActualIns === 1 ? 'disabled' : ''}">
+                        <button class="page-link" data-page-ins="${paginaActualIns - 1}">&laquo;</button>
+                    </li>`;
+
+                // Números
+                for (let i = 1; i <= totalPaginasIns; i++) {
+                    ulPaginacionIns.innerHTML += `
+                        <li class="page-item ${paginaActualIns === i ? 'active' : ''}">
+                            <button class="page-link" data-page-ins="${i}">${i}</button>
+                        </li>`;
+                }
+
+                // Siguiente
+                ulPaginacionIns.innerHTML += `
+                    <li class="page-item ${paginaActualIns === totalPaginasIns ? 'disabled' : ''}">
+                        <button class="page-link" data-page-ins="${paginaActualIns + 1}">&raquo;</button>
+                    </li>`;
+
+                // Eventos de clics en páginas
+                ulPaginacionIns.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const nuevaPagIns = parseInt(this.getAttribute('data-page-ins'));
+                        if (nuevaPagIns >= 1 && nuevaPagIns <= totalPaginasIns) {
+                            paginaActualIns = nuevaPagIns;
+                            actualizarTablaInscripciones();
+                        }
+                    });
+                });
+            }
+        }
+
+        // Mostrar cartel de alerta si está vacío el filtro
+        if (totalFilasIns === 0 && filasIns.length > 0) {
             filaNoResultadosIns.style.display = '';
         } else {
             filaNoResultadosIns.style.display = 'none';
         }
-    });
+
+        // Sincronizar badge
+        if (contadorIns) {
+            contadorIns.innerText = `${totalFilasIns} ${totalFilasIns === 1 ? 'fila' : 'filas'}`;
+        }
+    }
+
+    // Evento del buscador
+    if (inputBuscarIns) {
+        inputBuscarIns.addEventListener('input', function () {
+            const termino = this.value.toLowerCase().trim();
+
+            filasFiltradasIns = filasIns.filter(fila => {
+                return fila.textContent.toLowerCase().includes(termino);
+            });
+
+            paginaActualIns = 1; 
+            actualizarTablaInscripciones();
+        });
+    }
+
+    // Arrancar la tabla limpia
+    actualizarTablaInscripciones();
 });
 </script>
