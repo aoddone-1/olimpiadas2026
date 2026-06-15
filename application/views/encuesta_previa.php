@@ -8,44 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero-section {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 25px 0; /* Un toque más compacto */
-            border-bottom: 5px solid #ffc107;
-            margin-bottom: 30px;
-        }
-        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .section-title { color: #1e3c72; border-left: 5px solid #ffc107; padding-left: 15px; margin-bottom: 20px; }
-        .btn-primary { background-color: #1e3c72; border: none; border-radius: 8px; }
-        .btn-primary:hover { background-color: #2a5298; }
-        
-        /* Estilo para los checkboxes de deportes tipo tarjetas chicas */
-        .sport-checkbox { display: none; }
-        .sport-label {
-            display: block;
-            padding: 12px;
-            background: #fff;
-            border: 2px solid #dee2e6;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-weight: 500;
-        }
-        .sport-checkbox:checked + .sport-label {
-            border-color: #1e3c72;
-            background-color: #eef2f7;
-            color: #1e3c72;
-        }
-        .logo-hero {
-            height: 100px; /* Altura calibrada para emparejar con las 3 líneas de texto */
-            width: auto;
-            object-fit: contain;
-        }
-
-    </style>
+    <link href="<?= base_url('css/style_formularios.css') ?>" rel="stylesheet">
 </head>
 <body>
 

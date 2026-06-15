@@ -5,7 +5,6 @@ class Inscripciones extends CI_Controller {
 
     public function __construct() {
         parent::__construct();
-        // Cargamos los modelos esenciales
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
     }
@@ -13,16 +12,17 @@ class Inscripciones extends CI_Controller {
     public function index() {
         redirect('Inscripciones/panel');
     }
+
     public function panel(){
         $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('encuesta_previa', $data);
     }
+
     public function formulario_inscripcion(){
         $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
         $this->load->view('formulario_inscripcion', $data);
     }
     
-
     public function getCategorias($id_deporte) {
         $categorias = $this->Categoria_model->get_by_deporte($id_deporte);
         return $this->output
@@ -30,8 +30,21 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode($categorias));
     }
 
+    public function getDeportesPorGenero($sexo) {
+        // 1. Decodificar por si viene con caracteres raros de la URL (ej: %20)
+        $sexo = urldecode($sexo); 
+
+        $this->load->model('Deporte_model');
+        
+        // 2. Le pasamos el $sexo al modelo (crearemos este método nuevo abajo)
+        $deportes = $this->Deporte_model->obtener_deportes_por_sexo($sexo); 
+        
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode($deportes));
+    }
+
     public function buscar_por_dni() {
-        // Usamos GET o POST según prefieras, pero mantengamos consistencia con el AJAX
         $dni = $this->input->post('dni');
 
         if (empty($dni)) {
@@ -41,7 +54,6 @@ class Inscripciones extends CI_Controller {
 
         $this->load->model('Participante_model');
 
-        // 1. Buscamos los datos en la tabla 'participantes'
         $this->db->where('dni', trim($dni));
         $query_participante = $this->db->get('participantes');
 
@@ -49,9 +61,7 @@ class Inscripciones extends CI_Controller {
             $participante = $query_participante->row_array();
             $id_p = $participante['id_participante'];
 
-            // 2. Buscamos sus deportes y categorías vinculadas
-            // Hacemos un JOIN con la tabla categorias para obtener el id_deporte que pide tu UI
-            $this->db->select('i.id_categoria, c.id_deporte');
+            $this->db->select('*');
             $this->db->from('inscripciones_deportivas i');
             $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
             $this->db->where('i.id_participante', $id_p);
@@ -59,11 +69,10 @@ class Inscripciones extends CI_Controller {
             
             $disciplinas = $query_deportes->result_array();
 
-            // Enviamos la respuesta completa
             echo json_encode([
                 'existe'      => true,
                 'datos'       => $participante,
-                'disciplinas' => $disciplinas // Array de objetos {id_categoria, id_deporte}
+                'disciplinas' => $disciplinas
             ]);
         } else {
             echo json_encode(['existe' => false]);
@@ -74,23 +83,26 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Participante_model');
         $post = $this->input->post();
 
-        // 1. Preguntamos al modelo si el participante existe (usando la query de control básica)
+        // =================================================================
+        // BLANCO DE PRUEBAS: Descomentá la línea de abajo para testear con datos fijos
+        // =================================================================
+        // $post = $this->_obtener_datos_prueba(); 
+        // =================================================================
+
         $this->db->where('dni', trim($post['dni']));
         $query_check = $this->db->get('participantes');
         $existe = ($query_check->num_rows() > 0);
 
         if ($existe) {
-            // [MODO ACTUALIZACIÓN]
             $participante_viejo = $query_check->row_array();
             $id_participante = $participante_viejo['id_participante'];
             $token = $participante_viejo['token_qr']; 
         } else {
-            // [MODO NUEVA INSCRIPCIÓN]
             $semilla = $post['dni'] . 'olimpiadas2026' . time();
             $token = sha1($semilla);
         }
 
-        // Data estructurada
+        // Estructura de datos incluyendo Roles y Delegados
         $data_persona = [
             'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
             'email'               => strtolower(trim($post['email'])), 
@@ -104,15 +116,43 @@ class Inscripciones extends CI_Controller {
             'dieta_especial'      => trim($post['dieta_especial']),
             'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
             'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // TRADUCCIÓN CLAVE PARA TU BASE DE DATOS:
+            // Si el rol es 'competidor' guarda 1, si es acompañante guarda 0
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
             'token_qr'            => $token
         ];
 
-        // 2. DELEGAMOS TODO AL MODELO SEGÚN CORRESPONDA
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            // Mapeamos dinámicamente cada categoría con su respectivo estado de UTE recibido del HTML
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecución en Base de Datos según existencia
         if ($existe) {
+            // Pasamos la estructura completa de deportes con UTE. 
+            // NOTA: Si tu modelo viejo solo aceptaba IDs, adaptalo para leer este array asociativo de la forma: $disc['id_categoria']
             $resultado = $this->Participante_model->actualizar_completo(
                 $id_participante, 
                 $data_persona, 
-                $post['categoria_id']
+                $deportes_seleccionados // <-- Asegurate de que viaje esta variable acá y no $categorias_ids
             );
         } else {
             $data_persona['dni'] = trim($post['dni']);
@@ -120,11 +160,10 @@ class Inscripciones extends CI_Controller {
 
             $resultado = $this->Participante_model->insertar_completo(
                 $data_persona, 
-                $post['categoria_id']
+                $deportes_seleccionados
             );
         }
 
-        // 3. RESPUESTA DE VISTAS
         if (!$resultado) {
             $db_error = $this->db->error();
             $mensaje = 'Verifique si ocurrió un error en el sistema o si faltan datos obligatorios.';
@@ -138,12 +177,40 @@ class Inscripciones extends CI_Controller {
                 'dni'     => $post['dni']
             ]);
         } else {
-            // $this->enviar_comprobante_real($data_persona, $token);
             $this->load->view('inscripcion_exitosa', [
                 'nombre' => $post['nombre_completo'],
                 'token'  => $token
             ]);
         }
+    }
+
+    /**
+     * Función auxiliar con datos de prueba para testing rápido
+     */
+    private function _obtener_datos_prueba() {
+        return [
+            'dni'                 => '99888777',
+            'nombre_completo'     => 'Juan Carlos Prueba',
+            'email'               => 'juan.prueba@correo.com',
+            'telefono'            => '2954123456',
+            'delegacion'          => 'La Pampa',
+            'sexo'                => 'Masculino',
+            'fecha_nacimiento'    => '1995-05-15',
+            'grupo_sanguineo'     => '0+',
+            'obra_social'         => 'Sempre',
+            'tipo_empleado'       => 'Planta Permanente',
+            'dieta_especial'      => 'Sin restricciones',
+            'hotel_alojamiento'   => 'Hotel Central',
+            'contacto_emergencia' => 'Maria Gomez - 2954667788',
+            'rol_asistente'       => 'competidor',
+            'es_delegado'         => '1',
+            // Arrays simulando la carga de deportes (Frontend)
+            'deporte_id'          => ['1', '3'], // IDs de ejemplo de deportes
+            'categoria_id'        => ['13', '15'], // IDs de ejemplo de categorías
+            'tiene_ute'           => ['1', '0'],  // En el primero tiene UTE
+            'necesita_ute'        => ['0', '1'],  // En el segundo necesita UTE
+            'detalle_ute'         => ['Equipo Los Pampeanos FC', ''] 
+        ];
     }
 
     // 1. Pantalla que abre el código QR
@@ -478,5 +545,4 @@ class Inscripciones extends CI_Controller {
         }
         redirect('Inscripciones/control_total');
     }
-
 }

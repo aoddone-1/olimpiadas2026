@@ -8,47 +8,46 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
-    <style>
-        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .hero-section img {
-            filter: drop-shadow(0px 4px 8px rgba(0,0,0,0.2)); /* Le da profundidad al logo */
-        }
-        .hero-section {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 40px 0;
-            border-bottom: 5px solid #ffc107; /* Un toque de color para resaltar */
-            margin-bottom: 30px;
-        }
-        .row-deporte {
-            border-left: 5px solid #1e3c72 !important;
-            margin-bottom: 20px;
-        }
-        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .card-header { border-radius: 15px 15px 0 0 !important; font-weight: bold; }
-        .btn-primary { background-color: #1e3c72; border: none; border-radius: 8px; }
-        .btn-primary:hover { background-color: #2a5298; }
-        .section-title { color: #1e3c72; border-left: 5px solid #ffc107; padding-left: 15px; margin-bottom: 20px; }
-        .row-deporte { position: relative; background: #fff; border-radius: 10px; transition: all 0.3s; }
-        .btn-remove { position: absolute; top: -10px; right: -10px; border-radius: 50%; width: 30px; height: 30px; padding: 0; line-height: 1; }
-    </style>
+    <link href="<?= base_url('css/style_formularios.css') ?>" rel="stylesheet">
 </head>
 <body>
 
 <div class="hero-section">
-    <div class="container text-center">
-        <h1 class="display-6 fw-bold text-uppercase">FORMULARIO DE INSCRIPCIÓN</h1>
-        <p class="lead m-0"><?= NOMBRE_SITIO; ?></p>
-        <p class="lead mt-2"><?= LUGAR_OLIMPICO; ?></p>
+    <div class="container">
+       <div class="row align-items-center g-4">
+            
+            <div class="col-12 col-md-4 text-center text-md-end d-none d-md-block">
+                <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                    alt="Logo Olimpiadas" 
+                    class="img-fluid logo-hero">
+            </div>
+            
+            <div class="col-12 col-md-8 text-center text-md-start ps-md-4">
+                
+                <div class="d-block d-md-none">
+                    <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" 
+                        alt="Logo Olimpiadas" 
+                        class="img-fluid logo-hero">
+                </div>
+                
+                <h1 class="h2 fw-bold text-uppercase text-white mb-2 header-title">
+                    FORMULARIO DE <u>INSCRIPCIÓN</u>
+                </h1>
+                
+                <small class="d-block text-white-50 help-text">
+                    <?= NOMBRE_SITIO; ?> <br/> <?= LUGAR_OLIMPICO; ?>
+                </small>
+            </div>
+
+       </div>
     </div>
 </div>
 
 <div class="container mb-5">
-    <form autocomplete='off' action="<?= base_url('Inscripciones/guardar') ?>" autocomplete="off" method="POST" class="needs-validation" >
+    <form autocomplete='off' action="<?= base_url('Inscripciones/guardar') ?>" method="POST" class="needs-validation" novalidate>
         
-        <!-- DATOS PERSONALES -->
-       <h3 class="section-title">1. Información Personal</h3>
-       <div id="cartel-modo" class="alert alert-warning border-warning shadow-sm mb-4" style="display: none;">
+        <h3 class="section-title">1. Información Personal</h3>
+        <div id="cartel-modo" class="alert alert-warning border-warning shadow-sm mb-4" style="display: none;">
             <div class="d-flex align-items-center">
                 <i class="bi bi-exclamation-triangle-fill fs-3 me-3 text-dark"></i>
                 <div>
@@ -67,14 +66,6 @@
                     <div class="col-md-8">
                         <label class="form-label fw-bold">Nombre Completo</label>
                         <input type="text" name="nombre_completo" id="txt-nombre" class="form-control" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Email</label>
-                        <input type="email" name="email" id="txt-email" class="form-control" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Teléfono</label>
-                        <input type="text" name="telefono" id="txt-telefono" class="form-control" placeholder="Ej: 2954123456" required>
                     </div>
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Delegación (Provincia)</label>
@@ -107,8 +98,18 @@
                         </select>
                     </div>
                     <div class="col-md-4">
+                        <label class="form-label fw-bold">Email</label>
+                        <input type="email" name="email" id="txt-email" class="form-control" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Teléfono</label>
+                        <input type="text" name="telefono" id="txt-telefono" class="form-control" placeholder="Ej: 2954123456" required>
+                    </div>
+                    
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Género</label>
                         <select name="sexo" id="cmb-sexo" class="form-select" required>
+                            <option value="">Seleccione...</option>
                             <option value="Masculino">Masculino</option>
                             <option value="Femenino">Femenino</option>
                             <option value="Otro">Otro</option>
@@ -119,6 +120,8 @@
                         <input type="date" name="fecha_nacimiento" id="txt-nacimiento" class="form-control" max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required>
                     </div>
                     <div class="col-md-4">
+                    </div>
+                    <div class="col-md-4">
                         <label class="form-label fw-bold">Tipo Empleado</label>
                         <select name="tipo_empleado" id="cmb-empleado" class="form-select" required>
                             <option value="Planta Permanente">Planta Permanente</option>
@@ -127,6 +130,22 @@
                             <option value="Pasante">Pasante</option>
                             <option value="Otros">Otros</option>
                         </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Tipo de Asistente</label>
+                        <select name="rol_asistente" id="cmb-rol-asistente" class="form-select" required>
+                            <option value="" selected disabled>Seleccione su tipo de asistente...</option>
+                            <option value="competidor">Soy Competidor</option>
+                            <option value="acompañante">Soy Acompañante</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-center mt-md-4 pt-md-2" id="bloque-delegado">
+                        <div class="form-check form-switch p-3 bg-light border rounded w-100">
+                            <input class="form-check-input ms-0 me-2" type="checkbox" name="es_delegado" id="chk-delegado" value="1">
+                            <label class="form-check-label fw-bold text-secondary" for="chk-delegado">
+                                <i class="bi bi-person-badge text-primary me-1"></i> Soy Delegado de la delegación
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -161,7 +180,7 @@
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Dieta Especial</label>
                         <select name="dieta_especial" id="cmb-dieta" class="form-select" required>
-                            <option value="Sin restricciones" selected>Sin restricciones</option>
+                            <option value="Sin restrictions" selected>Sin restricciones</option>
                             <option value="Celiaco">Celiaco</option>
                             <option value="Vegetariano">Vegetariano</option>
                             <option value="Vegano">Vegano</option>
@@ -177,67 +196,267 @@
             </div>
         </div>
 
-        <!-- INSCRIPCIÓN DEPORTIVA -->
-        <h3 class="section-title">3. Disciplinas Deportivas</h3>
-        <div id="contenedor-deportes">
-            <!-- Bloque semilla -->
-            <div class="card mb-3 row-deporte border">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold"><i class="bi bi-trophy"></i> Deporte</label>
-                            <select name="deporte_id[]" class="form-select select-deporte" required>
-                                <option value="">Seleccione un deporte...</option>
-                                <?php foreach($deportes as $d): ?>
-                                    <option value="<?= $d['id_deporte'] ?>"><?= $d['nombre_deporte'] ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold"><i class="bi bi-tags"></i> Categoría</label>
-                            <select name="categoria_id[]" class="form-select select-categoria" required disabled>
-                                <option value="">Elija el deporte primero</option>
-                            </select>
-                        </div>
-                    </div>
-                    <button type="button" class="btn btn-danger btn-remove shadow-sm" style="display:none;"><i class="bi bi-x"></i></button>
+        <div id="seccion-deportiva-completa" style="display: none;">
+            <h3 class="section-title">3. Disciplinas Deportivas</h3>
+
+            <div id="msg-espera" class="card p-4 text-center text-muted border mb-3 bg-light shadow-sm">
+                <div class="card-body py-3">
+                    <i class="bi bi-person-fill-check fs-2 text-primary d-block mb-2"></i>
+                    <p class="m-0 fw-semibold">Por favor, seleccioná tu género arriba para desplegar los deportes disponibles.</p>
                 </div>
+            </div>
+
+            <div id="contenedor-deportes" class="contenedor-deportes-activos"></div>
+
+            <div id="molde-fila-deporte" style="display: none;">
+                <div class="card mb-3 row-deporte-molde border">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><i class="bi bi-trophy"></i> Deporte</label>
+                                <select class="form-select select-deporte">
+                                    <option value="">Seleccione un deporte...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold"><i class="bi bi-tags"></i> Categoría</label>
+                                <select class="form-select select-categoria" disabled>
+                                    <option value="">Elija el deporte primero</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="bloque-ute mt-3 pt-3 border-top" style="display: none;">
+                            <div class="row align-items-center g-3">
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input type="hidden" class="hd-tiene-ute" value="0">
+                                        <input class="form-check-input check-tengo-ute" type="checkbox">
+                                        <label class="form-check-label text-success fw-bold">Tengo UTE</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-check">
+                                        <input type="hidden" class="hd-necesita-ute" value="0">
+                                        <input class="form-check-input check-necesito-ute" type="checkbox">
+                                        <label class="form-check-label text-danger fw-bold">Necesito UTE</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 bloque-detalle-ute" style="display: none;">
+                                    <textarea class="form-control txt-detalle-ute" rows="1" placeholder="Detalle de la UTE (Integrantes, equipo, etc.)"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn btn-danger btn-remove shadow-sm mt-3" style="display:none;"><i class="bi bi-x"></i> </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-center mb-5" id="bloque-btn-agregar" style="display: none;">
+                <button type="button" id="btn-agregar" class="btn btn-outline-primary fw-bold">
+                    <i class="bi bi-plus-circle-fill"></i> AGREGAR OTRA DISCIPLINA
+                </button>
             </div>
         </div>
 
-        <div class="text-center mb-5">
-            <button type="button" id="btn-agregar" class="btn btn-outline-primary fw-bold">
-                <i class="bi bi-plus-circle-fill"></i> AGREGAR OTRA DISCIPLINA
-            </button>
-        </div>
+        <div class="card bg-white p-4 border-top border-4 border-warning shadow-sm">
+    
+            <h5 class="text-start fw-bold text-uppercase text-secondary mb-4 border-bottom pb-2">
+                <i class="bi bi-file-earmark-text-fill text-warning me-2"></i> 
+                Declaración Jurada y Conformidad Legal
+            </h5>
 
-        <div class="card bg-white p-4 text-center border-top border-4 border-warning">
-            <p id="leyenda-boton" class="text-muted small">Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.</p>
+            <div class="row text-start g-3 mb-4">
+                
+                <div class="col-12">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-voluntario" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-voluntario" style="cursor:pointer; user-select:none;">
+                            1. Declaro que participo de forma <u>voluntaria</u> en las competencias de las “XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026”, manifestando haber leído, comprendido y aceptado sus Reglamentos y las condiciones de la Póliza de Seguro por Accidentes Personales.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe confirmar que conoce y acepta los reglamentos de la competencia.</div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-riesgos" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-riesgos" style="cursor:pointer; user-select:none;">
+                            2. Reconozco plenamente que las actividades deportivas implican <u>riesgos físicos</u> y asumo voluntariamente total responsabilidad por cualquier contingencia que pueda suceder practicando las disciplinas en las que me inscribo, tanto a mi persona como a terceros.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe asumir la responsabilidad de los riesgos físicos de la práctica deportiva.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 bloque-competidor-check">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-aptitud" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-aptitud" style="cursor:pointer; user-select:none;">
+                            3. Declaro bajo juramento encontrarme en <u>perfectas condiciones psicofísicas para competir</u>, habiendo realizado los entrenamientos previos necesarios y los reconocimientos médicos correspondientes, no poseyendo ningún impedimento físico ni deficiencia de salud.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe certificar su aptitud psicofísica para la competencia.</div>
+                    </div>
+                </div>
+
+                <div class="col-12 bloque-competidor-check">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-indumentaria" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-indumentaria" style="cursor:pointer; user-select:none;">
+                            4. Certifico que la categoría solicitada corresponde estrictamente a mi <u>edad y nivel deportivo</u>, y que participaré con la <u>indumentaria adecuada</u> requerida para la práctica segura en los circuitos y canchas asignados.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe confirmar la veracidad de su categoría e indumentaria.</div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-exoneracion" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-exoneracion" style="cursor:pointer; user-select:none;">
+                            5. <u>Desligo de toda responsabilidad</u> a los Organizadores, Coordinadores, Comité Olímpico, Municipios, Autoridades Provinciales, patrocinadores y titulares de los predios, ante cualquier accidente, lesión, muerte, robo o daño material que pudiera sufrir, renunciando expresamente a reclamos judiciales o extrajudiciales fuera del seguro contratado.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe aceptar la exoneración de responsabilidad organizativa para inscribirse.</div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="form-check p-3 border rounded bg-light items-deslinde">
+                        <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-imagen" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
+                        <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-imagen" style="cursor:pointer; user-select:none;">
+                            6. Autorizo de forma expresa a la Organización y Sponsors al uso legítimo de <u>fotografías, películas, videos y grabaciones</u> de mi participación en el evento para fines de difusión, sin compensación económica alguna.
+                        </label>
+                        <div class="invalid-feedback fw-bold mt-1 ps-2">Debe autorizar el uso de registros de imagen institucional.</div>
+                    </div>
+                </div>
+
+            </div>
+
+            <p id="leyenda-boton" class="text-muted small mb-3">
+                Al hacer clic en "Confirmar", declara bajo juramento que todos los datos proveídos son verídicos y se compromete a respetar las normas establecidas.
+            </p>
             
-            <button type="submit" id="btn-submit-principal" class="btn btn-primary btn-lg shadow-lg px-5">
-                <i class="bi bi-check-circle-fill"></i> CONFIRMAR INSCRIPCIÓN
+            <button type="submit" id="btn-submit-principal" class="btn btn-primary btn-lg shadow-lg px-5 fw-bold">
+                <i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR INSCRIPCIÓN
             </button>
         </div>
 
     </form>
 </div>
+<?php $this->load->view('footer'); ?>
 
 <script>
 $(document).ready(function() {
-    // Detectamos cuando el usuario termina de escribir el DNI y sale del input
+
+    // Bootstrap validation trigger manual
+    const form = document.querySelector('.needs-validation');
+    form.addEventListener('submit', function (event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    }, false);
+
+    // ==========================================
+    // AUXILIAR: REASIGNAR NAMES CORRECTAMENTE
+    // ==========================================
+    function actualizarNamesDeportes() {
+        let esAcompanante = $('#cmb-rol-asistente').val() === 'acompañante';
+        
+        // CORRECCIÓN PROTECTORA: Limpiamos por completo el molde oculto para que no interfiera en la validación
+        $('#molde-fila-deporte').find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-detalle-ute').removeAttr('name').prop('required', false);
+
+        // Indexamos únicamente las filas reales y visibles que están en el contenedor activo
+        $('#contenedor-deportes .row-deporte-activo').each(function() {
+            let fila = $(this);
+            if (esAcompanante) {
+                fila.find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-detalle-ute').removeAttr('name').prop('required', false);
+            } else {
+                fila.find('.select-deporte').attr('name', 'deporte_id[]');
+                fila.find('.select-categoria').attr('name', 'categoria_id[]');
+                fila.find('.hd-tiene-ute').attr('name', 'tiene_ute[]');
+                fila.find('.hd-necesita-ute').attr('name', 'necesita_ute[]');
+                fila.find('.txt-detalle-ute').attr('name', 'detalle_ute[]');
+            }
+        });
+    }
+
+    // ==========================================
+    // 1. GESTIÓN DE DEPORTES SEGÚN EL GÉNERO
+    // ==========================================
+    function actualizarDeportesPorGenero(callback_interno) {
+        let sexo = $('#cmb-sexo').val();
+        let rol = $('#cmb-rol-asistente').val();
+        
+        if (rol === 'acompañante') return;
+
+        if (!sexo) {
+            $('#contenedor-deportes').empty();
+            $('#bloque-btn-agregar').fadeOut(300);
+            $('#msg-espera').slideDown(300);
+            return;
+        }
+
+        $.get('<?= base_url("Inscripciones/getDeportesPorGenero/") ?>' + sexo, function(deportes) {
+            
+            $('#msg-espera').slideUp(300, function() {
+                
+                if ($('#contenedor-deportes').children().length === 0) {
+                    let primeraFila = $('#molde-fila-deporte .row-deporte-molde').clone();
+                    primeraFila.removeClass('row-deporte-molde').addClass('row-deporte-activo');
+                    
+                    let selectDeporte = primeraFila.find('.select-deporte');
+                    deportes.forEach(function(d) {
+                        selectDeporte.append(`<option value="${d.id_deporte}" data-modalidad="${d.modalidad}">${d.nombre_deporte}</option>`);
+                    });
+                    
+                    $('#contenedor-deportes').append(primeraFila);
+                    $('#bloque-btn-agregar').fadeIn(300);
+                    controlarVisibilidadRoles(); 
+                } else {
+                    $('#contenedor-deportes .row-deporte-activo').each(function() {
+                        let selectDeporte = $(this).find('.select-deporte');
+                        let valorActual = selectDeporte.val();
+
+                        selectDeporte.empty().append('<option value="">Seleccione un deporte...</option>');
+                        deportes.forEach(function(d) {
+                            selectDeporte.append(`<option value="${d.id_deporte}" data-modalidad="${d.modalidad}">${d.nombre_deporte}</option>`);
+                        });
+
+                        if (valorActual && selectDeporte.find(`option[value="${valorActual}"]`).length > 0) {
+                            selectDeporte.val(valorActual).trigger('change');
+                        } else {
+                            selectDeporte.val('').trigger('change');
+                        }
+                    });
+                }
+
+                if (typeof callback_interno === "function") {
+                    callback_interno(deportes);
+                }
+            });
+
+        }, 'json');
+    }
+
+    $('#cmb-sexo').on('change', function() {
+        actualizarDeportesPorGenero();
+    });
+
+
+    // ==========================================
+    // 2. BÚSQUEDA AUTOMÁTICA POR DNI (CORREGIDA PRE-CARGA UTE)
+    // ==========================================
     $('#txt-dni').on('input', function() {
         let dni = $(this).val().trim();
-        
-        if (dni.length < 6) return; // Evitamos disparar AJAX con campos vacíos o incompletos
+        if (dni.length < 6) return;
 
         $.post('<?= base_url("Inscripciones/buscar_por_dni") ?>', { dni: dni }, function(response) {
             let res = JSON.parse(response);
 
             if (res.existe) {
-                // 1. Encendemos el cartel de "Modo Edición" con animación
                 $('#cartel-modo').slideDown(400);
 
-                // 2. Rellenamos los inputs de Información Personal
                 $('#txt-nombre').val(res.datos.nombre_completo);
                 $('#txt-email').val(res.datos.email);
                 $('#txt-telefono').val(res.datos.telefono);
@@ -245,132 +464,261 @@ $(document).ready(function() {
                 $('#cmb-sexo').val(res.datos.sexo);
                 $('#txt-nacimiento').val(res.datos.fecha_nacimiento);
                 $('#cmb-empleado').val(res.datos.tipo_empleado);
+                
+                let asignacion_rol = (res.datos.es_competidor == 1) ? 'competidor' : 'acompañante';
+                $('#cmb-rol-asistente').val(asignacion_rol);
+                
+                if (res.datos.es_delegado == 1 && asignacion_rol === 'competidor') {
+                    $('#chk-delegado').prop('checked', true);
+                } else {
+                    $('#chk-delegado').prop('checked', false);
+                }
 
-                // 3. Rellenamos la sección de Logística y Salud
                 $('#cmb-sangre').val(res.datos.grupo_sanguineo);
                 $('#txt-osocial').val(res.datos.obra_social);
                 $('#txt-emergencia').val(res.datos.contacto_emergencia);
                 $('#cmb-dieta').val(res.datos.dieta_especial);
                 $('#txt-hotel').val(res.datos.hotel_alojamiento);
 
-                // 4. Cambiamos los textos del botón para avisar que está editando
                 $('#btn-submit-principal').html('<i class="bi bi-pencil-square"></i> ACTUALIZAR INSCRIPCIÓN').removeClass('btn-primary').addClass('btn-warning text-dark fw-bold');
                 $('#leyenda-boton').html('Al hacer clic en "Actualizar", se guardarán las modificaciones sobre tu registro existente.');
 
-                // 5. CARGA DE DISCIPLINAS EXISTENTES
-                // Limpiamos el contenedor dejando una sola fila vacía para trabajar sobre ella
-                let moldeOriginal = $('.row-deporte:first').clone();
-                
-                // Ahora sí, vaciamos el contenedor de forma segura
-                $('#contenedor-deportes').html('');
+                controlarVisibilidadRoles();
+                $('#contenedor-deportes').empty();
 
-                if (res.disciplinas && res.disciplinas.length > 0) {
-                    res.disciplinas.forEach(function(disc, index) {
-                        // 1. Clonamos usando el molde que guardamos a salvo en memoria
-                        let nuevoBloque = moldeOriginal.clone();
+                if (res.disciplinas && res.disciplinas.length > 0 && $('#cmb-rol-asistente').val() !== 'acompañante') {
+                    
+                    actualizarDeportesPorGenero(function(deportesValidos) {
+                        $('#contenedor-deportes').empty();
                         
-                        // 2. Buscamos los selectores internos de esta nueva fila
-                        let selectDeporte = nuevoBloque.find('.select-deporte');
-                        let selectCategoria = nuevoBloque.find('.select-categoria');
-                        
-                        // 3. Seteamos el valor del deporte
-                        selectDeporte.val(disc.id_deporte).prop('disabled', false);
-                        
-                        // 4. Si no es la primera fila, mostramos el botón de eliminar (la cruz roja)
-                        if (index > 0) {
-                            nuevoBloque.find('.btn-remove').show();
-                        } else {
-                            nuevoBloque.find('.btn-remove').hide();
-                        }
-                        
-                        // 5. Inyectamos la fila en el contenedor
-                        $('#contenedor-deportes').append(nuevoBloque);
-
-                        // 6. Hacemos la petición para traer las categorías de ESTE deporte en particular
-                        // Usamos dataType: 'json' para asegurarnos de que jQuery entienda el bucle
-                        $.get('<?= base_url("Inscripciones/getCategorias/") ?>' + disc.id_deporte, function(data) {
-                            selectCategoria.empty().append('<option value="">Seleccione categoría...</option>');
+                        res.disciplinas.forEach(function(disc, index) {
+                            let nuevoBloque = $('#molde-fila-deporte .row-deporte-molde').clone();
+                            nuevoBloque.removeClass('row-deporte-molde').addClass('row-deporte-activo');
                             
-                            // Si CodeIgniter te devuelve un JSON como texto, nos aseguramos de parsearlo
-                            let categorias = (typeof data === 'string') ? JSON.parse(data) : data;
+                            let selectDeporte = nuevoBloque.find('.select-deporte');
+                            let selectCategoria = nuevoBloque.find('.select-categoria');
                             
-                            categorias.forEach(function(cat) {
-                                selectCategoria.append(`<option value="${cat.id_categoria}">${cat.nombre_categoria}</option>`);
+                            selectDeporte.empty().append('<option value="">Seleccione un deporte...</option>');
+                            deportesValidos.forEach(function(d) {
+                                selectDeporte.append(`<option value="${d.id_deporte}" data-modalidad="${d.modalidad}">${d.nombre_deporte}</option>`);
                             });
                             
-                            // 7. Activamos el select y seleccionamos la categoría guardada
-                            selectCategoria.prop('disabled', false);
-                            selectCategoria.val(disc.id_categoria);
+                            selectDeporte.val(disc.id_deporte);
+                            
+                            if (index > 0) {
+                                nuevoBloque.find('.btn-remove').show();
+                            } else {
+                                nuevoBloque.find('.btn-remove').hide();
+                            }
+                            
+                            $('#contenedor-deportes').append(nuevoBloque);
+                            $('#bloque-btn-agregar').fadeIn(300);
+
+                            // Petición asincrónica de categorías
+                            $.get('<?= base_url("Inscripciones/getCategorias/") ?>' + disc.id_deporte, function(data) {
+                                selectCategoria.empty().append('<option value="">Seleccione categoría...</option>');
+                                let categorias = (typeof data === 'string') ? JSON.parse(data) : data;
+                                
+                                categorias.forEach(function(cat) {
+                                    selectCategoria.append(`<option value="${cat.id_categoria}">${cat.nombre_categoria}</option>`);
+                                });
+                                
+                                selectCategoria.prop('disabled', false).val(disc.id_categoria);
+                                
+                                // === FIJATE ACÁ: Forzamos la carga de la UTE DESPUÉS de renderizar la categoría ===
+                                let optionSeleccionada = selectDeporte.find(':selected');
+                                let mod = optionSeleccionada.data('modalidad');
+                                
+                                if (mod === 'EQUIPO' || mod === 'AMBAS') {
+                                    nuevoBloque.find('.bloque-ute').show(); // Desplegamos el contenedor general
+                                    
+                                    if (disc.tiene_ute == 1) {
+                                        nuevoBloque.find('.check-tengo-ute').prop('checked', true);
+                                        nuevoBloque.find('.hd-tiene-ute').val('1');
+                                        nuevoBloque.find('.bloque-detalle-ute').show();
+                                        nuevoBloque.find('.txt-detalle-ute').val(disc.detalle_ute).prop('required', true);
+                                    }
+                                    
+                                    if (disc.necesita_ute == 1) {
+                                        nuevoBloque.find('.check-necesito-ute').prop('checked', true);
+                                        nuevoBloque.find('.hd-necesita-ute').val('1');
+                                    }
+                                }
+                                
+                                controlarVisibilidadRoles();
+                            }, 'json');
                         });
                     });
                 } else {
-                    // Si el DNI existía pero justo no tenía disciplinas (raro, pero por las dudas)
-                    // le inyectamos un bloque limpio del molde original
-                    let bloqueLimpio = moldeOriginal.clone();
-                    bloqueLimpio.find('.select-deporte').val('');
-                    bloqueLimpio.find('.select-categoria').val('').prop('disabled', true).html('<option value="">Elija el deporte primero</option>');
-                    bloqueLimpio.find('.btn-remove').hide();
-                    $('#contenedor-deportes').append(bloqueLimpio);
+                    actualizarDeportesPorGenero();
                 }
 
             } else {
-                // Si el DNI NO existe (Es una inscripción limpia), reseteamos los estilos por si antes cargó uno que sí existía
                 $('#cartel-modo').slideUp(300);
                 $('#btn-submit-principal').html('<i class="bi bi-check-circle-fill"></i> CONFIRMAR INSCRIPCIÓN').removeClass('btn-warning text-dark').addClass('btn-primary');
                 $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.');
             }
         });
     });
-    // Carga de categorías
+
+
+    // ==========================================
+    // 3. DINÁMICA DE FILAS (DEPORTE -> CATEGORÍA + PANEL UTE)
+    // ==========================================
     $(document).on('change', '.select-deporte', function() {
         let id_deporte = $(this).val();
-        let fila = $(this).closest('.card-body');
-        let selectCat = fila.find('.select-categoria');
+        let fila = $(this).closest('.row-deporte-activo');
+        if(fila.length === 0) return;
 
-        if(id_deporte) {
-            $.get('<?= base_url('Inscripciones/getCategorias/') ?>' + id_deporte, function(data) {
+        let selectCat = fila.find('.select-categoria');
+        let bloqueUte = fila.find('.bloque-ute');
+        let modalidad = $(this).find(':selected').data('modalidad');
+
+        if (modalidad === 'EQUIPO' || modalidad === 'AMBAS') {
+            bloqueUte.slideDown(300);
+        } else {
+            bloqueUte.slideUp(300, function() {
+                bloqueUte.find('input[type="checkbox"]').prop('checked', false);
+                bloqueUte.find('.hd-tiene-ute, .hd-necesita-ute').val('0');
+                bloqueUte.find('.bloque-detalle-ute').hide();
+                bloqueUte.find('.txt-detalle-ute').val('').prop('required', false);
+            });
+        }
+
+        if (id_deporte) {
+            $.get('<?= base_url("Inscripciones/getCategorias/") ?>' + id_deporte, function(data) {
                 selectCat.empty().append('<option value="">Seleccione categoría...</option>');
-                data.forEach(function(cat) {
+                
+                let categorias = (typeof data === 'string') ? JSON.parse(data) : data;
+                categorias.forEach(function(cat) {
                     selectCat.append(`<option value="${cat.id_categoria}">${cat.nombre_categoria}</option>`);
                 });
                 selectCat.prop('disabled', false);
-            });
+                actualizarNamesDeportes();
+            }, 'json');
         } else {
             selectCat.prop('disabled', true).empty().append('<option value="">Elija el deporte primero</option>');
+            actualizarNamesDeportes();
         }
     });
 
-    // Agregar nuevo bloque de deporte
-    $('#btn-agregar').click(function() {
-        // Clonamos la primera fila
-        let nuevoBloque = $('.row-deporte:first').clone();
-
-        // --- EL FIX ESTÁ AQUÍ ---
-        // 1. Buscamos los selects dentro del nuevo bloque
-        let selectDeporte = nuevoBloque.find('.select-deporte');
-        let selectCategoria = nuevoBloque.find('.select-categoria');
-
-        // 2. Limpiamos valores y nos aseguramos que el deporte NO esté disabled
-        selectDeporte.val('').prop('disabled', false); 
+    // --- MANEJO COMPORTAMIENTO INTERNO DE CHECKS DE UTE ---
+    $(document).on('change', '.check-tengo-ute', function() {
+        let fila = $(this).closest('.row-deporte-activo');
+        let txtAreaBlock = fila.find('.bloque-detalle-ute');
         
-        // 3. La categoría sí debe empezar disabled hasta que elija el deporte
-        selectCategoria.val('').empty().append('<option value="">Elija el deporte primero</option>').prop('disabled', true);
+        if ($(this).is(':checked')) {
+            fila.find('.check-necesito-ute').prop('checked', false);
+            fila.find('.hd-necesita-ute').val('0');
+            fila.find('.hd-tiene-ute').val('1');
+            txtAreaBlock.slideDown(250);
+            fila.find('.txt-detalle-ute').prop('required', true);
+        } else {
+            fila.find('.hd-tiene-ute').val('0');
+            txtAreaBlock.slideUp(250, function() {
+                fila.find('.txt-detalle-ute').val('').prop('required', false);
+            });
+        }
+    });
 
-        // 4. Mostramos el botón de quitar
+    $(document).on('change', '.check-necesito-ute', function() {
+        let fila = $(this).closest('.row-deporte-activo');
+        
+        if ($(this).is(':checked')) {
+            fila.find('.check-tengo-ute').prop('checked', false);
+            fila.find('.hd-tiene-ute').val('0');
+            fila.find('.hd-necesita-ute').val('1');
+            fila.find('.bloque-detalle-ute').slideUp(250, function() {
+                fila.find('.txt-detalle-ute').val('').prop('required', false);
+            });
+        } else {
+            fila.find('.hd-necesita-ute').val('0');
+        }
+    });
+
+    $('#btn-agregar').click(function() {
+        let sexo = $('#cmb-sexo').val();
+        if (!sexo) return; 
+
+        let nuevoBloque = $('#molde-fila-deporte .row-deporte-molde').clone();
+        nuevoBloque.removeClass('row-deporte-molde').addClass('row-deporte-activo');
+        
+        let selectDeporteDestino = nuevoBloque.find('.select-deporte');
+        let selectDeporteOrigen = $('#contenedor-deportes .select-deporte:first');
+
+        selectDeporteDestino.html(selectDeporteOrigen.html());
+        selectDeporteDestino.val(''); 
+
         nuevoBloque.find('.btn-remove').show();
-
-        // 5. Lo agregamos al contenedor con una pequeña animación
         nuevoBloque.hide();
+        
         $('#contenedor-deportes').append(nuevoBloque);
         nuevoBloque.fadeIn(400);
+        
+        controlarVisibilidadRoles();
     });
 
-    // Quitar bloque
     $(document).on('click', '.btn-remove', function() {
-        $(this).closest('.row-deporte').fadeOut(300, function() {
+        let fila = $(this).closest('.row-deporte-activo');
+        fila.find('.select-deporte, .select-categoria, .txt-detalle-ute').prop('required', false).removeAttr('name');
+        fila.fadeOut(300, function() {
             $(this).remove();
+            actualizarNamesDeportes();
         });
     });
+
+
+    // ==========================================
+    // 4. CONTROL DE ROLES (COMPETIDOR / ACOMPAÑANTE)
+    // ==========================================
+    function controlarVisibilidadRoles() {
+        let rol = $('#cmb-rol-asistente').val();
+        
+        // CORRECCIÓN CLAVE: El molde base y oculto jamás lleva requeridos activos ni names
+        $('#molde-fila-deporte').find('.select-deporte, .select-categoria, .txt-detalle-ute').prop('required', false).removeAttr('name');
+
+        if (rol === 'acompañante') {
+            $('#seccion-deportiva-completa').fadeOut(300);
+            $('#contenedor-deportes').find('.select-deporte, .select-categoria, .txt-detalle-ute').prop('required', false).val('');
+            
+            $('#bloque-delegado').fadeOut(300);
+            $('#chk-delegado').prop('checked', false).prop('disabled', true);
+            $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos del acompañante son correctos.');
+            
+            actualizarNamesDeportes();
+        } else {
+            $('#seccion-deportiva-completa').fadeIn(300);
+            $('#bloque-delegado').fadeIn(300);
+            $('#chk-delegado').prop('disabled', false);
+            $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.');
+            
+            // Asignamos required ÚNICAMENTE a las filas del contenedor real y visible
+            $('#contenedor-deportes .row-deporte-activo').each(function() {
+                $(this).find('.select-deporte').prop('required', true);
+                $(this).find('.select-categoria').prop('required', true);
+                
+                if ($(this).find('.bloque-detalle-ute').is(':visible') && $(this).find('.check-tengo-ute').is(':checked')) {
+                    $(this).find('.txt-detalle-ute').prop('required', true);
+                } else {
+                    $(this).find('.txt-detalle-ute').prop('required', false);
+                }
+            });
+
+            actualizarNamesDeportes();
+
+            let sexo = $('#cmb-sexo').val();
+            if (sexo) {
+                $('#contenedor-deportes, #bloque-btn-agregar').fadeIn(300);
+                $('#msg-espera').hide();
+            } else {
+                $('#msg-espera').fadeIn(300);
+                $('#contenedor-deportes, #bloque-btn-agregar').hide();
+            }
+        }
+    }
+
+    $('#cmb-rol-asistente').on('change', controlarVisibilidadRoles);
+
 });
 </script>
 
