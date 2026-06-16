@@ -537,6 +537,21 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/control_total', $data);
     }
 
+    public function detalle_ajax($id_participante) {
+        // Es buena práctica validar que sea una petición válida o que el admin esté logueado
+        if (!$id_participante) {
+            echo json_encode(['error' => 'ID no válido']);
+            return;
+        }
+
+        $this->load->model('Participante_model'); // Ajustá al nombre de tu modelo
+        $data = $this->Participante_model->obtener_detalle_participante($id_participante);
+
+        // Seteamos la cabecera para decirle al navegador que es un JSON puro
+        header('Content-Type: application/json');
+        echo json_encode($data);
+    }
+
     // 2. Acción para eliminar un registro de encuesta
     public function eliminar_encuesta($id) {
         if ($this->session->userdata('user_rol') === 'superadmin') {

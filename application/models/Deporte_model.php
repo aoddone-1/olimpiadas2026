@@ -94,25 +94,31 @@ class Deporte_model extends CI_Model {
         return $this->db->get()->result_array();
     }
     public function obtener_todas_las_inscripciones() {
-        $this->db->select('
-            id.id_inscripcion,
-            id.asistio,
-            id.fecha_hora,
+        $this->db->select("
             p.id_participante,
             p.nombre_completo,
             p.dni,
             p.delegacion,
             p.hotel_alojamiento,
             p.kit_entregado,
-            c.nombre_categoria,
-            d.nombre_deporte
-        ');
-        $this->db->from('inscripciones_deportivas id');
-        $this->db->join('participantes p', 'p.id_participante = id.id_participante', 'inner');
-        $this->db->join('categorias c', 'c.id_categoria = id.id_categoria', 'inner');
-        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+            p.es_competidor, 
+            p.es_delegado,
+            GROUP_CONCAT(d.nombre_deporte SEPARATOR ', ') as deportes_nombres,
+            GROUP_CONCAT(c.nombre_categoria SEPARATOR ', ') as categorias_nombres
+        ", FALSE); // Ponemos FALSE para que CodeIgniter no rompa los alias del GROUP_CONCAT
         
-        $this->db->order_by('id.fecha_hora', 'DESC');
+        $this->db->from('participantes p');
+        // LEFT JOIN secuenciales para no perder a los acompañantes (es_competidor = 0)
+        $this->db->join('inscripciones_deportivas id', 'id.id_participante = p.id_participante', 'left');
+        $this->db->join('categorias c', 'c.id_categoria = id.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        
+        // Agrupamos por el ID único del participante para tener una sola fila por persona
+        $this->db->group_by('p.id_participante');
+        
+        // Ordenamos por los últimos registrados
+        $this->db->order_by('p.id_participante', 'DESC');
+        
         return $this->db->get()->result_array();
     }
     public function borrar_encuesta($id_respuesta) {

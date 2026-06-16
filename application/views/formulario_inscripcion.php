@@ -190,7 +190,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Alojamiento</label>
-                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" placeholder="Nombre del hotel asignado">
+                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" placeholder="Nombre del hotel donde se hospeda">
                     </div>
                 </div>
             </div>
@@ -387,9 +387,16 @@ $(document).ready(function() {
     function actualizarDeportesPorGenero(callback_interno) {
         let sexo = $('#cmb-sexo').val();
         let rol = $('#cmb-rol-asistente').val();
-        
-        if (rol === 'acompañante') return;
 
+        // CORRECCIÓN CLAVE: Si no se seleccionó el rol o es acompañante, congelamos todo oculto
+        if (!rol || rol === 'acompañante') {
+            $('#seccion-deportiva-completa').fadeOut(300);
+            $('#contenedor-deportes').empty();
+            $('#bloque-btn-agregar').hide();
+            return;
+        }
+
+        // Si es competidor pero aún no eligió el sexo
         if (!sexo) {
             $('#contenedor-deportes').empty();
             $('#bloque-btn-agregar').fadeOut(300);
@@ -441,6 +448,7 @@ $(document).ready(function() {
 
     $('#cmb-sexo').on('change', function() {
         actualizarDeportesPorGenero();
+        controlarVisibilidadRoles(); // Sincroniza la vista si cambian el sexo después de elegir rol
     });
 
 
@@ -673,9 +681,28 @@ $(document).ready(function() {
     // ==========================================
     function controlarVisibilidadRoles() {
         let rol = $('#cmb-rol-asistente').val();
+        let sexo = $('#cmb-sexo').val();
         
-        // CORRECCIÓN CLAVE: El molde base y oculto jamás lleva requeridos activos ni names
+        // El molde base y oculto jamás lleva requeridos activos ni names
         $('#molde-fila-deporte').find('.select-deporte, .select-categoria, .txt-detalle-ute').prop('required', false).removeAttr('name');
+
+        // NUEVO: Si no seleccionó Tipo de Asistente (estado inicial null)
+        if (!rol) {
+            $('#seccion-deportiva-completa').fadeOut(300);
+            $('#bloque-delegado').fadeOut(300);
+            $('#chk-delegado').prop('checked', false).prop('disabled', true);
+            
+            // Ocultamos todos los checks del deslinde hasta que definan el rol
+            $('.items-deslinde').closest('.col-12').hide();
+            $('.check-item-deslinde').prop('required', false).prop('checked', false);
+            
+            $('#contenedor-deportes').find('.select-deporte, .select-categoria, .txt-detalle-ute').prop('required', false);
+            actualizarNamesDeportes();
+            return;
+        }
+
+        // Si hay rol seleccionado, mostramos las declaraciones base del deslinde
+        $('.items-deslinde').closest('.col-12').fadeIn(300);
 
         if (rol === 'acompañante') {
             $('#seccion-deportiva-completa').fadeOut(300);
@@ -685,39 +712,50 @@ $(document).ready(function() {
             $('#chk-delegado').prop('checked', false).prop('disabled', true);
             $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos del acompañante son correctos.');
             
+            // Ocultamos checks exclusivos de competencia
+            $('.bloque-competidor-check').fadeOut(300).find('.check-item-deslinde').prop('required', false).prop('checked', false);
+            $('#chk-voluntario, #chk-riesgos, #chk-exoneracion, #chk-imagen').prop('required', true);
+
             actualizarNamesDeportes();
         } else {
-            $('#seccion-deportiva-completa').fadeIn(300);
+            // Si seleccionó 'competidor'
             $('#bloque-delegado').fadeIn(300);
             $('#chk-delegado').prop('disabled', false);
             $('#leyenda-boton').html('Al hacer clic en "Confirmar", declara que los datos son correctos y posee aptitud física para competir.');
             
-            // Asignamos required ÚNICAMENTE a las filas del contenedor real y visible
-            $('#contenedor-deportes .row-deporte-activo').each(function() {
-                $(this).find('.select-deporte').prop('required', true);
-                $(this).find('.select-categoria').prop('required', true);
-                
-                if ($(this).find('.bloque-detalle-ute').is(':visible') && $(this).find('.check-tengo-ute').is(':checked')) {
-                    $(this).find('.txt-detalle-ute').prop('required', true);
-                } else {
-                    $(this).find('.txt-detalle-ute').prop('required', false);
-                }
-            });
+            $('.bloque-competidor-check').fadeIn(300).find('.check-item-deslinde').prop('required', true);
+            $('.check-item-deslinde').prop('required', true);
 
-            actualizarNamesDeportes();
-
-            let sexo = $('#cmb-sexo').val();
+            // CONTROL ESTRICTO DE AMBOS SELECCIONADOS:
             if (sexo) {
+                // Si ya especificó el sexo, desplegamos la sección deportiva con los datos correspondientes
+                $('#seccion-deportiva-completa').fadeIn(300);
                 $('#contenedor-deportes, #bloque-btn-agregar').fadeIn(300);
                 $('#msg-espera').hide();
+                
+                $('#contenedor-deportes .row-deporte-activo').each(function() {
+                    $(this).find('.select-deporte').prop('required', true);
+                    $(this).find('.select-categoria').prop('required', true);
+                    
+                    if ($(this).find('.bloque-detalle-ute').is(':visible') && $(this).find('.check-tengo-ute').is(':checked')) {
+                        $(this).find('.txt-detalle-ute').prop('required', true);
+                    } else {
+                        $(this).find('.txt-detalle-ute').prop('required', false);
+                    }
+                });
             } else {
-                $('#msg-espera').fadeIn(300);
-                $('#contenedor-deportes, #bloque-btn-agregar').hide();
+                // Si es competidor pero NO eligió sexo todavía, guardamos el panel de disciplinas
+                $('#seccion-deportiva-completa').fadeOut(300);
             }
+
+            actualizarNamesDeportes();
         }
     }
 
-    $('#cmb-rol-asistente').on('change', controlarVisibilidadRoles);
+    $('#cmb-rol-asistente').on('change', function() {
+        controlarVisibilidadRoles();
+        actualizarDeportesPorGenero(); // Carga las disciplinas en caso de pasar a Competidor y tener el sexo ya cargado
+    });
 
 });
 </script>

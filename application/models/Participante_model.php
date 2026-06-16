@@ -117,4 +117,42 @@ class Participante_model extends CI_Model {
         $this->db->where('kit_entregado', 1);
         return $this->db->count_all_results('participantes');
     }
+
+    public function obtener_detalle_participante($id_participante) {
+        // 1. Traemos los datos base del participante
+        // REVISIÓN: Asegurate de que todas estas columnas existan tal cual en tu tabla 'participantes'
+        $this->db->select('
+            id_participante, dni, nombre_completo, email, telefono, delegacion, 
+            sexo, fecha_nacimiento, grupo_sanguineo, obra_social, tipo_empleado, 
+            dieta_especial, hotel_alojamiento, contacto_emergencia, 
+            es_competidor, es_delegado, kit_entregado, fecha_inscripcion
+        ');
+        $this->db->from('participantes');
+        $this->db->where('id_participante', $id_participante);
+        $participante = $this->db->get()->row_array();
+
+        // 2. Si el participante existe, le anexamos sus deportes de forma segura
+        if ($participante) {
+            $participante['deportes'] = array(); // Por defecto vacío
+            
+            // Hacemos un try-catch interno por si las tablas de deportes tienen nombres distintos
+            try {
+                $this->db->select('*');
+                $this->db->from('inscripciones_deportivas id');
+                $this->db->join('categorias c', 'c.id_categoria = id.id_categoria', 'inner');
+                $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+                $this->db->where('id.id_participante', $id_participante);
+                
+                $resultado_deportes = $this->db->get()->result_array();
+                if ($resultado_deportes) {
+                    $participante['deportes'] = $resultado_deportes;
+                }
+            } catch (Exception $e) {
+                // Si falla la consulta de deportes, no truncamos los datos personales del tipo
+                $participante['deportes'] = array(['nombre_deporte' => 'Error al cargar', 'nombre_categoria' => 'Verificar tablas']);
+            }
+        }
+
+        return $participante;
+    }
 }
