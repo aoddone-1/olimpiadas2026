@@ -51,6 +51,16 @@
                     <i class="bi bi-person-check-fill me-2"></i>Inscripciones
                 </button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-equipos" type="button">
+                    <i class="bi bi-people-fill me-2"></i>UTEs/Equipos
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-fixture" type="button">
+                    <i class="bi bi-calendar2-week me-2"></i>Fixture
+                </button>
+            </li>
         </ul>
     </div>
 
@@ -62,6 +72,12 @@
 
         <div class="tab-custom-pane fade" id="panel-inscripciones">
             <?php $this->load->view('admin/panel-inscripciones'); ?>
+        </div>
+        <div class="tab-custom-pane fade" id="panel-equipos">
+            <?php $this->load->view('admin/panel-equipos'); ?>
+        </div>
+        <div class="tab-custom-pane fade" id="panel-fixture">
+            <?php $this->load->view('admin/panel-fixture'); ?>
         </div>
 
     </div>
