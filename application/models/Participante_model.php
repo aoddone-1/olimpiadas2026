@@ -4,71 +4,149 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Participante_model extends CI_Model {
 
     public function insertar_completo($data_persona, $deportes_seleccionados) {
-        // 1. Iniciamos una transacción para asegurarnos de que se guarde todo o nada
-        $this->db->trans_start();
+        $this->db->trans_start(); // Iniciamos transacción por seguridad
 
-        // 2. Insertamos la información básica de la persona
+        // 1. Insertamos la persona en la tabla participantes
         $this->db->insert('participantes', $data_persona);
-        
         $id_participante = $this->db->insert_id();
 
-        // 3. Insertamos las disciplinas asignadas (si es competidor y tiene filas)
-        if (!empty($deportes_seleccionados) && $id_participante) {
-            foreach ($deportes_seleccionados as $disc) {
-                
-                // Estructura idéntica a las columnas reales de tu tabla intermedia
-                $data_relacion = [
-                    'id_participante' => $id_participante,
-                    'id_categoria'    => $disc['id_categoria'], // Mapeo directo a categoría
-                    'tiene_ute'       => $disc['tiene_ute'],
-                    'necesita_ute'    => $disc['necesita_ute'],
-                    'detalle_ute'     => $disc['detalle_ute']
-                ];
+        // 2. Procesamos el guardado relacional de deportes y UTEs
+        $this->_procesar_deportes_y_utes($id_participante, $deportes_seleccionados);
 
-                $this->db->insert('inscripciones_deportivas', $data_relacion);
-            }
-        }
-
-        // 4. Completamos la transacción
         $this->db->trans_complete();
-
-        // Si la transacción falló por cualquier motivo, devuelve FALSE
         return $this->db->trans_status();
     }
 
-    public function actualizar_completo($id_participante, $datos_persona, $deportes_seleccionados) {
-        // Dejamos que CodeIgniter maneje los errores de forma nativa para las transacciones
+    public function actualizar_completo($id_participante, $data_persona, $deportes_seleccionados) {
         $this->db->trans_start();
 
-        // 1. Actualizamos los datos personales en la tabla 'participantes'
+        // 1. Actualizamos los datos del participante principal
         $this->db->where('id_participante', $id_participante);
-        $this->db->update('participantes', $datos_persona);
+        $this->db->update('participantes', $data_persona);
 
-        // 2. Volamos las disciplinas viejas (si pasa a ser acompañante, la tabla queda limpia)
+        // 2. Limpiamos sus inscripciones previas en esta tabla antes de re-insertar
         $this->db->where('id_participante', $id_participante);
         $this->db->delete('inscripciones_deportivas');
 
-        // 3. Insertamos las nuevas disciplinas con su estructura de UTE correspondiente
-        if (!empty($deportes_seleccionados) && $id_participante) {
-            foreach ($deportes_seleccionados as $disc) {
-                
-                $data_relacion = [
-                    'id_participante' => $id_participante,
-                    'id_categoria'    => $disc['id_categoria'], // Mapeo estructural correcto
-                    'tiene_ute'       => $disc['tiene_ute'],
-                    'necesita_ute'    => $disc['necesita_ute'],
-                    'detalle_ute'     => $disc['detalle_ute']
-                ];
+        // Nota operativa: Si querés desvincularlo de UTEs previas en las que ya no participa,
+        // podés limpiar su registro de la tabla intermedia participantes_utes:
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('participantes_utes');
 
-                $this->db->insert('inscripciones_deportivas', $data_relacion);
-            }
+        // 3. Procesamos las nuevas disciplinas y UTEs estructuradas
+        $this->_procesar_deportes_y_utes($id_participante, $deportes_seleccionados);
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
+    private function _procesar_deportes_y_utes($id_participante, $deportes_seleccionados) {
+        if (empty($deportes_seleccionados)) {
+            return;
         }
 
-        // 4. Completamos la transacción atómica
-        $this->db->trans_complete();
-        
-        // Retorna TRUE si se ejecutó el update y los inserts sin errores, o FALSE si falló algo
-        return $this->db->trans_status();
+        foreach ($deportes_seleccionados as $disc) {
+            $id_ute_asignada = NULL;
+
+            // ¿El participante declaró que TIENE una UTE y le puso nombre?
+            if ((int)$disc['tiene_ute'] === 1 && !empty($disc['nombre_ute'])) {
+                
+                // === CONTROL DE DUPLICADOS: Buscamos si la UTE ya existe ===
+                $this->db->where('id_categoria', $disc['id_categoria']);
+                $this->db->where('nombre_ute', $disc['nombre_ute']);
+                $query_ute_existente = $this->db->get('utes');
+
+                if ($query_ute_existente->num_rows() > 0) {
+                    // Si ya existe, REUSAMOS el ID existente en vez de crear uno nuevo
+                    $ute_vieja = $query_ute_existente->row_array();
+                    $id_ute_asignada = $ute_vieja['id_ute'];
+                } else {
+                    // Si no existe, la creamos desde cero
+                    $data_ute = [
+                        'id_categoria' => $disc['id_categoria'],
+                        'nombre_ute'   => $disc['nombre_ute']
+                    ];
+                    $this->db->insert('utes', $data_ute);
+                    $id_ute_asignada = $this->db->insert_id();
+                }
+
+                // B) Vinculamos al creador de la inscripción (Pepe) a la UTE
+                // Usamos un chequeo previo para no duplicar la fila intermedia
+                $this->db->where('id_ute', $id_ute_asignada);
+                $this->db->where('id_participante', $id_participante);
+                if ($this->db->get('participantes_utes')->num_rows() == 0) {
+                    $this->db->insert('participantes_utes', [
+                        'id_ute'          => $id_ute_asignada,
+                        'id_participante' => $id_participante
+                    ]);
+                }
+
+                // C) Procesamos la bolsa de DNIs de los compañeros que tipeó Pepe
+                if (!empty($disc['companeros']) && is_array($disc['companeros'])) {
+                    foreach ($disc['companeros'] as $dni_comp) {
+                        
+                        // Verificamos si ese DNI ya está registrado en el sistema
+                        $this->db->where('dni', $dni_comp);
+                        $query_p = $this->db->get('participantes');
+
+                        if ($query_p->num_rows() > 0) {
+                            $comp_row = $query_p->row_array();
+                            $id_socio_ute = $comp_row['id_participante'];
+                        } else {
+                            // El DNI no existe. Lo insertamos como fantasma temporal.
+                            $data_fantasma = [
+                                'dni'             => $dni_comp,
+                                'nombre_completo' => ' ',
+                                'email'           => ' ',
+                                'es_competidor'   => 1,
+                                'es_delegado'     => 0,
+                                'sexo'     => 'Otro',
+                                'tipo_empleado'     => 'Planta Permanente',
+                                'dieta_especial'     => 'Sin restrictions'
+                            ];
+                            $this->db->insert('participantes', $data_fantasma);
+                            $id_socio_ute = $this->db->insert_id();
+                        }
+
+                        // 1. Lo vinculamos a la UTE (tabla intermedia de equipos) si no estaba ya vinculado
+                        $this->db->where('id_ute', $id_ute_asignada);
+                        $this->db->where('id_participante', $id_socio_ute);
+                        if ($this->db->get('participantes_utes')->num_rows() == 0) {
+                            $this->db->insert('participantes_utes', [
+                                'id_ute'          => $id_ute_asignada,
+                                'id_participante' => $id_socio_ute
+                            ]);
+                        }
+
+                        // 2. Le generamos su propia inscripción deportiva al compañero si no la tenía
+                        $this->db->where('id_participante', $id_socio_ute);
+                        $this->db->where('id_categoria', $disc['id_categoria']);
+                        $check_ins = $this->db->get('inscripciones_deportivas');
+
+                        if ($check_ins->num_rows() == 0) {
+                            $this->db->insert('inscripciones_deportivas', [
+                                'id_participante' => $id_socio_ute,
+                                'id_categoria'    => $disc['id_categoria'],
+                                'tiene_ute'       => 1,
+                                    'necesita_ute'    => 0,
+                                    'id_ute'          => $id_ute_asignada
+                                ]);
+                            }
+                        }
+                    }
+                }
+
+                // 3. Finalmente guardamos el registro del participante principal (Pepe)
+                $data_inscripcion = [
+                    'id_participante' => $id_participante,
+                    'id_categoria'    => $disc['id_categoria'],
+                    'tiene_ute'       => $disc['tiene_ute'],
+                    'necesita_ute'    => $disc['necesita_ute'],
+                    'id_ute'          => $id_ute_asignada
+                ];
+            
+            $this->db->insert('inscripciones_deportivas', $data_inscripcion);
+        }
     }
 
     

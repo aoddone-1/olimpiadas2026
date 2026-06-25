@@ -3,7 +3,6 @@
         <div class="d-flex align-items-center">
             <i class="bi bi-calendar-event text-info me-2"></i> 
             <span>Fixture y Cronogramas</span>
-            <span class="badge bg-secondary ms-2" id="contador-encuestas"><?= count($listado_encuestas) ?> filas</span>
         </div>
         
         <div class="position-relative" style="max-width: 300px; width: 100%;">

@@ -3,7 +3,7 @@
         <div class="d-flex align-items-center">
             <i class="bi bi-list-check text-warning me-2"></i> 
             <span>Gestion de UTE/Equipos</span>
-            <span class="badge bg-secondary ms-2" id="contador-encuestas"><?= count($listado_encuestas) ?> filas</span>
+            <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
         </div>
         
         <div class="position-relative" style="max-width: 300px; width: 100%;">

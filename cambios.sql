@@ -1,6 +1,9 @@
 application\controllers\Inscripciones.php
+application\models\participante_model.php
 application\models\deporte_model.php
 application\models\participante_model.php
 application\views\formulario_inscripcion.php
 application\views\admin\panel-inscripciones.php
+application\views\admin\panel-equipos.php
+application\views\admin\panel-fixture.php
 application\views\admin\modals\control_total_modals.php
