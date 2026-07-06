@@ -23,11 +23,6 @@ class Inscripciones extends CI_Controller {
         $this->load->view('formulario_inscripcion', $data);
     }
     
-    public function formulario_inscripcion_2(){
-        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
-        $this->load->view('formulario_inscripcion_2', $data);
-    }
-
     public function getCategorias($id_deporte) {
         $categorias = $this->Categoria_model->get_by_deporte($id_deporte);
         return $this->output
@@ -50,75 +45,39 @@ class Inscripciones extends CI_Controller {
     }
 
     public function buscar_por_dni() {
-    $dni = $this->input->post('dni');
+        $dni = $this->input->post('dni');
 
-    if (empty($dni)) {
-        echo json_encode(['existe' => false]);
-        return;
-    }
-
-    $this->load->model('Participante_model');
-
-    $this->db->where('dni', trim($dni));
-    $query_participante = $this->db->get('participantes');
-
-    if ($query_participante->num_rows() > 0) {
-        $participante = $query_participante->row_array();
-        $id_p = $participante['id_participante'];
-
-        // 1. Traemos las inscripciones deportivas con su categoría mapeada (como hacías vos)
-        $this->db->select('i.*, c.id_deporte, c.nombre_categoria');
-        $this->db->from('inscripciones_deportivas i');
-        $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
-        $this->db->where('i.id_participante', $id_p);
-        $query_deportes = $this->db->get();
-        
-        $disciplinas = $query_deportes->result_array();
-        $disciplinas_completas = [];
-
-        // 2. Para cada disciplina, si tiene UTE, vamos a buscar sus datos reales relacionales
-        foreach ($disciplinas as $disc) {
-            $nombre_ute = '';
-            $companeros = [];
-
-            if (!empty($disc['id_ute'])) {
-                // A) Traemos el nombre del equipo / UTE
-                $this->db->where('id_ute', $disc['id_ute']);
-                $query_ute = $this->db->get('utes')->row_array();
-                if ($query_ute) {
-                    $nombre_ute = $query_ute['nombre_ute'];
-                }
-
-                // B) Traemos los DNIs de los COMPAÑEROS vinculados a esa UTE (excluyendo a la persona actual)
-                $this->db->select('p.dni');
-                $this->db->from('participantes_utes pu');
-                $this->db->join('participantes p', 'p.id_participante = pu.id_participante');
-                $this->db->where('pu.id_ute', $disc['id_ute']);
-                $this->db->where('pu.id_participante !=', $id_p); // Excluirse a uno mismo
-                $query_miembros = $this->db->get()->result_array();
-
-                foreach ($query_miembros as $m) {
-                    $companeros[] = $m['dni'];
-                }
-            }
-
-            // Agregamos las propiedades nuevas al objeto de la disciplina
-            $disc['nombre_ute'] = $nombre_ute;
-            $disc['companeros'] = $companeros; // Es un array limpio de strings: ["44111222", "44333444"]
-
-            $disciplinas_completas[] = $disc;
+        if (empty($dni)) {
+            echo json_encode(['existe' => false]);
+            return;
         }
 
-        // 3. Devolvemos la respuesta formateada con todo el desglose relacional listo
-        echo json_encode([
-            'existe'      => true,
-            'datos'       => $participante,
-            'disciplinas' => $disciplinas_completas
-        ]);
-    } else {
-        echo json_encode(['existe' => false]);
+        $this->load->model('Participante_model');
+
+        $this->db->where('dni', trim($dni));
+        $query_participante = $this->db->get('participantes');
+
+        if ($query_participante->num_rows() > 0) {
+            $participante = $query_participante->row_array();
+            $id_p = $participante['id_participante'];
+
+            $this->db->select('*');
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
+            $this->db->where('i.id_participante', $id_p);
+            $query_deportes = $this->db->get();
+            
+            $disciplinas = $query_deportes->result_array();
+
+            echo json_encode([
+                'existe'      => true,
+                'datos'       => $participante,
+                'disciplinas' => $disciplinas
+            ]);
+        } else {
+            echo json_encode(['existe' => false]);
+        }
     }
-}
 
     public function guardar() {
         $this->load->model('Participante_model');
@@ -127,7 +86,7 @@ class Inscripciones extends CI_Controller {
         // =================================================================
         // BLANCO DE PRUEBAS: Descomentá la línea de abajo para testear con datos fijos
         // =================================================================
-       //  $post = $this->_obtener_datos_prueba(); 
+        // $post = $this->_obtener_datos_prueba(); 
         // =================================================================
 
         $this->db->where('dni', trim($post['dni']));
@@ -168,34 +127,19 @@ class Inscripciones extends CI_Controller {
             'token_qr'            => $token
         ];
 
-        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE (FASE C: CONTROLADOR)
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
         $deportes_seleccionados = [];
         
         if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
             // Mapeamos dinámicamente cada categoría con su respectivo estado de UTE recibido del HTML
             foreach ($post['categoria_id'] as $index => $cat_id) {
                 if (!empty($cat_id)) {
-                    
-                    // Extraemos los DNIs de los compañeros que pertenecen exclusivamente a este índice de fila deportiva
-                    $companeros = [];
-                    if (isset($post['companeros_dni'][$index]) && is_array($post['companeros_dni'][$index])) {
-                        foreach ($post['companeros_dni'][$index] as $dni_comp) {
-                            $dni_limpio = trim($dni_comp);
-                            if (!empty($dni_limpio)) {
-                                $companeros[] = $dni_limpio;
-                            }
-                        }
-                    }
-
                     $deportes_seleccionados[] = [
                         'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
                         'id_categoria' => $cat_id,
                         'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
                         'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
-                        // Guardamos el nombre estructurado de la UTE
-                        'nombre_ute'   => isset($post['nombre_ute'][$index]) ? mb_strtoupper(trim($post['nombre_ute'][$index]), 'UTF-8') : '',
-                        // Agregamos la sub-bolsa de DNIs limpios para que el Modelo los procese
-                        'companeros'   => $companeros
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
                     ];
                 }
             }
@@ -203,10 +147,12 @@ class Inscripciones extends CI_Controller {
 
         // Ejecución en Base de Datos según existencia
         if ($existe) {
+            // Pasamos la estructura completa de deportes con UTE. 
+            // NOTA: Si tu modelo viejo solo aceptaba IDs, adaptalo para leer este array asociativo de la forma: $disc['id_categoria']
             $resultado = $this->Participante_model->actualizar_completo(
                 $id_participante, 
                 $data_persona, 
-                $deportes_seleccionados
+                $deportes_seleccionados // <-- Asegurate de que viaje esta variable acá y no $categorias_ids
             );
         } else {
             $data_persona['dni'] = trim($post['dni']);
@@ -258,30 +204,12 @@ class Inscripciones extends CI_Controller {
             'contacto_emergencia' => 'Maria Gomez - 2954667788',
             'rol_asistente'       => 'competidor',
             'es_delegado'         => '1',
-            
             // Arrays simulando la carga de deportes (Frontend)
-           // 'deporte_id'          => ['1', '3'],    // IDs de ejemplo de deportes
-            'categoria_id'        => ['13', '15'],  // IDs de ejemplo de categorías
-            'tiene_ute'           => ['1', '0'],    // En el primero tiene UTE
-            'necesita_ute'        => ['0', '1'],    // En el segundo necesita UTE
-            
-            // NUEVO: Nombre de la UTE indexado por fila
-            'nombre_ute'          => [
-                0 => 'Los Galácticos de La Pampa', // Fila 0 tiene nombre
-                1 => ''                            // Fila 1 no tiene
-            ],
-            
-            // NUEVO: Cantidad de compañeros indexado por fila
-            'cantidad_ute'        => [
-                0 => '2',
-                1 => ''
-            ],
-
-            // NUEVO: Matriz bidimensional con los DNIs de los compañeros para la fila 0
-            'companeros_dni'      => [
-                0 => ['44111222', '44333444'], // Dos DNIs de compañeros fantasmas para el primer deporte
-                1 => []                         // Ninguno para el segundo deporte
-            ]
+            'deporte_id'          => ['1', '3'], // IDs de ejemplo de deportes
+            'categoria_id'        => ['13', '15'], // IDs de ejemplo de categorías
+            'tiene_ute'           => ['1', '0'],  // En el primero tiene UTE
+            'necesita_ute'        => ['0', '1'],  // En el segundo necesita UTE
+            'detalle_ute'         => ['Equipo Los Pampeanos FC', ''] 
         ];
     }
 

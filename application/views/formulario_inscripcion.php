@@ -232,10 +232,9 @@
                                     <div class="form-check">
                                         <input type="hidden" class="hd-tiene-ute" value="0">
                                         <input class="form-check-input check-tengo-ute" type="checkbox">
-                                        <label class="form-check-label text-success fw-bold">Tengo UTE / Equipo</label>
+                                        <label class="form-check-label text-success fw-bold">Tengo UTE</label>
                                     </div>
                                 </div>
-                                
                                 <div class="col-md-3">
                                     <div class="form-check">
                                         <input type="hidden" class="hd-necesita-ute" value="0">
@@ -243,29 +242,8 @@
                                         <label class="form-check-label text-danger fw-bold">Necesito UTE</label>
                                     </div>
                                 </div>
-                                
-                                <div class="col-12 bloque-detalle-ute mt-3" style="display: none;">
-                                    <div class="card bg-light border-success-subtle p-3">
-                                        <div class="row g-3">
-                                            
-                                            <div class="col-md-6">
-                                                <label class="form-label fw-bold text-success small"><i class="bi bi-pencil-fill"></i> Nombre del Equipo / UTE</label>
-                                                <input type="text" class="form-control form-control-sm txt-nombre-ute" placeholder="Ej: Los Galácticos">
-                                            </div>
-                                            
-                                            <div class="col-md-6">
-                                                <label class="form-label fw-bold text-success small"><i class="bi bi-person-plus-fill"></i> ¿Cuántos compañeros vas a agregar? <u>(NO TE INCLUYAS EN ESTE NUMERO)</u></label>
-                                                <input type="number" class="form-control form-control-sm txt-cantidad-companeros" min="1" max="20" placeholder="Ej: 2">
-                                            </div>
-
-                                            <div class="col-12 bloque-lista-dnis" style="display: none;">
-                                                <label class="form-label fw-bold text-success small d-block mb-1"><i class="bi bi-people-fill"></i> DNI de tus compañeros de equipo</label>
-                                                
-                                                <div class="contenedor-dinamico-dnis row g-2"></div>
-                                            </div>
-
-                                        </div>
-                                    </div>
+                                <div class="col-md-6 bloque-detalle-ute" style="display: none;">
+                                    <textarea class="form-control txt-detalle-ute" rows="1" placeholder="Detalle de la UTE (Integrantes, equipo, etc.)"></textarea>
                                 </div>
                             </div>
                         </div>
@@ -385,30 +363,20 @@ $(document).ready(function() {
     function actualizarNamesDeportes() {
         let esAcompanante = $('#cmb-rol-asistente').val() === 'acompañante';
         
-        // Limpiamos el molde base para que no interfiera en las validaciones
-        $('#molde-fila-deporte').find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-nombre-ute, .txt-cantidad-companeros, .txt-dni-companero').removeAttr('name').prop('required', false);
+        // CORRECCIÓN PROTECTORA: Limpiamos por completo el molde oculto para que no interfiera en la validación
+        $('#molde-fila-deporte').find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-detalle-ute').removeAttr('name').prop('required', false);
 
-        // Indexamos únicamente las filas reales que el usuario tiene activas
-        $('#contenedor-deportes .row-deporte-activo').each(function(index_fila) {
+        // Indexamos únicamente las filas reales y visibles que están en el contenedor activo
+        $('#contenedor-deportes .row-deporte-activo').each(function() {
             let fila = $(this);
             if (esAcompanante) {
-                fila.find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-nombre-ute, .txt-cantidad-companeros, .txt-dni-companero').removeAttr('name').prop('required', false);
+                fila.find('.select-deporte, .select-categoria, .hd-tiene-ute, .hd-necesita-ute, .txt-detalle-ute').removeAttr('name').prop('required', false);
             } else {
                 fila.find('.select-deporte').attr('name', 'deporte_id[]');
                 fila.find('.select-categoria').attr('name', 'categoria_id[]');
                 fila.find('.hd-tiene-ute').attr('name', 'tiene_ute[]');
                 fila.find('.hd-necesita-ute').attr('name', 'necesita_ute[]');
-                
-                // Nombre de la UTE indexado por fila
-                fila.find('.txt-nombre-ute').attr('name', `nombre_ute[${index_fila}]`);
-                
-                // Cantidad de compañeros indexada por fila
-                fila.find('.txt-cantidad-companeros').attr('name', `cantidad_ute[${index_fila}]`);
-                
-                // Array bidimensional para guardar todos los DNIs de esta fila específica
-                fila.find('.txt-dni-companero').each(function() {
-                    $(this).attr('name', `companeros_dni[${index_fila}][]`);
-                });
+                fila.find('.txt-detalle-ute').attr('name', 'detalle_ute[]');
             }
         });
     }
@@ -570,44 +538,15 @@ $(document).ready(function() {
                                 let mod = optionSeleccionada.data('modalidad');
                                 
                                 if (mod === 'EQUIPO' || mod === 'AMBAS') {
-                                    nuevoBloque.find('.bloque-ute').show(); // Mostramos el contenedor general
+                                    nuevoBloque.find('.bloque-ute').show(); // Desplegamos el contenedor general
                                     
-                                    // 1. ¿El participante guardó que SÍ tiene UTE?
                                     if (disc.tiene_ute == 1) {
                                         nuevoBloque.find('.check-tengo-ute').prop('checked', true);
                                         nuevoBloque.find('.hd-tiene-ute').val('1');
-                                        
-                                        let txtAreaBlock = nuevoBloque.find('.bloque-detalle-ute');
-                                        txtAreaBlock.show();
-                                        
-                                        // A) Pintamos el Nombre del Equipo / UTE
-                                        nuevoBloque.find('.txt-nombre-ute').val(disc.nombre_ute).prop('required', true);
-                                        
-                                        // B) Si el array de compañeros trae DNIs, calculamos la cantidad y dibujamos las cajas
-                                        if (disc.companeros && disc.companeros.length > 0) {
-                                            let cantidad = disc.companeros.length;
-                                            
-                                            // Seteamos el número en el casillero de cantidad
-                                            nuevoBloque.find('.txt-cantidad-companeros').val(cantidad).prop('required', true);
-                                            
-                                            let contenedorDnis = nuevoBloque.find('.contenedor-dinamico-dnis');
-                                            contenedorDnis.empty(); // Limpiamos residuos por seguridad
-                                            
-                                            // Recorremos los DNIs e inyectamos cada casillero con su valor real
-                                            disc.companeros.forEach(function(dni_comp, index_comp) {
-                                                contenedorDnis.append(`
-                                                    <div class="col-md-4">
-                                                        <input type="text" class="form-control form-control-sm txt-dni-companero" value="${dni_comp}" placeholder="DNI Compañero ${index_comp + 1} (Sin puntos)" required>
-                                                    </div>
-                                                `);
-                                            });
-                                            
-                                            // Mostramos la lista de DNIs ya rellenada
-                                            nuevoBloque.find('.bloque-lista-dnis').show();
-                                        }
+                                        nuevoBloque.find('.bloque-detalle-ute').show();
+                                        nuevoBloque.find('.txt-detalle-ute').val(disc.detalle_ute).prop('required', true);
                                     }
                                     
-                                    // 2. ¿El participante guardó que NECESITA UTE?
                                     if (disc.necesita_ute == 1) {
                                         nuevoBloque.find('.check-necesito-ute').prop('checked', true);
                                         nuevoBloque.find('.hd-necesita-ute').val('1');
@@ -615,7 +554,6 @@ $(document).ready(function() {
                                 }
                                 
                                 controlarVisibilidadRoles();
-                                actualizarNamesDeportes()
                             }, 'json');
                         });
                     });
@@ -681,49 +619,14 @@ $(document).ready(function() {
             fila.find('.check-necesito-ute').prop('checked', false);
             fila.find('.hd-necesita-ute').val('0');
             fila.find('.hd-tiene-ute').val('1');
-            
-            fila.find('.txt-nombre-ute').prop('required', true);
-            fila.find('.txt-cantidad-companeros').prop('required', true);
             txtAreaBlock.slideDown(250);
+            fila.find('.txt-detalle-ute').prop('required', true);
         } else {
             fila.find('.hd-tiene-ute').val('0');
             txtAreaBlock.slideUp(250, function() {
-                fila.find('.txt-nombre-ute').prop('required', false).val('');
-                fila.find('.txt-cantidad-companeros').prop('required', false).val('');
-                fila.find('.contenedor-dinamico-dnis').empty();
-                fila.find('.bloque-lista-dnis').hide();
+                fila.find('.txt-detalle-ute').val('').prop('required', false);
             });
         }
-        actualizarNamesDeportes();
-    });
-
-    $(document).on('input change', '.txt-cantidad-companeros', function() {
-        let fila = $(this).closest('.row-deporte-activo');
-        let cantidad = parseInt($(this).val()) || 0;
-        let contenedorDnis = fila.find('.contenedor-dinamico-dnis');
-        let bloqueListaDnis = fila.find('.bloque-lista-dnis');
-
-        // Limpiamos los inputs que se hayan dibujado antes para no duplicar
-        contenedorDnis.empty();
-
-        if (cantidad > 0) {
-            // Hacemos un bucle para dibujar tantas cajitas de DNI como el usuario pidió
-            for (let i = 1; i <= cantidad; i++) {
-                contenedorDnis.append(`
-                    <div class="col-md-4">
-                        <input type="text" class="form-control form-control-sm txt-dni-companero" placeholder="DNI Compañero ${i} (Sin puntos)" required>
-                    </div>
-                `);
-            }
-            // Mostramos el contenedor de los DNIs con una animación suave
-            bloqueListaDnis.fadeIn(250);
-        } else {
-            // Si el número es 0 o borró el campo, ocultamos la lista
-            bloqueListaDnis.fadeOut(250);
-        }
-        
-        // Le avisamos al sistema que actualice los nombres de los arreglos para el controlador
-        actualizarNamesDeportes();
     });
 
     $(document).on('change', '.check-necesito-ute', function() {
