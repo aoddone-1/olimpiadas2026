@@ -86,17 +86,16 @@
                 <i class="bi bi-exclamation-triangle-fill me-3 fs-5 text-warning" style="margin-top: 2px;"></i>
                 <div>
                     <strong class="d-block mb-2">Documentación Requerida para Acreditación:</strong>
-                    <p class="mb-2 small">El día de la acreditación deberás presentar:</p>
                     <ul class="small mb-2 ps-3">
                         <li><strong>DNI</strong> (Documento Nacional de Identidad)</li>
-                        <li><strong>Recibo de Sueldo</strong> actual</li>
+                        <li><strong>Encabezado del Recibo de Sueldo</strong> actual</li>
                         <li><strong>Deslinde de Responsabilidad</strong> firmado</li>
                     </ul>
                     <p class="small mb-0">
-                        <strong>Opción alternativa:</strong> Podés enviar toda la documentación al correo 
+                        Podés enviar toda la documentación al correo 
                         <a href="mailto:olimpicoslapampa@gmail.com?subject=DOCUMENTACION%20DE%20INSCRIPCION" class="alert-link">olimpicoslapampa@gmail.com</a> 
                         con el asunto:<br>
-                        <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: APELLIDO Y NOMBRE - DELEGACION"</code>
+                        <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: <?= $nombre ?> - <?= $delegacion ?>"</code>
                     </p>
                 </div>
             </div>

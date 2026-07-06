@@ -178,6 +178,7 @@ class Inscripciones extends CI_Controller {
             ]);
         } else {
             $this->load->view('inscripcion_exitosa', [
+                'delegacion' => $post['delegacion'],
                 'nombre' => $post['nombre_completo'],
                 'token'  => $token
             ]);
