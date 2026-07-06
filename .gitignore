@@ -1,1 +1,22 @@
-(application/models/Deporte_model.php, application/views/admin/monitoreo_encuesta.php)
+```
+# Dependencies
+vendor/
+composer.lock
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```

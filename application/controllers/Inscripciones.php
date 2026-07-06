@@ -244,6 +244,137 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /**
+     * Genera y descarga el PDF del Deslinde de Responsabilidad
+     */
+    public function descargar_deslinde($token = NULL) {
+        if (!$token) { show_404(); }
+
+        $this->load->model('Participante_model');
+        $participante = $this->Participante_model->obtener_por_token($token);
+
+        if (!$participante) {
+            show_404();
+            return;
+        }
+
+        // Cargar TCPDF
+        require_once(APPPATH . '../vendor/autoload.php');
+
+        // Crear nuevo documento PDF
+        $pdf = new \TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+
+        // Configurar información del documento
+        $pdf->SetCreator(PDF_CREATOR);
+        $pdf->SetAuthor('Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026');
+        $pdf->SetTitle('Deslinde de Responsabilidad - ' . $participante['nombre_completo']);
+        $pdf->SetSubject('Deslinde de Responsabilidad');
+
+        // Eliminar cabecera y pie predeterminados
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        // Margen superior (necesario aunque no haya header)
+        $pdf->SetMargins(15, 20, 15, true);
+
+        // Fuente principal
+        $pdf->SetFont('helvetica', '', 11);
+
+        // Agregar una página
+        $pdf->AddPage();
+
+        // Contenido HTML del deslinde
+        $html = '
+        <div style="text-align: center; margin-bottom: 20px;">
+            <h2 style="color: #1e3c72; font-size: 18px; font-weight: bold;">DESLINE DE RESPONSABILIDAD</h2>
+            <h3 style="color: #2a5298; font-size: 14px; margin-top: 5px;">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026</h3>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <p style="text-align: justify; line-height: 1.6;">
+                <strong>Nombre y Apellido:</strong> ' . strtoupper($participante['nombre_completo']) . '<br>
+                <strong>DNI:</strong> ' . $participante['dni'] . '<br>
+                <strong>Delegación:</strong> ' . strtoupper($participante['delegacion']) . '<br>
+                <strong>Fecha de Nacimiento:</strong> ' . date('d/m/Y', strtotime($participante['fecha_nacimiento'])) . '<br>
+                <strong>Email:</strong> ' . strtolower($participante['email']) . '<br>
+                <strong>Teléfono:</strong> ' . $participante['telefono'] . '
+            </p>
+        </div>
+
+        <div style="margin-bottom: 15px;">
+            <p style="text-align: justify; line-height: 1.6; font-size: 10px;">
+                Por medio del presente documento, yo, <strong>' . strtoupper($participante['nombre_completo']) . '</strong>, 
+                DNI N° <strong>' . $participante['dni'] . '</strong>, declaro bajo juramento lo siguiente:
+            </p>
+        </div>
+
+        <ol style="padding-left: 15px; margin-bottom: 15px; font-size: 10px;">
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                Declaro que participo de forma <strong>voluntaria</strong> en las competencias de las "XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026", 
+                manifestando haber leído, comprendido y aceptado sus Reglamentos y las condiciones de la Póliza de Seguro por Accidentes Personales.
+            </li>
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                Reconozco plenamente que las actividades deportivas implican <strong>riesgos físicos</strong> y asumo voluntariamente total responsabilidad por cualquier contingencia 
+                que pueda suceder practicando las disciplinas en las que me inscribo, tanto a mi persona como a terceros.
+            </li>
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                Declaro bajo juramento encontrarme en <strong>perfectas condiciones psicofísicas para competir</strong>, habiendo realizado los entrenamientos previos necesarios 
+                y los reconocimientos médicos correspondientes, no poseyendo ningún impedimento físico ni deficiencia de salud.
+            </li>
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                Certifico que la categoría solicitada corresponde estrictamente a mi <strong>edad y nivel deportivo</strong>, y que participaré con la <strong>indumentaria adecuada</strong> 
+                requerida para la práctica segura en los circuitos y canchas asignados.
+            </li>
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                <strong>Desligo de toda responsabilidad</strong> a los Organizadores, Coordinadores, Comité Olímpico, Municipios, Autoridades Provinciales, patrocinadores y titulares 
+                de los predios, ante cualquier accidente, lesión, muerte, robo o daño material que pudiera sufrir, renunciando expresamente a reclamos judiciales o extrajudiciales 
+                fuera del seguro contratado.
+            </li>
+            <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
+                Autorizo de forma expresa a la Organización y Sponsors al uso legítimo de <strong>fotografías, películas, videos y grabaciones</strong> de mi participación en el evento 
+                para fines de difusión, sin compensación económica alguna.
+            </li>
+        </ol>
+
+        <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-left: 3px solid #1e3c72; font-size: 9px;">
+            <p style="text-align: justify; line-height: 1.4; margin: 0;">
+                <strong>IMPORTANTE:</strong> Este documento debe ser firmado y presentado el día de la acreditación junto con el DNI y el recibo de sueldo. 
+                También puede enviarlo firmado al correo electrónico: olimpicoslapampa@gmail.com con el asunto "DOCUMENTACION DE INSCRIPCION: APELLIDO Y NOMBRE - DELEGACION".
+            </p>
+        </div>
+
+        <div style="margin-top: 40px;">
+            <table style="width: 100%;">
+                <tr>
+                    <td style="width: 50%; text-align: center; vertical-align: top;">
+                        <div style="border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px;">
+                            <strong>Firma del Participante</strong><br>
+                            Aclaración: ___________________<br>
+                        </div>
+                    </td>
+                    <td style="width: 50%; text-align: center; vertical-align: top;">
+                        <div style="border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px;">
+                            <strong>Fecha</strong><br>
+                            ___ / ___ / _______
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="margin-top: 30px; text-align: center; font-size: 8px; color: #666;">
+            <p>Documento generado electrónicamente el ' . date('d/m/Y H:i:s') . '. Token de verificación: ' . substr($token, 0, 12) . '...</p>
+        </div>
+        ';
+
+        // Imprimir contenido HTML
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        // Forzar salida del archivo PDF para descarga
+        $nombre_archivo = 'Deslinde_Responsabilidad_' . str_replace(' ', '_', $participante['nombre_completo']) . '.pdf';
+        $pdf->Output($nombre_archivo, 'D');
+    }
+
 
 
     // 2. Mostrar formulario de Login manual
