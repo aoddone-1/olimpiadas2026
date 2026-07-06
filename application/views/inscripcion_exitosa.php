@@ -78,8 +78,33 @@
             <div class="alert alert-info d-flex align-items-center text-start" role="alert">
                 <i class="bi bi-pin-angle-fill me-3 fs-4 text-primary"></i>
                 <div>
-                    <strong>Importante:</strong> Por favor, hacé una captura de pantalla de este códigoo. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
+                    <strong>Importante:</strong> Por favor, hacé una captura de pantalla de este código. Este QR facilitará tu acreditación el día del inicio de las Olimpiadas.
                 </div>
+            </div>
+
+            <div class="alert alert-warning d-flex align-items-start text-start" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-3 fs-5 text-warning" style="margin-top: 2px;"></i>
+                <div>
+                    <strong class="d-block mb-2">Documentación Requerida para Acreditación:</strong>
+                    <p class="mb-2 small">El día de la acreditación deberás presentar:</p>
+                    <ul class="small mb-2 ps-3">
+                        <li><strong>DNI</strong> (Documento Nacional de Identidad)</li>
+                        <li><strong>Recibo de Sueldo</strong> actual</li>
+                        <li><strong>Deslinde de Responsabilidad</strong> firmado</li>
+                    </ul>
+                    <p class="small mb-0">
+                        <strong>Opción alternativa:</strong> Podés enviar toda la documentación al correo 
+                        <a href="mailto:olimpicoslapampa@gmail.com?subject=DOCUMENTACION%20DE%20INSCRIPCION" class="alert-link">olimpicoslapampa@gmail.com</a> 
+                        con el asunto:<br>
+                        <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: APELLIDO Y NOMBRE - DELEGACION"</code>
+                    </p>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <a href="<?= base_url('Inscripciones/descargar_deslinde/' . $token) ?>" class="btn btn-danger btn-lg shadow w-100" target="_blank">
+                    <i class="bi bi-file-pdf-fill me-2"></i> DESCARGAR DESLINDE DE RESPONSABILIDAD (PDF)
+                </a>
             </div>
 
             <div class="mt-5">
