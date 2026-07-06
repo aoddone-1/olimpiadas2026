@@ -126,14 +126,17 @@
                                         <th style="vertical-align: middle; background-color: #1e3c72;" rowspan="2">Total Interesados</th>
                                         <th style="vertical-align: middle;" class="bg-primary" rowspan="2">Sexo</th>
                                         <th style="vertical-align: middle;" class="bg-primary" rowspan="2">Subtotal</th>
-                                        <th colspan="5" class="bg-success">Rangos de Edad por Sexo</th>
+                                        <th colspan="8" class="bg-success">Rangos de Edad por Sexo</th>
                                     </tr>
                                     <tr> 
                                         
                                         <th class="table-success text-success small">&lt; 30 años</th>
-                                        <th class="table-success text-success small">30 a 39</th>
-                                        <th class="table-success text-success small">40 a 49</th>
-                                        <th class="table-success text-success small">50 a 59</th>
+                                        <th class="table-success text-success small">30 a 34</th>
+                                        <th class="table-success text-success small">35 a 39</th>
+                                        <th class="table-success text-success small">40 a 44</th>
+                                        <th class="table-success text-success small">45 a 49</th>
+                                        <th class="table-success text-success small">50 a 54</th>
+                                        <th class="table-success text-success small">55 a 59</th>
                                         <th class="table-success text-success small">&gt;= 60 años</th>
                                     </tr>
                                 </thead>
@@ -178,9 +181,12 @@
                                             <td class="text-dark font-monospace fw-bold"><?= $rd['votos_sexo'] ?></td>
                                             
                                             <td class="text-secondary font-monospace"><?= $rd['menos_30'] ?></td>
-                                            <td class="text-secondary font-monospace"><?= $rd['entre_30_39'] ?></td>
-                                            <td class="text-secondary font-monospace"><?= $rd['entre_40_49'] ?></td>
-                                            <td class="text-secondary font-monospace"><?= $rd['entre_50_59'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_30_34'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_35_39'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_40_44'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_45_49'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_50_54'] ?></td>
+                                            <td class="text-secondary font-monospace"><?= $rd['entre_55_59'] ?></td>
                                             <td class="text-secondary font-monospace"><?= $rd['mayores_60'] ?></td>
                                         </tr>
                                     <?php endforeach; ?>

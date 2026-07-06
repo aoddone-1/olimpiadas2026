@@ -230,9 +230,12 @@ class Deporte_model extends CI_Model {
             
             -- Segmentación cruzada: EDAD filtrada por el SEXO de la fila actual
             SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) < 30 THEN 1 ELSE 0 END) as menos_30,
-            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 30 AND 39 THEN 1 ELSE 0 END) as entre_30_39,
-            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 40 AND 49 THEN 1 ELSE 0 END) as entre_40_49,
-            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 50 AND 59 THEN 1 ELSE 0 END) as entre_50_59,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 30 AND 34 THEN 1 ELSE 0 END) as entre_30_34,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 35 AND 39 THEN 1 ELSE 0 END) as entre_35_39,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 40 AND 44 THEN 1 ELSE 0 END) as entre_40_44,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 45 AND 49 THEN 1 ELSE 0 END) as entre_45_49,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 50 AND 54 THEN 1 ELSE 0 END) as entre_50_54,
+            SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) BETWEEN 55 AND 59 THEN 1 ELSE 0 END) as entre_55_59,
             SUM(CASE WHEN TIMESTAMPDIFF(YEAR, er.fecha_nacimiento, CURDATE()) >= 60 THEN 1 ELSE 0 END) as mayores_60
             
         FROM encuestas_deportes ed
