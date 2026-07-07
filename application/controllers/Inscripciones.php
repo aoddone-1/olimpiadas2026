@@ -5,6 +5,7 @@ class Inscripciones extends CI_Controller {
 
     public function __construct() {
         parent::__construct();
+        $this->load->library('pdf');
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
     }
@@ -250,9 +251,16 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_deslinde($token = NULL) {
         // VERSIÓN DE PRUEBA: Solo muestra un PDF simple con texto de prueba
-        
+        $this->load->model('Participante_model');
+        $participante = $this->Participante_model->obtener_por_token($token);
+
+        if (!$participante) {
+            show_404();
+            return;
+        }
+        $data['participante']= $participante;
         // Cargar librería FPDF/TCPDF si existe, sino usar método alternativo
-        $tcpdf_path = APPPATH . '../vendor/tecnickcom/tcpdf/tcpdf.php';
+        /*$tcpdf_path = APPPATH . '../vendor/tecnickcom/tcpdf/tcpdf.php';
         
         if (file_exists($tcpdf_path)) {
             require_once($tcpdf_path);
@@ -433,7 +441,8 @@ class Inscripciones extends CI_Controller {
             header('Content-Length: ' . strlen($pdf_content));
             echo $pdf_content;
             exit;
-        }
+        }*/
+        $this->load->view('deslinde_resp_view',$data);
     }
 
 
