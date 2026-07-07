@@ -55,8 +55,8 @@
                                 </button>
 
                                 <button type="button"
-                                        class="btn btn-sm btn-outline-danger"
-                                        onclick="return confirm('¿Seguro querés borrar esta encuesta?');"
+                                        class="btn btn-sm btn-outline-danger btn-eliminar-encuesta"
+                                        data-id="<?= $enc['id_respuesta'] ?>"
                                         title="Eliminar Encuesta">
                                     <i class="bi bi-trash3-fill"></i>
                                 </button>
@@ -201,5 +201,42 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Inicializar la tabla al cargar la vista
     actualizarTabla();
+
+    // Manejar eliminación de encuestas con AJAX (igual que en panel-equipos.php)
+    document.querySelectorAll('.btn-eliminar-encuesta').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const idEncuesta = this.getAttribute('data-id');
+            const fila = this.closest('tr');
+            
+            if (confirm(`¿Está SEGURO que desea eliminar esta encuesta?`)) {
+                fetch('<?= base_url("Inscripciones/eliminar_encuesta") ?>/' + idEncuesta, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Efecto visual de desvanecimiento antes de remover
+                        fila.style.transition = 'opacity 0.3s ease';
+                        fila.style.opacity = '0';
+                        setTimeout(() => {
+                            fila.remove();
+                            // Recalcular paginación y contador
+                            paginaActual = 1;
+                            filasFiltradas = filasFiltradas.filter(f => f !== fila);
+                            actualizarTabla();
+                        }, 300);
+                    } else {
+                        alert('Error al eliminar la encuesta');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error de conexión al intentar eliminar');
+                });
+            }
+        });
+    });
 });
 </script>
