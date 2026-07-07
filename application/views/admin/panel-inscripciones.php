@@ -99,12 +99,13 @@
                                     <i class="bi bi-pencil-fill"></i>
                                 </a>
 
-                                <a href="<?= base_url('Inscripciones/eliminar_inscripcion/'.$ins['id_participante']) ?>" 
-                                   class="btn btn-sm btn-outline-danger rounded-pill px-2" 
-                                   onclick="return confirm('¿Seguro querés eliminar por completo a este participante y todas sus inscripciones?');"
-                                   title="Eliminar Registro">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger rounded-pill px-2 btn-eliminar-inscripcion"
+                                        data-id="<?= $ins['id_participante'] ?>"
+                                        data-nombre="<?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?>"
+                                        title="Eliminar Registro">
                                     <i class="bi bi-trash3-fill"></i>
-                                </a>
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -419,6 +420,81 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
         });
     }
+    
+    // ==========================================
+    // ELIMINAR INSCRIPCION CON AJAX (FETCH)
+    // ==========================================
+    tablaElemento.addEventListener('click', function(e) {
+        const botonEliminar = e.target.closest('.btn-eliminar-inscripcion');
+        
+        if (!botonEliminar) return;
+        
+        const idParticipante = botonEliminar.getAttribute('data-id');
+        const nombreParticipante = botonEliminar.getAttribute('data-nombre');
+        
+        if (!idParticipante) {
+            console.error("❌ ERROR: El botón de eliminar no tiene data-id");
+            return;
+        }
+        
+        // Confirmación personalizada
+        if (!confirm(`¿Estás SEGURO que deseas eliminar a ${nombreParticipante}?\n\nEsta acción borrará:\n- Todos sus datos personales\n- Sus inscripciones deportivas\n- No se podrá deshacer`)) {
+            return;
+        }
+        
+        // Bloqueo visual del botón
+        const iconoOriginal = botonEliminar.innerHTML;
+        botonEliminar.disabled = true;
+        botonEliminar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+        
+        const urlPeticion = `<?= base_url('Inscripciones/eliminar_inscripcion_ajax/') ?>${idParticipante}`;
+        
+        fetch(urlPeticion, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Error HTTP: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Buscar la fila y eliminarla con animación
+                const fila = botonEliminar.closest('.js-fila-inscripcion');
+                if (fila) {
+                    fila.style.transition = 'all 0.3s ease';
+                    fila.style.opacity = '0';
+                    fila.style.transform = 'translateX(-100%)';
+                    
+                    setTimeout(() => {
+                        fila.remove();
+                        
+                        // Recalcular paginación y filtro
+                        paginaActualIns = 1;
+                        filasFiltradasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
+                        actualizarTablaInscripciones();
+                        
+                        // Mostrar mensaje de éxito
+                        alert('✅ ' + data.mensaje);
+                    }, 300);
+                }
+            } else {
+                alert('❌ Error: ' + (data.error || 'No se pudo eliminar la inscripción'));
+                botonEliminar.disabled = false;
+                botonEliminar.innerHTML = iconoOriginal;
+            }
+        })
+        .catch(error => {
+            console.error("❌ ERROR EN FETCH:", error);
+            alert('❌ Ocurrió un error al eliminar: ' + error.message);
+            botonEliminar.disabled = false;
+            botonEliminar.innerHTML = iconoOriginal;
+        });
+    });
     
 });
 </script>
