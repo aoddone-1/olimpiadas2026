@@ -719,11 +719,16 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login_staff');
         }
 
-        $this->load->model('Deporte_model'); // Asegurate de que este modelo maneje ambas tablas
+        $this->load->model('Deporte_model');
+        $this->load->model('UTE_model');
 
         // 1. Traemos los datos planos, fila por fila
         $data['listado_encuestas'] = $this->Deporte_model->obtener_todas_las_encuestas();
         $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
+        
+        // Datos para la pestaña de UTEs/Equipos
+        $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
+        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
         
         $data['menu_activo'] = 'control';
         $this->load->view('admin/control_total', $data);
@@ -956,5 +961,184 @@ class Inscripciones extends CI_Controller {
         }
 
         redirect('Inscripciones/control_total');
+    }
+
+    // =========================================================================
+    // GESTION DE UTES / EQUIPOS
+    // =========================================================================
+
+    /**
+     * Panel principal de gestión de UTEs/Equipos
+     */
+    public function panel_utes() {
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login_staff');
+        }
+
+        $this->load->model('UTE_model');
+        
+        $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
+        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
+        $data['menu_activo'] = 'control';
+        
+        $this->load->view('admin/control_total', $data);
+    }
+
+    /**
+     * AJAX: Obtener participantes disponibles para una categoría
+     */
+    public function ajax_participantes_disponibles($id_categoria) {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['error' => 'No tenés permisos']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $participantes = $this->UTE_model->obtener_participantes_disponibles($id_categoria);
+        
+        echo json_encode($participantes);
+    }
+
+    /**
+     * AJAX: Crear nueva UTE
+     */
+    public function ajax_crear_ute() {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            return;
+        }
+
+        $nombre_ute = $this->input->post('nombre_ute');
+        $id_categoria = $this->input->post('id_categoria');
+
+        if (empty($nombre_ute) || empty($id_categoria)) {
+            echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $id_ute = $this->UTE_model->insertar_ute($nombre_ute, $id_categoria);
+
+        if ($id_ute) {
+            echo json_encode(['success' => true, 'id_ute' => $id_ute]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Error al crear la UTE']);
+        }
+    }
+
+    /**
+     * AJAX: Agregar participante a UTE
+     */
+    public function ajax_agregar_participante_ute() {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            return;
+        }
+
+        $id_ute = $this->input->post('id_ute');
+        $id_participante = $this->input->post('id_participante');
+
+        if (empty($id_ute) || empty($id_participante)) {
+            echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        
+        // Verificar si ya tiene UTE
+        $ute_info = $this->db->select('id_categoria')->from('utes')->where('id_ute', $id_ute)->get()->row_array();
+        if ($ute_info && $this->UTE_model->participante_ya_tiene_ute($id_participante, $ute_info['id_categoria'])) {
+            echo json_encode(['success' => false, 'error' => 'El participante ya está en una UTE de esta categoría']);
+            return;
+        }
+
+        $resultado = $this->UTE_model->agregar_participante_a_ute($id_ute, $id_participante);
+
+        if ($resultado) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Error al agregar el participante']);
+        }
+    }
+
+    /**
+     * AJAX: Eliminar participante de UTE
+     */
+    public function ajax_eliminar_participante_ute() {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            return;
+        }
+
+        $id_ute = $this->input->post('id_ute');
+        $id_participante = $this->input->post('id_participante');
+
+        if (empty($id_ute) || empty($id_participante)) {
+            echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $resultado = $this->UTE_model->eliminar_participante_de_ute($id_ute, $id_participante);
+
+        if ($resultado) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Error al eliminar']);
+        }
+    }
+
+    /**
+     * AJAX: Eliminar UTE completa
+     */
+    public function ajax_eliminar_ute() {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            return;
+        }
+
+        $id_ute = $this->input->post('id_ute');
+
+        if (empty($id_ute)) {
+            echo json_encode(['success' => false, 'error' => 'ID de UTE no válido']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $resultado = $this->UTE_model->eliminar_ute($id_ute);
+
+        if ($resultado) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Error al eliminar la UTE']);
+        }
+    }
+
+    /**
+     * AJAX: Obtener detalles de una UTE con sus integrantes
+     */
+    public function ajax_detalle_ute($id_ute) {
+        header('Content-Type: application/json');
+        
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['error' => 'No tenés permisos']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $ute = $this->UTE_model->obtener_ute_con_integrantes($id_ute);
+        
+        echo json_encode($ute);
     }
 }
