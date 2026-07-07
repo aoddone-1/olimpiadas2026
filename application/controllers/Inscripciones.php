@@ -292,84 +292,71 @@ class Inscripciones extends CI_Controller {
             // Contenido HTML del deslinde
             $html = '
             <div style="text-align: center; margin-bottom: 20px;">
-                <h2 style="color: #1e3c72; font-size: 18px; font-weight: bold;">DESLINE DE RESPONSABILIDAD</h2>
-                <h3 style="color: #2a5298; font-size: 14px; margin-top: 5px;">XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026</h3>
+                <h2 style="color: #1e3c72; font-size: 20px; font-weight: bold;">DESLINDE DE RESPONSABILIDAD</h2>
+                <h3 style="color: #2a5298; font-size: 14px; margin-top: 5px;">XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026</h3>
             </div>
 
             <div style="margin-bottom: 15px;">
-                <p style="text-align: justify; line-height: 1.6;">
-                    <strong>Nombre y Apellido:</strong> ' . strtoupper($participante['nombre_completo']) . '<br>
-                    <strong>DNI:</strong> ' . $participante['dni'] . '<br>
-                    <strong>Delegación:</strong> ' . strtoupper($participante['delegacion']) . '<br>
-                    <strong>Fecha de Nacimiento:</strong> ' . date('d/m/Y', strtotime($participante['fecha_nacimiento'])) . '<br>
-                    <strong>Email:</strong> ' . strtolower($participante['email']) . '<br>
-                    <strong>Teléfono:</strong> ' . $participante['telefono'] . '
-                </p>
-            </div>
-
-            <div style="margin-bottom: 15px;">
-                <p style="text-align: justify; line-height: 1.6; font-size: 10px;">
-                    Por medio del presente documento, yo, <strong>' . strtoupper($participante['nombre_completo']) . '</strong>, 
-                    DNI N° <strong>' . $participante['dni'] . '</strong>, declaro bajo juramento lo siguiente:
-                </p>
-            </div>
-
-            <ol style="padding-left: 15px; margin-bottom: 15px; font-size: 10px;">
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    Declaro que participo de forma <strong>voluntaria</strong> en las competencias de las "XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda La Pampa 2026", 
-                    manifestando haber leído, comprendido y aceptado sus Reglamentos y las condiciones de la Póliza de Seguro por Accidentes Personales.
-                </li>
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    Reconozco plenamente que las actividades deportivas implican <strong>riesgos físicos</strong> y asumo voluntariamente total responsabilidad por cualquier contingencia 
-                    que pueda suceder practicando las disciplinas en las que me inscribo, tanto a mi persona como a terceros.
-                </li>
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    Declaro bajo juramento encontrarme en <strong>perfectas condiciones psicofísicas para competir</strong>, habiendo realizado los entrenamientos previos necesarios 
-                    y los reconocimientos médicos correspondientes, no poseyendo ningún impedimento físico ni deficiencia de salud.
-                </li>
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    Certifico que la categoría solicitada corresponde estrictamente a mi <strong>edad y nivel deportivo</strong>, y que participaré con la <strong>indumentaria adecuada</strong> 
-                    requerida para la práctica segura en los circuitos y canchas asignados.
-                </li>
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    <strong>Desligo de toda responsabilidad</strong> a los Organizadores, Coordinadores, Comité Olímpico, Municipios, Autoridades Provinciales, patrocinadores y titulares 
-                    de los predios, ante cualquier accidente, lesión, muerte, robo o daño material que pudiera sufrir, renunciando expresamente a reclamos judiciales o extrajudiciales 
-                    fuera del seguro contratado.
-                </li>
-                <li style="margin-bottom: 8px; text-align: justify; line-height: 1.4;">
-                    Autorizo de forma expresa a la Organización y Sponsors al uso legítimo de <strong>fotografías, películas, videos y grabaciones</strong> de mi participación en el evento 
-                    para fines de difusión, sin compensación económica alguna.
-                </li>
-            </ol>
-
-            <div style="margin-top: 20px; padding: 10px; background-color: #f0f0f0; border-left: 3px solid #1e3c72; font-size: 9px;">
-                <p style="text-align: justify; line-height: 1.4; margin: 0;">
-                    <strong>IMPORTANTE:</strong> Este documento debe ser firmado y presentado el día de la acreditación junto con el DNI y el recibo de sueldo. 
-                    También puede enviarlo firmado al correo electrónico: olimpicoslapampa@gmail.com con el asunto "DOCUMENTACION DE INSCRIPCION: APELLIDO Y NOMBRE - DELEGACION".
+                <p style="text-align: justify; line-height: 1.6; font-size: 11px;">
+                    El abajo firmante declara:<br><br>
+                    <strong>DECLARO</strong> en plena facultad por la presente que participo de forma voluntaria en las competencias de las "XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026", 
+                    a realizarse entre los días 01 al 06 de Noviembre del corriente año, y manifiesto haber leído y comprendido los Reglamentos de las Olimpiadas, condiciones y límites de la Póliza de Seguro por Accidentes Personales 
+                    que me otorga la Organización; conozco, acepto y estoy de acuerdo en todos sus puntos.<br><br>
+                    
+                    Que tengo pleno conocimiento que las actividades deportivas implican estar frente a riesgos físicos. Asumo voluntariamente total responsabilidad por el riesgo y lo que pueda suceder practicando el o los deportes 
+                    en los que me inscribí, tanto a mi persona como a terceros por mi actuación. Declaro haber realizado los entrenamientos físicos y técnicos previos y necesarios para la práctica de la o las disciplinas deportivas 
+                    y encontrarme en perfectas condiciones psicofísicas para competir en ellas, dado los reconocimientos médicos a que he sido sometido recientemente, gozando de plena salud y no tener ningún impedimento físico 
+                    o deficiencia que pudiera provocarme lesiones u otro daño corporal como consecuencia de mi participación deportiva. Así mismo declaro que participo con la indumentaria adecuada para la práctica del o los deportes, 
+                    conocer los circuitos y/o canchas donde se desarrollan los deportes.<br><br>
+                    
+                    Desligo de toda responsabilidad a los Organizadores, Coordinadores, Municipios, patrocinadores y auspiciantes, a los titulares de lugares públicos o privados, clubes, donde se desarrollen los eventos, de cualquier 
+                    accidente que me ocasione lesiones que afecten mi capacidad física, intelectual, laboral, deportiva y fisiológica, psicológica u otra en general, en forma parcial o total, transitoria o permanente, muerte, robo 
+                    o daños a mis pertenencias durante la competencia o como consecuencia de la misma, tanto en lo que hace a reclamos por daños y perjuicios, lucro cesante, daño moral propio o de los derechos habientes, como así 
+                    mismo renuncio a reclamar cualquier otro gasto adicional o incapacidad resultante, no cubierto por el seguro contratado por la Organización.<br><br>
+                    
+                    De igual manera declaro que la categoría en la que he solicitado competir corresponde a mi edad y nivel deportivo.<br><br>
+                    
+                    Autorizo a la Organización y Sponsors, al uso de fotografías, películas, videos, grabaciones y cualquier otro medio de registro de este evento para cualquier uso legitimo, sin compensación alguna.<br><br>
+                    
+                    Extiendo este deslinde de responsabilidad de manera expresa, a la Organización, Comité Olímpico, Autoridades Provinciales y otros, por mi participación en la "XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026"
                 </p>
             </div>
 
             <div style="margin-top: 40px;">
-                <table style="width: 100%;">
+                <table style="width: 100%; border-collapse: collapse;">
                     <tr>
-                        <td style="width: 50%; text-align: center; vertical-align: top;">
-                            <div style="border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px;">
-                                <strong>Firma del Participante</strong><br>
-                                Aclaración: ___________________<br>
+                        <td style="width: 50%; text-align: center; vertical-align: top; padding: 10px;">
+                            <div style="border-top: 1px solid #000; width: 90%; margin: 0 auto; padding-top: 5px; min-height: 60px;">
+                                <strong>FIRMA DEL PARTICIPANTE</strong>
                             </div>
                         </td>
-                        <td style="width: 50%; text-align: center; vertical-align: top;">
-                            <div style="border-top: 1px solid #000; width: 80%; margin: 0 auto; padding-top: 5px;">
-                                <strong>Fecha</strong><br>
-                                ___ / ___ / _______
+                        <td style="width: 50%; text-align: center; vertical-align: top; padding: 10px;">
+                            <div style="border-top: 1px solid #000; width: 90%; margin: 0 auto; padding-top: 5px; min-height: 60px;">
+                                <strong>ACLARACION</strong>
                             </div>
                         </td>
                     </tr>
                 </table>
             </div>
 
-            <div style="margin-top: 30px; text-align: center; font-size: 8px; color: #666;">
-                <p>Documento generado electrónicamente el ' . date('d/m/Y H:i:s') . '. Token de verificación: ' . substr($token, 0, 12) . '...</p>
+            <div style="margin-top: 30px;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 33%; text-align: left; padding: 5px;">
+                            <strong>DNI:</strong> ______________________
+                        </td>
+                        <td style="width: 33%; text-align: center; padding: 5px;">
+                            <strong>F. NACIMIENTO:</strong> _______________
+                        </td>
+                        <td style="width: 33%; text-align: right; padding: 5px;">
+                            <strong>Cel:</strong> ______________________
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="margin-top: 30px; text-align: center; font-size: 9px; color: #666;">
+                <p>Documento generado electrónicamente el ' . date('d/m/Y H:i:s') . '.<br>Token de verificación: ' . substr($token, 0, 12) . '...</p>
             </div>
             ';
 
