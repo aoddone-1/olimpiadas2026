@@ -1,6 +1,1 @@
-(application/controllers/Inscripciones.php)
-Nothing needs to be added to the .gitignore file based on the provided changes. The modified file 'application/controllers/Inscripciones.php' is a source code file that should not be ignored.
-
-cache
-config.php
-database.php
+Nothing needs to be added to the .gitignore file based on the provided changes, as they only include PHP source files (.php) which are core application files that should not be ignored.

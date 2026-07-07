@@ -752,4 +752,158 @@ class Inscripciones extends CI_Controller {
         }
         redirect('Inscripciones/control_total');
     }
+
+    /**
+     * Eliminar una inscripción completa (participante y todas sus inscripciones deportivas)
+     */
+    public function eliminar_inscripcion($id_participante) {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        if (!$id_participante) {
+            $this->session->set_flashdata('error', 'ID de participante no válido.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        
+        // Iniciamos transacción para borrar todo de forma atómica
+        $this->db->trans_start();
+        
+        // 1. Primero borramos las inscripciones deportivas relacionadas
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('inscripciones_deportivas');
+        
+        // 2. Luego borramos al participante
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('participantes');
+        
+        $this->db->trans_complete();
+        
+        if ($this->db->trans_status() === TRUE) {
+            $this->session->set_flashdata('success', 'Inscripción eliminada correctamente.');
+        } else {
+            $this->session->set_flashdata('error', 'Error al eliminar la inscripción. Intente nuevamente.');
+        }
+        
+        redirect('Inscripciones/control_total');
+    }
+
+    /**
+     * Mostrar formulario para modificar una inscripción (staff)
+     */
+    public function modificar_inscripcion($id_participante) {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        if (!$id_participante) {
+            $this->session->set_flashdata('error', 'ID de participante no válido.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $this->load->model('Deporte_model');
+        
+        // Obtener datos del participante
+        $data['participante'] = $this->Participante_model->obtener_detalle_participante($id_participante);
+        
+        if (!$data['participante']) {
+            $this->session->set_flashdata('error', 'Participante no encontrado.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+        
+        // Obtener todos los deportes para el formulario
+        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
+        // Cargar vista de edición
+        $this->load->view('admin/formulario_editar_inscripcion', $data);
+    }
+
+    /**
+     * Guardar modificaciones de una inscripción
+     */
+    public function guardar_modificacion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        if (empty($post['id_participante'])) {
+            $this->session->set_flashdata('error', 'ID de participante no válido.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $id_participante = $post['id_participante'];
+
+        // Estructura de datos actualizados
+        $data_persona = [
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), 
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // Traducción de rol
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+        ];
+
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecutar actualización
+        $resultado = $this->Participante_model->actualizar_completo(
+            $id_participante, 
+            $data_persona, 
+            $deportes_seleccionados
+        );
+
+        if ($resultado) {
+            $this->session->set_flashdata('success', 'Inscripción modificada correctamente.');
+        } else {
+            $this->session->set_flashdata('error', 'Error al modificar la inscripción. Intente nuevamente.');
+        }
+
+        redirect('Inscripciones/control_total');
+    }
 }
