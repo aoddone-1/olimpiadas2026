@@ -1,1 +1,1 @@
-Nothing should be ignored based on the provided file changes. The modified file 'application/views/admin/gestion_deportes.php' is a source code file that should not be added to .gitignore.
+Nothing needs to be added to .gitignore since the changes only include PHP view files (.php) which are source code files and not build artifacts, dependencies, or temporary files.

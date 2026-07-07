@@ -22,7 +22,6 @@
                     <tr>
                         <th>Participante / DNI</th>
                         <th>Delegación</th>
-                        <th class="text-center">Deportes Votados</th> 
                         <th>Edad / Sexo</th>
                         <th class="text-center">Acciones</th>
                     </tr>
@@ -36,35 +35,40 @@
                             </div>
                             <small class="text-muted">DNI: <?= htmlspecialchars($enc['dni'], ENT_QUOTES, 'UTF-8') ?></small>
                         </td>
-                        <td><span class="badge bg-light text-primary border"><?= htmlspecialchars($enc['delegacion'], ENT_QUOTES, 'UTF-8') ?></span></td>
-                        
-                        <td class="text-center">
-                            <button type="button" 
-                                    class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-semibold js-btn-ver-deportes" 
-                                    data-bs-toggle="modal" 
-                                    data-bs-target="#modalDeportesVotados"
-                                    data-participante="<?= !empty($enc['nombre_participante']) ? htmlspecialchars($enc['nombre_participante'], ENT_QUOTES, 'UTF-8') : 'Sondeo Anónimo (DNI: '.$enc['dni'].')'; ?>"
-                                    data-deportes="<?= !empty($enc['deportes_votados']) ? htmlspecialchars($enc['deportes_votados'], ENT_QUOTES, 'UTF-8') : 'Ninguno'; ?>">
-                                <i class="bi bi-eye-fill me-1"></i> Ver Deportes
-                            </button>
+                        <td>
+                            <span class="badge bg-light text-primary border"><?= htmlspecialchars($enc['delegacion'], ENT_QUOTES, 'UTF-8') ?></span>
                         </td>
-
-                        <td><div class="small fw-semibold text-dark"><?= !empty($enc['edad']) ? $enc['edad'] . ' años' : '---'; ?></div>
-                                    <small class="text-muted text-capitalize"><?= htmlspecialchars($enc['sexo'], ENT_QUOTES, 'UTF-8') ?></small></td>
+                        <td>
+                            <div class="small fw-semibold text-dark"><?= !empty($enc['edad']) ? $enc['edad'] . ' años' : '---'; ?></div>
+                            <small class="text-muted text-capitalize"><?= htmlspecialchars($enc['sexo'], ENT_QUOTES, 'UTF-8') ?></small>
+                        </td>
                         <td class="text-center">
-                            <a href="<?= base_url('Inscripciones/eliminar_encuesta/'.$enc['id_respuesta']) ?>" 
-                               class="btn btn-sm btn-outline-danger" 
-                               onclick="return confirm('¿Seguro querés borrar esta encuesta?');">
-                                <i class="bi bi-trash3-fill"></i>
-                            </a>
+                            <div class="d-flex justify-content-center gap-1">
+                                <button type="button" 
+                                        class="btn btn-sm btn-outline-info"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#modalDeportesVotados"
+                                        data-participante="<?= !empty($enc['nombre_participante']) ? htmlspecialchars($enc['nombre_participante'], ENT_QUOTES, 'UTF-8') : 'Sondeo Anónimo (DNI: '.$enc['dni'].')'; ?>"
+                                        data-deportes="<?= !empty($enc['deportes_votados']) ? htmlspecialchars($enc['deportes_votados'], ENT_QUOTES, 'UTF-8') : 'Ninguno'; ?>"
+                                        title="Ver Deportes">
+                                    <i class="bi bi-eye-fill"></i>
+                                </button>
+
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-danger"
+                                        onclick="return confirm('¿Seguro querés borrar esta encuesta?');"
+                                        title="Eliminar Encuesta">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; else: ?>
-                        <tr id="filaNoHayDatos"><td colspan="5" class="text-center text-muted py-4">No hay encuestas en la base de datos.</td></tr>
+                        <tr id="filaNoHayDatos"><td colspan="4" class="text-center text-muted py-4">No hay encuestas en la base de datos.</td></tr>
                     <?php endif; ?>
                     
                     <tr id="filaNoResultados" style="display: none;">
-                        <td colspan="5" class="text-center text-muted py-4">
+                        <td colspan="4" class="text-center text-muted py-4">
                             <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
                         </td>
                     </tr>

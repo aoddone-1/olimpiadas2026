@@ -114,38 +114,39 @@ document.addEventListener('DOMContentLoaded', function () {
     const modalElement = document.getElementById('modalDeportesVotados');
 
     // Escuchamos los clics en los botones de "Ver Deportes"
-    document.querySelectorAll('.js-btn-ver-deportes').forEach(button => {
-        button.addEventListener('click', function (e) {
-            e.preventDefault(); // Evitamos cualquier acción nativa extraña
+    document.addEventListener('click', function(e) {
+        const button = e.target.closest('[data-bs-target="#modalDeportesVotados"]');
+        if (!button) return;
+        
+        e.preventDefault();
 
-            const participante = this.getAttribute('data-participante');
-            const deportesString = this.getAttribute('data-deportes');
-            
-            // Separamos por comas las opciones
-            const listaDeportes = deportesString.split(', ');
+        const participante = button.getAttribute('data-participante');
+        const deportesString = button.getAttribute('data-deportes');
+        
+        // Separamos por comas las opciones
+        const listaDeportes = deportesString.split(', ');
 
-            // Inyectamos datos en los contenedores
-            document.getElementById('modalNombreParticipante').innerText = participante;
+        // Inyectamos datos en los contenedores
+        document.getElementById('modalNombreParticipante').innerText = participante;
 
-            const contenedorLista = document.getElementById('modalListaDeportes');
-            contenedorLista.innerHTML = '';
+        const contenedorLista = document.getElementById('modalListaDeportes');
+        contenedorLista.innerHTML = '';
 
-            listaDeportes.forEach(deporte => {
-                const item = document.createElement('div');
-                item.className = 'p-2 bg-light border rounded-3 fw-semibold text-dark text-uppercase small d-flex align-items-center';
-                item.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> ${deporte}`;
-                contenedorLista.appendChild(item);
-            });
-
-            // MÉTODO INMUNE: Intentamos usar Bootstrap, si falla, usamos CSS puro directo al DOM
-            try {
-                const bootstrapModal = new bootstrap.Modal(modalElement);
-                bootstrapModal.show();
-            } catch (error) {
-                console.log("Bootstrap JS bloqueado. Usando apertura forzada por CSS.");
-                modalElement.classList.add('js-force-show');
-            }
+        listaDeportes.forEach(deporte => {
+            const item = document.createElement('div');
+            item.className = 'p-2 bg-light border rounded-3 fw-semibold text-dark text-uppercase small d-flex align-items-center';
+            item.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> ${deporte}`;
+            contenedorLista.appendChild(item);
         });
+
+        // MÉTODO INMUNE: Intentamos usar Bootstrap, si falla, usamos CSS puro directo al DOM
+        try {
+            const bootstrapModal = new bootstrap.Modal(modalElement);
+            bootstrapModal.show();
+        } catch (error) {
+            console.log("Bootstrap JS bloqueado. Usando apertura forzada por CSS.");
+            modalElement.classList.add('js-force-show');
+        }
     });
 
     // Escuchador manual para cerrar el modal si se usó la apertura forzada
