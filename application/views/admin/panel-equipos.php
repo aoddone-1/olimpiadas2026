@@ -210,7 +210,76 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Cerrar modal
+                const modalCrear = bootstrap.Modal.getInstance(document.getElementById('modalCrearUTE'));
+                if (modalCrear) modalCrear.hide();
+                
+                // Obtener información de la categoría seleccionada
+                const selectCategoria = document.getElementById('select-categoria-ute');
+                const optionSeleccionada = selectCategoria.options[selectCategoria.selectedIndex];
+                const nombreDeporte = optionSeleccionada.getAttribute('data-deporte');
+                const nombreCategoria = optionSeleccionada.text.split(' - ')[1].split(' (')[0];
+                const genero = optionSeleccionada.getAttribute('data-genero');
+                
+                // Crear nueva fila en la tabla
+                const tbody = document.getElementById('cuerpo-tabla-utes');
+                const fechaActual = new Date().toLocaleDateString('es-AR');
+                
+                const colorBadge = genero === 'MASCULINO' ? 'primary' : (genero === 'FEMENINO' ? 'danger' : 'info');
+                
+                const nuevaFila = document.createElement('tr');
+                nuevaFila.id = 'ute-fila-' + data.id_ute;
+                nuevaFila.innerHTML = `
+                    <td>
+                        <span class="fw-semibold">${nombreDeporte}</span>
+                        <span class="badge bg-${colorBadge} ms-1">${genero}</span>
+                    </td>
+                    <td>${nombreCategoria}</td>
+                    <td class="fw-bold text-primary">${nombreUte}</td>
+                    <td>
+                        <span class="badge bg-success">0</span> integrantes
+                    </td>
+                    <td class="text-muted small">${fechaActual}</td>
+                    <td class="text-end">
+                        <button class="btn btn-sm btn-outline-info me-1 btn-ver-integrantes" 
+                                data-id-ute="${data.id_ute}" 
+                                title="Ver integrantes">
+                            <i class="bi bi-people"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning me-1 btn-agregar-integrante" 
+                                data-id-ute="${data.id_ute}" 
+                                data-id-categoria="${idCategoria}"
+                                title="Agregar integrante">
+                            <i class="bi bi-person-plus"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger btn-eliminar-ute" 
+                                data-id-ute="${data.id_ute}" 
+                                data-nombre-ute="${nombreUte}"
+                                title="Eliminar UTE">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                `;
+                
+                // Si hay mensaje de "no hay UTEs", removerlo
+                const mensajeVacio = tbody.querySelector('td[colspan="6"]');
+                if (mensajeVacio) {
+                    mensajeVacio.parentElement.remove();
+                }
+                
+                // Agregar fila con animación
+                nuevaFila.style.opacity = '0';
+                tbody.appendChild(nuevaFila);
+                setTimeout(() => {
+                    nuevaFila.style.transition = 'opacity 0.5s';
+                    nuevaFila.style.opacity = '1';
+                }, 50);
+                
+                // Actualizar contador
+                actualizarContadorEquipos();
+                
+                // Limpiar formulario
+                document.getElementById('form-crear-ute').reset();
             } else {
                 alert('Error: ' + data.error);
             }
@@ -367,7 +436,25 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                location.reload();
+                // Cerrar modal
+                const modalAgregar = bootstrap.Modal.getInstance(document.getElementById('modalAgregarIntegrante'));
+                if (modalAgregar) modalAgregar.hide();
+                
+                // Actualizar el contador de integrantes en la fila correspondiente
+                const filaUte = document.getElementById('ute-fila-' + idUte);
+                if (filaUte) {
+                    const celdaIntegrantes = filaUte.querySelector('td:nth-child(4)');
+                    if (celdaIntegrantes) {
+                        const badge = celdaIntegrantes.querySelector('.badge');
+                        if (badge) {
+                            const cantidadActual = parseInt(badge.textContent);
+                            badge.textContent = cantidadActual + 1;
+                        }
+                    }
+                }
+                
+                // Limpiar formulario
+                document.getElementById('select-participante-disponible').innerHTML = '<option value="">Cargando participantes...</option>';
             } else {
                 alert('Error: ' + data.error);
             }
