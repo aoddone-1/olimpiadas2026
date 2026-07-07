@@ -77,13 +77,17 @@ class UTE_model extends CI_Model {
      * (los que están inscriptos en esa categoría pero no tienen UTE aún)
      */
     public function obtener_participantes_disponibles($id_categoria) {
-        // Usamos una subquery manual para evitar problemas con get_compiled_select
-        $sql_sub = "SELECT pu2.id_participante 
-                    FROM participantes_utes pu2 
-                    INNER JOIN utes u2 ON u2.id_ute = pu2.id_ute 
-                    WHERE u2.id_categoria = " . (int)$id_categoria;
+        // Primero obtenemos los IDs de participantes que YA tienen UTE en esta categoría
+        $this->db->select('pu.id_participante');
+        $this->db->from('participantes_utes pu');
+        $this->db->join('utes u', 'u.id_ute = pu.id_ute', 'inner');
+        $this->db->where('u.id_categoria', $id_categoria);
+        $con_ute = $this->db->get()->result_array();
         
-        // Ahora obtenemos los participantes inscriptos en la categoría, excluyendo los que ya tienen UTE
+        // Convertimos a array de IDs
+        $ids_con_ute = array_column($con_ute, 'id_participante');
+        
+        // Ahora obtenemos los participantes inscriptos en la categoría
         $this->db->select('
             p.id_participante,
             p.nombre_completo,
@@ -94,7 +98,12 @@ class UTE_model extends CI_Model {
         $this->db->from('inscripciones_deportivas id');
         $this->db->join('participantes p', 'p.id_participante = id.id_participante', 'inner');
         $this->db->where('id.id_categoria', $id_categoria);
-        $this->db->where("p.id_participante NOT IN ($sql_sub)", NULL, FALSE);
+        
+        // Si hay participantes con UTE, los excluimos
+        if (!empty($ids_con_ute)) {
+            $this->db->where_not_in('p.id_participante', $ids_con_ute);
+        }
+        
         $this->db->order_by('p.nombre_completo', 'ASC');
         
         return $this->db->get()->result_array();
