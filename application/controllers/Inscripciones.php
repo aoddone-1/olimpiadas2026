@@ -368,31 +368,68 @@ class Inscripciones extends CI_Controller {
             $pdf->Output($nombre_archivo, 'D');
             
         } else {
-            // MODO DE PRUEBA: PDF super simple sin dependencias
-            // Crear un PDF básico usando solo funciones nativas
+            // Generar PDF básico sin dependencias externas con el texto completo del deslinde
             
             if (!$token) { 
                 // Modo demo sin token
                 $nombre_participante = "PARTICIPANTE DE PRUEBA";
+                $dni = "00000000";
+                $fecha_nacimiento = "01/01/1990";
+                $telefono = "";
             } else {
                 $this->load->model('Participante_model');
                 $participante = $this->Participante_model->obtener_por_token($token);
-                $nombre_participante = $participante ? $participante['nombre_completo'] : "PARTICIPANTE";
+                if ($participante) {
+                    $nombre_participante = $participante['nombre_completo'];
+                    $dni = $participante['dni'];
+                    $fecha_nacimiento = isset($participante['fecha_nacimiento']) ? date('d/m/Y', strtotime($participante['fecha_nacimiento'])) : "";
+                    $telefono = isset($participante['telefono']) ? $participante['telefono'] : "";
+                } else {
+                    $nombre_participante = "PARTICIPANTE";
+                    $dni = "";
+                    $fecha_nacimiento = "";
+                    $telefono = "";
+                }
             }
             
-            // Crear contenido PDF mínimo usando formato PDF básico
-            // Esto es un PDF muy simple que solo funciona para prueba
+            // Contenido completo del deslinde
+            $texto_deslinde = "DESLINDE DE RESPONSABILIDAD\n\n";
+            $texto_deslinde .= "El abajo firmante declara:\n\n";
+            $texto_deslinde .= "DECLARO en plena facultad por la presente que participo de forma voluntaria en las competencias de las \"XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026\", a realizarse entre los días 01 al 06 de Noviembre del corriente año, y manifiesto haber leído y comprendido los Reglamentos de las Olimpiadas, condiciones y límites de la Póliza de Seguro por Accidentes Personales que me otorga la Organización; conozco, acepto y estoy de acuerdo en todos sus puntos.\n\n";
+            $texto_deslinde .= "Que tengo pleno conocimiento que las actividades deportivas implican estar frente a riesgos físicos. Asumo voluntariamente total responsabilidad por el riesgo y lo que pueda suceder practicando el o los deportes en los que me inscribí, tanto a mi persona como a terceros por mi actuación. Declaro haber realizado los entrenamientos físicos y técnicos previos y necesarios para la práctica de la o las disciplinas deportivas y encontrarme en perfectas condiciones psicofísicas para competir en ellas, dado los reconocimientos médicos a que he sido sometido recientemente, gozando de plena salud y no tener ningún impedimento físico o deficiencia que pudiera provocarme lesiones u otro daño corporal como consecuencia de mi participación deportiva. Así mismo declaro que participo con la indumentaria adecuada para la práctica del o los deportes, conocer los circuitos y/o canchas donde se desarrollan los deportes.\n\n";
+            $texto_deslinde .= "Desligo de toda responsabilidad a los Organizadores, Coordinadores, Municipios, patrocinadores y auspiciantes, a los titulares de lugares públicos o privados, clubes, donde se desarrollen los eventos, de cualquier accidente que me ocasione lesiones que afecten mi capacidad física, intelectual, laboral, deportiva y fisiológica, psicológica u otra en general, en forma parcial o total, transitoria o permanente, muerte, robo o daños a mis pertenencias durante la competencia o como consecuencia de la misma, tanto en lo que hace a reclamos por daños y perjuicios, lucro cesante, daño moral propio o de los derechos habientes, como así mismo renuncio a reclamar cualquier otro gasto adicional o incapacidad resultante, no cubierto por el seguro contratado por la Organización.\n\n";
+            $texto_deslinde .= "De igual manera declaro que la categoría en la que he solicitado competir corresponde a mi edad y nivel deportivo.\n\n";
+            $texto_deslinde .= "Autorizo a la Organización y Sponsors, al uso de fotografías, películas, videos, grabaciones y cualquier otro medio de registro de este evento para cualquier uso legitimo, sin compensación alguna.\n\n";
+            $texto_deslinde .= "Extiendo este deslinde de responsabilidad de manera expresa, a la Organización, Comité Olímpico, Autoridades Provinciales y otros, por mi participación en la \"XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026\"\n\n\n\n";
+            $texto_deslinde .= "FIRMA DEL PARTICIPANTE\t\tACLARACION\n";
+            $texto_deslinde .= "…………………………………………..\t\t……………………………………….\n\n";
+            $texto_deslinde .= "DNI: " . str_pad($dni, 15, ".") . "\tF. NACIMIENTO: " . str_pad($fecha_nacimiento, 15, ".") . "\tCel: " . str_pad($telefono, 15, ".");
             
+            // Crear PDF básico con formato simple
             $pdf_content = "%PDF-1.4\n";
             $pdf_content .= "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
             $pdf_content .= "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
             $pdf_content .= "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n";
-            $pdf_content .= "4 0 obj\n<< /Length 200 >>\nstream\nBT\n/F1 24 Tf\n50 700 Td\n(HOLA SOY EL DESLINDE DE RESPONSABILIDAD) Tj\n0 -40 Td\n(F1 14 Tf) Tj\n0 -30 Td\n(" . $nombre_participante . ") Tj\nET\nendstream\nendobj\n";
+            
+            // Escapar texto para PDF
+            $texto_escaped = str_replace("(", "\\(", str_replace(")", "\\)", str_replace("\\", "\\\\", $texto_deslinde)));
+            
+            $pdf_content .= "4 0 obj\n<< /Length " . strlen($texto_escaped) . " >>\nstream\nBT\n/F1 12 Tf\n50 750 Td\n";
+            
+            // Dividir el texto en líneas y agregarlas al PDF
+            $lineas = explode("\n", $texto_escaped);
+            $y = 750;
+            foreach ($lineas as $linea) {
+                $pdf_content .= "(" . $linea . ") Tj\n";
+                $pdf_content .= "0 -20 Td\n";
+            }
+            
+            $pdf_content .= "ET\nendstream\nendobj\n";
             $pdf_content .= "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
-            $pdf_content .= "xref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000266 00000 n\n0000000517 00000 n\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n595\n%%EOF";
+            $pdf_content .= "xref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000266 00000 n\n000000" . (strlen($pdf_content) + 100) . " 00000 n\ntrailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" . (strlen($pdf_content) + 200) . "\n%%EOF";
 
             header('Content-Type: application/pdf');
-            header('Content-Disposition: attachment; filename="Deslinde_Prueba.pdf"');
+            header('Content-Disposition: attachment; filename="Deslinde_Responsabilidad.pdf"');
             header('Content-Length: ' . strlen($pdf_content));
             echo $pdf_content;
             exit;
