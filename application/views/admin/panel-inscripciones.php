@@ -87,20 +87,22 @@
                         <td class="text-center">
                             <div class="d-flex justify-content-center gap-1">
                                 <button type="button" 
-                                        class="btn btn-sm btn-outline-primary rounded-pill px-2 btn-detalle-modal"
+                                        class="btn btn-sm btn-outline-info me-1"
                                         title="Ver Detalles Completos"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalDetalleInscripcion"
                                         data-id="<?= $ins['id_participante'] ?>">
                                     <i class="bi bi-search"></i>
                                 </button>
 
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
-                                   class="btn btn-sm btn-outline-warning rounded-pill px-2" 
+                                   class="btn btn-sm btn-outline-warning me-1" 
                                    title="Modificar Inscripción">
                                     <i class="bi bi-pencil-fill"></i>
                                 </a>
 
                                 <button type="button"
-                                        class="btn btn-sm btn-outline-danger rounded-pill px-2 btn-eliminar-inscripcion"
+                                        class="btn btn-sm btn-outline-danger"
                                         data-id="<?= $ins['id_participante'] ?>"
                                         data-nombre="<?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?>"
                                         title="Eliminar Registro">
@@ -254,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log("Clic detectado en el elemento:", e.target);
 
             // Buscamos el botón subiendo desde el elemento clickeado (sea el <i> o el <button>)
-            const boton = e.target.closest('.btn-detalle-modal');
+            const boton = e.target.closest('[data-bs-target="#modalDetalleInscripcion"]');
             
             if (!boton) {
                 console.log("⚠️ Clic fuera del botón de la lupita (ignorado).");
@@ -425,9 +427,14 @@ document.addEventListener('DOMContentLoaded', function () {
     // ELIMINAR INSCRIPCION CON AJAX (FETCH)
     // ==========================================
     tablaElemento.addEventListener('click', function(e) {
-        const botonEliminar = e.target.closest('.btn-eliminar-inscripcion');
+        const botonEliminar = e.target.closest('.btn-outline-danger[data-id]');
         
         if (!botonEliminar) return;
+        
+        // Verificar que no sea el botón de ver detalle
+        if (botonEliminar.hasAttribute('data-bs-target') && botonEliminar.getAttribute('data-bs-target') === '#modalDetalleInscripcion') {
+            return;
+        }
         
         const idParticipante = botonEliminar.getAttribute('data-id');
         const nombreParticipante = botonEliminar.getAttribute('data-nombre');
