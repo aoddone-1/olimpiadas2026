@@ -199,10 +199,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        const formData = new FormData();
+        formData.append('id_categoria', idCategoria);
+        formData.append('nombre_ute', nombreUte);
+        
         fetch('<?= base_url("Inscripciones/ajax_crear_ute") ?>', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id_categoria: idCategoria, nombre_ute: nombreUte})
+            body: formData
         })
         .then(response => response.json())
         .then(data => {
@@ -279,10 +282,13 @@ document.addEventListener('DOMContentLoaded', function() {
             const idParticipante = btn.getAttribute('data-id-participante');
             
             if (confirm('¿Está seguro de quitar este participante de la UTE?')) {
+                const formData = new FormData();
+                formData.append('id_ute', idUte);
+                formData.append('id_participante', idParticipante);
+                
                 fetch('<?= base_url("Inscripciones/ajax_eliminar_participante_ute") ?>', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id_ute: idUte, id_participante: idParticipante})
+                    body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -350,10 +356,13 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        const formData = new FormData();
+        formData.append('id_ute', idUte);
+        formData.append('id_participante', idParticipante);
+        
         fetch('<?= base_url("Inscripciones/ajax_agregar_participante_ute") ?>', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({id_ute: idUte, id_participante: idParticipante})
+            body: formData
         })
         .then(response => response.json())
         .then(data => {
@@ -378,10 +387,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const nombreUte = this.getAttribute('data-nombre-ute');
             
             if (confirm(`¿Está SEGURO que desea eliminar la UTE "${nombreUte}"?\n\nEsta acción eliminará también todos sus integrantes.`)) {
+                const formData = new FormData();
+                formData.append('id_ute', idUte);
+                
                 fetch('<?= base_url("Inscripciones/ajax_eliminar_ute") ?>', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id_ute: idUte})
+                    body: formData
                 })
                 .then(response => response.json())
                 .then(data => {
