@@ -999,7 +999,12 @@ class Inscripciones extends CI_Controller {
         $this->load->model('UTE_model');
         $participantes = $this->UTE_model->obtener_participantes_disponibles($id_categoria);
         
-        echo json_encode($participantes);
+        // Asegurarse de que siempre devolvemos un array válido
+        if (empty($participantes)) {
+            echo json_encode([]);
+        } else {
+            echo json_encode($participantes);
+        }
     }
 
     /**
