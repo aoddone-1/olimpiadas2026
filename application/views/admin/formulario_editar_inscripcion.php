@@ -152,7 +152,7 @@
             </div>
         </div>
 
-        <h3 class="section-title">2. Contacto y Logística</h3>
+        <h3 class="section-title">2. Contacto</h3>
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
@@ -164,29 +164,56 @@
                         <label class="form-label fw-bold">Teléfono / Celular</label>
                         <input type="tel" name="telefono" id="txt-telefono" class="form-control" value="<?= htmlspecialchars($participante['telefono'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Ej: 2954123456" required>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Contacto de Emergencia</label>
-                        <input type="text" name="contacto_emergencia" id="txt-emergencia" class="form-control" value="<?= htmlspecialchars($participante['contacto_emergencia'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Nombre y Teléfono" required>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Dieta Especial / Alergias</label>
-                        <input type="text" name="dieta_especial" id="txt-dieta" class="form-control" value="<?= htmlspecialchars($participante['dieta_especial'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Ej: Vegetariana, Sin TACC, etc.">
-                    </div>
-                    <div class="col-md-12">
-                        <label class="form-label fw-bold">Hotel de Alojamiento</label>
-                        <select name="hotel_alojamiento" id="cmb-hotel" class="form-select">
-                            <option value="">Sin asignar / No requiere...</option>
-                            <option value="Hotel Central" <?= ($participante['hotel_alojamiento'] == 'Hotel Central') ? 'selected' : '' ?>>Hotel Central</option>
-                            <option value="Hotel Norte" <?= ($participante['hotel_alojamiento'] == 'Hotel Norte') ? 'selected' : '' ?>>Hotel Norte</option>
-                            <option value="Hotel Sur" <?= ($participante['hotel_alojamiento'] == 'Hotel Sur') ? 'selected' : '' ?>>Hotel Sur</option>
-                            <option value="Hostería Provincial" <?= ($participante['hotel_alojamiento'] == 'Hostería Provincial') ? 'selected' : '' ?>>Hostería Provincial</option>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="section-title">3. Logística y Salud</h3>
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold">Grupo Sanguíneo</label>
+                        <select name="grupo_sanguineo" id="cmb-sangre" class="form-select" required>
+                            <option value="">Seleccione...</option>
+                            <option value="A+" <?= ($participante['grupo_sanguineo'] == 'A+') ? 'selected' : '' ?>>A+</option>
+                            <option value="A-" <?= ($participante['grupo_sanguineo'] == 'A-') ? 'selected' : '' ?>>A-</option>
+                            <option value="B+" <?= ($participante['grupo_sanguineo'] == 'B+') ? 'selected' : '' ?>>B+</option>
+                            <option value="B-" <?= ($participante['grupo_sanguineo'] == 'B-') ? 'selected' : '' ?>>B-</option>
+                            <option value="AB+" <?= ($participante['grupo_sanguineo'] == 'AB+') ? 'selected' : '' ?>>AB+</option>
+                            <option value="AB-" <?= ($participante['grupo_sanguineo'] == 'AB-') ? 'selected' : '' ?>>AB-</option>
+                            <option value="0+" <?= ($participante['grupo_sanguineo'] == '0+') ? 'selected' : '' ?>>0+</option>
+                            <option value="0-" <?= ($participante['grupo_sanguineo'] == '0-') ? 'selected' : '' ?>>0-</option>
                         </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label fw-bold">Obra Social</label>
+                        <input type="text" name="obra_social" id="txt-osocial" class="form-control" value="<?= htmlspecialchars($participante['obra_social'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Nombre de la cobertura">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Contacto Emergencia</label>
+                        <input type="text" name="contacto_emergencia" id="txt-emergencia" class="form-control" value="<?= htmlspecialchars($participante['contacto_emergencia'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Nombre y Tel." required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Dieta Especial</label>
+                        <select name="dieta_especial" id="cmb-dieta" class="form-select" required>
+                            <option value="Sin restricciones" <?= ($participante['dieta_especial'] == 'Sin restricciones') ? 'selected' : '' ?>>Sin restricciones</option>
+                            <option value="Celiaco" <?= ($participante['dieta_especial'] == 'Celiaco') ? 'selected' : '' ?>>Celiaco</option>
+                            <option value="Vegetariano" <?= ($participante['dieta_especial'] == 'Vegetariano') ? 'selected' : '' ?>>Vegetariano</option>
+                            <option value="Vegano" <?= ($participante['dieta_especial'] == 'Vegano') ? 'selected' : '' ?>>Vegano</option>
+                            <option value="Diabético" <?= ($participante['dieta_especial'] == 'Diabético') ? 'selected' : '' ?>>Diabético</option>
+                            <option value="Hipertenso (Sin Sal)" <?= ($participante['dieta_especial'] == 'Hipertenso (Sin Sal)') ? 'selected' : '' ?>>Hipertenso (Sin Sal)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Alojamiento</label>
+                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" value="<?= htmlspecialchars($participante['hotel_alojamiento'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Nombre del hotel donde se hospeda">
                     </div>
                 </div>
             </div>
         </div>
 
-        <h3 class="section-title">3. Rol y Tipo de Participación</h3>
+        <h3 class="section-title">4. Rol y Tipo de Participación</h3>
         <div class="card mb-4">
             <div class="card-body">
                 <div class="row g-3">
@@ -223,7 +250,7 @@
 
         <!-- SECCIÓN DE DEPORTES (Solo visible si es competidor) -->
         <div id="seccion-deportes" style="<?= ($participante['es_competidor'] == 1) ? '' : 'display:none;' ?>">
-            <h3 class="section-title">4. Disciplinas Deportivas</h3>
+            <h3 class="section-title">5. Disciplinas Deportivas</h3>
             <div class="card mb-4">
                 <div class="card-body">
                     <p class="text-muted small mb-3">Seleccioná los deportes en los que querés competir. Si ya tenés una inscripción previa, podés modificarla.</p>

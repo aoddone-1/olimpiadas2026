@@ -795,6 +795,57 @@ class Inscripciones extends CI_Controller {
     }
 
     /**
+     * Endpoint AJAX para eliminar inscripción sin recargar página
+     */
+    public function eliminar_inscripcion_ajax($id_participante) {
+        header('Content-Type: application/json');
+        
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'No tenés permisos para realizar esta acción.'
+            ]);
+            return;
+        }
+
+        if (!$id_participante) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'ID de participante no válido.'
+            ]);
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        
+        // Iniciamos transacción para borrar todo de forma atómica
+        $this->db->trans_start();
+        
+        // 1. Primero borramos las inscripciones deportivas relacionadas
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('inscripciones_deportivas');
+        
+        // 2. Luego borramos al participante
+        $this->db->where('id_participante', $id_participante);
+        $this->db->delete('participantes');
+        
+        $this->db->trans_complete();
+        
+        if ($this->db->trans_status() === TRUE) {
+            echo json_encode([
+                'success' => true,
+                'mensaje' => 'Inscripción eliminada correctamente.'
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Error al eliminar la inscripción. Intente nuevamente.'
+            ]);
+        }
+    }
+
+    /**
      * Mostrar formulario para modificar una inscripción (staff)
      */
     public function modificar_inscripcion($id_participante) {
