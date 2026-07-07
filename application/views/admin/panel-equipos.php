@@ -280,6 +280,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 // Limpiar formulario
                 document.getElementById('form-crear-ute').reset();
+                
+                // Mantenerse en la pestaña de UTEs (no hacer refresh)
+                // La página ya se mantiene en la misma pestaña por defecto
             } else {
                 alert('Error: ' + data.error);
             }
@@ -380,10 +383,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==========================================
     // AGREGAR INTEGRANTE
     // ==========================================
-    document.querySelectorAll('.btn-agregar-integrante').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const idUte = this.getAttribute('data-id-ute');
-            const idCategoria = this.getAttribute('data-id-categoria');
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.btn-agregar-integrante')) {
+            const btn = e.target.closest('.btn-agregar-integrante');
+            const idUte = btn.getAttribute('data-id-ute');
+            const idCategoria = btn.getAttribute('data-id-categoria');
             
             document.getElementById('id-ute-agregar').value = idUte;
             
@@ -392,7 +396,12 @@ document.addEventListener('DOMContentLoaded', function() {
             select.innerHTML = '<option value="">Cargando...</option>';
             
             fetch('<?= base_url("Inscripciones/ajax_participantes_disponibles/") ?>' + idCategoria)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('HTTP error! status: ' + response.status);
+                }
+                return response.json();
+            })
             .then(participantes => {
                 select.innerHTML = '<option value="">Seleccione un participante...</option>';
                 
@@ -413,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error:', error);
                 select.innerHTML = '<option value="" disabled>Error al cargar</option>';
             });
-        });
+        }
     });
     
     document.getElementById('btn-agregar-participante').addEventListener('click', function() {
