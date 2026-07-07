@@ -93,6 +93,12 @@
                                     <i class="bi bi-search"></i>
                                 </button>
 
+                                <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
+                                   class="btn btn-sm btn-outline-warning rounded-pill px-2" 
+                                   title="Modificar Inscripción">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </a>
+
                                 <a href="<?= base_url('Inscripciones/eliminar_inscripcion/'.$ins['id_participante']) ?>" 
                                    class="btn btn-sm btn-outline-danger rounded-pill px-2" 
                                    onclick="return confirm('¿Seguro querés eliminar por completo a este participante y todas sus inscripciones?');"
