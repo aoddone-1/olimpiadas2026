@@ -1,1 +1,1 @@
-(application/models/UTE_model.php)
+Nothing should be ignored based on the provided file changes. The only modified file is a PHP source file (`application/views/admin/gestion_deportes.php`), which should not be added to .gitignore.
