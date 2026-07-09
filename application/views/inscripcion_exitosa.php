@@ -93,7 +93,14 @@
                     </ul>
                     <p class="small mb-0">
                         Podés enviar toda la documentación al correo 
-                        <a href="mailto:olimpicoslapampa@gmail.com?subject=DOCUMENTACION%20DE%20INSCRIPCION" class="alert-link">olimpicoslapampa@gmail.com</a> 
+                        <?php
+                        $asunto = "DOCUMENTACION DE INSCRIPCION: " . $nombre . " - " . $delegacion;
+                        $asunto_codificado = rawurlencode($asunto);
+                        ?>
+
+                        <a href="mailto:olimpicoslapampa@gmail.com?subject=<?= $asunto_codificado ?>" class="alert-link">
+                            olimpicoslapampa@gmail.com
+                        </a>
                         con el asunto:<br>
                         <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: <?= $nombre ?> - <?= $delegacion ?>"</code>
                     </p>

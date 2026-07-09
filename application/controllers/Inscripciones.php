@@ -5,7 +5,7 @@ class Inscripciones extends CI_Controller {
 
     public function __construct() {
         parent::__construct();
-        $this->load->library('pdf');
+        $this->load->library('Pdf');
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
     }
