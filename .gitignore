@@ -1,1 +1,4 @@
 Nothing needs to be added to the .gitignore file based on the provided file changes. The modified file 'application/views/admin/panel-encuestas.php' is a PHP source file that should not be ignored.
+
+config.php
+database.php
