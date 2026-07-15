@@ -241,7 +241,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const buscador = document.getElementById('buscador');
     const filas = document.querySelectorAll('.fila-participante');
-    const sinResultados = document.getElementById('sin-resultados');
     const contadorResultados = document.getElementById('contador-resultados');
 
     if (buscador) {
@@ -277,7 +276,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const boton = event.relatedTarget;
             const idParticipante = boton.getAttribute('data-id');
             
-            if (!idParticipante) return;
+            console.log('ID Participante:', idParticipante);
+            
+            if (!idParticipante) {
+                console.error('No se encontró el ID del participante');
+                return;
+            }
             
             // Bloquear el botón mientras carga
             boton.disabled = true;
@@ -287,10 +291,13 @@ document.addEventListener('DOMContentLoaded', function() {
             // Fetch a la API
             fetch(`<?= base_url('Inscripciones/detalle_ajax/') ?>${idParticipante}`)
                 .then(response => {
+                    console.log('Status:', response.status);
                     if (!response.ok) throw new Error('Error en la respuesta del servidor');
                     return response.json();
                 })
                 .then(data => {
+                    console.log('Datos recibidos:', data);
+                    
                     if (data.error) {
                         alert('Error: ' + data.error);
                         return;

@@ -789,13 +789,32 @@ class Inscripciones extends CI_Controller {
     }
 
     public function detalle_ajax($id_participante) {
-        // Es buena práctica validar que sea una petición válida o que el admin esté logueado
+        // Validar que el usuario esté logueado (staff o delegado)
+        if (!$this->session->userdata('is_organizador') && !$this->session->userdata('is_delegado')) {
+            header('Content-Type: application/json');
+            echo json_encode(['error' => 'No autorizado']);
+            return;
+        }
+        
+        // Si es delegado, verificar que el participante sea de su delegación
+        if ($this->session->userdata('is_delegado')) {
+            $this->load->model('Participante_model');
+            $participante = $this->Participante_model->obtener_detalle_participante($id_participante);
+            $user_nombre = $this->session->userdata('user_nombre');
+            
+            if (!$participante || $participante['delegacion'] !== $user_nombre) {
+                header('Content-Type: application/json');
+                echo json_encode(['error' => 'No tenés permiso para ver este participante']);
+                return;
+            }
+        }
+        
         if (!$id_participante) {
             echo json_encode(['error' => 'ID no válido']);
             return;
         }
 
-        $this->load->model('Participante_model'); // Ajustá al nombre de tu modelo
+        $this->load->model('Participante_model');
         $data = $this->Participante_model->obtener_detalle_participante($id_participante);
 
         // Seteamos la cabecera para decirle al navegador que es un JSON puro
