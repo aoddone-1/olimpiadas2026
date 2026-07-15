@@ -92,9 +92,9 @@
                         <li><strong>Deslinde de Responsabilidad</strong> firmado</li>
                     </ul>
                     <p class="small mb-0">
-                        Podés enviar toda la documentación al correo 
+                        Por favor, canalizá la entrega de tu documentación a través del <strong>delegado de tu delegación</strong>. Él se encargará de enviar la documentación de todo el grupo vía correo electrónico a 
                         <?php
-                        $asunto = "DOCUMENTACION DE INSCRIPCION: " . $nombre . " - " . $delegacion;
+                        $asunto = "DOCUMENTACION DE INSCRIPCION: DELEGACION " . $delegacion;
                         $asunto_codificado = rawurlencode($asunto);
                         ?>
 
@@ -102,7 +102,7 @@
                             olimpicoslapampa@gmail.com
                         </a>
                         con el asunto:<br>
-                        <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: <?= $nombre ?> - <?= $delegacion ?>"</code>
+                        <code class="bg-white px-2 py-1 rounded">"DOCUMENTACION DE INSCRIPCION: DELEGACION <?= $delegacion ?>"</code>
                     </p>
                 </div>
             </div>
