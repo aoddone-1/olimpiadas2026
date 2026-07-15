@@ -1,1 +1,1 @@
-(application/controllers/Inscripciones.php, application/views/admin/header_admin.php, application/views/admin/imprimir_credencial.php, application/views/admin/login.php, application/views/admin/panel_acreditacion.php, application/views/admin/panel_delegado.php, application/views/public/pase_valido.php)
+Nothing needs to be added to the .gitignore file based on the provided changes. The modified file 'application/views/admin/panel_delegado.php' is a source code file that should not be ignored.
