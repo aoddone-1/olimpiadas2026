@@ -1,4 +1,41 @@
-Nothing needs to be added to the .gitignore file based on the provided file changes. The modified file 'application/views/admin/panel-encuestas.php' is a PHP source file that should not be ignored.
+# Compiled and build artifacts
+*.pyc
+__pycache__/
 
-config.php
-database.php
+# Dependencies
+vendor/
+composer.lock
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# CodeIgniter specific
+application/cache/
+application/logs/
+application/temp/
+system/
+!application/config/
+!application/controllers/
+!application/core/
+!application/helpers/
+!application/hooks/
+!application/language/
+!application/libraries/
+!application/models/
+!application/third_party/
+!application/views/

@@ -18,4 +18,14 @@ class Usuario_model extends CI_Model {
         }
         return FALSE;
     }
+    
+    /**
+     * Verifica si un usuario es delegado
+     */
+    public function es_delegado($id_usuario) {
+        $this->db->where('id_usuario', $id_usuario);
+        $this->db->where('rol', 'delegado');
+        $query = $this->db->get('usuarios');
+        return $query->num_rows() > 0;
+    }
 }
