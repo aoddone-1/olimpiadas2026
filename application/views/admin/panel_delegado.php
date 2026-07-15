@@ -159,7 +159,7 @@
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-4 bg-light-subtle">
+            <div class="modal-body p-4 bg-light-subtle" style='max-height:70vh; overflow-y:auto;'>
                 <div class="d-flex align-items-center border-bottom pb-3 mb-4 gap-3">
                     <div class="bg-success-subtle text-success rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
                         <i class="bi bi-person text-success fs-3"></i>
@@ -362,7 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     if (data.fecha_inscripcion) {
                         const parts = data.fecha_inscripcion.split('-');
-                        modalElemento('det-finscripcion').innerText = `${parts[2]}/${parts[1]}/${parts[0]}`;
+                        modalElemento('det-finscripcion').innerText = data.fecha_inscripcion;
                     } else {
                         modalElemento('det-finscripcion').innerText = '-';
                     }
