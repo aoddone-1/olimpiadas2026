@@ -158,9 +158,16 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content shadow border-0">
             <div class="modal-header bg-success text-white py-3">
-                <h5 class="modal-title fw-bold" id="modalDetalleInscripcionLabel">
-                    <i class="bi bi-person-vcard-fill me-2"></i>Detalles de Inscripción
-                </h5>
+                <div class="d-flex justify-content-between align-items-center w-100">
+                    <div>
+                        <h5 class="modal-title fw-bold" id="modalDetalleInscripcionLabel">
+                            <i class="bi bi-person-vcard-fill me-2"></i>Detalles de Inscripción
+                        </h5>
+                    </div>
+                    <div class="text-end">
+                        <img id="det-qr-small" src="" alt="QR" style="width: 50px; height: 50px; border: 1px solid #fff; padding: 2px; background: #fff; display: none;">
+                    </div>
+                </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4 bg-light-subtle" style='max-height:70vh; overflow-y:auto;'>
@@ -196,23 +203,6 @@
                             <p class="mb-2"><strong>Delegación:</strong> <span class="badge bg-light text-dark border fw-semibold" id="det-delegacion"></span></p>
                             <p class="mb-2"><strong>Contacto Emergencia:</strong> <span class="text-muted" id="det-emergencia"></span></p>
                             <p class="mb-0"><strong>Dieta Especial:</strong> <span class="text-muted fw-semibold" id="det-dieta"></span></p>
-                        </div>
-                    </div>
-
-                    <!-- Columna derecha con QR -->
-                    <div class="col-12 col-md-6">
-                        <div class="card h-100 border-0 shadow-sm rounded-3 p-3 bg-white text-center">
-                            <h6 class="text-success fw-bold mb-3 border-bottom pb-2"><i class="bi bi-qr-code-scan me-2"></i>Acreditación</h6>
-                            <div id="contenedor-qr" class="mb-3">
-                                <img id="det-qr" src="" alt="QR de Acreditación" class="img-fluid" style="max-width: 200px; display: none;">
-                                <p id="qr-loading" class="text-muted small"><i class="bi bi-hourglass-split"></i> Cargando QR...</p>
-                                <p id="qr-error" class="text-danger small" style="display: none;"><i class="bi bi-exclamation-circle"></i> No disponible</p>
-                            </div>
-                            <div class="mt-auto">
-                                <a href="#" id="btn-descargar-deslinde" class="btn btn-outline-danger btn-sm" target="_blank" style="display: none;">
-                                    <i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde
-                                </a>
-                            </div>
                         </div>
                     </div>
 
@@ -259,7 +249,7 @@
                 </div>
             </div>
             <div class="modal-footer bg-light border-top py-2">
-                <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar Detalle</button>
+                <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
@@ -361,29 +351,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     modalElemento('det-emergencia').innerText = data.contacto_emergencia || '-';
                     modalElemento('det-dieta').innerText = data.dieta_especial || 'Ninguna';
                     
-                    // QR y Deslinde
-                    const imgQR = modalElemento('det-qr');
-                    const qrLoading = document.getElementById('qr-loading');
-                    const qrError = document.getElementById('qr-error');
-                    const btnDeslinde = document.getElementById('btn-descargar-deslinde');
+                    // QR y Deslinde - QR pequeño en el header
+                    const imgQRSmall = document.getElementById('det-qr-small');
                     
                     if (data.token_qr) {
                         // Construir URL del QR usando el endpoint existente de acreditación
                         const qrUrl = '<?= base_url() ?>Inscripciones/acreditacion/' + data.token_qr;
-                        // Usamos un servicio de QR o generamos uno con la URL completa
-                        imgQR.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrUrl);
-                        imgQR.style.display = 'inline-block';
-                        qrLoading.style.display = 'none';
-                        qrError.style.display = 'none';
+                        // Usamos un servicio de QR con tamaño chico para el header
+                        imgQRSmall.src = 'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=' + encodeURIComponent(qrUrl);
+                        imgQRSmall.style.display = 'inline-block';
                         
-                        // Botón de deslinde
+                        // Botón de deslinde en el footer
+                        const btnDeslinde = document.createElement('a');
                         btnDeslinde.href = '<?= base_url() ?>Inscripciones/descargar_deslinde/' + data.token_qr;
-                        btnDeslinde.style.display = 'inline-block';
+                        btnDeslinde.className = 'btn btn-outline-danger btn-sm rounded-pill px-3';
+                        btnDeslinde.target = '_blank';
+                        btnDeslinde.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde';
+                        
+                        // Limpiar footer y agregar botón
+                        const modalFooter = document.querySelector('#modalDetalleInscripcion .modal-footer');
+                        modalFooter.innerHTML = '';
+                        modalFooter.appendChild(btnDeslinde);
+                        modalFooter.appendChild(document.createElement('button')).outerHTML = '<button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar</button>';
                     } else {
-                        imgQR.style.display = 'none';
-                        qrLoading.style.display = 'none';
-                        qrError.style.display = 'block';
-                        btnDeslinde.style.display = 'none';
+                        imgQRSmall.style.display = 'none';
                     }
                     
                     // Deportes - Mostrar u ocultar según si es acompañante
