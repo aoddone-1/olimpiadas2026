@@ -164,23 +164,23 @@
                             <i class="bi bi-person-vcard-fill me-2"></i>Detalles de Inscripción
                         </h5>
                     </div>
-                    <div class="text-end">
-                        <img id="det-qr-small" src="" alt="QR" style="width: 50px; height: 50px; border: 1px solid #fff; padding: 2px; background: #fff; display: none;">
-                    </div>
+                    
                 </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-4 bg-light-subtle" style='max-height:70vh; overflow-y:auto;'>
-                <div class="d-flex align-items-center border-bottom pb-3 mb-4 gap-3">
-                    <div class="bg-success-subtle text-success rounded-circle p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                        <i class="bi bi-person text-success fs-3"></i>
-                    </div>
+                <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4 gap-3">
+
                     <div>
                         <h4 class="text-dark fw-bold mb-0" id="det-nombre"></h4>
                         <span class="badge bg-secondary border mt-1" id="det-rol"></span>
                         <span class="badge bg-danger border mt-1 ms-1" id="det-badge-delegado" style="display:none;">DELEGADO</span>
                     </div>
+                    <div class="text-end">
+                        <img id="det-qr-small" src="" alt="QR" style="width: 100px; height: 100px; border: 1px solid #fff; padding: 2px; background: #fff; display: none;">
+                    </div>
                 </div>
+                
 
                 <div class="row g-4">
                     <div class="col-12 col-md-6">
