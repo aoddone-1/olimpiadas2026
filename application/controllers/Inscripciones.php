@@ -589,21 +589,37 @@ class Inscripciones extends CI_Controller {
         $logged_user = $this->Usuario_model->login($usuario, $password);
 
         if ($logged_user) {
-            $this->session->set_userdata([
-                'is_organizador' => TRUE,
-                'user_id'        => $logged_user['id_usuario'], 
-                'user_nombre'    => $logged_user['nombre_usuario'], 
-                'user_rol'       => $logged_user['rol']
-            ]);
+            // Verificar si es delegado
+            $es_delegado = $this->Usuario_model->es_delegado($logged_user['id_usuario']);
             
-            // NUEVO: ¡El redireccionador inteligente!
-            // Si venías de escanear un QR, te devuelve derecho a ese participante
-            if ($this->session->userdata('url_retorno_qr')) {
-                $redirigir_a = $this->session->userdata('url_retorno_qr');
-                $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
-                redirect($redirigir_a);
-            } else {               
-                redirect('Inscripciones/login_staff');
+            if ($es_delegado) {
+                // Session para delegados
+                $this->session->set_userdata([
+                    'is_delegado' => TRUE,
+                    'user_id'     => $logged_user['id_usuario'], 
+                    'user_nombre' => $logged_user['nombre_usuario'], 
+                    'user_rol'    => $logged_user['rol']
+                ]);
+                
+                redirect('Inscripciones/panel_delegado');
+            } else {
+                // Session para staff/organizador
+                $this->session->set_userdata([
+                    'is_organizador' => TRUE,
+                    'user_id'        => $logged_user['id_usuario'], 
+                    'user_nombre'    => $logged_user['nombre_usuario'], 
+                    'user_rol'       => $logged_user['rol']
+                ]);
+                
+                // NUEVO: ¡El redireccionador inteligente!
+                // Si venías de escanear un QR, te devuelve derecho a ese participante
+                if ($this->session->userdata('url_retorno_qr')) {
+                    $redirigir_a = $this->session->userdata('url_retorno_qr');
+                    $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
+                    redirect($redirigir_a);
+                } else {               
+                    redirect('Inscripciones/login_staff');
+                }
             }
         } else {
             $this->session->set_flashdata('error', 'Usuario o contraseña incorrectos.');
@@ -611,10 +627,16 @@ class Inscripciones extends CI_Controller {
         }
     }
 
-    // 4. Cerrar sesión
+    // 4. Cerrar sesión staff
     public function logout_staff() {
         $this->session->sess_destroy();
         redirect('Inscripciones/login_staff');
+    }
+    
+    // Cerrar sesión delegado
+    public function logout_delegado() {
+        $this->session->sess_destroy();
+        redirect('Inscripciones/login_delegado');
     }
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL KIT ENTREGADO A 1 ---
@@ -1154,5 +1176,40 @@ class Inscripciones extends CI_Controller {
         $ute = $this->UTE_model->obtener_ute_con_integrantes($id_ute);
         
         echo json_encode($ute);
+    }
+    
+    // ==========================================
+    // VISTAS PARA DELEGADOS
+    // ==========================================
+    
+    /**
+     * Muestra el login para delegados
+     */
+    public function login_delegado() {
+        if ($this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/panel_delegado');
+        }
+        $this->load->view('admin/login_delegado');
+    }
+    
+    /**
+     * Panel principal para delegados - muestra información de su delegación
+     */
+    public function panel_delegado() {
+        if (!$this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/login_delegado');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        // Obtener la delegación del usuario logueado
+        $user_nombre = $this->session->userdata('user_nombre');
+        
+        // Buscar todos los participantes de esa delegación
+        $data['participantes'] = $this->Participante_model->obtener_participantes_por_delegacion($user_nombre);
+        $data['total_inscriptos'] = count($data['participantes']);
+        $data['delegacion'] = $user_nombre;
+        
+        $this->load->view('admin/panel_delegado', $data);
     }
 }

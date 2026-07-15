@@ -155,4 +155,39 @@ class Participante_model extends CI_Model {
 
         return $participante;
     }
+    
+    /**
+     * Obtiene todos los participantes de una delegación específica
+     */
+    public function obtener_participantes_por_delegacion($delegacion) {
+        $this->db->where('delegacion', $delegacion);
+        $this->db->order_by('nombre_completo', 'ASC');
+        $query = $this->db->get('participantes');
+        
+        $participantes = $query->result_array();
+        
+        // Agregar deportes a cada participante
+        foreach ($participantes as &$participante) {
+            try {
+                $id_p = $participante['id_participante'];
+                
+                $this->db->select('d.nombre_deporte, c.nombre_categoria');
+                $this->db->from('inscripciones_deportivas i');
+                $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
+                $this->db->join('deportes d', 'c.id_deporte = d.id_deporte');
+                $this->db->where('i.id_participante', $id_p);
+                
+                $resultado_deportes = $this->db->get()->result_array();
+                if ($resultado_deportes) {
+                    $participante['deportes'] = $resultado_deportes;
+                } else {
+                    $participante['deportes'] = [];
+                }
+            } catch (Exception $e) {
+                $participante['deportes'] = [];
+            }
+        }
+        
+        return $participantes;
+    }
 }
