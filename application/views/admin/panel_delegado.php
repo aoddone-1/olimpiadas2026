@@ -109,7 +109,11 @@
                                     <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['dni']) ?></span>
                                 </td>
                                 <td>
-                                    <?php if(!empty($p['deportes'])): ?>
+                                    <?php if(isset($p['es_competidor']) && intval($p['es_competidor']) === 0): ?>
+                                        <span class="badge bg-info text-white">
+                                            <i class="bi bi-person-check-fill me-1"></i>Acompañante
+                                        </span>
+                                    <?php elseif(!empty($p['deportes'])): ?>
                                         <?php foreach($p['deportes'] as $dep): ?>
                                             <span class="badge badge-deporte me-1 mb-1">
                                                 <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($dep['nombre_deporte']) ?>
@@ -195,23 +199,47 @@
                         </div>
                     </div>
 
+                    <!-- Columna derecha con QR -->
+                    <div class="col-12 col-md-6">
+                        <div class="card h-100 border-0 shadow-sm rounded-3 p-3 bg-white text-center">
+                            <h6 class="text-success fw-bold mb-3 border-bottom pb-2"><i class="bi bi-qr-code-scan me-2"></i>Acreditación</h6>
+                            <div id="contenedor-qr" class="mb-3">
+                                <img id="det-qr" src="" alt="QR de Acreditación" class="img-fluid" style="max-width: 200px; display: none;">
+                                <p id="qr-loading" class="text-muted small"><i class="bi bi-hourglass-split"></i> Cargando QR...</p>
+                                <p id="qr-error" class="text-danger small" style="display: none;"><i class="bi bi-exclamation-circle"></i> No disponible</p>
+                            </div>
+                            <div class="mt-auto">
+                                <a href="#" id="btn-descargar-deslinde" class="btn btn-outline-danger btn-sm" target="_blank" style="display: none;">
+                                    <i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="col-12">
                         <div class="card border-0 shadow-sm rounded-3 p-3 bg-white">
                             <h6 class="text-success fw-bold mb-3 border-bottom pb-2"><i class="bi bi-trophy me-2"></i>Disciplinas Deportivas Asignadas</h6>
                             
-                            <div class="table-responsive mb-4">
-                                <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.85rem;">
-                                    <thead class="table-light text-secondary text-uppercase fw-bold" style="font-size: 0.75rem;">
-                                        <tr>
-                                            <th style="width: 25%;"><i class="bi bi-flag-fill me-1"></i> Deporte</th>
-                                            <th style="width: 25%;"><i class="bi bi-tags-fill me-1"></i> Categoría</th>
-                                            <th style="width: 20%;" class="text-center"><i class="bi bi-diagram-3-fill me-1"></i> UTE</th>
-                                            <th style="width: 30%;"><i class="bi bi-chat-left-text-fill me-1"></i> Observación / Detalle</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="det-tabla-deportes-body">
-                                    </tbody>
-                                </table>
+                            <!-- Mensaje para acompañantes -->
+                            <div id="mensaje-acompanante" class="alert alert-info d-none">
+                                <i class="bi bi-person-check-fill me-2"></i><strong>Es Acompañante</strong> - No tiene deportes asignados.
+                            </div>
+                            
+                            <div id="tabla-deportes-container">
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 0.85rem;">
+                                        <thead class="table-light text-secondary text-uppercase fw-bold" style="font-size: 0.75rem;">
+                                            <tr>
+                                                <th style="width: 25%;"><i class="bi bi-flag-fill me-1"></i> Deporte</th>
+                                                <th style="width: 25%;"><i class="bi bi-tags-fill me-1"></i> Categoría</th>
+                                                <th style="width: 20%;" class="text-center"><i class="bi bi-diagram-3-fill me-1"></i> UTE</th>
+                                                <th style="width: 30%;"><i class="bi bi-chat-left-text-fill me-1"></i> Observación / Detalle</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="det-tabla-deportes-body">
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                             <h6 class="text-secondary fw-bold mb-3 border-bottom pb-2" style="font-size: 0.9rem;"><i class="bi bi-building me-2"></i>Logística de Estadía y Registro</h6>
@@ -333,11 +361,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     modalElemento('det-emergencia').innerText = data.contacto_emergencia || '-';
                     modalElemento('det-dieta').innerText = data.dieta_especial || 'Ninguna';
                     
-                    // Deportes
+                    // QR y Deslinde
+                    const imgQR = modalElemento('det-qr');
+                    const qrLoading = document.getElementById('qr-loading');
+                    const qrError = document.getElementById('qr-error');
+                    const btnDeslinde = document.getElementById('btn-descargar-deslinde');
+                    
+                    if (data.token_qr) {
+                        // Construir URL del QR usando el endpoint existente de acreditación
+                        const qrUrl = '<?= base_url() ?>Inscripciones/acreditacion/' + data.token_qr;
+                        // Usamos un servicio de QR o generamos uno con la URL completa
+                        imgQR.src = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(qrUrl);
+                        imgQR.style.display = 'inline-block';
+                        qrLoading.style.display = 'none';
+                        qrError.style.display = 'none';
+                        
+                        // Botón de deslinde
+                        btnDeslinde.href = '<?= base_url() ?>Inscripciones/descargar_deslinde/' + data.token_qr;
+                        btnDeslinde.style.display = 'inline-block';
+                    } else {
+                        imgQR.style.display = 'none';
+                        qrLoading.style.display = 'none';
+                        qrError.style.display = 'block';
+                        btnDeslinde.style.display = 'none';
+                    }
+                    
+                    // Deportes - Mostrar u ocultar según si es acompañante
+                    const mensajeAcompanante = document.getElementById('mensaje-acompanante');
+                    const tablaDeportesContainer = document.getElementById('tabla-deportes-container');
                     const tbodyDeportes = modalElemento('det-tabla-deportes-body');
                     tbodyDeportes.innerHTML = '';
                     
-                    if (data.deportes && data.deportes.length > 0) {
+                    const esCompetidor = parseInt(data.es_competidor) === 1;
+                    
+                    if (!esCompetidor) {
+                        // Es acompañante: mostrar mensaje y ocultar tabla
+                        mensajeAcompanante.classList.remove('d-none');
+                        tablaDeportesContainer.style.display = 'none';
+                    } else if (data.deportes && data.deportes.length > 0) {
+                        // Es competidor con deportes: mostrar tabla
+                        mensajeAcompanante.classList.add('d-none');
+                        tablaDeportesContainer.style.display = 'block';
                         data.deportes.forEach(dep => {
                             const row = document.createElement('tr');
                             row.innerHTML = `
@@ -349,6 +413,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             tbodyDeportes.appendChild(row);
                         });
                     } else {
+                        // Es competidor sin deportes
+                        mensajeAcompanante.classList.add('d-none');
+                        tablaDeportesContainer.style.display = 'block';
                         tbodyDeportes.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin deportes asignados</td></tr>';
                     }
                     
