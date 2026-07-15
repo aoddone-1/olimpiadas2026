@@ -101,7 +101,7 @@
             <span class="badge bg-primary text-uppercase px-2 py-1 small mt-1"><?= $this->session->userdata('user_rol') ?></span>
         </div>
         <div>
-            <a href="<?= base_url('Inscripciones/login_staff') ?>" class="btn btn-sm btn-outline-primary fw-bold px-3 py-2 rounded-3">
+            <a href="<?= base_url('Inscripciones/login') ?>" class="btn btn-sm btn-outline-primary fw-bold px-3 py-2 rounded-3">
                 <i class="bi bi-speedometer2 me-1"></i> Ver Dashboard General
             </a>
         </div>
@@ -205,7 +205,7 @@
     </div>
 
     <div class="text-center mt-5 pt-3 border-top border-2">
-        <a href="<?= base_url('Inscripciones/logout_staff') ?>" class="btn btn-sm btn-outline-danger px-3 rounded-pill">
+        <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger px-3 rounded-pill">
             <i class="bi bi-box-arrow-right me-1"></i> Salir del Sistema Staff
         </a>
     </div>

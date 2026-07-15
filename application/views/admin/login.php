@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ingreso Staff - <?= NOMBRE_META; ?></title>
+    <title>Ingreso - <?= NOMBRE_META; ?></title>
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= base_url('css/login.css') ?>" rel="stylesheet">
@@ -12,7 +12,7 @@
 <div class="container d-flex flex-column align-items-center justify-content-center p-3">
     <div class="card login-card mx-auto">
         <div class="card-body p-4 text-center">
-            <h3 class="fw-bold mb-1 text-uppercase" style="color: #1e3c72; letter-spacing: 0.5px;">Staff Login</h3>
+            <h3 class="fw-bold mb-1 text-uppercase" style="color: #1e3c72; letter-spacing: 0.5px;">Acceso al Sistema</h3>
             <p class="text-muted small mb-4">Control de Acreditaciones</p>
             
             <?php if($this->session->flashdata('error')): ?>
@@ -22,14 +22,18 @@
             <form action="<?= base_url('Inscripciones/procesar_login') ?>" method="POST">
                 <div class="mb-3 text-start">
                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.75rem;">Usuario</label>
-                    <input type="text" name="usuario" class="form-control" required autocomplete="off">
+                    <input type="text" name="usuario" class="form-control" required autocomplete="off" placeholder="Ingrese su usuario">
                 </div>
                 <div class="mb-4 text-start">
                     <label class="form-label small fw-bold text-muted text-uppercase" style="font-size: 0.75rem;">Contraseña</label>
-                    <input type="password" name="password" class="form-control" required>
+                    <input type="password" name="password" class="form-control" required placeholder="Ingrese su contraseña">
                 </div>
                 <button type="submit" class="btn btn-primary w-100 py-2 fw-bold text-uppercase fs-6 shadow-sm">Ingresar</button>
             </form>
+            
+            <div class="mt-3 text-center">
+                <p class="small text-muted mb-2">El sistema detectará automáticamente si sos Staff o Delegado</p>
+            </div>
         </div>
     </div>
 

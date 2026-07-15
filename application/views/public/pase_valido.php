@@ -45,7 +45,7 @@
             </div>
 
             <div class="text-center pt-2 border-top">
-                <a href="<?= base_url('Inscripciones/login_staff') ?>" class="btn btn-sm btn-outline-secondary w-100 py-2">
+                <a href="<?= base_url('Inscripciones/login') ?>" class="btn btn-sm btn-outline-secondary w-100 py-2">
                     <i class="bi bi-shield-lock-fill me-1"></i> Ingreso Staff / Mesa de Control
                 </a>
             </div>
