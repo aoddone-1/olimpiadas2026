@@ -655,10 +655,7 @@ class Inscripciones extends CI_Controller {
         $this->session->sess_destroy();
         redirect('Inscripciones/login');
     }
-    
-    // Cerrar sesión
-    public function logout() {
-        $this->session->sess_destroy();
+    public function login_staff() {
         redirect('Inscripciones/login');
     }
 

@@ -190,7 +190,7 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Alojamiento</label>
-                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" placeholder="Nombre del hotel donde se hospeda">
+                        <input type="text" name="hotel_alojamiento" id="txt-hotel" class="form-control" required placeholder="Nombre del hotel donde se hospeda">
                     </div>
                 </div>
             </div>
