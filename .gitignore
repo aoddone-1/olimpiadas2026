@@ -1,1 +1,36 @@
-(application/controllers/Inscripciones.php, application/models/Participante_model.php, application/views/admin/panel_delegado.php)
+```php
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Delegado</title>
+    <link rel="stylesheet" href="<?php echo base_url('assets/css/admin_panel.css'); ?>">
+</head>
+<body>
+    <div class="container">
+        <h1>Bienvenido al Panel de Delegado</h1>
+        <nav>
+            <ul>
+                <li><a href="<?php echo site_url('admin/delegado/dashboard'); ?>">Dashboard</a></li>
+                <li><a href="<?php echo site_url('admin/delegado/gestion_usuarios'); ?>">Gestión de Usuarios</a></li>
+                <li><a href="<?php echo site_url('admin/delegado/reportes'); ?>">Reportes</a></li>
+                <li><a href="<?php echo site_url('admin/logout'); ?>">Cerrar Sesión</a></li>
+            </ul>
+        </nav>
+
+        <main>
+            <!-- Contenido dinámico del panel -->
+            <?php if (isset($content)): ?>
+                <?php echo $content; ?>
+            <?php else: ?>
+                <p>Seleccione una opción del menú para comenzar.</p>
+            <?php endif; ?>
+        </main>
+    </div>
+</body>
+</html>
+```
