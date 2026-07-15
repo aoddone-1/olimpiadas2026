@@ -279,7 +279,7 @@
                     </div>
                 </div>
 
-                <div class="col-12">
+                <div class="col-12 bloque-competidor-check">
                     <div class="form-check p-3 border rounded bg-light items-deslinde">
                         <input class="form-check-input ms-0 me-3 border-secondary check-item-deslinde" type="checkbox" id="chk-riesgos" required style="width: 1.35rem; height: 1.35rem; cursor:pointer;">
                         <label class="form-check-label small text-dark fw-medium d-block ps-2" for="chk-riesgos" style="cursor:pointer; user-select:none;">
