@@ -1234,8 +1234,8 @@ class Inscripciones extends CI_Controller {
         // Obtener la delegación del usuario logueado
         $user_nombre = $this->session->userdata('user_nombre');
         
-        // Buscar todos los participantes de esa delegación
-        $data['participantes'] = $this->Participante_model->obtener_participantes_por_delegacion($user_nombre);
+        // Buscar todos los participantes de esa delegación (con es_competidor)
+        $data['participantes'] = $this->Participante_model->obtener_participantes_por_delegacion_completo($user_nombre);
         $data['total_inscriptos'] = count($data['participantes']);
         $data['delegacion'] = $user_nombre;
         

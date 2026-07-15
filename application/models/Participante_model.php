@@ -125,7 +125,7 @@ class Participante_model extends CI_Model {
             id_participante, dni, nombre_completo, email, telefono, delegacion, 
             sexo, fecha_nacimiento, grupo_sanguineo, obra_social, tipo_empleado, 
             dieta_especial, hotel_alojamiento, contacto_emergencia, 
-            es_competidor, es_delegado, kit_entregado, fecha_inscripcion
+            es_competidor, es_delegado, kit_entregado, fecha_inscripcion, token_qr
         ');
         $this->db->from('participantes');
         $this->db->where('id_participante', $id_participante);
@@ -160,6 +160,42 @@ class Participante_model extends CI_Model {
      * Obtiene todos los participantes de una delegación específica
      */
     public function obtener_participantes_por_delegacion($delegacion) {
+        $this->db->where('delegacion', $delegacion);
+        $this->db->order_by('nombre_completo', 'ASC');
+        $query = $this->db->get('participantes');
+        
+        $participantes = $query->result_array();
+        
+        // Agregar deportes a cada participante
+        foreach ($participantes as &$participante) {
+            try {
+                $id_p = $participante['id_participante'];
+                
+                $this->db->select('d.nombre_deporte, c.nombre_categoria');
+                $this->db->from('inscripciones_deportivas i');
+                $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
+                $this->db->join('deportes d', 'c.id_deporte = d.id_deporte');
+                $this->db->where('i.id_participante', $id_p);
+                
+                $resultado_deportes = $this->db->get()->result_array();
+                if ($resultado_deportes) {
+                    $participante['deportes'] = $resultado_deportes;
+                } else {
+                    $participante['deportes'] = [];
+                }
+            } catch (Exception $e) {
+                $participante['deportes'] = [];
+            }
+        }
+        
+        return $participantes;
+    }
+    
+    /**
+     * Obtiene todos los participantes de una delegación específica con campo es_competidor
+     */
+    public function obtener_participantes_por_delegacion_completo($delegacion) {
+        $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor');
         $this->db->where('delegacion', $delegacion);
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');
