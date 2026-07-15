@@ -81,11 +81,19 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="bg-light">
                         <tr>
-                            <th class="ps-4 py-3 text-muted small text-uppercase fw-bold">Nombre</th>
-                            <th class="py-3 text-muted small text-uppercase fw-bold">DNI</th>
-                            <th class="py-3 text-muted small text-uppercase fw-bold">Deportes</th>
-                            <th class="py-3 text-muted small text-uppercase fw-bold text-end pe-4">Estado</th>
-                            <th class="py-3 text-muted small text-uppercase fw-bold text-center">Acciones</th>
+                            <th style="min-width: 200px;">Nombre y Apellido</th>
+                
+                            <!-- DNI: Oculto en móviles pequeños (<768px) -->
+                            <th class="d-none d-md-table-cell">DNI</th>
+                            
+                            <!-- Deportes/Acompañante: Oculto en móviles pequeños -->
+                            <th class="d-none d-lg-table-cell">Deportes</th>
+                            
+                            <!-- Estado: Visible siempre pero compacto -->
+                            <th class="d-none d-lg-table-cell">Estado</th>
+                            
+                            <!-- Acciones: Siempre visible y fijo a la derecha -->
+                            <th class="text-end" style="min-width: 100px;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -105,10 +113,10 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td>
+                                <td class="d-none d-md-table-cell">
                                     <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['dni']) ?></span>
                                 </td>
-                                <td>
+                                <td class="d-none d-lg-table-cell">
                                     <?php if(isset($p['es_competidor']) && intval($p['es_competidor']) === 0): ?>
                                         <span class="badge bg-info text-white">
                                             <i class="bi bi-person-check-fill me-1"></i>Acompañante
@@ -123,12 +131,12 @@
                                         <span class="text-muted small">Sin deportes</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="text-end pe-4">
+                                <td class="d-none  text-end pe-4" >
                                     <span class="badge bg-success bg-opacity-10 text-success">
                                         <i class="bi bi-check-circle-fill me-1"></i>Inscripto
                                     </span>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-end">
                                     <button type="button" 
                                             class="btn btn-sm btn-outline-info"
                                             title="Ver Detalles"
