@@ -469,6 +469,24 @@ class Inscripciones extends CI_Controller {
         }
         $this->load->view('admin/login');
     }
+    
+    /**
+     * Dashboard para staff/organizador - muestra todos los participantes
+     */
+    public function dashboard() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login_staff');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        $data['participantes'] = $this->Participante_model->obtener_todos_los_participantes();
+        $data['total_inscriptos'] = count($data['participantes']);
+        $data['total_kits'] = $this->Participante_model->contar_kits_entregados();
+        $data['menu_activo'] = 'inscriptos';
+        
+        $this->load->view('admin/dashboard', $data);
+    }
 
     // --- NUEVA PANTALLA: GESTIÓN DE DEPORTES ---
     public function gestion_deportes() {
@@ -618,7 +636,7 @@ class Inscripciones extends CI_Controller {
                     $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
                     redirect($redirigir_a);
                 } else {               
-                    redirect('Inscripciones/login_staff');
+                    redirect('Inscripciones/dashboard');
                 }
             }
         } else {
