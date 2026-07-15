@@ -8,7 +8,7 @@
         <ul class="nav">
             <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'inscriptos') ? 'active' : ''; ?>" 
-                   href="<?= base_url('Inscripciones/login_staff') ?>">
+                   href="<?= base_url('Inscripciones/login') ?>">
                     <i class="bi bi-people-fill me-1"></i> Inscriptos
                 </a>
             </li>
@@ -37,7 +37,7 @@
             <?php } ?> 
         </ul>
         
-        <a href="<?= base_url('Inscripciones/logout_staff') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+        <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
             <i class="bi bi-box-arrow-right me-1"></i> Salir
         </a>
     </div>

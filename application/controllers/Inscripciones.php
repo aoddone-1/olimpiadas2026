@@ -448,7 +448,7 @@ class Inscripciones extends CI_Controller {
 
 
     // 2. Mostrar formulario de Login manual
-   public function login_staff() {
+    public function login() {
         if ($this->session->userdata('is_organizador')) {
             if ($this->session->userdata('url_retorno_qr')) {
                 $redirigir = $this->session->userdata('url_retorno_qr');
@@ -467,6 +467,11 @@ class Inscripciones extends CI_Controller {
             $this->load->view('admin/dashboard', $data);
             return;
         }
+        
+        if ($this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/panel_delegado');
+        }
+        
         $this->load->view('admin/login');
     }
     
@@ -475,7 +480,7 @@ class Inscripciones extends CI_Controller {
      */
     public function dashboard() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
         
         $this->load->model('Participante_model');
@@ -491,7 +496,7 @@ class Inscripciones extends CI_Controller {
     // --- NUEVA PANTALLA: GESTIÓN DE DEPORTES ---
     public function gestion_deportes() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('Deporte_model');
@@ -510,7 +515,7 @@ class Inscripciones extends CI_Controller {
     // --- PROCESAR EL MODAL DE NUEVA CATEGORÍA ---
     public function guardar_categoria() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('Categoria_model');
@@ -556,7 +561,7 @@ class Inscripciones extends CI_Controller {
 
     public function guardar_lugar() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('Deporte_model');
@@ -641,20 +646,20 @@ class Inscripciones extends CI_Controller {
             }
         } else {
             $this->session->set_flashdata('error', 'Usuario o contraseña incorrectos.');
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
     }
 
     // 4. Cerrar sesión staff
-    public function logout_staff() {
+    public function logout() {
         $this->session->sess_destroy();
-        redirect('Inscripciones/login_staff');
+        redirect('Inscripciones/login');
     }
     
-    // Cerrar sesión delegado
-    public function logout_delegado() {
+    // Cerrar sesión
+    public function logout() {
         $this->session->sess_destroy();
-        redirect('Inscripciones/login_delegado');
+        redirect('Inscripciones/login');
     }
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL KIT ENTREGADO A 1 ---
@@ -708,7 +713,7 @@ class Inscripciones extends CI_Controller {
      */
     public function monitoreo_encuesta() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('Deporte_model');
@@ -726,7 +731,7 @@ class Inscripciones extends CI_Controller {
      * Guarda un nuevo deporte general desde la ventana modal
      */
     public function guardar_deporte() {
-        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login_staff'); }
+        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
@@ -738,7 +743,7 @@ class Inscripciones extends CI_Controller {
      * Elimina un deporte y sus categorías asociadas por ID
      */
     public function eliminar_deporte($id_deporte) {
-        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login_staff'); }
+        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
         if (!empty($id_deporte) && is_numeric($id_deporte)) {
             // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
@@ -765,7 +770,7 @@ class Inscripciones extends CI_Controller {
     public function control_total() {
         // Seguridad Superadmin
         if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('Deporte_model');
@@ -1022,7 +1027,7 @@ class Inscripciones extends CI_Controller {
     public function panel_utes() {
         // Seguridad Superadmin
         if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login_staff');
+            redirect('Inscripciones/login');
         }
 
         $this->load->model('UTE_model');
@@ -1201,21 +1206,11 @@ class Inscripciones extends CI_Controller {
     // ==========================================
     
     /**
-     * Muestra el login para delegados
-     */
-    public function login_delegado() {
-        if ($this->session->userdata('is_delegado')) {
-            redirect('Inscripciones/panel_delegado');
-        }
-        $this->load->view('admin/login_delegado');
-    }
-    
-    /**
      * Panel principal para delegados - muestra información de su delegación
      */
     public function panel_delegado() {
         if (!$this->session->userdata('is_delegado')) {
-            redirect('Inscripciones/login_delegado');
+            redirect('Inscripciones/login');
         }
         
         $this->load->model('Participante_model');

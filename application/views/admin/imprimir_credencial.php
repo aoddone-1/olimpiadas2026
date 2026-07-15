@@ -15,7 +15,7 @@
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center">
             <div>
-                <a href="<?= base_url('Inscripciones/login_staff') ?>" class="btn btn-sm btn-outline-secondary">
+                <a href="<?= base_url('Inscripciones/login') ?>" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-arrow-left me-1"></i> Volver al Dashboard
                 </a>
             </div>

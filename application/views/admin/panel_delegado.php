@@ -40,7 +40,7 @@
                 <small class="opacity-75"><?= htmlspecialchars($delegacion) ?></small>
             </div>
             <div>
-                <a href="<?= base_url('Inscripciones/logout_delegado') ?>" class="btn btn-light btn-sm text-success fw-bold">
+                <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-light btn-sm text-success fw-bold">
                     <i class="bi bi-box-arrow-right me-1"></i>Cerrar Sesión
                 </a>
             </div>
