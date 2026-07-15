@@ -78,22 +78,22 @@
     <div id="lista-participantes">
         <?php if(!empty($participantes)): ?>
             <div class="table-responsive bg-white rounded-3 shadow-sm overflow-hidden">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="bg-light">
-                        <tr>
-                            <th style="min-width: 200px;">Nombre y Apellido</th>
+                <table class="table table-bordered align-middle mb-0">
+                    <thead >
+                        <tr class="table-dark">
+                            <th class="text-center" style="min-width: 200px;">Nombre y Apellido</th>
                 
                             <!-- DNI: Oculto en móviles pequeños (<768px) -->
-                            <th class="d-none d-md-table-cell">DNI</th>
+                            <th class="d-none d-md-table-cell text-center">DNI</th>
                             
                             <!-- Deportes/Acompañante: Oculto en móviles pequeños -->
-                            <th class="d-none d-lg-table-cell">Deportes</th>
+                            <th class="d-none d-lg-table-cell text-center">Deportes</th>
                             
                             <!-- Estado: Visible siempre pero compacto -->
-                            <th class="d-none d-lg-table-cell">Estado</th>
+                            <th class="d-none d-lg-table-cell text-center">Estado</th>
                             
                             <!-- Acciones: Siempre visible y fijo a la derecha -->
-                            <th class="text-end" style="min-width: 100px;">Acciones</th>
+                            <th class="text-center" style="min-width: 100px;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -113,10 +113,10 @@
                                         </div>
                                     </div>
                                 </td>
-                                <td class="d-none d-md-table-cell">
+                                <td class="d-none d-md-table-cell text-center ">
                                     <span class="badge bg-light text-dark border"><?= htmlspecialchars($p['dni']) ?></span>
                                 </td>
-                                <td class="d-none d-lg-table-cell">
+                                <td class="d-none d-lg-table-cell text-center">
                                     <?php if(isset($p['es_competidor']) && intval($p['es_competidor']) === 0): ?>
                                         <span class="badge bg-info text-white">
                                             <i class="bi bi-person-check-fill me-1"></i>Acompañante
@@ -131,12 +131,12 @@
                                         <span class="text-muted small">Sin deportes</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="d-none  text-end pe-4" >
+                                <td class="d-none d-lg-table-cell text-center pe-4" >
                                     <span class="badge bg-success bg-opacity-10 text-success">
                                         <i class="bi bi-check-circle-fill me-1"></i>Inscripto
                                     </span>
                                 </td>
-                                <td class="text-end">
+                                <td class="text-center">
                                     <button type="button" 
                                             class="btn btn-sm btn-outline-info"
                                             title="Ver Detalles"
@@ -242,13 +242,10 @@
 
                             <h6 class="text-secondary fw-bold mb-3 border-bottom pb-2" style="font-size: 0.9rem;"><i class="bi bi-building me-2"></i>Logística de Estadía y Registro</h6>
                             <div class="row g-3">
-                                <div class="col-md-4">
-                                    <p class="mb-0"><strong>Hotel Asignado:</strong><br><span class="fw-bold text-dark fs-6" id="det-hotel"></span></p>
+                                <div class="col-md-6">
+                                    <p class="mb-0"><strong>Hotel Ingresado:</strong><br><span class="fw-bold text-dark fs-6" id="det-hotel"></span></p>
                                 </div>
-                                <div class="col-md-4">
-                                    <p class="mb-0"><strong>Estado del Kit:</strong><br><span id="det-kit"></span></p>
-                                </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <p class="mb-0"><strong>Alta de Registro:</strong><br><span class="text-muted small" id="det-finscripcion"></span></p>
                                 </div>
                             </div>
@@ -403,11 +400,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         tablaDeportesContainer.style.display = 'block';
                         data.deportes.forEach(dep => {
                             const row = document.createElement('tr');
+                            const tieneUte = parseInt(dep.tiene_ute) === 1;
+                            const necesitaUte = parseInt(dep.necesita_ute) === 1;
+
+                            let badgeUte = '-';
+                            if (tieneUte) {
+                                badgeUte = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2">TIENE UTE</span>`;
+                                // observacionUte = `<span class="fw-semibold text-dark"><i class="bi bi-people-fill me-1"></i>${d.detalle_ute || 'Configurado'}</span>`;
+                            } else if (necesitaUte) {
+                                badgeUte = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2">SOLICITA UTE</span>`;
+                                // observacionUte = `<span class="text-muted small italic"><i class="bi bi-search me-1"></i>Busca compañero de otra delegación</span>`;
+                            }
                             row.innerHTML = `
                                 <td>${dep.nombre_deporte || '-'}</td>
                                 <td>${dep.nombre_categoria || '-'}</td>
-                                <td class="text-center">${dep.ute || '-'}</td>
-                                <td>${dep.observacion || dep.detalle || '-'}</td>
+                                <td class="text-center">${badgeUte}</td>
+                                <td>${dep.detalle_ute  || '-'}</td>
                             `;
                             tbodyDeportes.appendChild(row);
                         });
@@ -421,10 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Hotel y kit
                     modalElemento('det-hotel').innerText = data.hotel_alojamiento || 'Sin asignar';
                     
-                    const kitEntregado = parseInt(data.kit_entregado) === 1;
-                    modalElemento('det-kit').innerHTML = kitEntregado 
-                        ? '<span class="badge bg-success border">Entregado</span>'
-                        : '<span class="badge bg-warning text-dark border">Pendiente</span>';
+                    
                     
                     if (data.fecha_inscripcion) {
                         const parts = data.fecha_inscripcion.split('-');
