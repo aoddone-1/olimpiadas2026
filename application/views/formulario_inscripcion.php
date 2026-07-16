@@ -231,19 +231,23 @@
                                 <div class="col-md-3">
                                     <div class="form-check">
                                         <input type="hidden" class="hd-tiene-ute" value="0">
-                                        <input class="form-check-input check-tengo-ute" type="checkbox">
-                                        <label class="form-check-label text-success fw-bold">Tengo UTE</label>
+                                        <input class="form-check-input check-tengo-ute" type="radio" name="opcion_ute" id="radioTengo" value="tengo" required>
+                                        <label class="form-check-label text-success fw-bold" for="radioTengo">
+                                            Tengo EQUIPO (o UTE)
+                                        </label>
                                     </div>
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-check">
                                         <input type="hidden" class="hd-necesita-ute" value="0">
-                                        <input class="form-check-input check-necesito-ute" type="checkbox">
-                                        <label class="form-check-label text-danger fw-bold">Necesito UTE</label>
+                                        <input class="form-check-input check-necesito-ute" type="radio" name="opcion_ute" id="radioNecesito" value="necesito" required checked>
+                                        <label class="form-check-label text-danger fw-bold" for="radioNecesito">
+                                            Necesito UTE
+                                        </label>
                                     </div>
                                 </div>
                                 <div class="col-md-6 bloque-detalle-ute" style="display: none;">
-                                    <textarea class="form-control txt-detalle-ute" rows="1" placeholder="Detalle de la UTE (Integrantes, equipo, etc.)"></textarea>
+                                    <textarea class="form-control txt-detalle-ute" rows="1" placeholder="Detalle de tu EQUIPO o UTE (Integrantes, equipo, etc.)"></textarea>
                                 </div>
                             </div>
                         </div>
