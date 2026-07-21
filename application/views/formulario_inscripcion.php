@@ -240,7 +240,7 @@
                                 <div class="col-md-3">
                                     <div class="form-check">
                                         <input type="hidden" class="hd-necesita-ute" value="0">
-                                        <input class="form-check-input check-necesito-ute" type="checkbox" name="opcion_ute" id="radioNecesito" value="necesito"  checked>
+                                        <input class="form-check-input check-necesito-ute" type="checkbox" name="opcion_ute" id="radioNecesito" value="necesito"  >
                                         <label class="form-check-label text-danger fw-bold" for="radioNecesito">
                                             Necesito UTE
                                         </label>
