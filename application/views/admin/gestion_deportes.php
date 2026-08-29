@@ -63,7 +63,7 @@
                                                         <span class="text-dark"><i class="bi bi-circle-fill text-muted me-1" style="font-size: 0.4rem;"></i> <?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?> 
                                                             <small class="text-muted">(<?= $c['genero_categoria'] ?? 'TODOS' ?>)</small>
                                                         </span>
-                                                        <span class="badge bg-light text-dark border-0 p-0 text-muted"><i class="bi bi-person me-1"></i><?= $c['cupo_maximo'] ?></span>
+                                                        <span class="badge bg-light text-dark border-0 p-0 text-muted"><i class="bi bi-person me-1"></i><?= $c['cantidad_inscriptos'] ?> inscriptos</span>
                                                     </div>
                                                 <?php endforeach; ?>
                                             <?php else: ?>

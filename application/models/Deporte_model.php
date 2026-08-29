@@ -16,7 +16,19 @@ class Deporte_model extends CI_Model {
             $this->db->join('lugares l', 'l.id = c.id_lugar', 'left');
             $this->db->where('c.id_deporte', $d['id_deporte']);
             
-            $deportes[$key]['categorias'] = $this->db->get()->result_array();
+            $categorias = $this->db->get()->result_array();
+            
+            // Para cada categoría, contamos cuántos inscriptos tiene
+            foreach ($categorias as $cat_key => $c) {
+                $this->db->select('COUNT(*) as cantidad_inscriptos');
+                $this->db->from('inscripciones_deportivas');
+                $this->db->where('id_categoria', $c['id_categoria']);
+                $resultado = $this->db->get()->row_array();
+                
+                $categorias[$cat_key]['cantidad_inscriptos'] = $resultado['cantidad_inscriptos'] ?? 0;
+            }
+            
+            $deportes[$key]['categorias'] = $categorias;
         }
 
         return $deportes;
