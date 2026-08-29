@@ -129,37 +129,6 @@
     <h3 class="section-title text-uppercase h5 fw-bold">Acciones de Acreditación</h3>
     <div class="d-grid gap-3">
         
-        <?php if ($participante['kit_entregado'] == 1): ?>
-            <div class="card row-accion-lista shadow-sm">
-                <div class="card-body p-2">
-                    <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
-                        <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
-                        <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
-                        <input type="hidden" name="nuevo_estado" value="0">
-                        
-                        <button type="submit" class="btn btn-control btn-control-listo-revertir w-100 d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-box-seam-fill me-2"></i> ENTREGA DE KIT / INICIAL</span>
-                            <span class="badge bg-success text-white text-uppercase">Entregado</span>
-                        </button>
-                    </form>
-                </div>
-            </div>
-        <?php else: ?>
-            <div class="card row-accion shadow-sm">
-                <div class="card-body p-2">
-                    <form autocomplete='off' action="<?= base_url('Inscripciones/acreditar_kit') ?>" method="POST">
-                        <input type="hidden" name="id_participante" value="<?= $participante['id_participante'] ?>">
-                        <input type="hidden" name="token_qr" value="<?= $participante['token_qr'] ?>">
-                        <input type="hidden" name="nuevo_estado" value="1">
-                        
-                        <button type="submit" class="btn btn-control btn-control-pendiente w-100 text-start">
-                            <i class="bi bi-box-seam me-2 text-warning"></i> Acreditar Entrega de Kit
-                        </button>
-                    </form>
-                </div>
-            </div>
-        <?php endif; ?>
-
         <?php if (!empty($deportes)): ?>
             <?php foreach ($deportes as $dep): ?>
                 <?php if ($dep['asistio'] == 1): ?>
