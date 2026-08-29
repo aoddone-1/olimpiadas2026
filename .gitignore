@@ -1,1 +1,1 @@
-(application/views/public/pase_valido.php)
+(application/controllers/Fixture.php, application/models/Fixture_model.php)
