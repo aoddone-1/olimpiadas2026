@@ -77,7 +77,6 @@
         <div class="card-header-custom text-center">
             <div class="text-white mb-2"><i class="bi bi-shield-check fs-1"></i></div>
             <h4 class="fw-bold text-uppercase m-0">Inscripción Activa</h4>
-            <p class="text-white-50 small m-0">Presentá este código al ingresar al predio</p>
         </div>
         
         <div class="card-body p-4">
@@ -101,10 +100,6 @@
                         <li class="list-group-item small text-muted">Ninguna disciplina registrada</li>
                     <?php endif; ?>
                 </ul>
-            </div>
-
-            <div class="info-box mb-4">
-                <i class="bi bi-info-circle-fill me-2"></i> El personal de control escaneará este pase en las mesas de acreditación.
             </div>
 
             <div class="d-grid gap-2">
