@@ -13,40 +13,41 @@ class MYPDF extends TCPDF {
     
     public function Body($participante) {
         $html = "";
-        $html .= '  <div style="margin-bottom: 15px;">
-                        <p style="text-align: justify; line-height: 1.6; font-size: 11px;">
-                            <u><b>DESLINDE DE RESPONSABILIDAD</b></u><br><br>
-                            El abajo firmante declara:<br><br>
-                            <strong>DECLARO</strong> en plena facultad por la presente que participo de forma voluntaria en las competencias de las <b>“XXXVIII 
-                            OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026”</b>, a realizarse entre los días 
-                            01 al 06 de Noviembre del corriente año,  y manifiesto haber leído y comprendido los Reglamentos de las Olimpiadas, 
-                            condiciones y límites de la Póliza de Seguro por Accidentes Personales que me otorga la Organización; conozco, acepto y 
-                            estoy de acuerdo en todos sus puntos.<br><br>
-                            
-                            Que tengo pleno conocimiento que las actividades deportivas implican estar frente a riesgos físicos. Asumo 
-                            voluntariamente total responsabilidad por el riesgo y lo que pueda suceder practicando el o los deportes en los que me 
-                            inscribí, tanto a mi persona como a terceros por mi actuación. Declaro haber realizado los entrenamientos físicos y 
-                            técnicos previos y necesarios para la práctica de la o las disciplinas deportivas y encontrarme en perfectas condiciones 
-                            psicofísicas para competir en ellas, dado los reconocimientos médicos a que he sido sometido recientemente, gozando 
-                            de plena salud y no tener ningún impedimento físico o deficiencia que pudiera provocarme lesiones u otro daño 
-                            corporal como consecuencia de mi participación deportiva. Así mismo declaro que participo con la indumentaria 
-                            adecuada para la práctica del o los deportes, conocer los circuitos y/o canchas donde se desarrollan los deportes.<br><br>
-                            
-                            Desligo de toda responsabilidad a los Organizadores, Coordinadores, Municipios, patrocinadores y auspiciantes, a los 
-                            titulares de lugares públicos o privados, clubes, donde se desarrollen los eventos, de cualquier accidente 
-                            que me ocasione lesiones que afecten mi capacidad física, intelectual, laboral, deportiva y fisiológica, psicológica u otra 
-                            en general, en forma parcial o total, transitoria o permanente, muerte, robo o daños a mis pertenencias durante 
-                            la competencia o como consecuencia de la misma, tanto en lo que hace a reclamos por daños y perjuicios, lucro cesante, 
-                            daño moral propio  o de los derechos habientes, como así mismo renuncio a reclamar cualquier otro gasto adicional o 
-                            incapacidad resultante, no cubierto por el seguro contratado por la Organización.<br><br>
-                            
-                            De igual manera declaro que la categoría en la que he solicitado competir corresponde a mi edad y nivel deportivo.<br><br>
-                            
-                            Autorizo a la Organización y Sponsors, al uso de fotografías, películas, videos, grabaciones y cualquier otro medio de registro de este evento para cualquier uso legitimo, sin compensación alguna.<br><br>
-                            
-                            Extiendo este deslinde de responsabilidad de manera expresa, a la Organización, Comité Olímpico, Autoridades Provinciales y otros, por mi participación en la <b>"XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026"</b>
-                        </p>
-                    </div>';
+        
+            $html .= '  <div style="margin-bottom: 15px;">
+                            <p style="text-align: justify; line-height: 1.6; font-size: 11px;">
+                                <u><b>DESLINDE DE RESPONSABILIDAD</b></u><br><br>
+                                El abajo firmante declara:<br><br>
+                                <strong>DECLARO</strong> en plena facultad por la presente que participo de forma voluntaria en las competencias de las <b>“XXXVIII 
+                                OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026”</b>, a realizarse entre los días 
+                                01 al 06 de Noviembre del corriente año,  y manifiesto haber leído y comprendido los Reglamentos de las Olimpiadas, 
+                                condiciones y límites de la Póliza de Seguro por Accidentes Personales que me otorga la Organización; conozco, acepto y 
+                                estoy de acuerdo en todos sus puntos.<br><br>';
+            if($participante['es_competidor']){                
+            $html .= '          Que tengo pleno conocimiento que las actividades deportivas implican estar frente a riesgos físicos. Asumo 
+                                voluntariamente total responsabilidad por el riesgo y lo que pueda suceder practicando el o los deportes en los que me 
+                                inscribí, tanto a mi persona como a terceros por mi actuación. Declaro haber realizado los entrenamientos físicos y 
+                                técnicos previos y necesarios para la práctica de la o las disciplinas deportivas y encontrarme en perfectas condiciones 
+                                psicofísicas para competir en ellas, dado los reconocimientos médicos a que he sido sometido recientemente, gozando 
+                                de plena salud y no tener ningún impedimento físico o deficiencia que pudiera provocarme lesiones u otro daño 
+                                corporal como consecuencia de mi participación deportiva. Así mismo declaro que participo con la indumentaria 
+                                adecuada para la práctica del o los deportes, conocer los circuitos y/o canchas donde se desarrollan los deportes.<br><br>';
+            
+            $html .= '          Desligo de toda responsabilidad a los Organizadores, Coordinadores, Municipios, patrocinadores y auspiciantes, a los 
+                                titulares de lugares públicos o privados, clubes, donde se desarrollen los eventos, de cualquier accidente 
+                                que me ocasione lesiones que afecten mi capacidad física, intelectual, laboral, deportiva y fisiológica, psicológica u otra 
+                                en general, en forma parcial o total, transitoria o permanente, muerte, robo o daños a mis pertenencias durante 
+                                la competencia o como consecuencia de la misma, tanto en lo que hace a reclamos por daños y perjuicios, lucro cesante, 
+                                daño moral propio  o de los derechos habientes, como así mismo renuncio a reclamar cualquier otro gasto adicional o 
+                                incapacidad resultante, no cubierto por el seguro contratado por la Organización.<br><br>';
+                              
+            $html .= '          De igual manera declaro que la categoría en la que he solicitado competir corresponde a mi edad y nivel deportivo.<br><br>';
+            }                      
+            $html .= '          Autorizo a la Organización y Sponsors, al uso de fotografías, películas, videos, grabaciones y cualquier otro medio de registro de este evento para cualquier uso legitimo, sin compensación alguna.<br><br>';
+                                
+            $html .= '          Extiendo este deslinde de responsabilidad de manera expresa, a la Organización, Comité Olímpico, Autoridades Provinciales y otros, por mi participación en la <b>"XXXVIII OLIMPIADAS NACIONALES DE EMPLEADOS DE INSTITUTOS DE VIVIENDA LA PAMPA 2026"</b>
+                            </p>
+                        </div>';
         $html .= '<table style="width:100%; text-align:center;font-size: 10px;">';
         $html .= '  <tr>';
         $html .= '      <td style="text-align: center;">';
