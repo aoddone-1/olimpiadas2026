@@ -21,24 +21,34 @@
         <div class="row g-2 align-items-end" id="panelFiltros">
             <div class="col-md-3">
                 <label for="filtroDelegacion" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-geo-alt-fill text-primary me-1"></i>Delegación
+                    <i class="bi bi-geo-alt-fill text-primary me-1"></i>Provincia
                 </label>
                 <select id="filtroDelegacion" class="form-select form-select-sm">
-                    <option value="">Todas las Delegaciones</option>
-                    <?php 
-                    $delegaciones = [];
-                    if(!empty($listado_inscripciones)) {
-                        foreach($listado_inscripciones as $ins) {
-                            if(!empty($ins['delegacion'])) {
-                                $delegaciones[$ins['delegacion']] = true;
-                            }
-                        }
-                    }
-                    foreach(array_keys($delegaciones) as $del): ?>
-                        <option value="<?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-                    <?php endforeach; ?>
+                    <option value="">Todas las Provincias</option>
+                    <option value="Buenos Aires">Buenos Aires</option>
+                    <option value="CABA">CABA</option>
+                    <option value="La Pampa">La Pampa</option>
+                    <option value="Catamarca">Catamarca</option>
+                    <option value="Chaco">Chaco</option>
+                    <option value="Chubut">Chubut</option>
+                    <option value="Córdoba">Córdoba</option>
+                    <option value="Corrientes">Corrientes</option>
+                    <option value="Entre Ríos">Entre Ríos</option>
+                    <option value="Formosa">Formosa</option>
+                    <option value="Jujuy">Jujuy</option>
+                    <option value="La Rioja">La Rioja</option>
+                    <option value="Mendoza">Mendoza</option>
+                    <option value="Misiones">Misiones</option>
+                    <option value="Neuquén">Neuquén</option>
+                    <option value="Río Negro">Río Negro</option>
+                    <option value="Salta">Salta</option>
+                    <option value="San Juan">San Juan</option>
+                    <option value="San Luis">San Luis</option>
+                    <option value="Santa Cruz">Santa Cruz</option>
+                    <option value="Santa Fe">Santa Fe</option>
+                    <option value="Santiago del Estero">Santiago del Estero</option>
+                    <option value="Tierra del Fuego">Tierra del Fuego</option>
+                    <option value="Tucumán">Tucumán</option>
                 </select>
             </div>
             
@@ -59,23 +69,11 @@
                 </label>
                 <select id="filtroDeporte" class="form-select form-select-sm">
                     <option value="">Todos los Deportes</option>
-                    <?php 
-                    $deportes = [];
-                    if(!empty($listado_inscripciones)) {
-                        foreach($listado_inscripciones as $ins) {
-                            if(!empty($ins['deportes_nombres'])) {
-                                $listaDeportes = explode(', ', $ins['deportes_nombres']);
-                                foreach($listaDeportes as $dep) {
-                                    $deportes[trim($dep)] = true;
-                                }
-                            }
-                        }
-                    }
-                    foreach(array_keys($deportes) as $dep): ?>
-                        <option value="<?= htmlspecialchars($dep, ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($dep, ENT_QUOTES, 'UTF-8') ?>
+                    <?php if(!empty($deportes_db)): foreach($deportes_db as $dep): ?>
+                        <option value="<?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
                         </option>
-                    <?php endforeach; ?>
+                    <?php endforeach; endif; ?>
                 </select>
             </div>
             

@@ -777,6 +777,9 @@ class Inscripciones extends CI_Controller {
         $data['listado_encuestas'] = $this->Deporte_model->obtener_todas_las_encuestas();
         $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
         
+        // 2. Traemos todos los deportes desde la base de datos para el filtro
+        $data['deportes_db'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
         // Datos para la pestaña de UTEs/Equipos
         $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
         $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
