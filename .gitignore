@@ -1,2 +1,1 @@
-config
-application/cache
+(application/controllers/Inscripciones.php, application/views/admin/control_total.php)
