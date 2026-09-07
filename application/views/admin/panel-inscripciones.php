@@ -1,18 +1,89 @@
  <?php include("modals/control_total_modals.php");?>
 <div class="card shadow-sm border-0 mb-4">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-people-fill text-primary me-2"></i> 
-            <span>Padrón de Inscriptos Oficiales</span>
-            <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>
+    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-people-fill text-primary me-2"></i> 
+                <span>Padrón de Inscriptos Oficiales</span>
+                <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>
+            </div>
+            
+            <div class="position-relative" style="max-width: 300px; width: 100%;">
+                <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                <input type="text" 
+                       id="inputBuscarInscripcion" 
+                       class="form-control form-control-sm rounded-pill ps-5 bg-light" 
+                       placeholder="Buscar por Nombre, DNI, Hotel...">
+            </div>
         </div>
         
-        <div class="position-relative" style="max-width: 300px; width: 100%;">
-            <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
-            <input type="text" 
-                   id="inputBuscarInscripcion" 
-                   class="form-control form-control-sm rounded-pill ps-5 bg-light" 
-                   placeholder="Buscar por Nombre, DNI, Deporte, Hotel...">
+        <!-- Panel de Filtros -->
+        <div class="row g-2 align-items-end" id="panelFiltros">
+            <div class="col-md-3">
+                <label for="filtroDelegacion" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-geo-alt-fill text-primary me-1"></i>Delegación
+                </label>
+                <select id="filtroDelegacion" class="form-select form-select-sm">
+                    <option value="">Todas las Delegaciones</option>
+                    <?php 
+                    $delegaciones = [];
+                    if(!empty($listado_inscripciones)) {
+                        foreach($listado_inscripciones as $ins) {
+                            if(!empty($ins['delegacion'])) {
+                                $delegaciones[$ins['delegacion']] = true;
+                            }
+                        }
+                    }
+                    foreach(array_keys($delegaciones) as $del): ?>
+                        <option value="<?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="filtroTipo" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-person-badge-fill text-primary me-1"></i>Tipo de Inscripción
+                </label>
+                <select id="filtroTipo" class="form-select form-select-sm">
+                    <option value="">Todos los Tipos</option>
+                    <option value="1">Competidor</option>
+                    <option value="0">Acompañante</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="filtroDeporte" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-trophy-fill text-primary me-1"></i>Deporte
+                </label>
+                <select id="filtroDeporte" class="form-select form-select-sm">
+                    <option value="">Todos los Deportes</option>
+                    <?php 
+                    $deportes = [];
+                    if(!empty($listado_inscripciones)) {
+                        foreach($listado_inscripciones as $ins) {
+                            if(!empty($ins['deportes_nombres'])) {
+                                $listaDeportes = explode(', ', $ins['deportes_nombres']);
+                                foreach($listaDeportes as $dep) {
+                                    $deportes[trim($dep)] = true;
+                                }
+                            }
+                        }
+                    }
+                    foreach(array_keys($deportes) as $dep): ?>
+                        <option value="<?= htmlspecialchars($dep, ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($dep, ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <button id="btnLimpiarFiltros" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
+                </button>
+            </div>
         </div>
     </div>
     
@@ -142,6 +213,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const inputBuscarIns = document.getElementById('inputBuscarInscripcion');
+    const filtroDelegacion = document.getElementById('filtroDelegacion');
+    const filtroTipo = document.getElementById('filtroTipo');
+    const filtroDeporte = document.getElementById('filtroDeporte');
+    const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
     const filasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
     const filaNoResultadosIns = document.getElementById('filaNoResultadosIns');
     const contadorIns = document.getElementById('contador-inscripciones');
@@ -220,16 +295,78 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    function aplicarFiltros() {
+        const terminoBusqueda = inputBuscarIns.value.toLowerCase().trim();
+        const delegacionSeleccionada = filtroDelegacion.value.toLowerCase();
+        const tipoSeleccionado = filtroTipo.value;
+        const deporteSeleccionado = filtroDeporte.value.toLowerCase();
+
+        filasFiltradasIns = filasIns.filter(fila => {
+            // Obtener datos de la fila
+            const textoFila = fila.textContent.toLowerCase();
+            const badgeDelegacion = fila.querySelector('td:nth-child(2) .badge');
+            const delegacionFila = badgeDelegacion ? badgeDelegacion.textContent.toLowerCase() : '';
+            
+            const badgeTipo = fila.querySelector('td:nth-child(3) .badge');
+            const esCompetidorFila = badgeTipo && badgeTipo.classList.contains('bg-primary-subtle');
+            const esAcompanianteFila = badgeTipo && badgeTipo.classList.contains('bg-secondary-subtle');
+            
+            const deportesFilaElem = fila.querySelector('td:nth-child(4) .fw-semibold');
+            const deportesFila = deportesFilaElem ? deportesFilaElem.textContent.toLowerCase() : '';
+
+            // Aplicar filtros
+            let coincide = true;
+            
+            // Filtro por búsqueda de texto
+            if (terminoBusqueda && !textoFila.includes(terminoBusqueda)) {
+                coincide = false;
+            }
+            
+            // Filtro por delegación
+            if (delegacionSeleccionada && !delegacionFila.includes(delegacionSeleccionada)) {
+                coincide = false;
+            }
+            
+            // Filtro por tipo (competidor vs acompañante)
+            if (tipoSeleccionado === '1' && !esCompetidorFila) {
+                coincide = false;
+            }
+            if (tipoSeleccionado === '0' && !esAcompanianteFila) {
+                coincide = false;
+            }
+            
+            // Filtro por deporte
+            if (deporteSeleccionado && !deportesFila.includes(deporteSeleccionado)) {
+                coincide = false;
+            }
+
+            return coincide;
+        });
+
+        paginaActualIns = 1;
+        actualizarTablaInscripciones();
+    }
+
+    // Event listeners para los filtros
     if (inputBuscarIns) {
-        inputBuscarIns.addEventListener('input', function () {
-            const termino = this.value.toLowerCase().trim();
-
-            filasFiltradasIns = filasIns.filter(fila => {
-                return fila.textContent.toLowerCase().includes(termino);
-            });
-
-            paginaActualIns = 1; 
-            actualizarTablaInscripciones();
+        inputBuscarIns.addEventListener('input', aplicarFiltros);
+    }
+    if (filtroDelegacion) {
+        filtroDelegacion.addEventListener('change', aplicarFiltros);
+    }
+    if (filtroTipo) {
+        filtroTipo.addEventListener('change', aplicarFiltros);
+    }
+    if (filtroDeporte) {
+        filtroDeporte.addEventListener('change', aplicarFiltros);
+    }
+    if (btnLimpiarFiltros) {
+        btnLimpiarFiltros.addEventListener('click', function() {
+            inputBuscarIns.value = '';
+            filtroDelegacion.value = '';
+            filtroTipo.value = '';
+            filtroDeporte.value = '';
+            aplicarFiltros();
         });
     }
 
@@ -483,6 +620,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         // Recalcular paginación y filtro
                         paginaActualIns = 1;
                         filasFiltradasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
+                        filasIns = filasFiltradasIns;
                         actualizarTablaInscripciones();
                         
                         // Mostrar mensaje de éxito
