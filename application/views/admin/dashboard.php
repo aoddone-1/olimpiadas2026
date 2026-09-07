@@ -16,19 +16,11 @@
 <div class="container mb-5">
 
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-12 col-md-6">
             <div class="card card-indicador shadow-sm">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Inscriptos</h6>
                     <h3 class="fw-bold text-dark m-0"><?= $total_inscriptos ?></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-3">
-            <div class="card card-indicador shadow-sm" style="border-left-color: #198754;">
-                <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Kits Entregados</h6>
-                    <h3 class="fw-bold text-success m-0"><?= $total_kits ?></h3>
                 </div>
             </div>
         </div>
@@ -64,12 +56,6 @@
                         </div>
                         
                         <div class="text-end d-flex align-items-center gap-2">
-                            <?php if($p['kit_entregado'] == 1): ?>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle text-uppercase small px-2 py-1">Kit OK</span>
-                            <?php else: ?>
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle text-uppercase small px-2 py-1">Kit Pendiente</span>
-                            <?php endif; ?>
-
                             <a href="<?= base_url('Inscripciones/acreditacion/'.$p['token_qr']) ?>" class="btn btn-sm btn-light border text-primary px-2"><i class="bi bi-qr-code-scan"></i> Control</a>
                             <a href="<?= base_url('Inscripciones/imprimir_credencial/'.$p['token_qr']) ?>" target="_blank" class="btn btn-sm btn-dark px-2"><i class="bi bi-printer-fill"></i></a>
                         </div>
