@@ -64,13 +64,10 @@
 
                             <h6 class="text-secondary fw-bold mb-3 border-bottom pb-2" style="font-size: 0.9rem;"><i class="bi bi-building me-2"></i>Logística de Estadía y Registro</h6>
                             <div class="row g-3">
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <p class="mb-0"><strong>Hotel Asignado:</strong><br><span class="fw-bold text-dark fs-6" id="det-hotel"></span></p>
                                 </div>
-                                <div class="col-md-4">
-                                    <p class="mb-0"><strong>Estado del Kit:</strong><br><span id="det-kit"></span></p>
-                                </div>
-                                <div class="col-md-4">
+                                <div class="col-md-6">
                                     <p class="mb-0"><strong>Alta de Registro:</strong><br><span class="text-muted small" id="det-finscripcion"></span></p>
                                 </div>
                             </div>

@@ -95,7 +95,6 @@
                         <th>Rol / Asistencia</th>
                         <th>Deporte / Categoría</th>
                         <th>Hotel Alojamiento</th>
-                        <th class="text-center">Estado Kit</th>
                         <th class="text-center">Acciones</th>
                     </tr>
                 </thead>
@@ -146,14 +145,6 @@
                         </td>
                         
                         <td class="text-center">
-                            <?php if(($ins['kit_entregado'] ?? 0) == 1): ?>
-                                <span class="badge bg-success-subtle text-success border border-success-subtle small px-3 rounded-pill">Kit OK</span>
-                            <?php else: ?>
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle small px-3 rounded-pill">Pendiente</span>
-                            <?php endif; ?>
-                        </td>
-                        
-                        <td class="text-center">
                             <div class="d-flex justify-content-center gap-1">
                                 <button type="button" 
                                         class="btn btn-sm btn-outline-info me-1"
@@ -181,11 +172,11 @@
                         </td>
                     </tr>
                     <?php endforeach; else: ?>
-                        <tr id="filaNoHayDatosIns"><td colspan="7" class="text-center text-muted py-4">No hay inscripciones oficiales registradas todavía.</td></tr>
+                        <tr id="filaNoHayDatosIns"><td colspan="6" class="text-center text-muted py-4">No hay inscripciones oficiales registradas todavía.</td></tr>
                     <?php endif; ?>
                     
                     <tr id="filaNoResultadosIns" style="display: none;">
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-4">
                             <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
                         </td>
                     </tr>
@@ -532,14 +523,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         modalElemento('det-hotel').innerHTML = `<span class="text-success fw-semibold"><i class="bi bi-building-check me-1"></i>${data.hotel_alojamiento}</span>`;
                     }
 
-                    // 6. Renderizado Visual del Kit
-                    if (parseInt(data.kit_entregado) === 1) {
-                        modalElemento('det-kit').innerHTML = `<span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fw-bold">ENTREGADO</span>`;
-                    } else {
-                        modalElemento('det-kit').innerHTML = `<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-3 py-1 fw-bold">PENDIENTE</span>`;
-                    }
-
-                    // 7. Registro de timestamp
+                    // 6. Registro de timestamp
                     modalElemento('det-finscripcion').innerText = data.fecha_inscripcion || '---';
 
                     // Desplegamos el modal por Bootstrap 5
