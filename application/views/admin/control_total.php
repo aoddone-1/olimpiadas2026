@@ -42,11 +42,6 @@
     <div class="d-flex justify-content-center mb-4">
         <ul class="nav nav-pills bg-white p-2 rounded-pill shadow-sm" id="controlTabs">
             <li class="nav-item">
-                <button class="nav-link active rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-encuestas" type="button">
-                    <i class="bi bi-clipboard2-data-fill me-2"></i>Respuestas de Encuestas
-                </button>
-            </li>
-            <li class="nav-item">
                 <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-inscripciones" type="button">
                     <i class="bi bi-person-check-fill me-2"></i>Inscripciones
                 </button>

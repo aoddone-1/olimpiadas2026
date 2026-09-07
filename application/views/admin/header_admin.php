@@ -20,13 +20,6 @@
                 </a>
             </li>
             
-            <li class="nav-item">
-                <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'sondeo') ? 'active' : ''; ?>" 
-                   href="<?= base_url('Inscripciones/monitoreo_encuesta') ?>">
-                    <i class="bi bi-bar-chart-line-fill me-1"></i> Sondeo Inicial
-                </a>
-            </li>
-            
             <?php if($this->session->userdata('user_rol') === 'superadmin'){ ?> 
             <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'control') ? 'active' : ''; ?>" 
