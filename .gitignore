@@ -1,1 +1,1 @@
-(application/controllers/Inscripciones.php, application/views/admin/control_total.php)
+(application/views/admin/modals/control_total_modals.php, application/views/admin/panel-inscripciones.php)
