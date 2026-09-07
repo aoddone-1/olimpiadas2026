@@ -773,11 +773,8 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
 
-        // 1. Traemos los datos planos, fila por fila
-        $data['listado_encuestas'] = $this->Deporte_model->obtener_todas_las_encuestas();
+        // Datos para la pestaña de Inscripciones
         $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
-        
-        // 2. Traemos todos los deportes desde la base de datos para el filtro
         $data['deportes_db'] = $this->Deporte_model->obtener_todos_los_deportes();
         
         // Datos para la pestaña de UTEs/Equipos
@@ -820,15 +817,6 @@ class Inscripciones extends CI_Controller {
         // Seteamos la cabecera para decirle al navegador que es un JSON puro
         header('Content-Type: application/json');
         echo json_encode($data);
-    }
-
-    // 2. Acción para eliminar un registro de encuesta
-    public function eliminar_encuesta($id) {
-        if ($this->session->userdata('user_rol') === 'superadmin') {
-            $this->load->model('Deporte_model');
-            $this->Deporte_model->borrar_encuesta($id);
-        }
-        redirect('Inscripciones/control_total');
     }
 
     /**
