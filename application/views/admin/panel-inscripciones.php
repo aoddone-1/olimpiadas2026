@@ -10,9 +10,9 @@
             
             <div class="d-flex gap-2 align-items-center">
                 <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" 
-                   class="btn btn-sm btn-success rounded-pill"
+                   class="btn btn-sm btn-success "
                    title="Descargar lista completa en CSV">
-                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>
                 </a>
                 
                 <div class="position-relative" style="max-width: 300px; width: 100%;">
