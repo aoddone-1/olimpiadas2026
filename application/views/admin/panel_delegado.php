@@ -60,6 +60,16 @@
                 </div>
             </div>
         </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #0d6efd;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">Exportar Datos</h6>
+                    <a href="<?= base_url('Inscripciones/descargar_csv_inscriptos') ?>" class="btn btn-primary btn-sm w-100 mt-1">
+                        <i class="bi bi-filetype-csv me-1"></i>Descargar CSV
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Lista de participantes -->

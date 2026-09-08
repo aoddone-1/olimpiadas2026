@@ -205,7 +205,7 @@ class Participante_model extends CI_Model {
      * Obtiene todos los participantes de una delegación específica con campo es_competidor
      */
     public function obtener_participantes_por_delegacion_completo($delegacion) {
-        $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor');
+        $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor, sexo, fecha_nacimiento');
         $this->db->where('delegacion', $delegacion);
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');
@@ -235,5 +235,66 @@ class Participante_model extends CI_Model {
         }
         
         return $participantes;
+    }
+    
+    /**
+     * Obtiene todos los participantes de una delegación para exportar a CSV
+     * Incluye: dni, nombre completo, sexo, fecha nacimiento, edad, delegacion, deporte, categoria
+     */
+    public function obtener_participantes_para_csv($delegacion) {
+        $this->db->select('id_participante, dni, nombre_completo, sexo, fecha_nacimiento, delegacion');
+        $this->db->where('delegacion', $delegacion);
+        $this->db->order_by('nombre_completo', 'ASC');
+        $query = $this->db->get('participantes');
+        
+        $participantes = $query->result_array();
+        $resultado = [];
+        
+        foreach ($participantes as $participante) {
+            $id_p = $participante['id_participante'];
+            
+            // Calcular edad
+            $fecha_nac = new DateTime($participante['fecha_nacimiento']);
+            $hoy = new DateTime();
+            $edad = $hoy->diff($fecha_nac)->y;
+            
+            // Obtener deportes inscritos
+            $this->db->select('d.nombre_deporte, c.nombre_categoria');
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('categorias c', 'i.id_categoria = c.id_categoria');
+            $this->db->join('deportes d', 'c.id_deporte = d.id_deporte');
+            $this->db->where('i.id_participante', $id_p);
+            $deportes_query = $this->db->get()->result_array();
+            
+            // Si tiene deportes, crear una fila por cada deporte
+            if (!empty($deportes_query)) {
+                foreach ($deportes_query as $deporte) {
+                    $resultado[] = [
+                        'dni' => $participante['dni'],
+                        'nombre_completo' => $participante['nombre_completo'],
+                        'sexo' => $participante['sexo'],
+                        'fecha_nacimiento' => $participante['fecha_nacimiento'],
+                        'edad' => $edad,
+                        'delegacion' => $participante['delegacion'],
+                        'deporte' => $deporte['nombre_deporte'],
+                        'categoria' => $deporte['nombre_categoria']
+                    ];
+                }
+            } else {
+                // Si no tiene deportes, igual lo agregamos (acompañante)
+                $resultado[] = [
+                    'dni' => $participante['dni'],
+                    'nombre_completo' => $participante['nombre_completo'],
+                    'sexo' => $participante['sexo'],
+                    'fecha_nacimiento' => $participante['fecha_nacimiento'],
+                    'edad' => $edad,
+                    'delegacion' => $participante['delegacion'],
+                    'deporte' => '',
+                    'categoria' => ''
+                ];
+            }
+        }
+        
+        return $resultado;
     }
 }
