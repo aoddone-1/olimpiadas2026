@@ -1262,10 +1262,10 @@ class Inscripciones extends CI_Controller {
         // Agregar BOM para que Excel reconozca UTF-8 correctamente
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
-        // Escribir encabezados
-        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría']);
+        // Escribir encabezados con punto y coma como delimitador
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
         
-        // Escribir datos
+        // Escribir datos con punto y coma como delimitador
         foreach ($datos as $fila) {
             fputcsv($output, [
                 $fila['dni'],
@@ -1276,7 +1276,7 @@ class Inscripciones extends CI_Controller {
                 $fila['delegacion'],
                 $fila['deporte'],
                 $fila['categoria']
-            ]);
+            ], ';');
         }
         
         fclose($output);

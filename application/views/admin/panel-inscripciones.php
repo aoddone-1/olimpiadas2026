@@ -8,12 +8,20 @@
                 <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>
             </div>
             
-            <div class="position-relative" style="max-width: 300px; width: 100%;">
-                <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
-                <input type="text" 
-                       id="inputBuscarInscripcion" 
-                       class="form-control form-control-sm rounded-pill ps-5 bg-light" 
-                       placeholder="Buscar por Nombre, DNI, Hotel...">
+            <div class="d-flex gap-2 align-items-center">
+                <a href="<?= base_url('Inscripciones/descargar_csv_inscriptos') ?>" 
+                   class="btn btn-sm btn-success rounded-pill"
+                   title="Descargar lista completa en CSV">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
+                </a>
+                
+                <div class="position-relative" style="max-width: 300px; width: 100%;">
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                    <input type="text" 
+                           id="inputBuscarInscripcion" 
+                           class="form-control form-control-sm rounded-pill ps-5 bg-light" 
+                           placeholder="Buscar por Nombre, DNI, Hotel...">
+                </div>
             </div>
         </div>
         
