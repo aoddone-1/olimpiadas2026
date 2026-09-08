@@ -1282,4 +1282,51 @@ class Inscripciones extends CI_Controller {
         fclose($output);
         exit;
     }
+
+    public function descargar_csv_todos_inscriptos() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        // Obtener la delegación del usuario logueado
+        $delegacion = $this->session->userdata('user_nombre');
+        
+        // Obtener datos para el CSV
+        $datos = $this->Participante_model->obtener_participantes_para_csv(NULL);
+        
+        // Nombre del archivo
+        $nombre_archivo = 'inscriptos_' . '_' . date('Y-m-d') . '.csv';
+        
+        // Configurar headers para descarga
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
+        
+        // Crear el output
+        $output = fopen('php://output', 'w');
+        
+        // Agregar BOM para que Excel reconozca UTF-8 correctamente
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        
+        // Escribir encabezados con punto y coma como delimitador
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
+        
+        // Escribir datos con punto y coma como delimitador
+        foreach ($datos as $fila) {
+            fputcsv($output, [
+                $fila['dni'],
+                $fila['nombre_completo'],
+                $fila['sexo'],
+                $fila['fecha_nacimiento'],
+                $fila['edad'],
+                $fila['delegacion'],
+                $fila['deporte'],
+                $fila['categoria']
+            ], ';');
+        }
+        
+        fclose($output);
+        exit;
+    }
 }

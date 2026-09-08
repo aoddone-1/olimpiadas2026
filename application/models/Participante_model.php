@@ -243,7 +243,10 @@ class Participante_model extends CI_Model {
      */
     public function obtener_participantes_para_csv($delegacion) {
         $this->db->select('id_participante, dni, nombre_completo, sexo, fecha_nacimiento, delegacion');
-        $this->db->where('delegacion', $delegacion);
+        if($delegacion!==NULL){
+            $this->db->where('delegacion', $delegacion);
+        }
+        
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');
         
