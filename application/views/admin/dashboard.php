@@ -16,11 +16,21 @@
 <div class="container mb-5">
 
     <div class="row g-3 mb-4">
-        <div class="col-12 col-md-6">
+        <div class="col-4 col-md-4">
             <div class="card card-indicador shadow-sm">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Inscriptos</h6>
                     <h3 class="fw-bold text-dark m-0"><?= $total_inscriptos ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-4 col-md-4">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #03551f;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">Exportar Datos</h6>
+                    <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" class="btn btn-success btn-sm w-100 mt-1">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
+                    </a>
                 </div>
             </div>
         </div>
