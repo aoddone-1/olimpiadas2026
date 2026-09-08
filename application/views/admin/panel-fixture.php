@@ -128,6 +128,30 @@
                     </div>
                 </div>
 
+                <div class="row g-2 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Fecha de Inicio</label>
+                        <input type="date" class="form-control" id="fecha_inicio_fixture">
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> Los partidos se distribuirán semanalmente desde esta fecha</small>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Hora de Inicio</label>
+                        <input type="time" class="form-control" id="hora_inicio_fixture" value="09:00">
+                        <small class="text-muted"><i class="bi bi-info-circle"></i> Los partidos se escalonarán cada hora</small>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Sede / Lugar</label>
+                    <select class="form-select" id="lugar_fixture">
+                        <option value="">Seleccione una sede...</option>
+                        <?php foreach ($lugares as $lugar): ?>
+                            <option value="<?= $lugar['id'] ?>"><?= htmlspecialchars($lugar['nombre']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted"><i class="bi bi-geo-alt"></i> Lugar donde se jugarán los partidos</small>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Tipo de Fixture</label>
                     <select class="form-select" id="tipo_fixture">
@@ -384,10 +408,27 @@ $(document).ready(function() {
     $('#btn_confirmar_generar').click(function() {
         const idCategoria = $('#modal_id_categoria').val();
         const tipoFixture = $('#tipo_fixture').val();
+        const fechaInicio = $('#fecha_inicio_fixture').val();
+        const horaInicio = $('#hora_inicio_fixture').val();
+        const idLugar = $('#lugar_fixture').val();
+        
+        // Validaciones
+        if (!fechaInicio) {
+            alert("Por favor seleccione una fecha de inicio");
+            return;
+        }
+        
+        if (!horaInicio) {
+            alert("Por favor seleccione una hora de inicio");
+            return;
+        }
         
         $.post('<?= site_url("fixture/generar_fixture") ?>', {
             id_categoria: idCategoria,
-            tipo_generacion: tipoFixture
+            tipo_generacion: tipoFixture,
+            dia_competencia: fechaInicio,
+            hora_competencia: horaInicio,
+            id_lugar: idLugar || null
         }, function(response) {
             if (response.success) {
                 alert(response.message + ' - Se generaron ' + response.cantidad_partidos + ' partidos');

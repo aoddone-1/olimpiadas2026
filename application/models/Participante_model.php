@@ -80,10 +80,20 @@ class Participante_model extends CI_Model {
     }
 
     public function obtener_deportes_inscriptos($id_participante) {
-        $this->db->select('inscripciones_deportivas.id_inscripcion, deportes.nombre_deporte, categorias.nombre_categoria, inscripciones_deportivas.asistio');
+        $this->db->select('
+            inscripciones_deportivas.id_inscripcion, 
+            deportes.nombre_deporte, 
+            categorias.nombre_categoria, 
+            categorias.dia_competencia,
+            categorias.hora_competencia,
+            lugares.nombre as nombre_lugar,
+            lugares.direccion as direccion_lugar,
+            inscripciones_deportivas.asistio
+        ');
         $this->db->from('inscripciones_deportivas');
         $this->db->join('categorias', 'inscripciones_deportivas.id_categoria = categorias.id_categoria');
         $this->db->join('deportes', 'categorias.id_deporte = deportes.id_deporte');
+        $this->db->join('lugares', 'categorias.id_lugar = lugares.id', 'left');
         $this->db->where('inscripciones_deportivas.id_participante', $id_participante);
         
         return $this->db->get()->result_array();

@@ -57,9 +57,10 @@ class Fixture_model extends CI_Model {
      * Genera cruces automáticos para una categoría
      * @param int $id_categoria ID de la categoría
      * @param string $tipo_generacion 'todos_contra_todos' o 'eliminatoria'
+     * @param array $config_extra Configuración adicional (dia_competencia, hora_competencia, id_lugar)
      * @return array Resultado de la operación
      */
-    public function generar_cruces($id_categoria, $tipo_generacion = 'todos_contra_todos') {
+    public function generar_cruces($id_categoria, $tipo_generacion = 'todos_contra_todos', $config_extra = []) {
         // Obtener información de la categoría
         $this->db->select('c.*, d.modalidad');
         $this->db->from('categorias c');
@@ -69,6 +70,11 @@ class Fixture_model extends CI_Model {
         
         if (!$categoria) {
             return ['success' => false, 'message' => 'Categoría no encontrada'];
+        }
+        
+        // Si viene configuración extra del controller, la usamos
+        if (!empty($config_extra)) {
+            $categoria = array_merge($categoria, $config_extra);
         }
         
         // Verificar si ya existen partidos para esta categoría

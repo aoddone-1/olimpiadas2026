@@ -57,6 +57,9 @@ class Fixture extends CI_Controller {
     public function generar_fixture() {
         $id_categoria = $this->input->post('id_categoria');
         $tipo_generacion = $this->input->post('tipo_generacion', 'todos_contra_todos');
+        $dia_competencia = $this->input->post('dia_competencia');
+        $hora_competencia = $this->input->post('hora_competencia');
+        $id_lugar = $this->input->post('id_lugar');
         
         if (empty($id_categoria)) {
             echo json_encode([
@@ -66,7 +69,20 @@ class Fixture extends CI_Controller {
             return;
         }
         
-        $resultado = $this->Fixture_model->generar_cruces($id_categoria, $tipo_generacion);
+        // Actualizar la categoría con los datos del cronograma antes de generar el fixture
+        $config_extra = [];
+        if (!empty($dia_competencia) && !empty($hora_competencia)) {
+            $config_extra = [
+                'dia_competencia' => $dia_competencia,
+                'hora_competencia' => $hora_competencia,
+                'id_lugar' => !empty($id_lugar) ? $id_lugar : null
+            ];
+            
+            $this->db->where('id_categoria', $id_categoria);
+            $this->db->update('categorias', $config_extra);
+        }
+        
+        $resultado = $this->Fixture_model->generar_cruces($id_categoria, $tipo_generacion, $config_extra);
         echo json_encode($resultado);
     }
     
