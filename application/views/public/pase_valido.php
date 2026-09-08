@@ -92,8 +92,39 @@
                 <ul class="list-group list-group-flush border rounded shadow-sm">
                     <?php if(!empty($deportes)): ?>
                         <?php foreach($deportes as $dep): ?>
-                            <li class="list-group-item deporte-item d-flex justify-content-between align-items-center small">
-                                <span><i class="bi bi-circle-fill text-primary me-2" style="font-size: 0.5rem;"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)</span>
+                            <li class="list-group-item deporte-item p-3 small">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="fw-bold text-primary"><i class="bi bi-circle-fill me-2" style="font-size: 0.5rem;"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)</span>
+                                </div>
+                                <?php if(!empty($dep['dia_competencia']) || !empty($dep['hora_competencia']) || !empty($dep['nombre_lugar'])): ?>
+                                    <div class="mt-2 ps-3 border-start">
+                                        <?php if(!empty($dep['dia_competencia'])): ?>
+                                            <div class="small text-muted mb-1">
+                                                <i class="bi bi-calendar3 me-1"></i>
+                                                <strong>Día:</strong> <?= date('d/m/Y', strtotime($dep['dia_competencia'])) ?>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if(!empty($dep['hora_competencia'])): ?>
+                                            <div class="small text-muted mb-1">
+                                                <i class="bi bi-clock me-1"></i>
+                                                <strong>Hora:</strong> <?= date('H:i', strtotime($dep['hora_competencia'])) ?> hs
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if(!empty($dep['nombre_lugar'])): ?>
+                                            <div class="small text-muted">
+                                                <i class="bi bi-geo-alt me-1"></i>
+                                                <strong>Sede:</strong> <?= $dep['nombre_lugar'] ?>
+                                                <?php if(!empty($dep['direccion_lugar'])): ?>
+                                                    <br><span class="text-muted small"><?= $dep['direccion_lugar'] ?></span>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="mt-2 ps-3 border-start">
+                                        <small class="text-muted fst-italic"><i class="bi bi-info-circle me-1"></i>Horarios y sedes a confirmar</small>
+                                    </div>
+                                <?php endif; ?>
                             </li>
                         <?php endforeach; ?>
                     <?php else: ?>
