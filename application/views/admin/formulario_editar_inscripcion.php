@@ -281,8 +281,8 @@
                                         <label class="form-label fw-bold small">Categoría</label>
                                         <select name="categoria_id[]" class="form-select form-select-sm cmb-categoria" required>
                                             <option value="">Primero seleccione deporte...</option>
-                                            <?php if(isset($dep['id_categoria']) && !empty($dep['id_categoria'])): ?>
-                                                <!-- Las categorías se cargan vía AJAX -->
+                                            <?php if(isset($dep['id_categoria']) && !empty($dep['id_categoria']) && isset($dep['nombre_categoria'])): ?>
+                                                <option value="<?= $dep['id_categoria'] ?>" selected><?= htmlspecialchars($dep['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?></option>
                                             <?php endif; ?>
                                         </select>
                                     </div>
@@ -448,6 +448,9 @@ $(document).ready(function() {
         const nuevaFila = `
             <div class="fila-deporte card p-3 mb-3 border bg-light-subtle">
                 <div class="row g-3 align-items-end">
+                    <!-- Campo oculto vacío para id_inscripcion (solo se completa si es existente) -->
+                    <input type="hidden" name="id_inscripcion[]" value="">
+                    
                     <div class="col-md-3">
                         <label class="form-label fw-bold small">Deporte</label>
                         <select name="deporte_id[]" class="form-select form-select-sm cmb-deporte" required onchange="cargarCategorias(this, ${contador})">
