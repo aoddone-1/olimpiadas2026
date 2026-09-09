@@ -9,6 +9,13 @@
             </div>
             
             <div class="d-flex gap-2 align-items-center">
+                <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
+                   class="btn btn-sm btn-primary"
+                   title="Cargar nueva inscripción">
+                    <i class="bi bi-plus-circle-fill me-1"></i>
+                    Nueva Inscripción
+                </a>
+                
                 <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" 
                    class="btn btn-sm btn-success "
                    title="Descargar lista completa en CSV">
