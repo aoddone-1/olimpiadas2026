@@ -44,13 +44,58 @@ class Participante_model extends CI_Model {
         $this->db->where('id_participante', $id_participante);
         $this->db->update('participantes', $datos_persona);
 
-        // 2. Volamos las disciplinas viejas (si pasa a ser acompañante, la tabla queda limpia)
+        // 2. Obtenemos las inscripciones deportivas actuales del participante
         $this->db->where('id_participante', $id_participante);
-        $this->db->delete('inscripciones_deportivas');
-
-        // 3. Insertamos las nuevas disciplinas con su estructura de UTE correspondiente
-        if (!empty($deportes_seleccionados) && $id_participante) {
+        $inscripciones_actuales = $this->db->get('inscripciones_deportivas')->result_array();
+        
+        // 3. Armamos un array con los IDs de las inscripciones que vienen en el formulario
+        $ids_a_mantener = [];
+        $nuevas_inscripciones = [];
+        
+        if (!empty($deportes_seleccionados)) {
             foreach ($deportes_seleccionados as $disc) {
+                if (!empty($disc['id_categoria'])) {
+                    // Verificamos si esta inscripción ya existe
+                    $existe = false;
+                    foreach ($inscripciones_actuales as $inscripcion) {
+                        if ($inscripcion['id_categoria'] == $disc['id_categoria']) {
+                            // Marcamos esta inscripción como existente para mantenerla
+                            $ids_a_mantener[] = $inscripcion['id_inscripcion'];
+                            $existe = true;
+                            
+                            // Actualizamos los datos de UTE si cambiaron
+                            $data_actualizacion = [
+                                'tiene_ute'    => $disc['tiene_ute'],
+                                'necesita_ute' => $disc['necesita_ute'],
+                                'detalle_ute'  => $disc['detalle_ute']
+                            ];
+                            $this->db->where('id_inscripcion', $inscripcion['id_inscripcion']);
+                            $this->db->update('inscripciones_deportivas', $data_actualizacion);
+                            break;
+                        }
+                    }
+                    
+                    // Si no existe, la agregamos como nueva
+                    if (!$existe) {
+                        $nuevas_inscripciones[] = $disc;
+                    }
+                }
+            }
+        }
+        
+        // 4. Eliminamos solo las inscripciones que NO están en el formulario
+        if (!empty($inscripciones_actuales)) {
+            foreach ($inscripciones_actuales as $inscripcion) {
+                if (!in_array($inscripcion['id_inscripcion'], $ids_a_mantener)) {
+                    $this->db->where('id_inscripcion', $inscripcion['id_inscripcion']);
+                    $this->db->delete('inscripciones_deportivas');
+                }
+            }
+        }
+
+        // 5. Insertamos las nuevas inscripciones deportivas con su estructura de UTE correspondiente
+        if (!empty($nuevas_inscripciones) && $id_participante) {
+            foreach ($nuevas_inscripciones as $disc) {
                 
                 $data_relacion = [
                     'id_participante' => $id_participante,
@@ -64,7 +109,7 @@ class Participante_model extends CI_Model {
             }
         }
 
-        // 4. Completamos la transacción atómica
+        // 6. Completamos la transacción atómica
         $this->db->trans_complete();
         
         // Retorna TRUE si se ejecutó el update y los inserts sin errores, o FALSE si falló algo
