@@ -10,14 +10,14 @@
             
             <div class="d-flex gap-2 align-items-center">
                 <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
-                   class="btn btn-sm btn-primary"
+                   class="btn btn-lg btn-danger"
                    title="Cargar nueva inscripción">
-                    <i class="bi bi-plus-circle-fill me-1"></i>
-                    Nueva Inscripción
+                    <i class="bi bi-person-add me-1"></i>
+                    
                 </a>
                 
                 <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" 
-                   class="btn btn-sm btn-success "
+                   class="btn btn-lg btn-success "
                    title="Descargar lista completa en CSV">
                     <i class="bi bi-file-earmark-spreadsheet me-1"></i>
                 </a>
