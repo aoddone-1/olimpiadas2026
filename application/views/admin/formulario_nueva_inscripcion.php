@@ -68,9 +68,8 @@
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">DNI</label>
-                        <input type="text" name="dni" id="txt-dni" class="form-control" value="" required readonly disabled>
-                        <input type="hidden" name="dni" value="">
-                        <small class="text-muted">Primero busque el DNI en el sistema</small>
+                        <input type="text" name="dni" id="txt-dni" class="form-control" value="" required>
+                        <small class="text-muted">Ingrese el DNI del participante</small>
                     </div>
                     <div class="col-md-8">
                         <label class="form-label fw-bold">Nombre Completo</label>
