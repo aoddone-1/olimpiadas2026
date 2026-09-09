@@ -260,6 +260,9 @@
                             <?php foreach($participante['deportes'] as $index => $dep): ?>
                             <div class="fila-deporte card p-3 mb-3 border bg-light-subtle">
                                 <div class="row g-3 align-items-end">
+                                    <!-- Campo oculto con el ID de la inscripción existente -->
+                                    <input type="hidden" name="id_inscripcion[]" value="<?= $dep['id_inscripcion'] ?>">
+                                    
                                     <div class="col-md-3">
                                         <label class="form-label fw-bold small">Deporte</label>
                                         <select name="deporte_id[]" class="form-select form-select-sm cmb-deporte" required onchange="cargarCategorias(this, <?= $index ?>)">

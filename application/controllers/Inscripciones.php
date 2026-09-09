@@ -991,13 +991,14 @@ class Inscripciones extends CI_Controller {
             'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
         ];
 
-        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE (para edición)
         $deportes_seleccionados = [];
         
         if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
             foreach ($post['categoria_id'] as $index => $cat_id) {
                 if (!empty($cat_id)) {
                     $deportes_seleccionados[] = [
+                        'id_inscripcion' => isset($post['id_inscripcion'][$index]) ? $post['id_inscripcion'][$index] : null,
                         'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
                         'id_categoria' => $cat_id,
                         'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
