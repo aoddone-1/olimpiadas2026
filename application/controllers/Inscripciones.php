@@ -1024,6 +1024,101 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/control_total');
     }
 
+    /**
+     * Mostrar formulario para nueva inscripción (desde panel-inscripciones)
+     */
+    public function nueva_inscripcion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Deporte_model');
+        
+        // Obtener todos los deportes para el formulario
+        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
+        // Cargar vista de nueva inscripción
+        $this->load->view('admin/formulario_nueva_inscripcion', $data);
+    }
+
+    /**
+     * Guardar nueva inscripción
+     */
+    public function guardar_nueva_inscripcion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        // Estructura de datos nuevos
+        $data_persona = [
+            'dni'                 => trim($post['dni']),
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), 
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // Traducción de rol
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Fecha de inscripción actual
+            'fecha_inscripcion'   => date('Y-m-d H:i:s'),
+            
+            // Generar token QR único
+            'token_qr'            => bin2hex(random_bytes(16))
+        ];
+
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecutar inserción
+        $resultado = $this->Participante_model->insertar_completo(
+            $data_persona, 
+            $deportes_seleccionados
+        );
+
+        if ($resultado) {
+            $this->session->set_flashdata('success', 'Nueva inscripción guardada correctamente.');
+        } else {
+            $this->session->set_flashdata('error', 'Error al guardar la nueva inscripción. Intente nuevamente.');
+        }
+
+        redirect('Inscripciones/control_total');
+    }
+
     // =========================================================================
     // GESTION DE UTES / EQUIPOS
     // =========================================================================

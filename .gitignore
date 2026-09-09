@@ -1,2 +1,55 @@
-config
-application/cache
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
+vendor/
+node_modules/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Backup files
+*~
+*.bak
+*.backup
+
+# Composer/Packagist
+composer.lock
+vendor/
+
+# PHP specific
+*.php~
+.htaccess
+
+# Cache directories
+.cache/
+coverage/
+htmlcov/
+*.cache
+
+# Build directories
+dist/
+build/
+target/
+
+# Temporary uploads or generated content
+uploads/
+storage/
+.tmp/
+temp/
