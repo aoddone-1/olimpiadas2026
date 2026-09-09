@@ -55,28 +55,22 @@ class Participante_model extends CI_Model {
         if (!empty($deportes_seleccionados)) {
             foreach ($deportes_seleccionados as $disc) {
                 if (!empty($disc['id_categoria'])) {
-                    // Verificamos si esta inscripción ya existe
-                    $existe = false;
-                    foreach ($inscripciones_actuales as $inscripcion) {
-                        if ($inscripcion['id_categoria'] == $disc['id_categoria']) {
-                            // Marcamos esta inscripción como existente para mantenerla
-                            $ids_a_mantener[] = $inscripcion['id_inscripcion'];
-                            $existe = true;
-                            
-                            // Actualizamos los datos de UTE si cambiaron
-                            $data_actualizacion = [
-                                'tiene_ute'    => $disc['tiene_ute'],
-                                'necesita_ute' => $disc['necesita_ute'],
-                                'detalle_ute'  => $disc['detalle_ute']
-                            ];
-                            $this->db->where('id_inscripcion', $inscripcion['id_inscripcion']);
-                            $this->db->update('inscripciones_deportivas', $data_actualizacion);
-                            break;
-                        }
-                    }
-                    
-                    // Si no existe, la agregamos como nueva
-                    if (!$existe) {
+                    // Si viene con id_inscripcion, es una inscripción existente
+                    if (!empty($disc['id_inscripcion'])) {
+                        // Marcamos esta inscripción como existente para mantenerla
+                        $ids_a_mantener[] = $disc['id_inscripcion'];
+                        
+                        // Actualizamos los datos de UTE y deporte/categoria si cambiaron
+                        $data_actualizacion = [
+                            'id_categoria' => $disc['id_categoria'],
+                            'tiene_ute'    => $disc['tiene_ute'],
+                            'necesita_ute' => $disc['necesita_ute'],
+                            'detalle_ute'  => $disc['detalle_ute']
+                        ];
+                        $this->db->where('id_inscripcion', $disc['id_inscripcion']);
+                        $this->db->update('inscripciones_deportivas', $data_actualizacion);
+                    } else {
+                        // Es una nueva inscripción (no tiene id_inscripcion)
                         $nuevas_inscripciones[] = $disc;
                     }
                 }
@@ -99,7 +93,7 @@ class Participante_model extends CI_Model {
                 
                 $data_relacion = [
                     'id_participante' => $id_participante,
-                    'id_categoria'    => $disc['id_categoria'], // Mapeo estructural correcto
+                    'id_categoria'    => $disc['id_categoria'],
                     'tiene_ute'       => $disc['tiene_ute'],
                     'necesita_ute'    => $disc['necesita_ute'],
                     'detalle_ute'     => $disc['detalle_ute']
