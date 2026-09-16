@@ -646,6 +646,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
+        // Mostrar mensaje de "no hay resultados" si el filtro no devuelve filas, pero hay datos originales
         if (totalFilasEquipos === 0 && filasEquipos.length > 0) {
             filaNoResultadosEquipos.style.display = '';
         } else {
@@ -664,20 +665,32 @@ document.addEventListener('DOMContentLoaded', function() {
             const tdCategoria = fila.querySelector('td:nth-child(2)');
             const tdNombre = fila.querySelector('td:nth-child(3)');
             
-            const deporteFila = tdDeporte ? tdDeporte.textContent.toLowerCase() : '';
-            const categoriaFila = tdCategoria ? tdCategoria.textContent.toLowerCase() : '';
-            const nombreFila = tdNombre ? tdNombre.textContent.toLowerCase() : '';
+            // Obtener solo el texto del deporte (sin el badge de género)
+            let deporteFila = '';
+            if (tdDeporte) {
+                const spanDeporte = tdDeporte.querySelector('span.fw-semibold');
+                deporteFila = spanDeporte ? spanDeporte.textContent.toLowerCase() : tdDeporte.textContent.toLowerCase();
+            }
             
-            // Crear combo deporte - categoria para comparar
+            const categoriaFila = tdCategoria ? tdCategoria.textContent.toLowerCase().trim() : '';
+            const nombreFila = tdNombre ? tdNombre.textContent.toLowerCase().trim() : '';
+            
+            // Crear combo deporte - categoria para comparar (mismo formato que el select)
             const comboFila = `${deporteFila} - ${categoriaFila}`;
             
             let coincide = true;
 
-            if (terminoBusqueda && !deporteFila.includes(terminoBusqueda) && !nombreFila.includes(terminoBusqueda) && !categoriaFila.includes(terminoBusqueda)) {
-                coincide = false;
+            // Filtro por búsqueda genérica (busca en deporte, categoría y nombre)
+            if (terminoBusqueda) {
+                if (!deporteFila.includes(terminoBusqueda) && 
+                    !nombreFila.includes(terminoBusqueda) && 
+                    !categoriaFila.includes(terminoBusqueda)) {
+                    coincide = false;
+                }
             }
 
-            if (deporteCategoriaSeleccionado && !comboFila.includes(deporteCategoriaSeleccionado)) {
+            // Filtro por deporte-categoría
+            if (deporteCategoriaSeleccionado && comboFila !== deporteCategoriaSeleccionado) {
                 coincide = false;
             }
 
