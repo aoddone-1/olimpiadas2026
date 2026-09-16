@@ -24,35 +24,30 @@
         
         <!-- Panel de Filtros -->
         <div class="row g-2 align-items-end" id="panelFiltrosEquipos">
-            <div class="col-md-4">
-                <label for="filtroDeporteEquipo" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-trophy-fill text-warning me-1"></i>Deporte
+            <div class="col-md-6">
+                <label for="filtroDeporteCategoria" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-trophy-fill text-warning me-1"></i>Deporte - Categoría
                 </label>
-                <select id="filtroDeporteEquipo" class="form-select form-select-sm">
-                    <option value="">Todos los Deportes</option>
-                    <?php if(!empty($deportes_db)): foreach($deportes_db as $dep): ?>
-                        <option value="<?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
+                <select id="filtroDeporteCategoria" class="form-select form-select-sm">
+                    <option value="">Todos los Deportes - Categorías</option>
+                    <?php if(!empty($utes)): 
+                        $combinaciones = [];
+                        foreach($utes as $ute): 
+                            $combo = $ute['nombre_deporte'] . ' - ' . $ute['nombre_categoria'];
+                            if(!in_array($combo, $combinaciones)) {
+                                $combinaciones[] = $combo;
+                            }
+                        endforeach; 
+                        sort($combinaciones);
+                        foreach($combinaciones as $comb): ?>
+                        <option value="<?= htmlspecialchars($comb, ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($comb, ENT_QUOTES, 'UTF-8') ?>
                         </option>
                     <?php endforeach; endif; ?>
                 </select>
             </div>
             
-            <div class="col-md-4">
-                <label for="filtroCategoriaEquipo" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-people-fill text-warning me-1"></i>Categoría
-                </label>
-                <select id="filtroCategoriaEquipo" class="form-select form-select-sm">
-                    <option value="">Todas las Categorías</option>
-                    <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </div>
-            
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <button id="btnLimpiarFiltrosEquipos" class="btn btn-outline-secondary btn-sm w-100">
                     <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
                 </button>
@@ -583,8 +578,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // FILTROS Y BUSCADOR PARA UTE/EQUIPOS
     // ==========================================
     const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
-    const filtroDeporteEquipo = document.getElementById('filtroDeporteEquipo');
-    const filtroCategoriaEquipo = document.getElementById('filtroCategoriaEquipo');
+    const filtroDeporteCategoria = document.getElementById('filtroDeporteCategoria');
     const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
     const filasEquipos = Array.from(document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]'));
     const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
@@ -663,8 +657,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function aplicarFiltrosEquipos() {
         const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
-        const deporteSeleccionado = filtroDeporteEquipo.value.toLowerCase();
-        const categoriaSeleccionada = filtroCategoriaEquipo.value.toLowerCase();
+        const deporteCategoriaSeleccionado = filtroDeporteCategoria.value.toLowerCase();
 
         filasFiltradasEquipos = filasEquipos.filter(fila => {
             const tdDeporte = fila.querySelector('td:nth-child(1)');
@@ -675,17 +668,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const categoriaFila = tdCategoria ? tdCategoria.textContent.toLowerCase() : '';
             const nombreFila = tdNombre ? tdNombre.textContent.toLowerCase() : '';
             
+            // Crear combo deporte - categoria para comparar
+            const comboFila = `${deporteFila} - ${categoriaFila}`;
+            
             let coincide = true;
 
-            if (terminoBusqueda && !deporteFila.includes(terminoBusqueda) && !nombreFila.includes(terminoBusqueda)) {
+            if (terminoBusqueda && !deporteFila.includes(terminoBusqueda) && !nombreFila.includes(terminoBusqueda) && !categoriaFila.includes(terminoBusqueda)) {
                 coincide = false;
             }
 
-            if (deporteSeleccionado && !deporteFila.includes(deporteSeleccionado)) {
-                coincide = false;
-            }
-
-            if (categoriaSeleccionada && !categoriaFila.includes(categoriaSeleccionada)) {
+            if (deporteCategoriaSeleccionado && !comboFila.includes(deporteCategoriaSeleccionado)) {
                 coincide = false;
             }
 
@@ -699,17 +691,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (inputBuscarEquipo) {
         inputBuscarEquipo.addEventListener('input', aplicarFiltrosEquipos);
     }
-    if (filtroDeporteEquipo) {
-        filtroDeporteEquipo.addEventListener('change', aplicarFiltrosEquipos);
-    }
-    if (filtroCategoriaEquipo) {
-        filtroCategoriaEquipo.addEventListener('change', aplicarFiltrosEquipos);
+    if (filtroDeporteCategoria) {
+        filtroDeporteCategoria.addEventListener('change', aplicarFiltrosEquipos);
     }
     if (btnLimpiarFiltrosEquipos) {
         btnLimpiarFiltrosEquipos.addEventListener('click', function() {
             inputBuscarEquipo.value = '';
-            filtroDeporteEquipo.value = '';
-            filtroCategoriaEquipo.value = '';
+            filtroDeporteCategoria.value = '';
             aplicarFiltrosEquipos();
         });
     }
