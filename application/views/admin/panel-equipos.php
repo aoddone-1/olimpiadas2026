@@ -244,8 +244,24 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Actualizar contador
-    actualizarContadorEquipos();
+    // ==========================================
+    // FILTROS Y BUSCADOR PARA UTE/EQUIPOS
+    // ==========================================
+    const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
+    const filtroDeporteCategoria = document.getElementById('filtroDeporteCategoria');
+    const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
+    const filasEquipos = Array.from(document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]'));
+    const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
+    
+    const filasPorPaginaEquipos = 10;
+    let paginaActualEquipos = 1;
+    let filasFiltradasEquipos = [...filasEquipos];
+
+    // Función para actualizar el contador de filas
+    function actualizarContadorEquipos() {
+        const totalFilas = filasFiltradasEquipos.length;
+        document.getElementById('contador-equipos').textContent = `${totalFilas} ${totalFilas === 1 ? 'fila' : 'filas'}`;
+    }
     
     // ==========================================
     // CREAR UTE
@@ -573,19 +589,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    // ==========================================
-    // FILTROS Y BUSCADOR PARA UTE/EQUIPOS
-    // ==========================================
-    const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
-    const filtroDeporteCategoria = document.getElementById('filtroDeporteCategoria');
-    const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
-    const filasEquipos = Array.from(document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]'));
-    const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
-    
-    const filasPorPaginaEquipos = 10;
-    let paginaActualEquipos = 1;
-    let filasFiltradasEquipos = [...filasEquipos];
 
     function actualizarTablaEquipos() {
         const totalFilasEquipos = filasFiltradasEquipos.length;
