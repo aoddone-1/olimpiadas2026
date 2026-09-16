@@ -127,7 +127,10 @@ class Participante_model extends CI_Model {
             categorias.hora_competencia,
             lugares.nombre as nombre_lugar,
             lugares.direccion as direccion_lugar,
-            inscripciones_deportivas.asistio
+            inscripciones_deportivas.asistio,
+            inscripciones_deportivas.tiene_ute,
+            inscripciones_deportivas.necesita_ute,
+            inscripciones_deportivas.detalle_ute
         ');
         $this->db->from('inscripciones_deportivas');
         $this->db->join('categorias', 'inscripciones_deportivas.id_categoria = categorias.id_categoria');
