@@ -43,33 +43,22 @@
                 </select>
             </div>
             
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label for="filtroCategoriaEquipo" class="form-label small fw-semibold mb-1">
                     <i class="bi bi-layers-fill text-warning me-1"></i>Categoría
                 </label>
                 <select id="filtroCategoriaEquipo" class="form-select form-select-sm">
                     <option value="">Todas las Categorías</option>
                     <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
-                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
+                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>" 
+                                data-deporte="<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
                         </option>
                     <?php endforeach; endif; ?>
                 </select>
             </div>
             
-            <div class="col-md-3">
-                <label for="filtroGeneroEquipo" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-gender-ambiguous text-warning me-1"></i>Género
-                </label>
-                <select id="filtroGeneroEquipo" class="form-select form-select-sm">
-                    <option value="">Todos los Géneros</option>
-                    <option value="MASCULINO">Masculino</option>
-                    <option value="FEMENINO">Femenino</option>
-                    <option value="MIXTO">Mixto</option>
-                </select>
-            </div>
-            
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <button id="btnLimpiarFiltrosEquipos" class="btn btn-outline-secondary btn-sm w-100">
                     <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
                 </button>
@@ -622,7 +611,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
     const filtroDeporteEquipo = document.getElementById('filtroDeporteEquipo');
     const filtroCategoriaEquipo = document.getElementById('filtroCategoriaEquipo');
-    const filtroGeneroEquipo = document.getElementById('filtroGeneroEquipo');
     const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
     const filasEquipos = Array.from(document.querySelectorAll('.js-fila-equipo'));
     const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
@@ -706,7 +694,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
         const deporteSeleccionado = filtroDeporteEquipo.value.toLowerCase();
         const categoriaSeleccionada = filtroCategoriaEquipo.value.toLowerCase();
-        const generoSeleccionado = filtroGeneroEquipo.value.toLowerCase();
 
         filasFiltradasEquipos = filasEquipos.filter(fila => {
             // Obtener datos de la fila
@@ -717,9 +704,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const celdaCategoria = fila.querySelector('td:nth-child(2)');
             const categoriaFila = celdaCategoria ? celdaCategoria.textContent.toLowerCase() : '';
-            
-            const badgeGenero = fila.querySelector('td:nth-child(1) .badge');
-            const generoFila = badgeGenero ? badgeGenero.textContent.toLowerCase() : '';
 
             // Aplicar filtros
             let coincide = true;
@@ -736,11 +720,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Filtro por categoría
             if (categoriaSeleccionada && !categoriaFila.includes(categoriaSeleccionada)) {
-                coincide = false;
-            }
-            
-            // Filtro por género
-            if (generoSeleccionado && !generoFila.includes(generoSeleccionado)) {
                 coincide = false;
             }
 
@@ -761,15 +740,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (filtroCategoriaEquipo) {
         filtroCategoriaEquipo.addEventListener('change', aplicarFiltrosEquipos);
     }
-    if (filtroGeneroEquipo) {
-        filtroGeneroEquipo.addEventListener('change', aplicarFiltrosEquipos);
-    }
     if (btnLimpiarFiltrosEquipos) {
         btnLimpiarFiltrosEquipos.addEventListener('click', function() {
             inputBuscarEquipo.value = '';
             filtroDeporteEquipo.value = '';
             filtroCategoriaEquipo.value = '';
-            filtroGeneroEquipo.value = '';
             aplicarFiltrosEquipos();
         });
     }
