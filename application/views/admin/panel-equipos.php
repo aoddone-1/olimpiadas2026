@@ -1,15 +1,62 @@
 <div class="card shadow-sm border-0">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-        <div class="d-flex align-items-center">
-            <i class="bi bi-list-check text-warning me-2"></i> 
-            <span>Gestion de UTE/Equipos</span>
-            <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
+    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-list-check text-warning me-2"></i> 
+                <span>Gestion de UTE/Equipos</span>
+                <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
+            </div>
+            
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
+                    <i class="bi bi-plus-circle me-1"></i> Crear UTE
+                </button>
+                
+                <div class="position-relative" style="max-width: 250px; width: 100%;">
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                    <input type="text" 
+                           id="inputBuscarEquipo" 
+                           class="form-control form-control-sm rounded-pill ps-5 bg-light" 
+                           placeholder="Buscar por nombre, deporte...">
+                </div>
+            </div>
         </div>
         
-        <div class="d-flex gap-2">
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
-                <i class="bi bi-plus-circle me-1"></i> Crear UTE
-            </button>
+        <!-- Panel de Filtros -->
+        <div class="row g-2 align-items-end" id="panelFiltrosEquipos">
+            <div class="col-md-4">
+                <label for="filtroDeporteEquipo" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-trophy-fill text-warning me-1"></i>Deporte
+                </label>
+                <select id="filtroDeporteEquipo" class="form-select form-select-sm">
+                    <option value="">Todos los Deportes</option>
+                    <?php if(!empty($deportes_db)): foreach($deportes_db as $dep): ?>
+                        <option value="<?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($dep['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <label for="filtroCategoriaEquipo" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-people-fill text-warning me-1"></i>Categoría
+                </label>
+                <select id="filtroCategoriaEquipo" class="form-select form-select-sm">
+                    <option value="">Todas las Categorías</option>
+                    <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
+                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>">
+                            <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
+                        </option>
+                    <?php endforeach; endif; ?>
+                </select>
+            </div>
+            
+            <div class="col-md-4">
+                <button id="btnLimpiarFiltrosEquipos" class="btn btn-outline-secondary btn-sm w-100">
+                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
+                </button>
+            </div>
         </div>
     </div>
     
@@ -69,9 +116,27 @@
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
+                    
+                    <tr id="filaNoResultadosEquipos" style="display: none;">
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         </div>
+
+        <?php if(!empty($utes)): ?>
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 border-top pt-3">
+            <div class="text-muted small">
+                Mostrando filas del <span id="pagStartEquipos">0</span> al <span id="pagEndEquipos">0</span>
+            </div>
+            <nav aria-label="Navegacion de equipos">
+                <ul class="pagination pagination-sm mb-0 justify-content-center" id="ulPaginacionEquipos">
+                </ul>
+            </nav>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -513,10 +578,141 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+
+    // ==========================================
+    // FILTROS Y BUSCADOR PARA UTE/EQUIPOS
+    // ==========================================
+    const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
+    const filtroDeporteEquipo = document.getElementById('filtroDeporteEquipo');
+    const filtroCategoriaEquipo = document.getElementById('filtroCategoriaEquipo');
+    const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
+    const filasEquipos = Array.from(document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]'));
+    const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
     
-    function actualizarContadorEquipos() {
-        const cantidadFilas = document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]').length;
-        document.getElementById('contador-equipos').textContent = cantidadFilas + ' filas';
+    const filasPorPaginaEquipos = 10;
+    let paginaActualEquipos = 1;
+    let filasFiltradasEquipos = [...filasEquipos];
+
+    function actualizarTablaEquipos() {
+        const totalFilasEquipos = filasFiltradasEquipos.length;
+        const totalPaginasEquipos = Math.ceil(totalFilasEquipos / filasPorPaginaEquipos) || 1;
+
+        if (paginaActualEquipos > totalPaginasEquipos) paginaActualEquipos = totalPaginasEquipos;
+        if (paginaActualEquipos < 1) paginaActualEquipos = 1;
+
+        const inicioEquipos = (paginaActualEquipos - 1) * filasPorPaginaEquipos;
+        const finEquipos = inicioEquipos + filasPorPaginaEquipos;
+
+        filasEquipos.forEach(f => f.style.display = 'none');
+
+        filasFiltradasEquipos.forEach((fila, index) => {
+            if (index >= inicioEquipos && index < finEquipos) {
+                fila.style.display = '';
+            }
+        });
+
+        const pStartEquipos = document.getElementById('pagStartEquipos');
+        const pEndEquipos = document.getElementById('pagEndEquipos');
+        if(pStartEquipos && pEndEquipos) {
+            pStartEquipos.innerText = totalFilasEquipos === 0 ? 0 : inicioEquipos + 1;
+            pEndEquipos.innerText = finEquipos > totalFilasEquipos ? totalFilasEquipos : finEquipos;
+        }
+
+        const ulPaginacionEquipos = document.getElementById('ulPaginacionEquipos');
+        if (ulPaginacionEquipos) {
+            ulPaginacionEquipos.innerHTML = '';
+
+            if (totalPaginasEquipos > 1) {
+                ulPaginacionEquipos.innerHTML += `
+                    <li class="page-item ${paginaActualEquipos === 1 ? 'disabled' : ''}">
+                        <button class="page-link" data-page-equipos="${paginaActualEquipos - 1}">&laquo;</button>
+                    </li>`;
+
+                for (let i = 1; i <= totalPaginasEquipos; i++) {
+                    ulPaginacionEquipos.innerHTML += `
+                        <li class="page-item ${paginaActualEquipos === i ? 'active' : ''}">
+                            <button class="page-link" data-page-equipos="${i}">${i}</button>
+                        </li>`;
+                }
+
+                ulPaginacionEquipos.innerHTML += `
+                    <li class="page-item ${paginaActualEquipos === totalPaginasEquipos ? 'disabled' : ''}">
+                        <button class="page-link" data-page-equipos="${paginaActualEquipos + 1}">&raquo;</button>
+                    </li>`;
+
+                ulPaginacionEquipos.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const nuevaPagEquipos = parseInt(this.getAttribute('data-page-equipos'));
+                        if (nuevaPagEquipos >= 1 && nuevaPagEquipos <= totalPaginasEquipos) {
+                            paginaActualEquipos = nuevaPagEquipos;
+                            actualizarTablaEquipos();
+                        }
+                    });
+                });
+            }
+        }
+
+        if (totalFilasEquipos === 0 && filasEquipos.length > 0) {
+            filaNoResultadosEquipos.style.display = '';
+        } else {
+            filaNoResultadosEquipos.style.display = 'none';
+        }
+
+        document.getElementById('contador-equipos').textContent = `${totalFilasEquipos} ${totalFilasEquipos === 1 ? 'fila' : 'filas'}`;
     }
-});
-</script>
+
+    function aplicarFiltrosEquipos() {
+        const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
+        const deporteSeleccionado = filtroDeporteEquipo.value.toLowerCase();
+        const categoriaSeleccionada = filtroCategoriaEquipo.value.toLowerCase();
+
+        filasFiltradasEquipos = filasEquipos.filter(fila => {
+            const tdDeporte = fila.querySelector('td:nth-child(1)');
+            const tdCategoria = fila.querySelector('td:nth-child(2)');
+            const tdNombre = fila.querySelector('td:nth-child(3)');
+            
+            const deporteFila = tdDeporte ? tdDeporte.textContent.toLowerCase() : '';
+            const categoriaFila = tdCategoria ? tdCategoria.textContent.toLowerCase() : '';
+            const nombreFila = tdNombre ? tdNombre.textContent.toLowerCase() : '';
+            
+            let coincide = true;
+
+            if (terminoBusqueda && !deporteFila.includes(terminoBusqueda) && !nombreFila.includes(terminoBusqueda)) {
+                coincide = false;
+            }
+
+            if (deporteSeleccionado && !deporteFila.includes(deporteSeleccionado)) {
+                coincide = false;
+            }
+
+            if (categoriaSeleccionada && !categoriaFila.includes(categoriaSeleccionada)) {
+                coincide = false;
+            }
+
+            return coincide;
+        });
+
+        paginaActualEquipos = 1;
+        actualizarTablaEquipos();
+    }
+
+    if (inputBuscarEquipo) {
+        inputBuscarEquipo.addEventListener('input', aplicarFiltrosEquipos);
+    }
+    if (filtroDeporteEquipo) {
+        filtroDeporteEquipo.addEventListener('change', aplicarFiltrosEquipos);
+    }
+    if (filtroCategoriaEquipo) {
+        filtroCategoriaEquipo.addEventListener('change', aplicarFiltrosEquipos);
+    }
+    if (btnLimpiarFiltrosEquipos) {
+        btnLimpiarFiltrosEquipos.addEventListener('click', function() {
+            inputBuscarEquipo.value = '';
+            filtroDeporteEquipo.value = '';
+            filtroCategoriaEquipo.value = '';
+            aplicarFiltrosEquipos();
+        });
+    }
+
+    actualizarTablaEquipos();
+});\n</script>
