@@ -1,57 +1,15 @@
 <div class="card shadow-sm border-0">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-list-check text-warning me-2"></i> 
-                <span>Gestion de UTE/Equipos</span>
-                <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
-            </div>
-            
-            <div class="d-flex gap-2 align-items-center">
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
-                    <i class="bi bi-plus-circle me-1"></i> Crear UTE
-                </button>
-                
-                <div class="position-relative" style="max-width: 250px; width: 100%;">
-                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
-                    <input type="text" 
-                           id="inputBuscarEquipo" 
-                           class="form-control form-control-sm rounded-pill ps-5 bg-light" 
-                           placeholder="Buscar por nombre, deporte...">
-                </div>
-            </div>
+    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-list-check text-warning me-2"></i> 
+            <span>Gestion de UTE/Equipos</span>
+            <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
         </div>
         
-        <!-- Panel de Filtros -->
-        <div class="row g-2 align-items-end" id="panelFiltrosEquipos">
-            <div class="col-md-6">
-                <label for="filtroDeporteCategoria" class="form-label small fw-semibold mb-1">
-                    <i class="bi bi-trophy-fill text-warning me-1"></i>Deporte - Categoría
-                </label>
-                <select id="filtroDeporteCategoria" class="form-select form-select-sm">
-                    <option value="">Todos los Deportes - Categorías</option>
-                    <?php if(!empty($utes)): 
-                        $combinaciones = [];
-                        foreach($utes as $ute): 
-                            $combo = $ute['nombre_deporte'] . ' - ' . $ute['nombre_categoria'];
-                            if(!in_array($combo, $combinaciones)) {
-                                $combinaciones[] = $combo;
-                            }
-                        endforeach; 
-                        sort($combinaciones);
-                        foreach($combinaciones as $comb): ?>
-                        <option value="<?= htmlspecialchars($comb, ENT_QUOTES, 'UTF-8') ?>">
-                            <?= htmlspecialchars($comb, ENT_QUOTES, 'UTF-8') ?>
-                        </option>
-                    <?php endforeach; endif; ?>
-                </select>
-            </div>
-            
-            <div class="col-md-6">
-                <button id="btnLimpiarFiltrosEquipos" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
-                </button>
-            </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
+                <i class="bi bi-plus-circle me-1"></i> Crear UTE
+            </button>
         </div>
     </div>
     
@@ -111,27 +69,9 @@
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
-                    
-                    <tr id="filaNoResultadosEquipos" style="display: none;">
-                        <td colspan="6" class="text-center text-muted py-4">
-                            <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
-                        </td>
-                    </tr>
                 </tbody>
             </table>
         </div>
-
-        <?php if(!empty($utes)): ?>
-        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2 border-top pt-3">
-            <div class="text-muted small">
-                Mostrando filas del <span id="pagStartEquipos">0</span> al <span id="pagEndEquipos">0</span>
-            </div>
-            <nav aria-label="Navegacion de equipos">
-                <ul class="pagination pagination-sm mb-0 justify-content-center" id="ulPaginacionEquipos">
-                </ul>
-            </nav>
-        </div>
-        <?php endif; ?>
     </div>
 </div>
 
@@ -244,24 +184,8 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // ==========================================
-    // FILTROS Y BUSCADOR PARA UTE/EQUIPOS
-    // ==========================================
-    const inputBuscarEquipo = document.getElementById('inputBuscarEquipo');
-    const filtroDeporteCategoria = document.getElementById('filtroDeporteCategoria');
-    const btnLimpiarFiltrosEquipos = document.getElementById('btnLimpiarFiltrosEquipos');
-    const filasEquipos = Array.from(document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]'));
-    const filaNoResultadosEquipos = document.getElementById('filaNoResultadosEquipos');
-    
-    const filasPorPaginaEquipos = 10;
-    let paginaActualEquipos = 1;
-    let filasFiltradasEquipos = [...filasEquipos];
-
-    // Función para actualizar el contador de filas
-    function actualizarContadorEquipos() {
-        const totalFilas = filasFiltradasEquipos.length;
-        document.getElementById('contador-equipos').textContent = `${totalFilas} ${totalFilas === 1 ? 'fila' : 'filas'}`;
-    }
+    // Actualizar contador
+    actualizarContadorEquipos();
     
     // ==========================================
     // CREAR UTE
@@ -589,138 +513,10 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-
-    function actualizarTablaEquipos() {
-        const totalFilasEquipos = filasFiltradasEquipos.length;
-        const totalPaginasEquipos = Math.ceil(totalFilasEquipos / filasPorPaginaEquipos) || 1;
-
-        if (paginaActualEquipos > totalPaginasEquipos) paginaActualEquipos = totalPaginasEquipos;
-        if (paginaActualEquipos < 1) paginaActualEquipos = 1;
-
-        const inicioEquipos = (paginaActualEquipos - 1) * filasPorPaginaEquipos;
-        const finEquipos = inicioEquipos + filasPorPaginaEquipos;
-
-        filasEquipos.forEach(f => f.style.display = 'none');
-
-        filasFiltradasEquipos.forEach((fila, index) => {
-            if (index >= inicioEquipos && index < finEquipos) {
-                fila.style.display = '';
-            }
-        });
-
-        const pStartEquipos = document.getElementById('pagStartEquipos');
-        const pEndEquipos = document.getElementById('pagEndEquipos');
-        if(pStartEquipos && pEndEquipos) {
-            pStartEquipos.innerText = totalFilasEquipos === 0 ? 0 : inicioEquipos + 1;
-            pEndEquipos.innerText = finEquipos > totalFilasEquipos ? totalFilasEquipos : finEquipos;
-        }
-
-        const ulPaginacionEquipos = document.getElementById('ulPaginacionEquipos');
-        if (ulPaginacionEquipos) {
-            ulPaginacionEquipos.innerHTML = '';
-
-            if (totalPaginasEquipos > 1) {
-                ulPaginacionEquipos.innerHTML += `
-                    <li class="page-item ${paginaActualEquipos === 1 ? 'disabled' : ''}">
-                        <button class="page-link" data-page-equipos="${paginaActualEquipos - 1}">&laquo;</button>
-                    </li>`;
-
-                for (let i = 1; i <= totalPaginasEquipos; i++) {
-                    ulPaginacionEquipos.innerHTML += `
-                        <li class="page-item ${paginaActualEquipos === i ? 'active' : ''}">
-                            <button class="page-link" data-page-equipos="${i}">${i}</button>
-                        </li>`;
-                }
-
-                ulPaginacionEquipos.innerHTML += `
-                    <li class="page-item ${paginaActualEquipos === totalPaginasEquipos ? 'disabled' : ''}">
-                        <button class="page-link" data-page-equipos="${paginaActualEquipos + 1}">&raquo;</button>
-                    </li>`;
-
-                ulPaginacionEquipos.querySelectorAll('button').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const nuevaPagEquipos = parseInt(this.getAttribute('data-page-equipos'));
-                        if (nuevaPagEquipos >= 1 && nuevaPagEquipos <= totalPaginasEquipos) {
-                            paginaActualEquipos = nuevaPagEquipos;
-                            actualizarTablaEquipos();
-                        }
-                    });
-                });
-            }
-        }
-
-        // Mostrar mensaje de "no hay resultados" si el filtro no devuelve filas, pero hay datos originales
-        if (totalFilasEquipos === 0 && filasEquipos.length > 0) {
-            filaNoResultadosEquipos.style.display = '';
-        } else {
-            filaNoResultadosEquipos.style.display = 'none';
-        }
-
-        document.getElementById('contador-equipos').textContent = `${totalFilasEquipos} ${totalFilasEquipos === 1 ? 'fila' : 'filas'}`;
+    
+    function actualizarContadorEquipos() {
+        const cantidadFilas = document.querySelectorAll('#cuerpo-tabla-utes tr[id^="ute-fila-"]').length;
+        document.getElementById('contador-equipos').textContent = cantidadFilas + ' filas';
     }
-
-    function aplicarFiltrosEquipos() {
-        const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
-        const deporteCategoriaSeleccionado = filtroDeporteCategoria.value.trim();
-
-        filasFiltradasEquipos = filasEquipos.filter(fila => {
-            const tdDeporte = fila.querySelector('td:nth-child(1)');
-            const tdCategoria = fila.querySelector('td:nth-child(2)');
-            const tdNombre = fila.querySelector('td:nth-child(3)');
-            
-            // Obtener solo el texto del deporte (sin el badge de género)
-            let deporteFila = '';
-            if (tdDeporte) {
-                const spanDeporte = tdDeporte.querySelector('span.fw-semibold');
-                deporteFila = spanDeporte ? spanDeporte.textContent.trim() : tdDeporte.textContent.trim();
-            }
-            
-            const categoriaFila = tdCategoria ? tdCategoria.textContent.trim() : '';
-            const nombreFila = tdNombre ? tdNombre.textContent.trim() : '';
-            
-            // Crear combo deporte - categoria para comparar (mismo formato que el select)
-            const comboFila = `${deporteFila} - ${categoriaFila}`;
-            
-            let coincide = true;
-
-            // Filtro por deporte-categoría (comparación exacta sin lowercase para mantener tildes)
-            if (deporteCategoriaSeleccionado && comboFila !== deporteCategoriaSeleccionado) {
-                coincide = false;
-            }
-
-            // Filtro por búsqueda genérica (busca en deporte, categoría y nombre)
-            if (terminoBusqueda && coincide) {
-                const deporteLower = deporteFila.toLowerCase();
-                const categoriaLower = categoriaFila.toLowerCase();
-                const nombreLower = nombreFila.toLowerCase();
-                
-                if (!deporteLower.includes(terminoBusqueda) && 
-                    !nombreLower.includes(terminoBusqueda) && 
-                    !categoriaLower.includes(terminoBusqueda)) {
-                    coincide = false;
-                }
-            }
-
-            return coincide;
-        });
-
-        paginaActualEquipos = 1;
-        actualizarTablaEquipos();
-    }
-
-    if (inputBuscarEquipo) {
-        inputBuscarEquipo.addEventListener('input', aplicarFiltrosEquipos);
-    }
-    if (filtroDeporteCategoria) {
-        filtroDeporteCategoria.addEventListener('change', aplicarFiltrosEquipos);
-    }
-    if (btnLimpiarFiltrosEquipos) {
-        btnLimpiarFiltrosEquipos.addEventListener('click', function() {
-            inputBuscarEquipo.value = '';
-            filtroDeporteCategoria.value = '';
-            aplicarFiltrosEquipos();
-        });
-    }
-
-    actualizarTablaEquipos();
-});\n</script>
+});
+</script>
