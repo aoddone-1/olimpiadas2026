@@ -661,7 +661,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function aplicarFiltrosEquipos() {
         const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
-        const deporteCategoriaSeleccionado = filtroDeporteCategoria.value.toLowerCase();
+        const deporteCategoriaSeleccionado = filtroDeporteCategoria.value.trim();
 
         filasFiltradasEquipos = filasEquipos.filter(fila => {
             const tdDeporte = fila.querySelector('td:nth-child(1)');
@@ -672,29 +672,33 @@ document.addEventListener('DOMContentLoaded', function() {
             let deporteFila = '';
             if (tdDeporte) {
                 const spanDeporte = tdDeporte.querySelector('span.fw-semibold');
-                deporteFila = spanDeporte ? spanDeporte.textContent.toLowerCase() : tdDeporte.textContent.toLowerCase();
+                deporteFila = spanDeporte ? spanDeporte.textContent.trim() : tdDeporte.textContent.trim();
             }
             
-            const categoriaFila = tdCategoria ? tdCategoria.textContent.toLowerCase().trim() : '';
-            const nombreFila = tdNombre ? tdNombre.textContent.toLowerCase().trim() : '';
+            const categoriaFila = tdCategoria ? tdCategoria.textContent.trim() : '';
+            const nombreFila = tdNombre ? tdNombre.textContent.trim() : '';
             
             // Crear combo deporte - categoria para comparar (mismo formato que el select)
             const comboFila = `${deporteFila} - ${categoriaFila}`;
             
             let coincide = true;
 
-            // Filtro por búsqueda genérica (busca en deporte, categoría y nombre)
-            if (terminoBusqueda) {
-                if (!deporteFila.includes(terminoBusqueda) && 
-                    !nombreFila.includes(terminoBusqueda) && 
-                    !categoriaFila.includes(terminoBusqueda)) {
-                    coincide = false;
-                }
-            }
-
-            // Filtro por deporte-categoría
+            // Filtro por deporte-categoría (comparación exacta sin lowercase para mantener tildes)
             if (deporteCategoriaSeleccionado && comboFila !== deporteCategoriaSeleccionado) {
                 coincide = false;
+            }
+
+            // Filtro por búsqueda genérica (busca en deporte, categoría y nombre)
+            if (terminoBusqueda && coincide) {
+                const deporteLower = deporteFila.toLowerCase();
+                const categoriaLower = categoriaFila.toLowerCase();
+                const nombreLower = nombreFila.toLowerCase();
+                
+                if (!deporteLower.includes(terminoBusqueda) && 
+                    !nombreLower.includes(terminoBusqueda) && 
+                    !categoriaLower.includes(terminoBusqueda)) {
+                    coincide = false;
+                }
             }
 
             return coincide;

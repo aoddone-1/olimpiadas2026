@@ -1,3 +1,4 @@
+```php
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -18,25 +19,80 @@ venv/
 .env.local
 .env.*
 
+# Build directories
+dist/
+build/
+target/
+*.jar
+*.war
+*.zip
+*.tar.gz
+
 # Logs and temp files
 *.log
 *.tmp
 *.swp
 *.swo
+*.bak
+*.~
+*~
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
 
 # Editors
 .vscode/
 .idea/
+*.iml
+*.ipr
+*.iws
 
-# Coverage
+# Coverage reports
 coverage/
 htmlcov/
 .coverage
 
-# Build systems
-dist/
-build/
-target/
-.gradle/
-.mypy_cache/
+# Python specific
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.so
+.PyInstaller/
 .pytest_cache/
+.mypy_cache/
+
+# Web specific
+*.min.js
+*.min.css
+.sass-cache/
+*.css.map
+*.js.map
+
+# Compression files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
