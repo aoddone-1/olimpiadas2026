@@ -63,6 +63,36 @@
             border-radius: 8px;
         }
         
+        .deporte-item.ute-badge {
+            border-left: 4px solid #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #f8f9fa 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ute-indicator {
+            display: inline-block;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+        
+        .ute-team-name {
+            background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+            color: #1e3c72;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 8px;
+            border: 2px dashed #ff9800;
+        }
+        
         .info-box {
             background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
             border-radius: 12px;
@@ -92,10 +122,28 @@
                 <ul class="list-group list-group-flush border rounded shadow-sm">
                     <?php if(!empty($deportes)): ?>
                         <?php foreach($deportes as $dep): ?>
-                            <li class="list-group-item deporte-item p-3 small">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
+                            <?php 
+                                $tiene_ute = isset($dep['tiene_ute']) && $dep['tiene_ute'] == '1';
+                                $necesita_ute = isset($dep['necesita_ute']) && $dep['necesita_ute'] == '1';
+                                $detalle_ute = isset($dep['detalle_ute']) && !empty($dep['detalle_ute']) ? $dep['detalle_ute'] : '';
+                                $es_ute = $tiene_ute || ($necesita_ute && !empty($detalle_ute));
+                            ?>
+                            <li class="list-group-item deporte-item p-3 small <?= $es_ute ? 'ute-badge' : '' ?>">
+                                <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
                                     <span class="fw-bold text-primary"><i class="bi bi-circle-fill me-2" style="font-size: 0.5rem;"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)</span>
+                                    <?php if($es_ute): ?>
+                                        <span class="ute-indicator">
+                                            <i class="bi bi-people-fill me-1"></i> UTE
+                                        </span>
+                                    <?php endif; ?>
                                 </div>
+                                
+                                <?php if(!empty($detalle_ute)): ?>
+                                    <div class="ute-team-name">
+                                        <i class="bi bi-trophy-fill me-2"></i><?= htmlspecialchars($detalle_ute) ?>
+                                    </div>
+                                <?php endif; ?>
+                                
                                 <?php if(!empty($dep['dia_competencia']) || !empty($dep['hora_competencia']) || !empty($dep['nombre_lugar'])): ?>
                                     <div class="mt-2 ps-3 border-start">
                                         <?php if(!empty($dep['dia_competencia'])): ?>
