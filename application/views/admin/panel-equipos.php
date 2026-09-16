@@ -8,8 +8,8 @@
             </div>
             
             <div class="d-flex gap-2 align-items-center">
-                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
-                    <i class="bi bi-plus-circle me-1"></i> Crear UTE
+                <button class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
+                    <i class="bi bi-plus-circle me-1"></i>
                 </button>
                 
                 <div class="position-relative" style="max-width: 300px; width: 100%;">
@@ -92,7 +92,6 @@
                         <tr class="js-fila-equipo" id="ute-fila-<?= $ute['id_ute'] ?>">
                             <td>
                                 <span class="fw-semibold"><?= htmlspecialchars($ute['nombre_deporte']) ?></span>
-                                <span class="badge bg-<?= $ute['genero'] === 'MASCULINO' ? 'primary' : ($ute['genero'] === 'FEMENINO' ? 'danger' : 'info') ?> ms-1"><?= htmlspecialchars($ute['genero']) ?></span>
                             </td>
                             <td><?= htmlspecialchars($ute['nombre_categoria']) ?></td>
                             <td class="fw-bold text-primary"><?= htmlspecialchars($ute['nombre_ute']) ?></td>

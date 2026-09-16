@@ -133,7 +133,7 @@
                                     <span class="fw-bold text-primary"><i class="bi bi-circle-fill me-2" style="font-size: 0.5rem;"></i> <?= $dep['nombre_deporte'] ?> (<?= $dep['nombre_categoria'] ?>)</span>
                                     <?php if($es_ute): ?>
                                         <span class="ute-indicator">
-                                            <i class="bi bi-people-fill me-1"></i> UTE
+                                            <i class="bi bi-people-fill me-1"></i> UTE/Equipo
                                         </span>
                                     <?php endif; ?>
                                 </div>
