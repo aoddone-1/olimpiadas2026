@@ -43,6 +43,6 @@ build/
 target/
 .gradle/
 
-# Python cache
+# Python specific
 .mypy_cache/
 .pytest_cache/
