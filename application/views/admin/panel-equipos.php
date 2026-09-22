@@ -713,7 +713,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Filtro por deporte
-            if (deporteSeleccionado && !deporteFila.includes(deporteSeleccionado)) {
+            if (deporteSeleccionado && (deporteFila!=deporteSeleccionado)) {
                 coincide = false;
             }
             
