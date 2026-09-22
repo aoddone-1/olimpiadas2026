@@ -545,7 +545,7 @@ class Inscripciones extends CI_Controller {
         
         $data = [
             'nombre_categoria' => $this->input->post('nombre_categoria'),
-            'genero_categoria' => $this->input->post('genero_categoria'),
+            'genero' => $this->input->post('genero_categoria'),
             'cupo_maximo'      => $this->input->post('cupo_maximo'),
             'id_lugar'         => $this->input->post('id_lugar'),
             'dia_competencia'  => $this->input->post('dia_competencia'),
