@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sondeo Previo - <?= NOMBRE_META; ?></title>
+    <title>Formulario de INSCRIPCIÓN - <?= NOMBRE_META; ?></title>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -67,9 +67,19 @@
                          style="object-fit: contain; filter: drop-shadow(0px 8px 16px rgba(0,0,0,0.1));">
                 </div>
                 <div class="col-12 col-md-12 text-center">
-                    <div class="p-3 bg-light rounded-3 d-flex align-items-start gap-2 border border-warning-subtle">
-                        <i class="bi bi-bell-fill text-warning fs-5 mt-0.5"></i>
-                        <span class="fw-semibold text-dark small">¿Necesitás hacer algún cambio o corrección en tus datos? Por favor, comunicate directamente con los <strong>Delegados de La Pampa</strong> para que poder ayudarte.</span>
+                    <div class="p-3 bg-light rounded-3 d-flex flex-column flex-sm-row align-items-center justify-content-between gap-3 border border-warning-subtle">
+                        <div class="d-flex align-items-center gap-2 text-start">
+                            <i class="bi bi-bell-fill text-warning fs-4 flex-shrink-0"></i>
+                            <span class="fw-semibold text-dark small">
+                                ¿Necesitás hacer algún cambio o corrección en tus datos? Por favor, comunicate directamente con los <strong>Delegados de La Pampa</strong> para poder ayudarte.
+                            </span>
+                        </div>
+                        <a href="https://olimpicosipv.wnpower.host/Inscripciones/login" 
+                        class="btn btn-warning fw-bold text-nowrap shadow-sm px-3 py-2 flex-shrink-0" 
+                        target="_blank" 
+                        rel="noopener noreferrer">
+                            INGRESAR AL PANEL DE DELEGADOS
+                        </a>
                     </div>
                 </div>
             </div>
