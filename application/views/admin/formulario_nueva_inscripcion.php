@@ -117,24 +117,6 @@
                         <label class="form-label fw-bold">Fecha de Nacimiento</label>
                         <input type="date" name="fecha_nacimiento" id="txt-fnac" class="form-control" value="" required>
                     </div>
-                    <div class="col-md-4">
-                        <label class="form-label fw-bold">Grupo Sanguíneo</label>
-                        <select name="grupo_sanguineo" id="cmb-gsanguineo" class="form-select" required>
-                            <option value="">Seleccione...</option>
-                            <option value="A+">A+</option>
-                            <option value="A-">A-</option>
-                            <option value="B+">B+</option>
-                            <option value="B-">B-</option>
-                            <option value="AB+">AB+</option>
-                            <option value="AB-">AB-</option>
-                            <option value="0+">0+</option>
-                            <option value="0-">0-</option>
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label fw-bold">Obra Social</label>
-                        <input type="text" name="obra_social" id="txt-osocial" class="form-control" value="">
-                    </div>
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Tipo de Empleado</label>
                         <select name="tipo_empleado" id="cmb-empleado" class="form-select" required>
