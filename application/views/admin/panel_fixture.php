@@ -290,7 +290,8 @@
                 jornadas[num].forEach(f => {
                     const t1 = f.ute_1_nombre ? esc(f.ute_1_nombre) : '<span class="fst-italic text-muted">Pendiente</span>';
                     const t2 = f.ute_2_nombre ? esc(f.ute_2_nombre) : '<span class="text-muted fst-italic">Pendiente</span>';
-                    const esMasivo = f.fase === 'JORNADA_UNICA';
+                    const esMasivo = f.fase === 'JORNADA_UNICA'
+                                  || f.modalidad_competencia === 'MASIVO_TIEMPO';
                     const badge = BADGES[f.estado] || 'bg-secondary';
 
                     // ---- Podio de deportes masivos (orden de llegada guardado en f.resultado) ----
@@ -474,12 +475,16 @@
 
     function abrirModalMasivo(f) {
         if (!f) return;
+        const disponibles = (f.utes_categoria || []).map(u => String(u.id_ute));
+        if (!disponibles.length) {
+            mensaje('No hay UTEs/equipos inscriptos en esta categoría todavía. Cargalos primero en el panel de equipos.', 'warning');
+            return;
+        }
         jornadaActual = f;
 
         // Orden previo guardado (si ya se había cargado) + resto de los equipos.
         let previo = [];
         try { previo = JSON.parse(f.resultado || '[]') || []; } catch (e) { previo = []; }
-        const disponibles = (f.utes_categoria || []).map(u => String(u.id_ute));
         ordenLlegada = previo.map(String).filter(id => disponibles.includes(id))
                              .concat(disponibles.filter(id => !previo.map(String).includes(id)));
         renderOrden();

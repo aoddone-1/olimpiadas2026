@@ -58,7 +58,19 @@ class Fixture_model extends CI_Model {
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
         $this->db->where('f.id_categoria', $id_categoria);
         $this->db->order_by('f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
-        return $this->db->get()->result_array();
+        $fixtures = $this->db->get()->result_array();
+
+        // Adjuntar las UTEs de la categoría (necesario para el modal de
+        // resultados de deportes masivos).
+        if (!empty($fixtures)) {
+            $utes = $this->obtener_utes_por_categoria($id_categoria);
+            foreach ($fixtures as &$f) {
+                $f['utes_categoria'] = $utes;
+            }
+            unset($f);
+        }
+
+        return $fixtures;
     }
 
     public function obtener_fixture_por_id($id_fixture) {
@@ -147,6 +159,44 @@ class Fixture_model extends CI_Model {
         }
 
         return $this->_generar_eliminatoria($categoria);
+    }
+
+    /**
+     * Asegura que toda categoría de deporte MASIVO_TIEMPO tenga al menos una
+     * jornada JORNADA_UNICA creada (para poder cargar resultados). Se ejecuta
+     * cada vez que se lista el fixture, así los deportes masivos creados a mano
+     * o por generación previa quedan siempre cubiertos. Devuelve la cantidad
+     * de jornadas auto-creadas.
+     */
+    public function asegurar_jornadas_masivas() {
+        // Categorías de deportes masivos que aún NO tienen ningún fixture.
+        $this->db->select('c.id_categoria', FALSE);
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('(d.modalidad_competencia', 'MASIVO_TIEMPO');
+        $this->db->or_where('c.tipo_torneo', 'JORNADA_UNICA');
+        $this->db->close_where();
+        $this->db->where('NOT EXISTS (SELECT 1 FROM fixtures f WHERE f.id_categoria = c.id_categoria)', NULL, FALSE);
+        $cats = $this->db->get()->result_array();
+
+        $creadas = 0;
+        foreach ($cats as $c) {
+            $this->db->where('id_categoria', (int) $c['id_categoria']);
+            $this->db->delete('fixtures'); // limpieza defensiva
+            try {
+                $this->_generar_jornada_unica(array(
+                    'id_categoria'      => (int) $c['id_categoria'],
+                    'dia_competencia'   => null,
+                    'hora_competencia'  => null,
+                    'id_lugar'          => null,
+                ));
+                $creadas++;
+            } catch (Exception $e) {
+                // si falla una, seguimos con las demás
+                log_message('error', 'asegurar_jornadas_masivas: ' . $e->getMessage());
+            }
+        }
+        return $creadas;
     }
 
     /** Un solo "partido": la largada/jornada de un deporte masivo. */
@@ -419,7 +469,19 @@ class Fixture_model extends CI_Model {
         if (!$partido) {
             throw new Exception('La jornada no existe.');
         }
-        if ($partido['fase'] !== 'JORNADA_UNICA') {
+
+        // Detectar deporte masivo: por fase JORNADA_UNICA o por el deporte
+        // asociado a la categoría (modalidad MASIVO_TIEMPO).
+        $es_masivo = ($partido['fase'] === 'JORNADA_UNICA');
+        if (!$es_masivo) {
+            $this->db->select('d.modalidad_competencia');
+            $this->db->from('categorias c');
+            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+            $this->db->where('c.id_categoria', (int) $partido['id_categoria']);
+            $cat = $this->db->get()->row_array();
+            $es_masivo = $cat && $cat['modalidad_competencia'] === 'MASIVO_TIEMPO';
+        }
+        if (!$es_masivo) {
             throw new Exception('Este partido no es una jornada de deporte masivo.');
         }
 
