@@ -6,6 +6,7 @@ class Inscripciones extends CI_Controller {
     public function __construct() {
         parent::__construct();
         $this->load->library('Pdf');
+        $this->load->helper('security'); // necesario para $this->security->xss_clean()
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
     }
@@ -80,108 +81,212 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /**
+     * Reglas de validación compartidas por guardar() y guardar_modificacion().
+     */
+    private function _reglas_validacion_inscripcion() {
+        return [
+            ['field' => 'dni',                 'label' => 'DNI',                 'rules' => 'required|trim|max_length[20]|regex_match[/^[0-9]+$/]'],
+            ['field' => 'nombre_completo',     'label' => 'Nombre completo',     'rules' => 'required|trim|max_length[150]'],
+            ['field' => 'email',               'label' => 'Correo',              'rules' => 'required|trim|max_length[150]|valid_email'],
+            ['field' => 'telefono',            'label' => 'Teléfono',            'rules' => 'required|trim|max_length[30]'],
+            ['field' => 'delegacion',          'label' => 'Delegación',          'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'sexo',                'label' => 'Sexo',                'rules' => 'required|trim|max_length[20]'],
+            ['field' => 'fecha_nacimiento',    'label' => 'Fecha nacimiento',    'rules' => 'required|trim|max_length[10]'],
+            ['field' => 'grupo_sanguineo',     'label' => 'Grupo sanguíneo',     'rules' => 'required|trim|max_length[5]'],
+            ['field' => 'obra_social',         'label' => 'Obra social',         'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'tipo_empleado',       'label' => 'Tipo de empleado',    'rules' => 'required|trim|max_length[50]'],
+            ['field' => 'dieta_especial',      'label' => 'Dieta especial',      'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'hotel_alojamiento',   'label' => 'Hotel',               'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'contacto_emergencia', 'label' => 'Contacto emergencia', 'rules' => 'required|trim|max_length[150]'],
+            ['field' => 'rol_asistente',       'label' => 'Rol',                 'rules' => 'required|trim|in_list[competidor,acompanante]'],
+        ];
+    }
+
+    /**
+     * Valida y normaliza las disciplinas enviadas (existencia, cupos, duplicados,
+     * coherencia deporte/categoría). Devuelve: ok (bool), errores (array),
+     * disciplinas (array normalizado listo para el modelo).
+     */
+    private function _procesar_disciplinas($post, $id_a_excluir = NULL) {
+        $result = ['ok' => TRUE, 'errores' => [], 'disciplinas' => []];
+
+        if (($post['rol_asistente'] ?? '') !== 'competidor') {
+            return $result; // Los acompañantes no cargan disciplinas
+        }
+
+        $cat_ids = (isset($post['categoria_id']) && is_array($post['categoria_id'])) ? $post['categoria_id'] : [];
+        $ins_ids = (isset($post['id_inscripcion']) && is_array($post['id_inscripcion'])) ? $post['id_inscripcion'] : [];
+
+        $vistos = [];
+        foreach ($cat_ids as $i => $cat_raw) {
+            $cat_id = (int) $cat_raw;
+            if ($cat_id <= 0) continue;
+
+            // 1) Anti-duplicados dentro del propio formulario
+            if (in_array($cat_id, $vistos, TRUE)) {
+                $result['errores'][] = 'Ten&eacute;s categor&iacute;as repetidas en el formulario.';
+                $result['ok'] = FALSE;
+                continue;
+            }
+            $vistos[] = $cat_id;
+
+            // 2) La categoría debe existir
+            $this->db->where('id_categoria', $cat_id);
+            $cat = $this->db->get('categorias')->row_array();
+            if (!$cat) {
+                $result['errores'][] = 'Una de las categorías seleccionadas no existe.';
+                $result['ok'] = FALSE;
+                continue;
+            }
+
+            // 3) El deporte informado debe coincidir con el de la categoría
+            $dep_id = isset($post['deporte_id'][$i]) ? (int) $post['deporte_id'][$i] : 0;
+            if ($dep_id > 0 && (int) $cat['id_deporte'] !== $dep_id) {
+                $result['errores'][] = 'La categoría &quot;' . htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') . '&quot; no pertenece al deporte seleccionado.';
+                $result['ok'] = FALSE;
+                continue;
+            }
+
+            // 4) Cupo máximo: contar inscriptos excluyendo lo que ya es del participante
+            $cupo_maximo = (int) ($cat['cupo_maximo'] ?? 0);
+            if ($cupo_maximo > 0) {
+                $this->db->where('id_categoria', $cat_id);
+                if (!empty($id_a_excluir)) {
+                    $this->db->where('id_participante !=', (int) $id_a_excluir);
+                }
+                $inscriptos = $this->db->count_all_results('inscripciones_deportivas');
+                if ($inscriptos >= $cupo_maximo) {
+                    $result['errores'][] = 'La categoría &quot;' . htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') . '&quot; no tiene cupos disponibles.';
+                    $result['ok'] = FALSE;
+                    continue;
+                }
+            }
+
+            // 5) Normalización segura de UTE
+            $result['disciplinas'][] = [
+                'id_inscripcion' => !empty($ins_ids[$i]) ? (int) $ins_ids[$i] : NULL,
+                'id_deporte'     => (int) $cat['id_deporte'],
+                'id_categoria'   => $cat_id,
+                'tiene_ute'      => !empty($post['tiene_ute'][$i]) ? 1 : 0,
+                'necesita_ute'   => !empty($post['necesita_ute'][$i]) ? 1 : 0,
+                'detalle_ute'    => mb_strtoupper(trim($post['detalle_ute'][$i] ?? ''), 'UTF-8'),
+            ];
+        }
+
+        if (empty($result['disciplinas'])) {
+            $result['errores'][] = 'Como competidor deb&eacute;s seleccionar al menos una disciplina.';
+            $result['ok'] = FALSE;
+        }
+
+        return $result;
+    }
+
     public function guardar() {
         $this->load->model('Participante_model');
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules($this->_reglas_validacion_inscripcion());
+
         $post = $this->input->post();
 
-        // =================================================================
-        // BLANCO DE PRUEBAS: Descomentá la línea de abajo para testear con datos fijos
-        // =================================================================
-        // $post = $this->_obtener_datos_prueba(); 
-        // =================================================================
+        // Validación de entrada server-side (nunca confiar solo en el HTML)
+        if ($this->form_validation->run() === FALSE) {
+            $this->load->view('inscripcion_erronea', [
+                'mensaje' => validation_errors('<p>', '</p>') ?: 'Revisá los campos obligatorios del formulario.',
+                'dni'     => htmlspecialchars($post['dni'] ?? '', ENT_QUOTES, 'UTF-8'),
+            ]);
+            return;
+        }
 
-        $this->db->where('dni', trim($post['dni']));
+        // Sanitización defensiva sobre todos los campos de texto
+        $clean = function ($k, $default = '') use ($post) {
+            return trim($this->security->xss_clean($post[$k] ?? $default));
+        };
+
+        $dni = $clean('dni');
+
+        // Verificar si el participante ya existe (permite actualizar la inscripción)
+        $this->db->where('dni', $dni);
         $query_check = $this->db->get('participantes');
         $existe = ($query_check->num_rows() > 0);
 
         if ($existe) {
             $participante_viejo = $query_check->row_array();
             $id_participante = $participante_viejo['id_participante'];
-            $token = $participante_viejo['token_qr']; 
+            $token = $participante_viejo['token_qr'];
         } else {
-            $semilla = $post['dni'] . 'olimpiadas2026' . time();
-            $token = sha1($semilla);
+            // Token criptográficamente seguro e impredecible
+            $token = bin2hex(random_bytes(32));
         }
+
+        // Disciplinas + validación de negocio (cupos, duplicados, coherencia)
+        $proc = $this->_procesar_disciplinas($post, $existe ? $id_participante : NULL);
+        if (!$proc['ok']) {
+            $this->load->view('inscripcion_erronea', [
+                'mensaje' => implode('<br>', $proc['errores']),
+                'dni'     => htmlspecialchars($dni, ENT_QUOTES, 'UTF-8'),
+            ]);
+            return;
+        }
+        $deportes_seleccionados = $proc['disciplinas'];
 
         // Estructura de datos incluyendo Roles y Delegados
         $data_persona = [
-            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
-            'email'               => strtolower(trim($post['email'])), 
-            'telefono'            => trim($post['telefono']),
-            'delegacion'          => trim($post['delegacion']),
-            'sexo'                => trim($post['sexo']),
-            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
-            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
-            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
-            'tipo_empleado'       => trim($post['tipo_empleado']),
-            'dieta_especial'      => trim($post['dieta_especial']),
-            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
-            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
-            
-            // TRADUCCIÓN CLAVE PARA TU BASE DE DATOS:
-            // Si el rol es 'competidor' guarda 1, si es acompañante guarda 0
-            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
-            
-            // Solo puede ser delegado si es competidor y tildó el checkbox
-            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
-            
-            'token_qr'            => $token
+            'nombre_completo'     => mb_strtoupper($clean('nombre_completo'), 'UTF-8'),
+            'email'               => strtolower($clean('email')),
+            'telefono'            => $clean('telefono'),
+            'delegacion'          => $clean('delegacion'),
+            'sexo'                => $clean('sexo'),
+            'fecha_nacimiento'    => $clean('fecha_nacimiento'),
+            'grupo_sanguineo'     => $clean('grupo_sanguineo'),
+            'obra_social'         => mb_strtoupper($clean('obra_social'), 'UTF-8'),
+            'tipo_empleado'       => $clean('tipo_empleado'),
+            'dieta_especial'      => $clean('dieta_especial'),
+            'hotel_alojamiento'   => mb_strtoupper($clean('hotel_alojamiento'), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper($clean('contacto_emergencia'), 'UTF-8'),
+            'es_competidor'       => ($clean('rol_asistente') === 'competidor') ? 1 : 0,
+            'es_delegado'         => (!empty($post['es_delegado']) && $clean('rol_asistente') === 'competidor') ? 1 : 0,
+            'token_qr'            => $token,
         ];
 
-        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
-        $deportes_seleccionados = [];
-        
-        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
-            // Mapeamos dinámicamente cada categoría con su respectivo estado de UTE recibido del HTML
-            foreach ($post['categoria_id'] as $index => $cat_id) {
-                if (!empty($cat_id)) {
-                    $deportes_seleccionados[] = [
-                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
-                        'id_categoria' => $cat_id,
-                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
-                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
-                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
-                    ];
-                }
-            }
-        }
-
-        // Ejecución en Base de Datos según existencia
+        // Ejecución en Base de Datos (transacción atómica dentro del modelo)
         if ($existe) {
-            // Pasamos la estructura completa de deportes con UTE. 
-            // NOTA: Si tu modelo viejo solo aceptaba IDs, adaptalo para leer este array asociativo de la forma: $disc['id_categoria']
             $resultado = $this->Participante_model->actualizar_completo(
-                $id_participante, 
-                $data_persona, 
-                $deportes_seleccionados // <-- Asegurate de que viaje esta variable acá y no $categorias_ids
+                $id_participante,
+                $data_persona,
+                $deportes_seleccionados
             );
         } else {
-            $data_persona['dni'] = trim($post['dni']);
+            $data_persona['dni'] = $dni;
             $data_persona['fecha_inscripcion'] = date('Y-m-d H:i:s');
-
             $resultado = $this->Participante_model->insertar_completo(
-                $data_persona, 
+                $data_persona,
                 $deportes_seleccionados
             );
         }
 
         if (!$resultado) {
             $db_error = $this->db->error();
-            $mensaje = 'Verifique si ocurrió un error en el sistema o si faltan datos obligatorios.';
-            
-            if (isset($db_error['code']) && $db_error['code'] == 1062) {
-                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado.';
+            $mensaje = 'Ocurrió un error al guardar la inscripción. Volvé a intentarlo o contactá a la organización.';
+
+            // 1062 = duplicate key: el UNIQUE(dni) de la BD actúa como red de seguridad
+            if (isset($db_error['code']) && (int) $db_error['code'] === 1062) {
+                $mensaje = 'El DNI <strong>' . htmlspecialchars($dni, ENT_QUOTES, 'UTF-8') . '</strong> ya se encuentra registrado.';
+            } elseif (isset($db_error['code']) && in_array((int) $db_error['code'], [1452, 1406], TRUE)) {
+                $mensaje = 'Los datos enviados no son válidos para alguna de las relaciones. Revisá las categorías seleccionadas.';
             }
+
+            log_message('error', 'Fallo al guardar inscripción DNI=' . $dni . ' error=' . json_encode($db_error));
 
             $this->load->view('inscripcion_erronea', [
                 'mensaje' => $mensaje,
-                'dni'     => $post['dni']
+                'dni'     => htmlspecialchars($dni, ENT_QUOTES, 'UTF-8'),
             ]);
         } else {
             $this->load->view('inscripcion_exitosa', [
-                'delegacion' => $post['delegacion'],
-                'nombre' => $post['nombre_completo'],
-                'token'  => $token
+                'delegacion' => $data_persona['delegacion'],
+                'nombre'     => $data_persona['nombre_completo'],
+                'token'      => $token,
             ]);
         }
     }
@@ -519,14 +624,29 @@ class Inscripciones extends CI_Controller {
         }
 
         $this->load->model('Categoria_model');
-        
-        // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
+
+        // Validación server-side del alta de categoría
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules([
+            ['field' => 'id_deporte',       'label' => 'Deporte',    'rules' => 'required|integer'],
+            ['field' => 'nombre_categoria', 'label' => 'Categoría',  'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'cupo_maximo',      'label' => 'Cupo máximo','rules' => 'permit_empty|integer|min_value[0]|max_value[10000]'],
+            ['field' => 'id_lugar',         'label' => 'Lugar',      'rules' => 'permit_empty|integer'],
+        ]);
+
+        if ($this->form_validation->run() === FALSE) {
+            $this->session->set_flashdata('mensaje_error', validation_errors('<p>', '</p>') ?: 'Faltan datos obligatorios para crear la categoría.');
+            redirect('Inscripciones/gestion_deportes');
+            return;
+        }
+
+        // Le mandamos el POST validado al modelo para que él decida qué hacer
         $guardado = $this->Categoria_model->insertar_categoria_desde_post($this->input->post());
 
         if ($guardado) {
             $this->session->set_flashdata('mensaje_exito', 'Categoría registrada correctamente.');
         } else {
-            $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
+            $this->session->set_flashdata('mensaje_error', 'No se pudo crear la categoría. Verificá los datos ingresados.');
         }
 
         redirect('Inscripciones/gestion_deportes');
@@ -730,8 +850,20 @@ class Inscripciones extends CI_Controller {
     public function guardar_deporte() {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
-        $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
-        $data['genero'] = $this->input->post('genero', TRUE);
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules([
+            ['field' => 'nombre_deporte', 'label' => 'Deporte', 'rules' => 'required|trim|max_length[100]'],
+            ['field' => 'genero',         'label' => 'Género',  'rules' => 'required|trim|max_length[20]'],
+        ]);
+
+        if ($this->form_validation->run() === FALSE) {
+            $this->session->set_flashdata('mensaje_error', validation_errors('<p>', '</p>') ?: 'El nombre del deporte es obligatorio.');
+            redirect('Inscripciones/gestion_deportes');
+            return;
+        }
+
+        $data['nombre_deporte'] = $this->security->xss_clean($this->input->post('nombre_deporte', TRUE));
+        $data['genero'] = $this->security->xss_clean($this->input->post('genero', TRUE));
         $this->Deporte_model->guardar_deporte($data);
         redirect('Inscripciones/gestion_deportes');
     }
@@ -1281,66 +1413,69 @@ class Inscripciones extends CI_Controller {
         }
 
         $this->load->model('Participante_model');
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules($this->_reglas_validacion_inscripcion());
         $post = $this->input->post();
 
-        if (empty($post['id_participante'])) {
-            $this->session->set_flashdata('error', 'ID de participante no válido.');
+        $this->form_validation->set_rules('id_participante', 'ID de participante', 'required|integer');
+
+        if ($this->form_validation->run() === FALSE || empty($post['id_participante'])) {
+            $this->session->set_flashdata('error', validation_errors('<p>', '</p>') ?: 'ID de participante no válido.');
             redirect('Inscripciones/control_total');
             return;
         }
 
-        $id_participante = $post['id_participante'];
+        $clean = function ($k, $default = '') use ($post) {
+            return trim($this->security->xss_clean($post[$k] ?? $default));
+        };
+
+        $id_participante = (int) $post['id_participante'];
+
+        // El participante debe existir
+        $this->db->where('id_participante', $id_participante);
+        if ($this->db->get('participantes')->num_rows() === 0) {
+            $this->session->set_flashdata('error', 'El participante indicado no existe.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        // Disciplinas + validación de negocio (existencia, cupos, duplicados)
+        $proc = $this->_procesar_disciplinas($post, $id_participante);
+        if (!$proc['ok']) {
+            $this->session->set_flashdata('error', implode('<br>', $proc['errores']));
+            redirect('Inscripciones/control_total');
+            return;
+        }
 
         // Estructura de datos actualizados
         $data_persona = [
-            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
-            'email'               => strtolower(trim($post['email'])), 
-            'telefono'            => trim($post['telefono']),
-            'delegacion'          => trim($post['delegacion']),
-            'sexo'                => trim($post['sexo']),
-            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
-            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
-            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
-            'tipo_empleado'       => trim($post['tipo_empleado']),
-            'dieta_especial'      => trim($post['dieta_especial']),
-            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
-            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
-            
-            // Traducción de rol
-            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
-            
-            // Solo puede ser delegado si es competidor y tildó el checkbox
-            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+            'nombre_completo'     => mb_strtoupper($clean('nombre_completo'), 'UTF-8'),
+            'email'               => strtolower($clean('email')),
+            'telefono'            => $clean('telefono'),
+            'delegacion'          => $clean('delegacion'),
+            'sexo'                => $clean('sexo'),
+            'fecha_nacimiento'    => $clean('fecha_nacimiento'),
+            'grupo_sanguineo'     => $clean('grupo_sanguineo'),
+            'obra_social'         => mb_strtoupper($clean('obra_social'), 'UTF-8'),
+            'tipo_empleado'       => $clean('tipo_empleado'),
+            'dieta_especial'      => $clean('dieta_especial'),
+            'hotel_alojamiento'   => mb_strtoupper($clean('hotel_alojamiento'), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper($clean('contacto_emergencia'), 'UTF-8'),
+            'es_competidor'       => ($clean('rol_asistente') === 'competidor') ? 1 : 0,
+            'es_delegado'         => (!empty($post['es_delegado']) && $clean('rol_asistente') === 'competidor') ? 1 : 0,
         ];
 
-        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE (para edición)
-        $deportes_seleccionados = [];
-        
-        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
-            foreach ($post['categoria_id'] as $index => $cat_id) {
-                if (!empty($cat_id)) {
-                    $deportes_seleccionados[] = [
-                        'id_inscripcion' => isset($post['id_inscripcion'][$index]) ? $post['id_inscripcion'][$index] : null,
-                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
-                        'id_categoria' => $cat_id,
-                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
-                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
-                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
-                    ];
-                }
-            }
-        }
-
-        // Ejecutar actualización
+        // Ejecutar actualización (transacción atómica dentro del modelo)
         $resultado = $this->Participante_model->actualizar_completo(
-            $id_participante, 
-            $data_persona, 
-            $deportes_seleccionados
+            $id_participante,
+            $data_persona,
+            $proc['disciplinas']
         );
 
         if ($resultado) {
             $this->session->set_flashdata('success', 'Inscripción modificada correctamente.');
         } else {
+            log_message('error', 'Fallo al modificar inscripción id=' . $id_participante . ' error=' . json_encode($this->db->error()));
             $this->session->set_flashdata('error', 'Error al modificar la inscripción. Intente nuevamente.');
         }
 
@@ -1379,64 +1514,67 @@ class Inscripciones extends CI_Controller {
         }
 
         $this->load->model('Participante_model');
+        $this->load->library('form_validation');
+        $this->form_validation->set_rules($this->_reglas_validacion_inscripcion());
+        // DNI único contra toda la tabla (excluye NULLs propios de MySQL en UNIQUE)
+        $this->form_validation->set_rules('dni', 'DNI', 'required|trim|max_length[20]|regex_match[/^[0-9]+$/]|is_unique[participantes.dni]');
         $post = $this->input->post();
+
+        if ($this->form_validation->run() === FALSE) {
+            $this->session->set_flashdata('error', validation_errors('<p>', '</p>') ?: 'Revisá los campos obligatorios del formulario.');
+            redirect('Inscripciones/nueva_inscripcion');
+            return;
+        }
+
+        $clean = function ($k, $default = '') use ($post) {
+            return trim($this->security->xss_clean($post[$k] ?? $default));
+        };
+
+        // Disciplinas + validación de negocio (existencia, cupos, duplicados)
+        $proc = $this->_procesar_disciplinas($post);
+        if (!$proc['ok']) {
+            $this->session->set_flashdata('error', implode('<br>', $proc['errores']));
+            redirect('Inscripciones/nueva_inscripcion');
+            return;
+        }
 
         // Estructura de datos nuevos
         $data_persona = [
-            'dni'                 => trim($post['dni']),
-            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
-            'email'               => strtolower(trim($post['email'])), 
-            'telefono'            => trim($post['telefono']),
-            'delegacion'          => trim($post['delegacion']),
-            'sexo'                => trim($post['sexo']),
-            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
-            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
-            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
-            'tipo_empleado'       => trim($post['tipo_empleado']),
-            'dieta_especial'      => trim($post['dieta_especial']),
-            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
-            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
-            
-            // Traducción de rol
-            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
-            
-            // Solo puede ser delegado si es competidor y tildó el checkbox
-            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
-            
-            // Fecha de inscripción actual
+            'dni'                 => $clean('dni'),
+            'nombre_completo'     => mb_strtoupper($clean('nombre_completo'), 'UTF-8'),
+            'email'               => strtolower($clean('email')),
+            'telefono'            => $clean('telefono'),
+            'delegacion'          => $clean('delegacion'),
+            'sexo'                => $clean('sexo'),
+            'fecha_nacimiento'    => $clean('fecha_nacimiento'),
+            'grupo_sanguineo'     => $clean('grupo_sanguineo'),
+            'obra_social'         => mb_strtoupper($clean('obra_social'), 'UTF-8'),
+            'tipo_empleado'       => $clean('tipo_empleado'),
+            'dieta_especial'      => $clean('dieta_especial'),
+            'hotel_alojamiento'   => mb_strtoupper($clean('hotel_alojamiento'), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper($clean('contacto_emergencia'), 'UTF-8'),
+            'es_competidor'       => ($clean('rol_asistente') === 'competidor') ? 1 : 0,
+            'es_delegado'         => (!empty($post['es_delegado']) && $clean('rol_asistente') === 'competidor') ? 1 : 0,
             'fecha_inscripcion'   => date('Y-m-d H:i:s'),
-            
-            // Generar token QR único
-            'token_qr'            => bin2hex(random_bytes(16))
+            'token_qr'            => bin2hex(random_bytes(32)),
         ];
 
-        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
-        $deportes_seleccionados = [];
-        
-        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
-            foreach ($post['categoria_id'] as $index => $cat_id) {
-                if (!empty($cat_id)) {
-                    $deportes_seleccionados[] = [
-                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
-                        'id_categoria' => $cat_id,
-                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
-                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
-                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
-                    ];
-                }
-            }
-        }
-
-        // Ejecutar inserción
+        // Ejecutar inserción (transacción atómica dentro del modelo)
         $resultado = $this->Participante_model->insertar_completo(
-            $data_persona, 
-            $deportes_seleccionados
+            $data_persona,
+            $proc['disciplinas']
         );
 
         if ($resultado) {
             $this->session->set_flashdata('success', 'Nueva inscripción guardada correctamente.');
         } else {
-            $this->session->set_flashdata('error', 'Error al guardar la nueva inscripción. Intente nuevamente.');
+            $db_error = $this->db->error();
+            log_message('error', 'Fallo al dar alta inscripción DNI=' . $data_persona['dni'] . ' error=' . json_encode($db_error));
+            $mensaje = 'Error al guardar la nueva inscripción. Intente nuevamente.';
+            if (isset($db_error['code']) && (int) $db_error['code'] === 1062) {
+                $mensaje = 'El DNI ' . htmlspecialchars($data_persona['dni'], ENT_QUOTES, 'UTF-8') . ' ya se encuentra registrado.';
+            }
+            $this->session->set_flashdata('error', $mensaje);
         }
 
         redirect('Inscripciones/control_total');
