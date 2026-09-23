@@ -962,6 +962,114 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Partido eliminado.')));
     }
 
+    /* ============================================================
+     *  RESULTADOS (pestaña de Control Total) - endpoints AJAX
+     * ============================================================ */
+
+    private function _resultados_auth_json() {
+        // Solo superadmin/admin pueden gestionar resultados
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
+            return false;
+        }
+        $this->load->model('Resultado_model');
+        return true;
+    }
+
+    /** Guarda un resultado cargado desde la pestaña "Resultados". */
+    public function ajax_guardar_resultado() {
+        try {
+            if (!$this->_resultados_auth_json()) return;
+
+            if (!$this->Resultado_model->tablas_existentes()) {
+                $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array(
+                        'ok' => false,
+                        'error' => 'Faltan las tablas de resultados. Ejecutá el script sql/resultados.sql y recargá la página.'
+                    )));
+                return;
+            }
+
+            $datos = $this->input->post();
+            $id = $this->Resultado_model->guardar_resultado($datos, $this->session->userdata('user_id'));
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'id_resultado' => $id, 'mensaje' => 'Resultado guardado.')));
+        } catch (Throwable $e) {
+            log_message('error', '[Resultados] ' . $e->getMessage());
+            $this->output
+                ->set_content_type('application/json')
+                ->set_status_header(200)
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Lista TODOS los resultados cargados (con su detalle). */
+    public function ajax_resultados_todo() {
+        try {
+            if (!$this->_resultados_auth_json()) return;
+
+            if (!$this->Resultado_model->tablas_existentes()) {
+                $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array(
+                        'ok' => false,
+                        'error' => 'Faltan las tablas de resultados. Ejecutá el script sql/resultados.sql y recargá la página.'
+                    )));
+                return;
+            }
+
+            $rows = $this->Resultado_model->obtener_todos_los_resultados();
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'resultados' => $rows)));
+        } catch (Throwable $e) {
+            log_message('error', '[Resultados] ' . $e->getMessage());
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Partidos del fixture de una categoría (para vincular el resultado a uno). */
+    public function ajax_fixtures_por_categoria($id_categoria) {
+        try {
+            if (!$this->_resultados_auth_json()) return;
+
+            $this->load->model('Resultado_model');
+            $fixtures = $this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Elimina un resultado cargado por error. */
+    public function ajax_eliminar_resultado() {
+        try {
+            if (!$this->_resultados_auth_json()) return;
+
+            $id = (int) $this->input->post('id_resultado');
+            if (!$id) throw new Exception('Resultado inexistente.');
+            $this->Resultado_model->eliminar_resultado($id);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Resultado eliminado.')));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     public function detalle_ajax($id_participante) {
         // Validar que el usuario esté logueado (staff o delegado)
         if (!$this->session->userdata('is_organizador') && !$this->session->userdata('is_delegado')) {

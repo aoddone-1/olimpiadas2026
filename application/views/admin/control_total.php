@@ -33,6 +33,11 @@
                     <i class="bi bi-calendar3 me-2"></i>Fixture
                 </button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-resultados" type="button">
+                    <i class="bi bi-trophy-fill me-2 text-warning"></i>Resultados
+                </button>
+            </li>
         </ul>
     </div>
 
@@ -46,6 +51,9 @@
         </div>
         <div class="tab-custom-pane fade" id="panel-fixture">
             <?php $this->load->view('admin/panel_fixture'); ?>
+        </div>
+        <div class="tab-custom-pane fade" id="panel-resultados">
+            <?php $this->load->view('admin/panel_resultados'); ?>
         </div>
 
     </div>
