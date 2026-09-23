@@ -807,12 +807,30 @@ class Inscripciones extends CI_Controller {
         return true;
     }
 
+    /** JSON de error con detalle para poder diagnosticar en pantalla. */
+    private function _fixture_error_json($mensaje, $detalle = '') {
+        log_message('error', '[Fixture] ' . $mensaje . ($detalle !== '' ? ' :: ' . $detalle : ''));
+        $this->output
+            ->set_content_type('application/json')
+            ->set_status_header(200)
+            ->set_output(json_encode(array(
+                'ok' => false,
+                'error' => $mensaje,
+                'detalle' => $detalle
+            )));
+    }
+
     /** Devuelve el fixture + las UTEs de una categoría (para pintar la pestaña). */
     public function ajax_fixture_categoria($id_categoria) {
         if (!$this->_fixture_auth_json()) return;
 
-        $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
-        $utes = $this->Fixture_model->obtener_utes_por_categoria((int) $id_categoria);
+        try {
+            $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
+            $utes = $this->Fixture_model->obtener_utes_por_categoria((int) $id_categoria);
+        } catch (Exception $e) {
+            $this->_fixture_error_json('Error al consultar el fixture de la categoría.', $e->getMessage());
+            return;
+        }
 
         $this->output
             ->set_content_type('application/json')
@@ -826,11 +844,7 @@ class Inscripciones extends CI_Controller {
         try {
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
         } catch (Exception $e) {
-            log_error('ajax_fixture_todo: ' . $e->getMessage());
-            $this->output
-                ->set_content_type('application/json')
-                ->set_status_header(500)
-                ->set_output(json_encode(array('ok' => false, 'error' => 'Error al consultar la tabla fixtures.')));
+            $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
         }
 

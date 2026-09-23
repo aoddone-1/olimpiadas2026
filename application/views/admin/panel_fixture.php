@@ -187,10 +187,19 @@
     }
 
     function getJSON(url) {
-        return fetch(BASE + '/' + url)
-            .then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url);
-                return r.json();
+        // Se lee el texto primero: si CodeIgniter devolvió un error fatal (HTML),
+        // lo detectamos acá en vez de romper con "Unexpected token <" al parsear JSON.
+        return fetch(BASE + '/' + url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
+            .then(({ status, txt }) => {
+                try {
+                    return JSON.parse(txt);
+                } catch (e) {
+                    console.error('Respuesta no-JSON de ' + url + ' (HTTP ' + status + '):', txt.slice(0, 2000));
+                    const m = txt.match(/<title>([^<]*)<\/title>/i);
+                    throw new Error('El servidor respondió HTML (HTTP ' + status + ')' +
+                        (m ? ': ' + m[1] : '') + '. Revisá los logs de PHP.');
+                }
             });
     }
 
@@ -316,7 +325,13 @@
     function cargarTodo() {
         getJSON('ajax_fixture_todo')
             .then(res => {
-                if (!res.ok) { mensaje(res.error || 'Error al cargar el fixture.', 'danger'); return; }
+                if (!res.ok) {
+                    lista.innerHTML = '<div class=\"alert alert-danger py-2 small\">' +
+                        esc(res.error || 'Error al cargar el fixture.') +
+                        (res.detalle ? '<hr><code class="small">' + esc(res.detalle).slice(0, 500) + '</code>' : '') +
+                        '</div>';
+                    return;
+                }
                 todosFixtures = res.fixtures || [];
                 render();
             })
