@@ -995,10 +995,17 @@ class Inscripciones extends CI_Controller {
             }
 
             $datos = $this->input->post();
-            $id = $this->Resultado_model->guardar_resultado($datos, $this->session->userdata('user_id'));
+            $res = $this->Resultado_model->guardar_resultado($datos, $this->session->userdata('user_id'));
             $this->output
                 ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => true, 'id_resultado' => $id, 'mensaje' => 'Resultado guardado.')));
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'id_resultado' => $res['id_resultado'],
+                    'fixture_inferido' => !empty($res['fixture_inferido']),
+                    'mensaje' => !empty($res['fixture_inferido'])
+                        ? 'Resultado guardado y vinculado automáticamente al partido del fixture.'
+                        : 'Resultado guardado.'
+                )));
         } catch (Throwable $e) {
             log_message('error', '[Resultados] ' . $e->getMessage());
             $this->output

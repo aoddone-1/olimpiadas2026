@@ -97,6 +97,7 @@
                             <select id="rs_modal_fixture" name="id_fixture" class="form-select">
                                 <option value="">— Sin vincular —</option>
                             </select>
+                            <div class="form-text small">Elegí el partido y se autocompletan los equipos, el nombre y la fecha. Si no lo elegís, igual se vincula solo cuando coincide con un partido del fixture.</div>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold">Lugar</label>
@@ -348,6 +349,8 @@
     const tbodyTiempos = document.querySelector('#rs_tabla_tiempos tbody');
     const datalistUtes = document.getElementById('rs_lista_utes');
 
+    let fixturesDelModal = [];   // partidos del fixture de la categoría elegida
+
     function mostrarBloqueSegunTipo() {
         const t = selTipo.value;
         bloqueMarcador.classList.toggle('d-none', t !== 'MARCADOR');
@@ -365,17 +368,50 @@
     });
 
     function cargarFixturesDelModal(idCategoria) {
+        fixturesDelModal = [];
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
         if (!idCategoria) return;
         fetch(BASE + '/ajax_fixtures_por_categoria/' + idCategoria)
             .then(r => r.json())
             .then(res => {
-                (res.fixtures || []).forEach(f => {
+                fixturesDelModal = res.fixtures || [];
+                fixturesDelModal.forEach(f => {
+                    const equipos = [f.ute_1_nombre, f.ute_2_nombre].filter(Boolean).join(' vs ');
                     selFixture.insertAdjacentHTML('beforeend',
-                        `<option value="${f.id_fixture}">F${esc(f.numero_fecha)} · ${esc(f.nombre_prueba)} (${esc(f.estado)})</option>`);
+                        `<option value="${f.id_fixture}">F${esc(f.numero_fecha)} · ${esc(f.nombre_prueba)}` +
+                        (equipos ? ' · ' + esc(equipos) : '') + ` (${esc(f.estado)})</option>`);
                 });
             });
     }
+
+    /* ---- DINÁMICA: al elegir un partido del fixture se autocompleta todo ---- */
+    selFixture.addEventListener('change', function () {
+        const f = fixturesDelModal.find(x => String(x.id_fixture) === String(this.value));
+        if (!f) return;
+
+        // Nombre y fecha salen del fixture (se puede editar si hace falta)
+        document.getElementById('rs_modal_nombre').value = f.nombre_prueba || '';
+        const inpFecha = document.querySelector('#form_resultado input[name="fecha_resultado"]');
+        if (inpFecha && f.fecha_competencia) inpFecha.value = f.fecha_competencia;
+
+        if (f.fase === 'JORNADA_UNICA' || selTipo.value === 'TIEMPO') {
+            // Deporte masivo: el fixture no tiene marcador, solo la jornada.
+            return;
+        }
+
+        // Marcador: autocompletar los dos equipos con sus ids reales
+        selTipo.value = 'MARCADOR';
+        mostrarBloqueSegunTipo();
+        const eq1 = document.getElementById('rs_eq1');
+        const eq2 = document.getElementById('rs_eq2');
+        eq1.value = f.ute_1_nombre || '';
+        document.getElementById('rs_idute1').value = f.id_ute_1 || '';
+        eq2.value = f.ute_2_nombre || '';
+        document.getElementById('rs_idute2').value = f.id_ute_2 || '';
+        document.getElementById('rs_g1').value = 0;
+        document.getElementById('rs_g2').value = 0;
+        setTimeout(() => eq1.focus(), 50); // directo a cargar los goles
+    });
 
     function cargarUtesDelModal(idCategoria) {
         datalistUtes.innerHTML = '';
