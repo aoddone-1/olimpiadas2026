@@ -781,9 +781,122 @@ class Inscripciones extends CI_Controller {
         $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
         $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
 
-        
+        // Datos para la pestaña de Fixture
+        $this->load->model('Fixture_model');
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
+
         $data['menu_activo'] = 'control';
         $this->load->view('admin/control_total', $data);
+    }
+
+    /* ============================================================
+     *  FIXTURE (pestaña de Control Total) - endpoints AJAX
+     * ============================================================ */
+
+    private function _fixture_auth_json() {
+        // Solo superadmin/admin pueden gestionar el fixture
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
+            return false;
+        }
+        $this->load->model('Fixture_model');
+        return true;
+    }
+
+    /** Devuelve el fixture + las UTEs de una categoría (para pintar la pestaña). */
+    public function ajax_fixture_categoria($id_categoria) {
+        if (!$this->_fixture_auth_json()) return;
+
+        $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
+        $utes = $this->Fixture_model->obtener_utes_por_categoria((int) $id_categoria);
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures, 'utes' => $utes)));
+    }
+
+    /** Genera automáticamente el fixture de una categoría. */
+    public function ajax_generar_fixture() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $id_categoria = (int) $this->input->post('id_categoria');
+        try {
+            $cantidad = $this->Fixture_model->generar_fixture_para_categoria($id_categoria);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
+                )));
+        } catch (Exception $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Crear/editar un partido manualmente. */
+    public function ajax_guardar_partido() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $datos = $this->input->post();
+        if (empty($datos['id_categoria']) || empty($datos['nombre_prueba'])
+            || empty($datos['fecha_competencia']) || empty($datos['hora_inicio']) || empty($datos['hora_fin'])) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => 'Completá todos los campos obligatorios.')));
+            return;
+        }
+
+        $id = $this->Fixture_model->guardar_partido($datos);
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));
+    }
+
+    /** Registrar ganador de un partido (clasifica a la siguiente fase). */
+    public function ajax_resultado_partido() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $id_fixture = (int) $this->input->post('id_fixture');
+        $id_ganador = (int) $this->input->post('id_ganador');
+
+        try {
+            $mensaje = $this->Fixture_model->registrar_resultado($id_fixture, $id_ganador);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
+        } catch (Exception $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Borrar todo el fixture de una categoría. */
+    public function ajax_eliminar_fixture() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $id_categoria = (int) $this->input->post('id_categoria');
+        $this->Fixture_model->eliminar_fixture_por_categoria($id_categoria);
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Fixture eliminado.')));
+    }
+
+    /** Borrar un partido individual. */
+    public function ajax_eliminar_partido() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $id_fixture = (int) $this->input->post('id_fixture');
+        $this->Fixture_model->eliminar_partido($id_fixture);
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Partido eliminado.')));
     }
 
     public function detalle_ajax($id_participante) {
