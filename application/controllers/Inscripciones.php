@@ -823,7 +823,16 @@ class Inscripciones extends CI_Controller {
     public function ajax_fixture_todo() {
         if (!$this->_fixture_auth_json()) return;
 
-        $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
+        try {
+            $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
+        } catch (Exception $e) {
+            log_error('ajax_fixture_todo: ' . $e->getMessage());
+            $this->output
+                ->set_content_type('application/json')
+                ->set_status_header(500)
+                ->set_output(json_encode(array('ok' => false, 'error' => 'Error al consultar la tabla fixtures.')));
+            return;
+        }
 
         $this->output
             ->set_content_type('application/json')
