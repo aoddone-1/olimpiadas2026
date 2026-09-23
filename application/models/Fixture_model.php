@@ -37,6 +37,8 @@ class Fixture_model extends CI_Model {
         return $this->db->get('utes')->result_array();
     }
 
+
+
     /** Partidos (fixtures) de una categoría, con nombres resueltos. */
     public function obtener_fixtures_por_categoria($id_categoria) {
         $this->db->select('
@@ -62,13 +64,11 @@ class Fixture_model extends CI_Model {
 
         // Adjuntar las UTEs de la categoría (necesario para el modal de
         // resultados de deportes masivos).
-        if (!empty($fixtures)) {
-            $utes = $this->obtener_utes_por_categoria($id_categoria);
-            foreach ($fixtures as &$f) {
-                $f['utes_categoria'] = $utes;
-            }
-            unset($f);
+        $utes = $this->obtener_utes_por_categoria($id_categoria);
+        foreach ($fixtures as &$f) {
+            $f['utes_categoria'] = $utes;
         }
+        unset($f);
 
         return $fixtures;
     }
