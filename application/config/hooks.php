@@ -11,3 +11,10 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 |	https://codeigniter.com/userguide3/general/hooks.html
 |
 */
+
+$hook['pre_controller'][] = array(
+    'class'    => 'OLIM_Autoload',
+    'function' => 'register',
+    'filename' => 'OLIM_Autoload.php',
+    'filepath' => 'hooks',
+);

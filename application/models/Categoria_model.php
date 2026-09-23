@@ -5,6 +5,14 @@ class Categoria_model extends CI_Model {
         return $this->db->get('categorias')->result_array();
     }
 
+    /**
+     * Obtiene una categoría por su id (usado por la validación de disciplinas).
+     */
+    public function obtener_por_id($id_categoria) {
+        $this->db->where('id_categoria', (int) $id_categoria);
+        return $this->db->get('categorias')->row_array();
+    }
+
     public function insertar_categoria_desde_post($post_data) {
         // Validación de negocio interna del modelo
         if (empty($post_data['id_deporte']) || empty($post_data['nombre_categoria'])) {
