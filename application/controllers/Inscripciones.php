@@ -889,7 +889,12 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        $id = $this->Fixture_model->guardar_partido($datos);
+        try {
+            $id = $this->Fixture_model->guardar_partido($datos);
+        } catch (Exception $e) {
+            $this->_fixture_error_json('No se pudo guardar el partido.', $e->getMessage());
+            return;
+        }
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));

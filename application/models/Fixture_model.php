@@ -429,18 +429,26 @@ class Fixture_model extends CI_Model {
 
     /** Crear/editar un partido manualmente. */
     public function guardar_partido($datos) {
+        // id_lugar es NOT NULL en la tabla fixtures: si el formulario no
+        // envía lugar (o manda 0), se usa el primer lugar cargado. Sin esto,
+        // el INSERT/UPDATE revienta con error SQL (HTTP 500).
+        $lugar = !empty($datos['id_lugar']) ? (int) $datos['id_lugar'] : $this->_primer_lugar();
+        if (!$lugar) {
+            throw new Exception('No hay lugares cargados. Creá al menos un lugar antes de guardar partidos.');
+        }
+
         $payload = array(
             'id_categoria'      => (int) $datos['id_categoria'],
-            'id_lugar'          => !empty($datos['id_lugar']) ? (int) $datos['id_lugar'] : null,
-            'id_ute_1'          => !empty($datos['id_ute_1']) ? (int) $datos['id_ute_1'] : null,
-            'id_ute_2'          => !empty($datos['id_ute_2']) ? (int) $datos['id_ute_2'] : null,
+            'id_lugar'          => $lugar,
+            'id_ute_1'          => isset($datos['id_ute_1']) && $datos['id_ute_1'] !== '' ? (int) $datos['id_ute_1'] : null,
+            'id_ute_2'          => isset($datos['id_ute_2']) && $datos['id_ute_2'] !== '' ? (int) $datos['id_ute_2'] : null,
             'nombre_prueba'     => trim($datos['nombre_prueba']),
             'fase'              => $datos['fase'],
-            'numero_fecha'      => (int) $datos['numero_fecha'],
+            'numero_fecha'      => !empty($datos['numero_fecha']) ? (int) $datos['numero_fecha'] : 1,
             'fecha_competencia' => $datos['fecha_competencia'],
             'hora_inicio'       => $datos['hora_inicio'],
             'hora_fin'          => $datos['hora_fin'],
-            'estado'            => $datos['estado'],
+            'estado'            => !empty($datos['estado']) ? $datos['estado'] : 'PROGRAMADO',
         );
 
         if (!empty($datos['id_fixture'])) {
