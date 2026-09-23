@@ -445,7 +445,7 @@
                 const utes = (res.ok ? res.utes : []);
                 [sel1, sel2].forEach(sel => {
                     sel.disabled = false;
-                    sel.innerHTML = '<option value="">— Pendiente —</option>';
+                    sel.innerHTML = '<option value="">— Pendaaiente —</option>';
                     utes.forEach(u => {
                         sel.insertAdjacentHTML('beforeend', `<option value="${u.id_ute}">${esc(u.nombre_ute)}</option>`);
                     });

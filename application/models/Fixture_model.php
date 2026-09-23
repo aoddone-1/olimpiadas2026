@@ -36,32 +36,8 @@ class Fixture_model extends CI_Model {
         $this->db->order_by('nombre_ute', 'ASC');
         $utes = $this->db->get('utes')->result_array();
 
-        // Complemento: en deportes INDIVIDUALES / MASIVOS (running, ciclismo,
-        // ajedrez...) el competidor corre por su cuenta, no arma UTE/equipo.
-        // Cada inscripción sin UTE se convierte en un "participante individual"
-        // con id_ute negativo (para no pisar ids reales de la tabla utes).
-        $individuales = $this->obtener_individuales_por_categoria($id_categoria);
-        foreach ($individuales as $i) {
-            $utes[] = array(
-                'id_ute'      => -(int) $i['id_inscripcion'],
-                'id_categoria'=> (int) $id_categoria,
-                'nombre_ute'  => $i['nombre_completo'] . ' (' . $i['dni'] . ')',
-            );
-        }
         return $utes;
     }
-
-    /** Inscripciones SIN UTE de una categoría (competidores individuales). */
-    public function obtener_individuales_por_categoria($id_categoria) {
-        $this->db->select('i.id_inscripcion, p.dni, p.nombre_completo', FALSE);
-        $this->db->from('inscripciones_deportivas i');
-        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-        $this->db->where('i.id_categoria', (int) $id_categoria);
-        $this->db->where('(i.id_ute IS NULL OR i.id_ute = 0)', NULL, FALSE);
-        $this->db->order_by('p.nombre_completo', 'ASC');
-        return $this->db->get()->result_array();
-    }
-
 
 
     /** Partidos (fixtures) de una categoría, con nombres resueltos. */
@@ -103,33 +79,6 @@ class Fixture_model extends CI_Model {
         return $this->db->get('fixtures')->row_array();
     }
 
-    /** Todas las UTEs agrupadas por categoría: id_categoria => [ute, ute, ...] */
-    public function obtener_utes_agrupadas_por_categoria() {
-        $this->db->order_by('nombre_ute', 'ASC');
-        $utes = $this->db->get('utes')->result_array();
-        $por_cat = array();
-        foreach ($utes as $u) {
-            $por_cat[(int) $u['id_categoria']][] = $u;
-        }
-
-        // Sumar los competidores individuales (inscripciones sin UTE), igual
-        // que hace obtener_utes_por_categoria(), para que el listado general
-        // también los muestre en deportes masivos/individuales.
-        $this->db->select('i.id_inscripcion, i.id_categoria, p.dni, p.nombre_completo', FALSE);
-        $this->db->from('inscripciones_deportivas i');
-        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-        $this->db->where('(i.id_ute IS NULL OR i.id_ute = 0)', NULL, FALSE);
-        $this->db->order_by('p.nombre_completo', 'ASC');
-        $individuales = $this->db->get()->result_array();
-        foreach ($individuales as $i) {
-            $por_cat[(int) $i['id_categoria']][] = array(
-                'id_ute'       => -(int) $i['id_inscripcion'],
-                'id_categoria' => (int) $i['id_categoria'],
-                'nombre_ute'   => $i['nombre_completo'] . ' (' . $i['dni'] . ')',
-            );
-        }
-        return $por_cat;
-    }
 
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function obtener_todo_el_fixture() {
@@ -153,14 +102,6 @@ class Fixture_model extends CI_Model {
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
 
         $fixtures = $this->db->get()->result_array();
-
-        // Adjuntar las UTEs de cada categoría (necesario para cargar los podios
-        // de deportes masivos sin tener que hacer un request extra por jornada).
-        $por_cat = $this->obtener_utes_agrupadas_por_categoria();
-        foreach ($fixtures as &$f) {
-            $f['utes_categoria'] = isset($por_cat[(int) $f['id_categoria']])
-                ? $por_cat[(int) $f['id_categoria']] : array();
-        }
         unset($f);
 
         // Resolver nombres de competidores individuales (ids negativos del podio
