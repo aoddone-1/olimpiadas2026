@@ -5,7 +5,7 @@ class Participante_model extends CI_Model {
 
     public function insertar_completo($data_persona, $deportes_seleccionados) {
         // 1. Iniciamos una transacción para asegurarnos de que se guarde todo o nada
-        $this->db->trans_start();
+        $this->db->trans_start(TRUE); // strict: cualquier error revierte toda la operación
 
         // 2. Insertamos la información básica de la persona
         $this->db->insert('participantes', $data_persona);
@@ -38,7 +38,7 @@ class Participante_model extends CI_Model {
 
     public function actualizar_completo($id_participante, $datos_persona, $deportes_seleccionados) {
         // Dejamos que CodeIgniter maneje los errores de forma nativa para las transacciones
-        $this->db->trans_start();
+        $this->db->trans_start(TRUE); // strict: cualquier error revierte toda la operación
 
         // 1. Actualizamos los datos personales en la tabla 'participantes'
         $this->db->where('id_participante', $id_participante);
