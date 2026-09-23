@@ -275,7 +275,6 @@ class Fixture_model extends CI_Model {
         return 1;
     }
 
-    /** Bracket de eliminatoria directa con emparejamiento aleatorio. */
     private function _generar_eliminatoria($categoria) {
         $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
         $cant = count($utes);
@@ -284,140 +283,122 @@ class Fixture_model extends CI_Model {
             throw new Exception('Se necesitan al menos 2 UTEs/equipos para generar un fixture de enfrentamiento.');
         }
 
-        // Orden aleatorio para el cruce inicial
+        // Mezclamos para el sorteo aleatorio
         shuffle($utes);
-
-        // Cantidad de equipos que juegan la PRIMERA ronda (el resto entra con
-        // "bye" directo a la segunda). Con esto el bracket siempre queda
-        // balanceado: cada ronda siguiente tiene exactamente la mitad de
-        // partidos que la anterior.
-        //   jugadores = 2 * (N - 2^floor(log2(N-1)))
-        $pot_previa = 1;
-        while ($pot_previa * 2 < $cant) {
-            $pot_previa *= 2;
-        }
-        $jugadores = 2 * ($cant - $pot_previa); // siempre >= 2 si hay >1 equipo
-
         $slots = array_column($utes, 'id_ute');
-        $cruzan  = array_slice($slots, 0, $jugadores);            // juegan ronda 1
-        $con_bye = array_slice($slots, $jugadores);               // avanzan solos
 
-        // Emparejamiento "head-to-head": la semilla 1 cruza con la última
-        // sembrada, la 2 con la anteúltima, etc. Como los equipos que juegan
-        // la primera ronda son las semillas altas y los bye las bajas, cada
-        // cruce inicial queda balanceado y si N es impar la semilla central
-        // queda como partido con un solo contrincante (para completar luego).
-        $semillas = array_merge($cruzan, $con_bye); // orden de siembra
-        $pares = array();            // llaves [id|NULL, id|NULL] de la ronda 1
-        $ini = 0;
-        $fin = count($semillas) - 1;
-        while ($ini < $fin) {
-            $pares[] = array($semillas[$ini], $semillas[$fin]);
-            $ini++;
-            $fin--;
-        }
-        if ($ini === $fin) {
-            $pares[] = array($semillas[$ini], null);
-        }
-        // El bracket se completa hasta la siguiente potencia de 2 con llaves
-        // vacías: cada una queda como partido con UN solo contrincante
-        // visible, para completar después (a mano o cuando clasifique
-        // automáticamente el ganador del cruce vecino).
+        // 1. Determinar el tamaño del bracket (potencia de 2 inmediata >= $cant)
+        // Para 14 equipos -> tamano_bracket = 16
         $tamano_bracket = 2;
         while ($tamano_bracket < $cant) {
             $tamano_bracket *= 2;
         }
-        while (count($pares) < $tamano_bracket / 2) {
-            $pares[] = array(null, null);
+
+        // Mapas de potencia de 2 a la constante de FASE_ORDEN
+        $fases_por_tamano = array(
+            2  => 'FINAL',
+            4  => 'SEMIFINAL',
+            8  => 'CUARTOS',
+            16 => 'OCTAVOS',
+            32 => '16AVOS'
+        );
+
+        // 2. Determinar la fase inicial real del torneo
+        $fase_actual = isset($fases_por_tamano[$tamano_bracket]) ? $fases_por_tamano[$tamano_bracket] : 'GRUPO';
+
+        // 3. Crear los emparejamientos iniciales de la Ronda 1 con BYES
+        // Rellenamos el cuadro hasta la potencia de 2 con null (libre/bye)
+        while (count($slots) < $tamano_bracket) {
+            $slots[] = null;
         }
 
-        // La fase de la PRIMERA ronda se nombra según cuántos PARTIDOS reales
-        // tiene (las llaves con un solo equipo son bye y no cuentan):
-        // 1 partido = FINAL, 2 = SEMIFINAL, 4 = CUARTOS, 8 = OCTAVOS,
-        // 16 = 16AVOS. Para más de 16 se usa "GRUPO" (el enum de fixtures no
-        // incluye rondas previas más lejanas).
-        $cruces_reales = 0;
-        foreach ($pares as $par) {
-            if ($par[0] !== null && $par[1] !== null) $cruces_reales++;
+        $llaves_actuales = array();
+        $ini = 0;
+        $fin = count($slots) - 1;
+        
+        // Siembra Standard (Semilla alta vs Semilla baja / Byes distribuidos)
+        while ($ini < $fin) {
+            $llaves_actuales[] = array($slots[$ini], $slots[$fin]);
+            $ini++;
+            $fin--;
         }
-        $ronda_inicial_log = ($cruces_reales > 1) ? (int) log($cruces_reales, 2) : 0;
-        $nombres_fases = array(0 => 'FINAL', 1 => 'SEMIFINAL', 2 => 'CUARTOS',
-                               3 => 'OCTAVOS', 4 => '16AVOS');
-        $fase_inicial = isset($nombres_fases[$ronda_inicial_log]) ? $nombres_fases[$ronda_inicial_log] : 'GRUPO';
 
+        $rondas = array();
+
+        // 4. Bucle que genera la estructura completa del torneo fase por fase
+        while (!empty($llaves_actuales)) {
+
+            // A. Guardamos los partidos/llaves de la fase actual
+            $rondas[] = array(
+                'fase'   => $fase_actual,
+                'llaves' => $llaves_actuales
+            );
+
+            // Si terminamos de armar la FINAL, detenemos el avance
+            if ($fase_actual === 'FINAL') {
+                break;
+            }
+
+            // B. Generar el TERCER PUESTO justo después de la SEMIFINAL
+            if ($fase_actual === 'SEMIFINAL') {
+                $rondas[] = array(
+                    'fase'   => 'TERCER_PUESTO',
+                    'llaves' => array(
+                        array(null, null) // Partido reservado para perdedores de Semifinal
+                    )
+                );
+                $fase_actual = 'FINAL';
+                $llaves_actuales = array(
+                    array(null, null) // Partido reservado para ganadores de Semifinal
+                );
+                continue;
+            }
+
+            // C. Avanzar a la siguiente fase del enum FASE_ORDEN
+            $pos_actual = array_search($fase_actual, self::FASE_ORDEN);
+            if ($pos_actual !== false && isset(self::FASE_ORDEN[$pos_actual + 1])) {
+                $fase_actual = self::FASE_ORDEN[$pos_actual + 1];
+            } else {
+                break;
+            }
+
+            // D. Preparar las llaves vacías para la siguiente instancia
+            // Cada nueva fase tiene la mitad de llaves que la previa
+            $cant_siguiente = count($llaves_actuales) / 2;
+            $llaves_actuales = array();
+            for ($i = 0; $i < $cant_siguiente; $i++) {
+                $llaves_actuales[] = array(null, null);
+            }
+        }
+
+        // 5. Persistencia de las rondas generadas en la BD
         $lugar = $categoria['id_lugar'] ?: $this->_primer_lugar();
         $fecha_base = $categoria['dia_competencia'] ?: date('Y-m-d');
         $hora_base  = $categoria['hora_competencia'] ?: '09:00:00';
 
-
-        // ------------------------------------------------------------
-        // Generación de las rondas siguientes: cada instancia tiene la mitad
-        // de llaves que la anterior (redondeando hacia arriba). Las llaves
-        // con un solo equipo se crean igual (quedan visibles con un hueco);
-        // las totalmente vacías se omiten salvo en la última instancia, que
-        // siempre se crea como FINAL para poder completarla a mano.
-        // ------------------------------------------------------------
-        $rondas = array();                       // [['fase'=>..., 'llaves'=>[...]], ...]
-        $llaves_ronda = $pares;                  // llaves [id|NULL, id|NULL]
-        $fase_actual = $fase_inicial;
-        $guardia = 0;
-
-        while (!empty($llaves_ronda)) {
-            if ($guardia++ > 20) break; // cota de seguridad
-
-            $instancia_ronda = array();
-            foreach ($llaves_ronda as $par) {
-                if ($par[0] === null && $par[1] === null) {
-                    continue; // llave sin datos: no se crea el partido
-                }
-                $instancia_ronda[] = $par;
-            }
-
-            if (!empty($instancia_ronda)) {
-                $rondas[] = array('fase' => $fase_actual, 'llaves' => $instancia_ronda);
-            }
-            if ($fase_actual === 'FINAL') break;
-
-            // Clasificados a la próxima instancia: uno por cada llave de esta
-            // (el ganador, o el único equipo si quedó con hueco).
-            $nueva_cant = count($instancia_ronda);
-            if ($nueva_cant < 2) break;
-
-            // Siguiente instancia: una llave por cada dos clasificados.
-            $siguientes = intdiv($nueva_cant, 2);
-            $llaves_ronda = array();
-            for ($j = 0; $j < $siguientes; $j++) {
-                $llaves_ronda[] = array(null, null);
-            }
-            if ($nueva_cant % 2 === 1) {
-                // clasificado impar: queda esperando rival (se completa a mano
-                // o cuando defina alguno de los cruces de esta instancia)
-                $llaves_ronda[] = array(null, null);
-            }
-
-            // Fase según la cantidad de llaves: 1 = FINAL, 2 = SEMIFINAL.
-            if ($siguientes === 1) {
-                $fase_actual = 'FINAL';
-            } elseif ($siguientes === 2) {
-                $fase_actual = 'SEMIFINAL';
-            } else {
-                $pos = array_search($fase_actual, self::FASE_ORDEN);
-                $fase_actual = self::FASE_ORDEN[min($pos + 1, count(self::FASE_ORDEN) - 1)];
-            }
-        }
-
-        // Persistir las rondas generadas.
         $generados = 0;
         foreach ($rondas as $idx_ronda => $ronda) {
             $fase = $ronda['fase'];
             $es_final = ($fase === 'FINAL');
+            $es_tercer = ($fase === 'TERCER_PUESTO');
+
             foreach ($ronda['llaves'] as $i => $par) {
+                
+                // Definición del título del encuentro
+                if ($es_final) {
+                    $nombre_prueba = 'GRAN FINAL';
+                } elseif ($es_tercer) {
+                    $nombre_prueba = 'TERCER Y CUARTO PUESTO';
+                } else {
+                    $nombre_prueba = $fase . ' - Partido ' . ($i + 1);
+                }
+
                 $datos = array(
                     'id_categoria'      => $categoria['id_categoria'],
                     'id_lugar'          => $lugar,
                     'id_ute_1'          => $par[0],
                     'id_ute_2'          => $par[1],
-                    'nombre_prueba'     => $es_final ? 'GRAN FINAL' : $fase . ' - Partido ' . ($i + 1),
+                    'nombre_prueba'     => $nombre_prueba,
                     'fase'              => $fase,
                     'numero_fecha'      => $idx_ronda + 1,
                     'fecha_competencia' => date('Y-m-d', strtotime($fecha_base . ' +' . $idx_ronda . ' days')),
@@ -425,6 +406,7 @@ class Fixture_model extends CI_Model {
                     'hora_fin'          => $this->_sumar_horas($hora_base, 1),
                     'estado'            => 'PROGRAMADO'
                 );
+
                 $this->db->insert('fixtures', $datos);
                 $generados++;
             }
