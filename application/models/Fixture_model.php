@@ -45,7 +45,10 @@ class Fixture_model extends CI_Model {
             u2.nombre_ute as ute_2_nombre,
             l.nombre as lugar_nombre,
             c.nombre_categoria,
-            d.nombre_deporte
+            c.genero as genero_categoria,
+            d.nombre_deporte,
+            d.modalidad_competencia,
+            d.tipo_duracion
         ', FALSE);
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
@@ -287,23 +290,62 @@ class Fixture_model extends CI_Model {
             return 'Campeón registrado. No hay instancia superior.';
         }
 
-        // Buscar el siguiente partido con un hueco libre
-        $this->db->where('id_categoria', $partido['id_categoria']);
-        $this->db->where('numero_fecha >', $partido['numero_fecha']);
-        $this->db->where('(id_ute_1 IS NULL OR id_ute_2 IS NULL)', null, false);
-        $this->db->order_by('numero_fecha', 'ASC');
-        $this->db->limit(1);
-        $siguiente = $this->db->get('fixtures')->row_array();
+        // Obtener TODOS los partidos de la categoría para calcular la posición exacta en el bracket
+        $todos = $this->db->where('id_categoria', $partido['id_categoria'])
+                          ->order_by('numero_fecha', 'ASC')
+                          ->order_by('id_fixture', 'ASC')
+                          ->get('fixtures')->result_array();
 
-        if (!$siguiente) {
+        $fecha_actual = (int) $partido['numero_fecha'];
+        $partidos_fecha = array();   // fixtures de la fecha actual, ordenados
+        $siguiente_fecha = null;
+        foreach ($todos as $fx) {
+            $nf = (int) $fx['numero_fecha'];
+            if ($nf === $fecha_actual) {
+                $partidos_fecha[] = $fx;
+            } elseif ($nf > $fecha_actual && $siguiente_fecha === null) {
+                $siguiente_fecha = $nf;
+            }
+        }
+
+        // Posición del partido dentro de su jornada (0-indexed) → ranura en la fecha siguiente
+        $pos = 0;
+        foreach ($partidos_fecha as $i => $fx) {
+            if ((int) $fx['id_fixture'] === (int) $partido['id_fixture']) { $pos = $i; break; }
+        }
+
+        $destino = null;
+        if ($siguiente_fecha !== null) {
+            $this->db->where('id_categoria', $partido['id_categoria']);
+            $this->db->where('numero_fecha', $siguiente_fecha);
+            $this->db->order_by('id_fixture', 'ASC');
+            $de_la_siguiente = $this->db->get('fixtures')->result_array();
+
+            $idx_partido = intdiv($pos, 2);       // qué partido de la siguiente fecha
+            $campo = ($pos % 2 === 0) ? 'id_ute_1' : 'id_ute_2'; // lado del cruce
+
+            if (isset($de_la_siguiente[$idx_partido])) {
+                $destino = $de_la_siguiente[$idx_partido];
+            } else {
+                // fallback: primer partido con hueco libre
+                foreach ($de_la_siguiente as $fx) {
+                    if ($fx['id_ute_1'] === null || $fx['id_ute_2'] === null) {
+                        $destino = $fx;
+                        $campo = is_null($fx['id_ute_1']) ? 'id_ute_1' : 'id_ute_2';
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!$destino) {
             return 'Resultado guardado. No se encontró la instancia siguiente para clasificar.';
         }
 
-        $campo = is_null($siguiente['id_ute_1']) ? 'id_ute_1' : 'id_ute_2';
-        $this->db->where('id_fixture', $siguiente['id_fixture']);
+        $this->db->where('id_fixture', $destino['id_fixture']);
         $this->db->update('fixtures', array($campo => $id_ganador));
 
-        return 'Resultado guardado. El ganador clasificó a ' . $siguiente['nombre_prueba'] . '.';
+        return 'Resultado guardado. El ganador clasificó a ' . $destino['nombre_prueba'] . '.';
     }
 
     /** Borrar todo el fixture de una categoría. */

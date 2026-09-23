@@ -180,7 +180,18 @@
         const form = new FormData();
         Object.keys(datos).forEach(k => form.append(k, datos[k]));
         return fetch(BASE + '/' + url, { method: 'POST', body: form })
-            .then(r => r.json());
+            .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url);
+                return r.json();
+            });
+    }
+
+    function getJSON(url) {
+        return fetch(BASE + '/' + url)
+            .then(r => {
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url);
+                return r.json();
+            });
     }
 
     function fechaArma(f) {
@@ -303,12 +314,17 @@
 
     /* ---------- Carga GENERAL (sin filtro de categoría) ---------- */
     function cargarTodo() {
-        fetch(BASE + '/ajax_fixture_todo')
-            .then(r => r.json())
+        getJSON('ajax_fixture_todo')
             .then(res => {
-                if (!res.ok) { mensaje(res.error, 'danger'); return; }
-                todosFixtures = res.fixtures;
+                if (!res.ok) { mensaje(res.error || 'Error al cargar el fixture.', 'danger'); return; }
+                todosFixtures = res.fixtures || [];
                 render();
+            })
+            .catch(err => {
+                console.error(err);
+                lista.innerHTML = '<div class="alert alert-danger py-2 small">' +
+                    'No se pudo cargar el fixture (' + esc(err.message) + '). ' +
+                    'Revisá que tengas sesión iniciada como admin y que existan las tablas <code>fixtures</code> / <code>lugares</code>.</div>';
             });
     }
 
