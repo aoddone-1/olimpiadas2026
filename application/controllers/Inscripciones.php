@@ -781,11 +781,6 @@ class Inscripciones extends CI_Controller {
         $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
         $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
 
-        // Datos para la pestaña FIXTURE
-        $this->load->model('Fixture_model');
-        $data['fixture_lugares']  = $this->Fixture_model->obtener_lugares();
-        $data['fixture_deportes'] = $this->Fixture_model->obtener_deportes_con_categorias();
-        $data['fixture_fechas']   = $this->Fixture_model->obtener_fedas_disponibles();
         
         $data['menu_activo'] = 'control';
         $this->load->view('admin/control_total', $data);
