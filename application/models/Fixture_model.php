@@ -66,7 +66,18 @@ class Fixture_model extends CI_Model {
         return $this->db->get('fixtures')->row_array();
     }
 
-    /** Fixture completo de TODAS las categorías (para visualizar todo sin filtros). */
+    /** Todas las UTEs agrupadas por categoría: id_categoria => [ute, ute, ...] */
+    public function obtener_utes_agrupadas_por_categoria() {
+        $this->db->order_by('nombre_ute', 'ASC');
+        $utes = $this->db->get('utes')->result_array();
+        $por_cat = array();
+        foreach ($utes as $u) {
+            $por_cat[(int) $u['id_categoria']][] = $u;
+        }
+        return $por_cat;
+    }
+
+    /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function obtener_todo_el_fixture() {
         $this->db->select('
             f.*,
@@ -86,7 +97,19 @@ class Fixture_model extends CI_Model {
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
-        return $this->db->get()->result_array();
+
+        $fixtures = $this->db->get()->result_array();
+
+        // Adjuntar las UTEs de cada categoría (necesario para cargar los podios
+        // de deportes masivos sin tener que hacer un request extra por jornada).
+        $por_cat = $this->obtener_utes_agrupadas_por_categoria();
+        foreach ($fixtures as &$f) {
+            $f['utes_categoria'] = isset($por_cat[(int) $f['id_categoria']])
+                ? $por_cat[(int) $f['id_categoria']] : array();
+        }
+        unset($f);
+
+        return $fixtures;
     }
 
     /* ============================================================
@@ -272,61 +295,72 @@ class Fixture_model extends CI_Model {
 
     /**
      * Buscar la instancia (partido) siguiente donde clasifica el ganador.
-     * Mapeo posicional estándar de brackets: los ganadores de los partidos
-     * P1 y P2 de la ronda N juegan entre sí en el partido 1 de la ronda N+1,
-     * los de P3 y P4 en el partido 2, etc.
+     * Se basa en el ORDEN DE FASES (GRUPO -> 16AVOS -> OCTAVOS -> CUARTOS ->
+     * SEMIFINAL -> TERCER_PUESTO -> FINAL), NO en numero_fecha, porque los
+     * partidos creados manualmente pueden compartir o invertir las fechas.
+     *
+     * Ejemplo: el ganador de una SEMIFINAL pasa al primer hueco libre de la
+     * FINAL de la misma categoría. Con 2 semis, la semi 1 ocupa id_ute_1 y
+     * la semi 2 ocupa id_ute_2 de la final.
      *
      * @return array|null array('fixture' => fila_destino, 'campo' => 'id_ute_1'|'id_ute_2') o NULL si no hay siguiente.
      */
     public function buscar_siguiente_instancia($partido) {
-        $fecha_actual = (int) $partido['numero_fecha'];
+        $fase_actual = $partido['fase'];
 
-        // Partidos de la ronda actual, ordenados por id (orden de generación)
-        $ronda_actual = $this->db->where('id_categoria', $partido['id_categoria'])
-                                 ->where('numero_fecha', $fecha_actual)
-                                 ->order_by('id_fixture', 'ASC')
-                                 ->get('fixtures')->result_array();
-
-        // Posición del partido dentro de su ronda (0-indexed)
-        $pos = 0;
-        foreach ($ronda_actual as $i => $fx) {
-            if ((int) $fx['id_fixture'] === (int) $partido['id_fixture']) { $pos = $i; break; }
-        }
-
-        // ¿Cuál es la próxima fecha que existe?
-        $q = $this->db->select_min('numero_fecha')
-                      ->where('id_categoria', $partido['id_categoria'])
-                      ->where('numero_fecha >', $fecha_actual)
-                      ->get('fixtures');
-        $min = $q->row()->numero_fecha;
-        if ($min === null) {
-            return null; // era la última ronda (FINAL)
-        }
-        $fecha_siguiente = (int) $min;
-
-        // Partidos de la próxima ronda
-        $ronda_sig = $this->db->where('id_categoria', $partido['id_categoria'])
-                              ->where('numero_fecha', $fecha_siguiente)
-                              ->order_by('id_fixture', 'ASC')
-                              ->get('fixtures')->result_array();
-
-        if (empty($ronda_sig)) {
+        // Si ya está en fase FINAL, no hay instancia superior.
+        if ($fase_actual === 'FINAL') {
             return null;
         }
 
-        // Mapeo posicional: par de partidos (pos/2) → partido destino; lado según pos%2
-        $idx_destino = intdiv($pos, 2);
-        $campo = ($pos % 2 === 0) ? 'id_ute_1' : 'id_ute_2';
+        // Determinar la fase destino:
+        // - TERCER_PUESTO: no clasifica a nadie (define el 3er puesto) -> sin destino.
+        if ($fase_actual === 'TERCER_PUESTO') {
+            return null;
+        }
 
-        if (!isset($ronda_sig[$idx_destino])) {
-            // Fallback: primer partido de la ronda siguiente con hueco libre en ese campo
-            foreach ($ronda_sig as $fx) {
-                if (empty($fx[$campo])) {
-                    return array('fixture' => $fx, 'campo' => $campo);
-                }
+        // Fase inmediatamente superior según el orden canónico.
+        $pos_fase = array_search($fase_actual, self::FASE_ORDEN);
+        if ($pos_fase === false || $pos_fase === count(self::FASE_ORDEN) - 1) {
+            return null; // fase desconocida o ya es la última
+        }
+        $fase_destino = self::FASE_ORDEN[$pos_fase + 1];
+
+        // La semifinal puede mandar a FINAL o a TERCER_PUESTO... pero el perdedor
+        // no avanza, así que siempre buscamos la fase superior real con huecos.
+        // Buscamos primero en la fase destino; si no existe, probamos más arriba.
+        $hueco = $this->buscar_hueco_en_fases_superiores($partido['id_categoria'], $pos_fase + 1);
+        if ($hueco !== null) {
+            return $hueco;
+        }
+
+        return null;
+    }
+
+    /**
+     * Recorrer las fases superiores (desde el índice indicado hacia la FINAL)
+     * buscando el primer partido pendiente con un slot libre.
+     *
+     * @param string $id_categoria
+     * @param int    $desde_idx   índice inicial dentro de FASE_ORDEN
+     * @return array|null array('fixture' => fila, 'campo' => ...) o NULL.
+     */
+    private function buscar_hueco_en_fases_superiores($id_categoria, $desde_idx) {
+        for ($i = $desde_idx; $i < count(self::FASE_ORDEN); $i++) {
+            $fase = self::FASE_ORDEN[$i];
+
+            // Excluir TERCER_PUESTO como destino de clasificación.
+            if ($fase === 'TERCER_PUESTO') {
+                continue;
             }
-            // Segundo fallback: cualquier hueco libre
-            foreach ($ronda_sig as $fx) {
+
+            $partidos = $this->db->where('id_categoria', $id_categoria)
+                                 ->where('fase', $fase)
+                                 ->order_by('numero_fecha', 'ASC')
+                                 ->order_by('id_fixture', 'ASC')
+                                 ->get('fixtures')->result_array();
+
+            foreach ($partidos as $fx) {
                 if (empty($fx['id_ute_1'])) {
                     return array('fixture' => $fx, 'campo' => 'id_ute_1');
                 }
@@ -334,10 +368,8 @@ class Fixture_model extends CI_Model {
                     return array('fixture' => $fx, 'campo' => 'id_ute_2');
                 }
             }
-            return null;
         }
-
-        return array('fixture' => $ronda_sig[$idx_destino], 'campo' => $campo);
+        return null;
     }
 
     /**
@@ -375,6 +407,50 @@ class Fixture_model extends CI_Model {
         $this->db->update('fixtures', array($siguiente['campo'] => $id_ganador));
 
         return 'Resultado guardado. El ganador clasificó a ' . $siguiente['fixture']['nombre_prueba'] . '.';
+    }
+
+    /**
+     * Registrar resultado de un deporte MASIVO_TIEMPO (running, ciclismo, pesca...):
+     * se guarda la lista de UTEs en orden de llegada (1° = índice 0).
+     * No hay clasificación: solo se marca la jornada como FINALIZADA.
+     */
+    public function registrar_resultado_masivo($id_fixture, $ute_ids_ordenados) {
+        $partido = $this->obtener_fixture_por_id($id_fixture);
+        if (!$partido) {
+            throw new Exception('La jornada no existe.');
+        }
+        if ($partido['fase'] !== 'JORNADA_UNICA') {
+            throw new Exception('Este partido no es una jornada de deporte masivo.');
+        }
+
+        // Validar que las UTEs existan y pertenezcan a la categoría de la jornada.
+        $utes_cat = $this->obtener_utes_por_categoria($partido['id_categoria']);
+        $ids_validos = array_map('intval', array_column($utes_cat, 'id_ute'));
+
+        $orden = array();
+        foreach ((array) $ute_ids_ordenados as $id) {
+            $id = (int) $id;
+            if ($id <= 0) continue;
+            if (!in_array($id, $ids_validos, true)) {
+                throw new Exception('Hay un equipo que no pertenece a esta categoría.');
+            }
+            if (in_array($id, $orden, true)) {
+                throw new Exception('Hay equipos repetidos en la planilla de resultados.');
+            }
+            $orden[] = $id;
+        }
+
+        if (empty($orden)) {
+            throw new Exception('No seleccionaste ningún equipo. Marcá al menos al ganador.');
+        }
+
+        $this->db->where('id_fixture', $id_fixture);
+        $this->db->update('fixtures', array(
+            'estado'    => 'FINALIZADO',
+            'resultado' => json_encode($orden),
+        ));
+
+        return 'Resultado de la jornada guardado (' . count($orden) . ' equipo/s posicionados).';
     }
 
     /** Borrar todo el fixture de una categoría. */

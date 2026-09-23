@@ -149,6 +149,34 @@
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
+
+    /* ---------- MODAL: resultados de deportes masivos (orden de llegada) ---------- */
+    if (!document.getElementById('modalMasivo')) {
+        document.body.insertAdjacentHTML('beforeend', `
+        <div class="modal fade" id="modalMasivo" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title"><i class="bi bi-flag me-2"></i>Resultados — <span id="fxm_titulo"></span></h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small text-muted mb-2">
+                            Hacé clic en los equipos <strong>en el orden de llegada</strong>: el primero que elijas es 🥇,
+                            el segundo 🥈, etc. Podés corregir tocando el número de posición para sacarlo.
+                        </p>
+                        <div id="fxm_lista" class="list-group"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" id="fxm_reset">Reiniciar</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" id="fxm_guardar" class="btn btn-primary">Guardar resultado</button>
+                    </div>
+                </div>
+            </div>
+        </div>`);
+    }
+
     const selCategoria = document.getElementById('fx_categoria');
     const btnGenerar = document.getElementById('fx_btn_generar');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
@@ -159,6 +187,9 @@
 
     let todosFixtures = [];   // fixture completo de TODAS las categorías
     let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
+    let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
+
+    const MEDALLAS = ['🥇', '🥈', '🥉'];
 
     const BADGES = {
         PROGRAMADO: 'bg-secondary', EN_CURSO: 'bg-warning text-dark',
@@ -262,6 +293,28 @@
                     const esMasivo = f.fase === 'JORNADA_UNICA';
                     const badge = BADGES[f.estado] || 'bg-secondary';
 
+                    // ---- Podio de deportes masivos (orden de llegada guardado en f.resultado) ----
+                    let ordenGuardado = [];
+                    if (esMasivo && f.resultado) {
+                        try { ordenGuardado = JSON.parse(f.resultado) || []; } catch (e) { ordenGuardado = []; }
+                    }
+                    const nombresPorId = {};
+                    (f.utes_categoria || []).forEach(u => { nombresPorId[u.id_ute] = u.nombre_ute; });
+                    if (f.id_ute_1) nombresPorId[f.id_ute_1] = f.ute_1_nombre;
+                    if (f.id_ute_2) nombresPorId[f.id_ute_2] = f.ute_2_nombre;
+
+                    let podioHtml = '';
+                    if (esMasivo) {
+                        if (ordenGuardado.length) {
+                            podioHtml = '<div class="mt-1 small">' + ordenGuardado.slice(0, 5).map((id, i) => {
+                                const medalla = MEDALLAS[i] || (i + 1) + 'º';
+                                return `<span class="me-2">${medalla} ${esc(nombresPorId[id] || ('UTE #' + id))}</span>`;
+                            }).join('') + '</div>';
+                        } else {
+                            podioHtml = '<div class="mt-1 small fst-italic text-muted">Sin resultados cargados todavía.</div>';
+                        }
+                    }
+
                     html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
                         <div style="min-width:260px">
                             <span class="badge bg-info text-dark me-1">${esc(f.fase.replace('_',' '))}</span>
@@ -270,7 +323,7 @@
                                 <i class="bi bi-clock me-1"></i>${fechaArma(f.fecha_competencia)} ${esc((f.hora_inicio||'').slice(0,5))}–${esc((f.hora_fin||'').slice(0,5))}
                                 &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
                             </div>
-                            ${esMasivo ? '' : `<div class="mt-1">
+                            ${esMasivo ? podioHtml : `<div class="mt-1">
                                 <span class="fw-semibold">${t1}</span>
                                 <span class="text-muted mx-1">vs</span>
                                 <span class="fw-semibold">${t2}</span>
@@ -278,6 +331,10 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
+                            ${(esMasivo && (f.utes_categoria || []).length) ? `
+                                <button class="btn btn-sm btn-outline-primary fx-masivo" data-id="${f.id_fixture}">
+                                    <i class="bi bi-flag me-1"></i>Cargar resultados
+                                </button>` : ''}
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
@@ -307,6 +364,10 @@
                     mensaje(res.ok ? res.mensaje : res.error, res.ok ? 'success' : 'danger');
                     cargarTodo();
                 });
+        }));
+        lista.querySelectorAll('.fx-masivo').forEach(b => b.addEventListener('click', () => {
+            const f = todosFixtures.find(x => x.id_fixture == b.dataset.id);
+            abrirModalMasivo(f);
         }));
         lista.querySelectorAll('.fx-editar').forEach(b => b.addEventListener('click', () => {
             const f = todosFixtures.find(x => x.id_fixture == b.dataset.id);
@@ -406,6 +467,77 @@
         }
         modalPartido.show();
     }
+
+    /* ---------- Resultados de deportes masivos (JORNADA_UNICA) ---------- */
+    let jornadaActual = null;      // fixture que se está cargando
+    let ordenLlegada = [];         // ids de UTE en el orden elegido
+
+    function abrirModalMasivo(f) {
+        if (!f) return;
+        jornadaActual = f;
+
+        // Orden previo guardado (si ya se había cargado) + resto de los equipos.
+        let previo = [];
+        try { previo = JSON.parse(f.resultado || '[]') || []; } catch (e) { previo = []; }
+        const disponibles = (f.utes_categoria || []).map(u => String(u.id_ute));
+        ordenLlegada = previo.map(String).filter(id => disponibles.includes(id))
+                             .concat(disponibles.filter(id => !previo.map(String).includes(id)));
+        renderOrden();
+
+        document.getElementById('fxm_titulo').textContent =
+            (f.nombre_deporte || '') + ' — ' + (f.nombre_categoria || '') + ' (' + (f.nombre_prueba || 'Jornada') + ')';
+
+        if (!modalMasivo) modalMasivo = new bootstrap.Modal(document.getElementById('modalMasivo'));
+        modalMasivo.show();
+    }
+
+    function renderOrden() {
+        const cont = document.getElementById('fxm_lista');
+        const utes = {};
+        (jornadaActual.utes_categoria || []).forEach(u => { utes[u.id_ute] = u.nombre_ute; });
+
+        let html = '';
+        ordenLlegada.forEach((id, i) => {
+            const pos = MEDALLAS[i] || (i + 1) + 'º';
+            html += `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center fx-orden" data-pos="${i}">
+                        <span>${pos} &nbsp; ${esc(utes[id] || ('UTE #' + id))}</span>
+                        <span class="badge ${i < 3 ? 'bg-warning text-dark' : 'bg-light text-dark border'}">${i === 0 ? 'Ganador/a' : 'Posición ' + (i + 1)}</span>
+                     </button>`;
+        });
+        cont.innerHTML = html;
+
+        cont.querySelectorAll('.fx-orden').forEach(b => b.addEventListener('click', () => {
+            // Tocar un equipo lo manda al FINAL del orden (deshace su posición).
+            const pos = parseInt(b.dataset.pos, 10);
+            const [id] = ordenLlegada.splice(pos, 1);
+            ordenLlegada.push(id);
+            renderOrden();
+        }));
+    }
+
+    document.getElementById('fxm_reset').addEventListener('click', () => {
+        if (jornadaActual) {
+            ordenLlegada = (jornadaActual.utes_categoria || []).map(u => String(u.id_ute));
+            renderOrden();
+        }
+    });
+
+    document.getElementById('fxm_guardar').addEventListener('click', () => {
+        if (!jornadaActual) return;
+        // Enviar SOLO hasta la última posición con sentido: todo el orden elegido.
+        const datos = { id_fixture: jornadaActual.id_fixture };
+        ordenLlegada.forEach((id, i) => { datos['ute_ids[' + i + ']'] = id; });
+
+        post('ajax_resultado_masivo', datos).then(res => {
+            if (res.ok) {
+                modalMasivo.hide();
+                mensaje(res.mensaje, 'success');
+                cargarTodo();
+            } else {
+                mensaje(res.error || 'No se pudo guardar el resultado.', 'danger');
+            }
+        }).catch(err => mensaje(err.message, 'danger'));
+    });
 
     document.getElementById('fx_btn_guardar').addEventListener('click', () => {
         const datos = Object.fromEntries(new FormData(document.getElementById('form_partido')).entries());
