@@ -827,7 +827,7 @@ class Inscripciones extends CI_Controller {
         try {
             $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
             $utes = $this->Fixture_model->obtener_utes_por_categoria((int) $id_categoria);
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar el fixture de la categoría.', $e->getMessage());
             return;
         }
@@ -846,7 +846,7 @@ class Inscripciones extends CI_Controller {
             // fixture, para que siempre se puedan cargar resultados.
             $this->Fixture_model->asegurar_jornadas_masivas();
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
         }
@@ -869,7 +869,7 @@ class Inscripciones extends CI_Controller {
                     'ok' => true,
                     'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
                 )));
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
@@ -878,26 +878,29 @@ class Inscripciones extends CI_Controller {
 
     /** Crear/editar un partido manualmente. */
     public function ajax_guardar_partido() {
-        if (!$this->_fixture_auth_json()) return;
+        // Captura cualquier error fatal del modelo para SIEMPRE responder JSON
+        // (nunca un HTTP 500 con HTML que el JS no puede parsear).
+        try {
+            if (!$this->_fixture_auth_json()) return;
 
-        $datos = $this->input->post();
-        if (empty($datos['id_categoria']) || empty($datos['nombre_prueba'])
-            || empty($datos['fecha_competencia']) || empty($datos['hora_inicio']) || empty($datos['hora_fin'])) {
+            $datos = $this->input->post();
+            if (empty($datos['id_categoria']) || empty($datos['nombre_prueba'])
+                || empty($datos['fecha_competencia']) || empty($datos['hora_inicio']) || empty($datos['hora_fin'])) {
+                $this->output
+                    ->set_content_type('application/json')
+                    ->set_status_header(200)
+                    ->set_output(json_encode(array('ok' => false, 'error' => 'Completá todos los campos obligatorios.')));
+                return;
+            }
+
+            $id = $this->Fixture_model->guardar_partido($datos);
             $this->output
                 ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => 'Completá todos los campos obligatorios.')));
-            return;
-        }
-
-        try {
-            $id = $this->Fixture_model->guardar_partido($datos);
-        } catch (Exception $e) {
+                ->set_status_header(200)
+                ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));
+        } catch (Throwable $e) {
             $this->_fixture_error_json('No se pudo guardar el partido.', $e->getMessage());
-            return;
         }
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));
     }
 
     /** Registrar ganador de un partido (clasifica a la siguiente fase). */
@@ -912,7 +915,7 @@ class Inscripciones extends CI_Controller {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
@@ -931,7 +934,7 @@ class Inscripciones extends CI_Controller {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));

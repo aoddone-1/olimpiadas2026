@@ -427,46 +427,89 @@ class Fixture_model extends CI_Model {
      *  EDICIÓN MANUAL / RESULTADOS
      * ============================================================ */
 
+    /** Fases válidas (coinciden con el ENUM de la tabla fixtures). */
+    private function _fases_validas() {
+        return array('GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL',
+                     'TERCER_PUESTO', 'FINAL', 'JORNADA_UNICA');
+    }
+
     /** Crear/editar un partido manualmente. */
     public function guardar_partido($datos) {
-        // id_lugar es NOT NULL en la tabla fixtures: si el formulario no
-        // envía lugar (o manda 0), se usa el primer lugar cargado. Sin esto,
-        // el INSERT/UPDATE revienta con error SQL (HTTP 500).
+        // --- Validaciones defensivas: cualquier valor inválido habría hecho
+        // explotar el INSERT/UPDATE contra el ENUM o una FK (HTTP 500). ---
+
+        // Fase: debe existir y ser una de las del ENUM (si viene vacía o
+        // inválida, se usa GRUPO en vez de reventar).
+        $fase = strtoupper(trim(isset($datos['fase']) ? $datos['fase'] : ''));
+        if ($fase === '') $fase = 'GRUPO';
+        if (!in_array($fase, $this->_fases_validas(), true)) {
+            throw new Exception('Fase inválida: ' . $fase);
+        }
+
+        // Categoría: tiene FK; verificar que exista.
+        $id_cat = (int) $datos['id_categoria'];
+        $this->db->where('id_categoria', $id_cat);
+        if (!$this->db->get('categorias')->num_rows()) {
+            throw new Exception('La categoría seleccionada no existe.');
+        }
+
+        // id_lugar es NOT NULL con FK: si el formulario no envía lugar (o
+        // manda 0), se usa el primer lugar cargado. Sin esto, el INSERT
+        // revienta con error SQL (HTTP 500).
         $lugar = !empty($datos['id_lugar']) ? (int) $datos['id_lugar'] : $this->_primer_lugar();
         if (!$lugar) {
             throw new Exception('No hay lugares cargados. Creá al menos un lugar antes de guardar partidos.');
         }
+        $this->db->where('id', $lugar);
+        if (!$this->db->get('lugares')->num_rows()) {
+            throw new Exception('El lugar seleccionado no existe.');
+        }
+
+        // Fechas/horas: normalizar a formatos que MySQL acepta.
+        $fecha = trim($datos['fecha_competencia']);
+        $ts = strtotime($fecha);
+        if (!$ts) throw new Exception('Fecha inválida: ' . $fecha);
+        $fecha = date('Y-m-d', $ts);
+
+        $h_ini = trim($datos['hora_inicio']);
+        $h_fin = trim($datos['hora_fin']);
+        if (!preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $h_ini) || !preg_match('/^\d{1,2}:\d{2}(:\d{2})?$/', $h_fin)) {
+            throw new Exception('Horario inválido.');
+        }
+        $h_ini = strlen($h_ini) === 5 ? $h_ini . ':00' : $h_ini;
+        $h_fin = strlen($h_fin) === 5 ? $h_fin . ':00' : $h_fin;
+
+        // Equipos: pueden ir vacíos ('' -> NULL). Si vienen con valor, validar
+        // que existan (ids negativos = competidores individuales, no se validan).
+        $ute1 = isset($datos['id_ute_1']) && $datos['id_ute_1'] !== '' ? (int) $datos['id_ute_1'] : null;
+        $ute2 = isset($datos['id_ute_2']) && $datos['id_ute_2'] !== '' ? (int) $datos['id_ute_2'] : null;
+        foreach (array($ute1, $ute2) as $u) {
+            if ($u !== null && $u > 0) {
+                $this->db->where('id_ute', $u);
+                if (!$this->db->get('utes')->num_rows()) {
+                    throw new Exception('Uno de los equipos seleccionados no existe.');
+                }
+            }
+        }
 
         $payload = array(
-            'id_categoria'      => (int) $datos['id_categoria'],
+            'id_categoria'      => $id_cat,
             'id_lugar'          => $lugar,
-            'id_ute_1'          => isset($datos['id_ute_1']) && $datos['id_ute_1'] !== '' ? (int) $datos['id_ute_1'] : null,
-            'id_ute_2'          => isset($datos['id_ute_2']) && $datos['id_ute_2'] !== '' ? (int) $datos['id_ute_2'] : null,
+            'id_ute_1'          => $ute1,
+            'id_ute_2'          => $ute2,
             'nombre_prueba'     => trim($datos['nombre_prueba']),
-            'fase'              => $datos['fase'],
-            'numero_fecha'      => !empty($datos['numero_fecha']) ? (int) $datos['numero_fecha'] : 1,
-            'fecha_competencia' => $datos['fecha_competencia'],
-            'hora_inicio'       => $datos['hora_inicio'],
-            'hora_fin'          => $datos['hora_fin'],
+            'fase'              => $fase,
+            'numero_fecha'      => !empty($datos['numero_fecha']) ? max(1, (int) $datos['numero_fecha']) : 1,
+            'fecha_competencia' => $fecha,
+            'hora_inicio'       => $h_ini,
+            'hora_fin'          => $h_fin,
             'estado'            => !empty($datos['estado']) ? $datos['estado'] : 'PROGRAMADO',
         );
 
         if (!empty($datos['id_fixture'])) {
-            // No pisar el resultado ya cargado si el formulario no lo envía.
-            if (!array_key_exists('resultado', $datos) || $datos['resultado'] === '' || $datos['resultado'] === null) {
-                unset($payload['resultado']);
-            }
             $this->db->where('id_fixture', (int) $datos['id_fixture']);
             $this->db->update('fixtures', $payload);
             return (int) $datos['id_fixture'];
-        }
-
-        // Creación: la columna resultado solo se inserta si existe en la BD.
-        if (array_key_exists('resultado', $payload) && ($payload['resultado'] === '' || $payload['resultado'] === null)) {
-            unset($payload['resultado']);
-        }
-        if (!$this->_existe_columna_resultado() && array_key_exists('resultado', $payload)) {
-            unset($payload['resultado']);
         }
 
         $this->db->insert('fixtures', $payload);
@@ -480,7 +523,7 @@ class Fixture_model extends CI_Model {
             try {
                 $cols = $this->db->field_names('fixtures');
                 $existe = is_array($cols) && in_array('resultado', $cols, true);
-            } catch (Exception $e) {
+            } catch (Throwable $e) {
                 $existe = false;
             }
         }
