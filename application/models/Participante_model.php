@@ -3,6 +3,41 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Participante_model extends CI_Model {
 
+    /**
+     * Busca un participante por DNI exacto (o NULL si no existe).
+     * Usado por la inscripción pública para decidir entre alta y actualización.
+     */
+    public function buscar_por_dni($dni) {
+        $this->db->where('dni', $dni);
+        return $this->db->get('participantes')->row_array();
+    }
+
+    /**
+     * Cantidad de inscriptos vigentes en una categoría, opcionalmente
+     * excluyendo las inscripciones del propio participante (edición).
+     * Soporta `FOR UPDATE` dentro de una transacción para evitar carreras
+     * de cupo entre dos inscripciones simultáneas.
+     */
+    public function contar_inscriptos_en_categoria($id_categoria, $id_a_excluir = NULL, $for_update = FALSE) {
+        if ($for_update) {
+            $sql = 'SELECT COUNT(*) AS n FROM inscripciones_deportivas WHERE id_categoria = ?'
+                 . (!empty($id_a_excluir) ? ' AND id_participante != ?' : '')
+                 . ' FOR UPDATE';
+            $params = [ (int) $id_categoria ];
+            if (!empty($id_a_excluir)) {
+                $params[] = (int) $id_a_excluir;
+            }
+            $row = $this->db->query($sql, $params)->row_array();
+            return (int) ($row['n'] ?? 0);
+        }
+
+        $this->db->where('id_categoria', (int) $id_categoria);
+        if (!empty($id_a_excluir)) {
+            $this->db->where('id_participante !=', (int) $id_a_excluir);
+        }
+        return (int) $this->db->count_all_results('inscripciones_deportivas');
+    }
+
     public function insertar_completo($data_persona, $deportes_seleccionados) {
         // 1. Iniciamos una transacción para asegurarnos de que se guarde todo o nada
         $this->db->trans_start(TRUE); // strict: cualquier error revierte toda la operación
