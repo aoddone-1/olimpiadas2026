@@ -67,9 +67,23 @@ $route['inscripciones/getCategorias/(:num)'] = 'Inscripciones/getCategorias/$1';
 */
 
 // Pública (formulario, guardado, QR)
+// IMPORTANTE: CI3 coincide contra la URI en MINÚSCULAS, por lo que todas las
+// claves deben escribirse en minúscula aunque los enlaces usen `Inscripciones/...`.
+// Además se declaran BOTH variantes (:num y :any) porque CI3 prueba las rutas
+// en orden de definición: si `(:num)` no matchea, la URI NO cae en `(:any)`.
+$route['default_controller']                    = 'Publica/panel';
+$route['inscripciones']                         = 'Publica/panel';
 $route['inscripciones/guardar']                 = 'Publica/guardar';
+$route['inscripciones/getcategorias/(:num)']    = 'Publica/categorias/$1';
+$route['inscripciones/acreditacion/(:num)']     = 'Publica/acreditacion/$1';
 $route['inscripciones/acreditacion/(:any)']     = 'Publica/acreditacion/$1';
-$route['inscripciones/descargar_deslinde/(:any)'] = 'Publica/deslinde/$1';
+$route['inscripciones/descargar_deslinde/(:num)']   = 'Publica/deslinde/$1';
+$route['inscripciones/descargar_deslinde/(:any)']   = 'Publica/deslinde/$1';
+// Alias históricos del formulario público
+$route['inscripciones/panel']                   = 'Publica/panel';
+$route['inscripciones/formulario_inscripcion']  = 'Publica/panel';
+$route['inscripciones/buscar_por_dni']          = 'Publica/buscar_por_dni';
+$route['inscripciones/getdeportesporsexo/(:any)'] = 'Publica/deportes_por_sexo/$1';
 
 // Auth
 $route['inscripciones/login']          = 'Auth/login';
