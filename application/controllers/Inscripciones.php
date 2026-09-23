@@ -1065,9 +1065,23 @@ class Inscripciones extends CI_Controller {
             if (!$this->_resultados_auth_json()) return;
 
             $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $id_categoria);
+            $respuesta = array('ok' => true, 'competidores' => $competidores);
+
+            // Deporte MASIVO_TIEMPO: además de los inscriptos de la categoría,
+            // se envían los participantes que compitieron en cada partido/jornada
+            // del fixture (resueltos desde fixtures + inscripciones_deportivas),
+            // para autocompletar la planilla al seleccionar la jornada.
+            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
+                $por_jornada = array();
+                foreach ($this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria) as $f) {
+                    $por_jornada[(int) $f['id_fixture']] = isset($f['competidores']) ? $f['competidores'] : array();
+                }
+                $respuesta['participantes_por_fixture'] = $por_jornada;
+            }
+
             $this->output
                 ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => true, 'competidores' => $competidores)));
+                ->set_output(json_encode($respuesta));
         } catch (Throwable $e) {
             $this->output
                 ->set_content_type('application/json')
