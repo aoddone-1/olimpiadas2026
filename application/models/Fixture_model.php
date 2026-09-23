@@ -68,7 +68,8 @@ class Fixture_model extends CI_Model {
 
     /** Fixture completo de TODAS las categorías (para visualizar todo sin filtros). */
     public function obtener_todo_el_fixture() {
-        $this->db->select('\n            f.*,
+        $this->db->select('
+            f.*,
             u1.nombre_ute as ute_1_nombre,
             u2.nombre_ute as ute_2_nombre,
             l.nombre as lugar_nombre,
