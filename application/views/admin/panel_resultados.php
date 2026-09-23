@@ -64,7 +64,7 @@
                     <div class="row g-2">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold">Deporte / Categoría *</label>
-                            <select id="rs_modal_categoria" id="id_categoria" class="form-select" required>
+                            <select id="rs_modal_categoria" name="id_categoria" class="form-select" required>
                                 <option value="">— Elegí una categoría —</option>
                                 <?php foreach ($categorias_fixture as $cat): ?>
                                     <option value="<?= $cat['id_categoria'] ?>"
