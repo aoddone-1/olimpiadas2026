@@ -35,7 +35,7 @@
             </li>
             <li class="nav-item">
                 <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-resultados" type="button">
-                    <i class="bi bi-trophy-fill me-2 text-warning"></i>Resultados
+                    <i class="bi bi-trophy-fill me-2"></i>Resultados
                 </button>
             </li>
         </ul>
