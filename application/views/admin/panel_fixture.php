@@ -162,8 +162,9 @@
                     </div>
                     <div class="modal-body">
                         <p class="small text-muted mb-2">
-                            Hacé clic en los equipos <strong>en el orden de llegada</strong>: el primero que elijas es 🥇,
-                            el segundo 🥈, etc. Podés corregir tocando el número de posición para sacarlo.
+                            Los equipos en gris todavía no llegaron. A medida que vayan cruzando la meta,
+                            <strong>tocalos en orden</strong>: el primero que elijas es 🥇, el segundo 🥈, etc.
+                            Si te equivocaste, tocá un equipo ya asignado para devolverlo a "sin llegar".
                         </p>
                         <div id="fxm_lista" class="list-group"></div>
                     </div>
@@ -480,13 +481,14 @@
             mensaje('No hay UTEs/equipos inscriptos en esta categoría todavía. Cargalos primero en el panel de equipos.', 'warning');
             return;
         }
-        jornadaActual = f;
 
         // Orden previo guardado (si ya se había cargado) + resto de los equipos.
         let previo = [];
         try { previo = JSON.parse(f.resultado || '[]') || []; } catch (e) { previo = []; }
-        ordenLlegada = previo.map(String).filter(id => disponibles.includes(id))
-                             .concat(disponibles.filter(id => !previo.map(String).includes(id)));
+        previo = previo.map(String).filter(id => disponibles.includes(id));
+        ordenLlegada = previo.concat(disponibles.filter(id => !previo.includes(id)));
+        f._limite = previo.length;   // cursor: cuántos ya "llegaron"
+        jornadaActual = f;
         renderOrden();
 
         document.getElementById('fxm_titulo').textContent =
@@ -501,21 +503,39 @@
         const utes = {};
         (jornadaActual.utes_categoria || []).forEach(u => { utes[u.id_ute] = u.nombre_ute; });
 
+        // Cursor de próximas llegadas: todo lo que esté ANTES de este índice
+        // cuenta como "llegó"; lo demás queda en gris como "pendiente".
+        if (!jornadaActual._limite) jornadaActual._limite = 0;
+        const limite = jornadaActual._limite;
+
         let html = '';
         ordenLlegada.forEach((id, i) => {
+            const asignado = i < limite;
             const pos = MEDALLAS[i] || (i + 1) + 'º';
-            html += `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center fx-orden" data-pos="${i}">
-                        <span>${pos} &nbsp; ${esc(utes[id] || ('UTE #' + id))}</span>
-                        <span class="badge ${i < 3 ? 'bg-warning text-dark' : 'bg-light text-dark border'}">${i === 0 ? 'Ganador/a' : 'Posición ' + (i + 1)}</span>
+            html += `<button type="button" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center fx-orden ${asignado ? '' : 'text-muted'}" data-pos="${i}">
+                        <span>${asignado ? pos : '•'} &nbsp; ${esc(utes[id] || ('UTE #' + id))}</span>
+                        <span class="badge ${!asignado ? 'bg-light text-dark border' : (i < 3 ? 'bg-warning text-dark' : 'bg-success')}">${!asignado ? 'Sin llegar — tocá para asignar' : (i === 0 ? 'Ganador/a' : 'Posición ' + (i + 1))}</span>
                      </button>`;
         });
         cont.innerHTML = html;
 
         cont.querySelectorAll('.fx-orden').forEach(b => b.addEventListener('click', () => {
-            // Tocar un equipo lo manda al FINAL del orden (deshace su posición).
+            // Tocar un equipo lo coloca en la PRIMERA posición libre: si ya está
+            // asignado (antes del cursor de próximas llegadas) se saca de ahí y
+            // se reacomoda; si no, entra justo después de los últimos cargados.
             const pos = parseInt(b.dataset.pos, 10);
-            const [id] = ordenLlegada.splice(pos, 1);
-            ordenLlegada.push(id);
+            const id = ordenLlegada[pos];
+            const limite = jornadaActual._limite || ordenLlegada.length;
+            if (pos < limite) {
+                // Ya estaba asignado: tocarlo lo devuelve al final (sin asignar).
+                ordenLlegada.splice(pos, 1);
+                ordenLlegada.push(id);
+            } else {
+                // Todavía no llegó: lo ponemos en la primera posición vacante.
+                ordenLlegada.splice(pos, 1);
+                ordenLlegada.splice(limite, 0, id);
+                jornadaActual._limite = limite + 1;
+            }
             renderOrden();
         }));
     }
@@ -523,15 +543,21 @@
     document.getElementById('fxm_reset').addEventListener('click', () => {
         if (jornadaActual) {
             ordenLlegada = (jornadaActual.utes_categoria || []).map(u => String(u.id_ute));
+            jornadaActual._limite = 0;   // nada asignado
             renderOrden();
         }
     });
 
     document.getElementById('fxm_guardar').addEventListener('click', () => {
         if (!jornadaActual) return;
-        // Enviar SOLO hasta la última posición con sentido: todo el orden elegido.
+        // Enviar SOLO los equipos que "llegaron" (antes del cursor), en orden.
+        const limite = jornadaActual._limite || 0;
+        if (limite === 0) {
+            mensaje('Todavía no elegiste ningún equipo: tocá los nombres en el orden de llegada.', 'warning');
+            return;
+        }
         const datos = { id_fixture: jornadaActual.id_fixture };
-        ordenLlegada.forEach((id, i) => { datos['ute_ids[' + i + ']'] = id; });
+        ordenLlegada.slice(0, limite).forEach((id, i) => { datos['ute_ids[' + i + ']'] = id; });
 
         post('ajax_resultado_masivo', datos).then(res => {
             if (res.ok) {

@@ -169,26 +169,39 @@ class Fixture_model extends CI_Model {
      * de jornadas auto-creadas.
      */
     public function asegurar_jornadas_masivas() {
-        // Categorías de deportes masivos que aún NO tienen ningún fixture.
-        $this->db->select('c.id_categoria', FALSE);
+        // Categorías de deportes masivos (o de jornada única) que aún NO tienen
+        // ninguna fila JORNADA_UNICA en fixtures.
+        $this->db->select('c.id_categoria, c.dia_competencia, c.hora_competencia, c.id_lugar', FALSE);
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
-        $this->db->where('(d.modalidad_competencia', 'MASIVO_TIEMPO');
+        $this->db->group_start();
+        $this->db->where('d.modalidad_competencia', 'MASIVO_TIEMPO');
         $this->db->or_where('c.tipo_torneo', 'JORNADA_UNICA');
-        $this->db->close_where();
-        $this->db->where('NOT EXISTS (SELECT 1 FROM fixtures f WHERE f.id_categoria = c.id_categoria)', NULL, FALSE);
+        $this->db->group_end();
+        // Sin subquery NOT EXISTS (CI3 la interpreta mal): se filtran en PHP.
         $cats = $this->db->get()->result_array();
+
+        if (empty($cats)) {
+            return 0;
+        }
+
+        // Cuáles categorías ya tienen alguna jornada creada.
+        $this->db->select('DISTINCT id_categoria', FALSE);
+        $this->db->where_in('fase', array('JORNADA_UNICA'));
+        $con_jornada = array_column($this->db->get('fixtures')->result_array(), 'id_categoria');
 
         $creadas = 0;
         foreach ($cats as $c) {
-            $this->db->where('id_categoria', (int) $c['id_categoria']);
-            $this->db->delete('fixtures'); // limpieza defensiva
+            $id_cat = (int) $c['id_categoria'];
+            if (in_array($id_cat, $con_jornada)) {
+                continue; // ya tiene su largada
+            }
             try {
                 $this->_generar_jornada_unica(array(
-                    'id_categoria'      => (int) $c['id_categoria'],
-                    'dia_competencia'   => null,
-                    'hora_competencia'  => null,
-                    'id_lugar'          => null,
+                    'id_categoria'      => $id_cat,
+                    'dia_competencia'   => $c['dia_competencia'],
+                    'hora_competencia'  => $c['hora_competencia'],
+                    'id_lugar'          => $c['id_lugar'],
                 ));
                 $creadas++;
             } catch (Exception $e) {
@@ -206,9 +219,16 @@ class Fixture_model extends CI_Model {
         $fecha = $categoria['dia_competencia'] ?: date('Y-m-d');
         $hora   = $categoria['hora_competencia'] ?: '09:00:00';
 
+        // El fixture exige un lugar NOT NULL: si la categoría no tiene uno,
+        // se usa el primer lugar disponible (si no hay ninguno, se avisa claro).
+        $lugar = !empty($categoria['id_lugar']) ? (int) $categoria['id_lugar'] : $this->_primer_lugar();
+        if (!$lugar) {
+            throw new Exception('No hay lugares cargados. Creá al menos un lugar antes de generar jornadas masivas.');
+        }
+
         $datos = array(
             'id_categoria'      => $categoria['id_categoria'],
-            'id_lugar'          => $categoria['id_lugar'] ?: $this->_primer_lugar(),
+            'id_lugar'          => $lugar,
             'id_ute_1'          => null,
             'id_ute_2'          => null,
             'nombre_prueba'     => 'Largada General (' . count($utes) . ' equipos)',
@@ -334,13 +354,39 @@ class Fixture_model extends CI_Model {
         );
 
         if (!empty($datos['id_fixture'])) {
+            // No pisar el resultado ya cargado si el formulario no lo envía.
+            if (!array_key_exists('resultado', $datos) || $datos['resultado'] === '' || $datos['resultado'] === null) {
+                unset($payload['resultado']);
+            }
             $this->db->where('id_fixture', (int) $datos['id_fixture']);
             $this->db->update('fixtures', $payload);
             return (int) $datos['id_fixture'];
         }
 
+        // Creación: la columna resultado solo se inserta si existe en la BD.
+        if (array_key_exists('resultado', $payload) && ($payload['resultado'] === '' || $payload['resultado'] === null)) {
+            unset($payload['resultado']);
+        }
+        if (!$this->_existe_columna_resultado() && array_key_exists('resultado', $payload)) {
+            unset($payload['resultado']);
+        }
+
         $this->db->insert('fixtures', $payload);
         return $this->db->insert_id();
+    }
+
+    /** ¿Existe la columna fixtures.resultado? (requiere el ALTER del sql provisto). */
+    private function _existe_columna_resultado() {
+        static $existe = null;
+        if ($existe === null) {
+            try {
+                $cols = $this->db->field_names('fixtures');
+                $existe = is_array($cols) && in_array('resultado', $cols, true);
+            } catch (Exception $e) {
+                $existe = false;
+            }
+        }
+        return $existe;
     }
 
     /**
@@ -503,7 +549,14 @@ class Fixture_model extends CI_Model {
         }
 
         if (empty($orden)) {
-            throw new Exception('No seleccionaste ningún equipo. Marcá al menos al ganador.');
+            throw new Exception('No seleccionaste ningún equipo. Elegí al menos al ganador.');
+        }
+
+        // Si la columna fixtures.resultado no existe todavía, avisar en vez de
+        // reventar con un error SQL críptico.
+        if (!$this->_existe_columna_resultado()) {
+            throw new Exception('Falta la columna "resultado" en la tabla fixtures. '
+                . 'Ejecutá el script sql/fixture_resultado_masivo.sql (ALTER TABLE) y recargá la página.');
         }
 
         $this->db->where('id_fixture', $id_fixture);
