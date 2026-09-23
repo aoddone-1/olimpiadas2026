@@ -77,18 +77,15 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label small fw-bold">Partido del fixture *</label>
+                            <label class="form-label small fw-bold">Partido / Jornada *</label>
                             <select id="rs_modal_fixture" name="id_fixture" required class="form-select">
                                 <option value="">— Sin vincular —</option>
                             </select>
+                            <div class="form-text small" id="rs_modal_modalidad_hint"></div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Tipo de resultado *</label>
-                            <select id="rs_modal_tipo" name="tipo_resultado" class="form-select" required>
-                                <option value="MARCADOR">Marcador (goles/tantos: X vs Y)</option>
-                                <option value="TIEMPO">Posiciones y tiempos (running, natación...)</option>
-                            </select>
-                        </div>
+                        <!-- El tipo de resultado NO se elige: lo define la modalidad
+                             del deporte (ENFRENTAMIENTO = marcador, MASIVO_TIEMPO = posiciones/tiempos) -->
+                        <input type="hidden" id="rs_modal_tipo" name="tipo_resultado" value="MARCADOR">
                         <div class="col-md-5">
                             <label class="form-label small fw-bold">Nombre del partido / prueba *</label>
                             <input type="text" name="nombre_evento" id="rs_modal_nombre" class="form-control"
@@ -102,8 +99,8 @@
 
                     <hr class="my-3">
 
-                    <!-- BLOQUE MARCADOR -->
-                    <div id="rs_bloque_marcador">
+                    <!-- BLOQUE MARCADOR (deportes ENFRENTAMIENTO) -->
+                    <div id="rs_bloque_marcador" class="d-none">
                         <h6 class="fw-bold small mb-2"><i class="bi bi-uichecks me-1"></i>Marcador</h6>
                         <div class="row g-2 align-items-end">
                             <div class="col-md-5">
@@ -130,14 +127,18 @@
 
                     <datalist id="rs_lista_utes"></datalist>
 
-                    <!-- BLOQUE TIEMPO -->
+                    <!-- BLOQUE TIEMPO (deportes MASIVO_TIEMPO) -->
                     <div id="rs_bloque_tiempo" class="d-none">
                         <h6 class="fw-bold small mb-2"><i class="bi bi-stopwatch me-1"></i>Posiciones y tiempos</h6>
+                        <div class="alert alert-warning py-2 small d-none" id="rs_sin_participantes">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            No hay participantes inscriptos en esta categoría todavía.
+                        </div>
                         <table class="table table-sm align-middle mb-1" id="rs_tabla_tiempos">
                             <thead class="table-light">
                                 <tr class="small fw-bold">
                                     <th style="width:70px">Posición</th>
-                                    <th>Competidor / Equipo</th>
+                                    <th>Participante / Equipo</th>
                                     <th style="width:160px">Tiempo (mm:ss)</th>
                                     <th style="width:40px"></th>
                                 </tr>
@@ -334,23 +335,42 @@
     const bloqueTiempo = document.getElementById('rs_bloque_tiempo');
     const tbodyTiempos = document.querySelector('#rs_tabla_tiempos tbody');
     const datalistUtes = document.getElementById('rs_lista_utes');
+    const hintModalidad = document.getElementById('rs_modal_modalidad_hint');
+    const alertSinParticipantes = document.getElementById('rs_sin_participantes');
 
-    let fixturesDelModal = [];   // partidos del fixture de la categoría elegida
+    let fixturesDelModal = [];   // partidos/jornadas del fixture de la categoría elegida
+    let modalidadActual = '';    // ENFRENTAMIENTO | MASIVO_TIEMPO (viene del deporte)
+    let competidoresDisponibles = []; // inscriptos (personales) + UTEs de la categoría
 
     function mostrarBloqueSegunTipo() {
         const t = selTipo.value;
         bloqueMarcador.classList.toggle('d-none', t !== 'MARCADOR');
         bloqueTiempo.classList.toggle('d-none', t !== 'TIEMPO');
     }
-    selTipo.addEventListener('change', mostrarBloqueSegunTipo);
 
-    // Al elegir categoría: autoseleccionar tipo según modalidad + cargar fixtures + UTEs
+    // El tipo NO lo elige el usuario: lo define la MODALIDAD_COMPETENCIA del deporte.
+    function aplicarModalidad(modalidad) {
+        modalidadActual = modalidad || '';
+        if (modalidadActual === 'MASIVO_TIEMPO') {
+            selTipo.value = 'TIEMPO';
+            hintModalidad.innerHTML = '<span class="badge bg-warning text-dark">Masivo / Tiempo</span> ' +
+                'Cargá la posición y el tiempo de cada participante inscripto.';
+        } else {
+            selTipo.value = 'MARCADOR';
+            hintModalidad.innerHTML = '<span class="badge bg-primary">Enfrentamiento</span> ' +
+                'Cargá los goles/tantos de cada equipo.';
+        }
+        mostrarBloqueSegunTipo();
+    }
+
+    // Al elegir categoría: modo según la modalidad del deporte + fixtures + participantes
     selCatModal.addEventListener('change', function () {
         const opt = this.selectedOptions[0];
-        if (opt && opt.dataset.modalidad === 'MASIVO_TIEMPO') selTipo.value = 'TIEMPO';
-        mostrarBloqueSegunTipo();
+        aplicarModalidad(opt ? opt.dataset.modalidad : '');
+        limpiarPlanillaTiempos();
         cargarFixturesDelModal(this.value);
         cargarUtesDelModal(this.value);
+        if (selTipo.value === 'TIEMPO') cargarCompetidoresDelModal(this.value);
     });
 
     function cargarFixturesDelModal(idCategoria) {
@@ -370,7 +390,7 @@
             });
     }
 
-    /* ---- DINÁMICA: al elegir un partido del fixture se autocompleta todo ---- */
+    /* ---- DINÁMICA: al elegir un partido/jornada del fixture se autocompleta todo ---- */
     selFixture.addEventListener('change', function () {
         const f = fixturesDelModal.find(x => String(x.id_fixture) === String(this.value));
         if (!f) return;
@@ -380,14 +400,12 @@
         const inpFecha = document.querySelector('#form_resultado input[name="fecha_resultado"]');
         if (inpFecha && f.fecha_competencia) inpFecha.value = f.fecha_competencia;
 
-        if (f.fase === 'JORNADA_UNICA' || selTipo.value === 'TIEMPO') {
-            // Deporte masivo: el fixture no tiene marcador, solo la jornada.
+        if (selTipo.value === 'TIEMPO' || f.fase === 'JORNADA_UNICA') {
+            // Deporte masivo: la jornada no tiene marcador, solo posiciones/tiempos.
             return;
         }
 
         // Marcador: autocompletar los dos equipos con sus ids reales
-        selTipo.value = 'MARCADOR';
-        mostrarBloqueSegunTipo();
         const eq1 = document.getElementById('rs_eq1');
         const eq2 = document.getElementById('rs_eq2');
         eq1.value = f.ute_1_nombre || '';
@@ -425,27 +443,106 @@
             });
     }
 
-    function agregarFila(pos) {
+    /* ---- MASIVO_TIEMPO: buscar los PARTICIPANTES (inscripción personal) de la categoría ---- */
+    function cargarCompetidoresDelModal(idCategoria) {
+        competidoresDisponibles = [];
+        limpiarPlanillaTiempos();
+        if (!idCategoria) return;
+        fetch(BASE + '/ajax_competidores_por_categoria/' + idCategoria)
+            .then(r => r.json())
+            .then(res => {
+                competidoresDisponibles = (res.ok ? res.competidores : []) || [];
+                alertSinParticipantes.classList.toggle('d-none', competidoresDisponibles.length > 0);
+                // Una fila por cada participante inscripto, ya numerada 1°, 2°, 3°...
+                tbodyTiempos.innerHTML = '';
+                competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
+                if (!competidoresDisponibles.length) for (let i = 1; i <= 3; i++) agregarFila(i);
+            })
+            .catch(() => {
+                alertSinParticipantes.classList.remove('d-none');
+                for (let i = 1; i <= 3; i++) agregarFila(i);
+            });
+    }
+
+    function limpiarPlanillaTiempos() {
+        tbodyTiempos.innerHTML = '';
+        competidoresDisponibles = [];
+        alertSinParticipantes.classList.add('d-none');
+    }
+
+    /** Opciones <select> de los competidores que todavía no usó otra fila. */
+    function opcionesCompetidor(exceptoId) {
+        let html = '<option value="">— Escribí o elegí un nombre libre —</option>';
+        let grupoActual = '';
+        competidoresDisponibles.forEach(c => {
+            if (c.id === exceptoId) return;
+            const etiqueta = c.tipo === 'PERSONAL'
+                ? `${c.nombre} (${c.dni})`
+                : `${c.nombre} [equipo]`;
+            if (c.tipo !== grupoActual) {
+                if (grupoActual !== '') html += '</optgroup>';
+                grupoActual = c.tipo;
+                html += `<optgroup label="${c.tipo === 'PERSONAL' ? 'Participantes inscriptos' : 'Equipos / UTEs'}">`;
+            }
+            html += `<option value="${c.id}">${esc(etiqueta)}</option>`;
+        });
+        if (grupoActual !== '') html += '</optgroup>';
+        return html;
+    }
+
+    function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
+        const c = competidor || null;
         tr.innerHTML = `
             <td><input type="number" name="comp_posicion[]" class="form-control form-control-sm" min="1" value="${pos}"></td>
-            <td><input type="text" name="comp_nombre[]" class="form-control form-control-sm rs-nombre" list="rs_lista_utes" placeholder="Nombre del competidor/equipo"></td>
-            <td><input type="hidden" name="comp_ute[]" value=""><input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42 o 1:05:30"></td>
+            <td>
+                <input type="text" class="form-control form-control-sm rs-nombre mb-1" list="rs_lista_utes" placeholder="Buscar por nombre...">
+                <select name="comp_ute[]" class="form-select form-select-sm rs-comp"></select>
+            </td>
+            <td><input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42 o 1:05:30"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger rs-quitar-fila"><i class="bi bi-dash-lg"></i></button></td>`;
         tbodyTiempos.appendChild(tr);
+
+        const selComp = tr.querySelector('.rs-comp');
+        const inpNom = tr.querySelector('.rs-nombre');
+        const pintarOpciones = () => {
+            const actual = selComp.value || (c ? String(c.id) : '');
+            selComp.innerHTML = opcionesCompetidor(actual ? parseInt(actual, 10) : null);
+            if ([...selComp.options].some(o => o.value === actual && actual !== '')) selComp.value = actual;
+        };
+        pintarOpciones();
+        if (c) { selComp.value = String(c.id); inpNom.placeholder = 'Filtrar en la lista...'; }
+
+        // Elegir del select => fija el competidor y limpia el texto de búsqueda
+        selComp.addEventListener('change', () => {
+            inpNom.value = '';
+            pintarOpciones();
+        });
+        // Escribir un nombre exacto de un competidor => lo selecciona en el select
+        inpNom.addEventListener('change', () => {
+            const txt = inpNom.value.trim().toLowerCase();
+            if (!txt) return;
+            const match = competidoresDisponibles.find(cc => cc.nombre.toLowerCase() === txt);
+            if (match) {
+                selComp.innerHTML = opcionesCompetidor(match.id);
+                selComp.value = String(match.id);
+                inpNom.value = '';
+            }
+        });
+
         tr.querySelector('.rs-quitar-fila').addEventListener('click', () => {
             tr.remove();
             renumerarFilas();
+            // refrescar las opciones para que vuelva a aparecer el quitado
+            tbodyTiempos.querySelectorAll('tr').forEach(fila => {
+                const s = fila.querySelector('.rs-comp');
+                if (!s) return;
+                const actual = s.value;
+                s.innerHTML = opcionesCompetidor(actual ? parseInt(actual, 10) : null);
+                if ([...s.options].some(o => o.value === actual)) s.value = actual;
+            });
         });
     }
-    // Al escribir el nombre de un competidor, si coincide con una UTE cargada,
-    // se guarda su id en el campo oculto de la fila.
-    tbodyTiempos.addEventListener('change', (ev) => {
-        const inp = ev.target.closest('.rs-nombre');
-        if (!inp) return;
-        const id = (window._utesPorNombre || {})[inp.value.trim().toLowerCase()];
-        inp.closest('tr').querySelector('input[name="comp_ute[]"]').value = id || '';
-    });
 
     function renumerarFilas() {
         tbodyTiempos.querySelectorAll('input[name="comp_posicion[]"]').forEach((inp, i) => inp.value = i + 1);

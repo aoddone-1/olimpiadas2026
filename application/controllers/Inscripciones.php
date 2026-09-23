@@ -1059,6 +1059,22 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /** Competidores (inscripciones personales + UTEs) de una categoría. */
+    public function ajax_competidores_por_categoria($id_categoria) {
+        try {
+            if (!$this->_resultados_auth_json()) return;
+
+            $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $id_categoria);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'competidores' => $competidores)));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     /** Elimina un resultado cargado por error. */
     public function ajax_eliminar_resultado() {
         try {
