@@ -48,7 +48,7 @@
                     <i class="bi bi-layers-fill text-warning me-1"></i>Categoría
                 </label>
                 <select id="filtroCategoriaEquipo" class="form-select form-select-sm">
-                    <option value="">Todas las Categorías</option>
+                    <option value="" data-deporte="">Todas las Categorías</option>
                     <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
                         <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>" 
                                 data-deporte="<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
@@ -729,12 +729,49 @@ document.addEventListener('DOMContentLoaded', function() {
         actualizarTablaEquipos();
     }
 
+    // ----------------------------------------------------
+    // Al elegir un deporte, mostrar solo sus categorías
+    // (si no hay deporte seleccionado, se muestran todas)
+    // ----------------------------------------------------
+    function actualizarCategoriasPorDeporte() {
+        if (!filtroCategoriaEquipo) return;
+
+        const deporteSeleccionado = filtroDeporteEquipo ? filtroDeporteEquipo.value : '';
+        const categoriaActual = filtroCategoriaEquipo.value;
+        let categoriaSigueVisible = false;
+
+        Array.from(filtroCategoriaEquipo.options).forEach(option => {
+            const deporteDeLaOpcion = option.getAttribute('data-deporte') || '';
+
+            // La opción "Todas las Categorías" siempre queda disponible
+            if (!deporteDeLaOpcion) {
+                option.hidden = false;
+                return;
+            }
+
+            const visible = !deporteSeleccionado || deporteDeLaOpcion === deporteSeleccionado;
+            option.hidden = !visible;
+
+            if (visible && option.value === categoriaActual) {
+                categoriaSigueVisible = true;
+            }
+        });
+
+        // Si la categoría ya no corresponde al deporte elegido, se resetea
+        if (!categoriaSigueVisible) {
+            filtroCategoriaEquipo.value = '';
+        }
+    }
+
     // Event listeners para los filtros
     if (inputBuscarEquipo) {
         inputBuscarEquipo.addEventListener('input', aplicarFiltrosEquipos);
     }
     if (filtroDeporteEquipo) {
-        filtroDeporteEquipo.addEventListener('change', aplicarFiltrosEquipos);
+        filtroDeporteEquipo.addEventListener('change', function() {
+            actualizarCategoriasPorDeporte();
+            aplicarFiltrosEquipos();
+        });
     }
     if (filtroCategoriaEquipo) {
         filtroCategoriaEquipo.addEventListener('change', aplicarFiltrosEquipos);
@@ -744,10 +781,13 @@ document.addEventListener('DOMContentLoaded', function() {
             inputBuscarEquipo.value = '';
             filtroDeporteEquipo.value = '';
             filtroCategoriaEquipo.value = '';
+            actualizarCategoriasPorDeporte();
             aplicarFiltrosEquipos();
         });
     }
 
+    // Dejar las categorías filtradas segun el estado inicial del select de deporte
+    actualizarCategoriasPorDeporte();
     actualizarTablaEquipos();
 });
 </script>
