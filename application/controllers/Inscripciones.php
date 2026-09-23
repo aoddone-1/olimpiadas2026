@@ -911,6 +911,25 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /** Registrar resultado de un deporte masivo (JORNADA_UNICA): orden de llegada. */
+    public function ajax_resultado_masivo() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $id_fixture = (int) $this->input->post('id_fixture');
+        $ute_ids = $this->input->post('ute_ids'); // array en el orden elegido
+
+        try {
+            $mensaje = $this->Fixture_model->registrar_resultado_masivo($id_fixture, (array) $ute_ids);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
+        } catch (Exception $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     /** Borrar todo el fixture de una categoría. */
     public function ajax_eliminar_fixture() {
         if (!$this->_fixture_auth_json()) return;

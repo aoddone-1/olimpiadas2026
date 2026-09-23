@@ -66,7 +66,18 @@ class Fixture_model extends CI_Model {
         return $this->db->get('fixtures')->row_array();
     }
 
-    /** Fixture completo de TODAS las categorías (para visualizar todo sin filtros). */
+    /** Todas las UTEs agrupadas por categoría: id_categoria => [ute, ute, ...] */
+    public function obtener_utes_agrupadas_por_categoria() {
+        $this->db->order_by('nombre_ute', 'ASC');
+        $utes = $this->db->get('utes')->result_array();
+        $por_cat = array();
+        foreach ($utes as $u) {
+            $por_cat[(int) $u['id_categoria']][] = $u;
+        }
+        return $por_cat;
+    }
+
+    /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function obtener_todo_el_fixture() {
         $this->db->select('
             f.*,
@@ -86,7 +97,19 @@ class Fixture_model extends CI_Model {
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
-        return $this->db->get()->result_array();
+
+        $fixtures = $this->db->get()->result_array();
+
+        // Adjuntar las UTEs de cada categoría (necesario para cargar los podios
+        // de deportes masivos sin tener que hacer un request extra por jornada).
+        $por_cat = $this->obtener_utes_agrupadas_por_categoria();
+        foreach ($fixtures as &$f) {
+            $f['utes_categoria'] = isset($por_cat[(int) $f['id_categoria']])
+                ? $por_cat[(int) $f['id_categoria']] : array();
+        }
+        unset($f);
+
+        return $fixtures;
     }
 
     /* ============================================================
@@ -384,6 +407,50 @@ class Fixture_model extends CI_Model {
         $this->db->update('fixtures', array($siguiente['campo'] => $id_ganador));
 
         return 'Resultado guardado. El ganador clasificó a ' . $siguiente['fixture']['nombre_prueba'] . '.';
+    }
+
+    /**
+     * Registrar resultado de un deporte MASIVO_TIEMPO (running, ciclismo, pesca...):
+     * se guarda la lista de UTEs en orden de llegada (1° = índice 0).
+     * No hay clasificación: solo se marca la jornada como FINALIZADA.
+     */
+    public function registrar_resultado_masivo($id_fixture, $ute_ids_ordenados) {
+        $partido = $this->obtener_fixture_por_id($id_fixture);
+        if (!$partido) {
+            throw new Exception('La jornada no existe.');
+        }
+        if ($partido['fase'] !== 'JORNADA_UNICA') {
+            throw new Exception('Este partido no es una jornada de deporte masivo.');
+        }
+
+        // Validar que las UTEs existan y pertenezcan a la categoría de la jornada.
+        $utes_cat = $this->obtener_utes_por_categoria($partido['id_categoria']);
+        $ids_validos = array_map('intval', array_column($utes_cat, 'id_ute'));
+
+        $orden = array();
+        foreach ((array) $ute_ids_ordenados as $id) {
+            $id = (int) $id;
+            if ($id <= 0) continue;
+            if (!in_array($id, $ids_validos, true)) {
+                throw new Exception('Hay un equipo que no pertenece a esta categoría.');
+            }
+            if (in_array($id, $orden, true)) {
+                throw new Exception('Hay equipos repetidos en la planilla de resultados.');
+            }
+            $orden[] = $id;
+        }
+
+        if (empty($orden)) {
+            throw new Exception('No seleccionaste ningún equipo. Marcá al menos al ganador.');
+        }
+
+        $this->db->where('id_fixture', $id_fixture);
+        $this->db->update('fixtures', array(
+            'estado'    => 'FINALIZADO',
+            'resultado' => json_encode($orden),
+        ));
+
+        return 'Resultado de la jornada guardado (' . count($orden) . ' equipo/s posicionados).';
     }
 
     /** Borrar todo el fixture de una categoría. */
