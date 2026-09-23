@@ -63,8 +63,20 @@ class Resultado_model extends CI_Model {
             $fecha = null;
         }
 
-        // fixture opcional: debe existir y pertenecer a la misma categoría
+        // fixture OPCIONAL en la POST; si viene vacío pero el partido ya tiene
+        // marcador cargado, se infiere automáticamente desde fixtures.
         $id_fixture = !empty($datos['id_fixture']) ? (int) $datos['id_fixture'] : null;
+        $inferido = false;
+        if (!$id_fixture && $tipo === 'MARCADOR') {
+            $id_fixture = $this->_detectar_fixture_por_marcador(
+                $id_cat,
+                trim(isset($datos['equipo_1']) ? $datos['equipo_1'] : ''),
+                trim(isset($datos['equipo_2']) ? $datos['equipo_2'] : ''),
+                isset($datos['goles_1']) ? (int) $datos['goles_1'] : null,
+                isset($datos['goles_2']) ? (int) $datos['goles_2'] : null
+            );
+            $inferido = (bool) $id_fixture;
+        }
         if ($id_fixture) {
             $this->db->where('id_fixture', $id_fixture);
             $fx = $this->db->get('fixtures')->row_array();
@@ -153,7 +165,81 @@ class Resultado_model extends CI_Model {
         }
         $this->db->insert_batch('resultado_detalle', $filas);
 
-        return $id_resultado;
+        // Si el resultado se vinculó (a mano o inferido) a un partido del
+        // fixture, lo marcamos como FINALIZADO para que Fixture y Resultados
+        // queden sincronizados.
+        if ($id_fixture) {
+            $this->db->where('id_fixture', $id_fixture);
+            $this->db->update('fixtures', array('estado' => 'FINALIZADO'));
+        }
+
+        return array('id_resultado' => $id_resultado, 'fixture_inferido' => $inferido);
+    }
+
+    /**
+     * Intenta deducir a qué partido del fixture pertenece un marcador cargado
+     * a mano: busca en la categoría un partido cuyos dos equipos y goles
+     * coincidan con los datos ingresados (en cualquiera de los dos órdenes).
+     */
+    private function _detectar_fixture_por_marcador($id_cat, $eq1, $eq2, $g1, $g2) {
+        if ($eq1 === '' || $eq2 === '' || $g1 === null || $g2 === null) return null;
+
+        $ute_ids = array();
+        foreach (array($eq1, $eq2) as $nom) {
+            $this->db->select('id_ute');
+            $this->db->where('id_categoria', (int) $id_cat);
+            $this->db->where('nombre_ute', $nom);
+            $u = $this->db->get('utes')->row_array();
+            if (!$u) return null;
+            $ute_ids[] = (int) $u['id_ute'];
+        }
+
+        $this->db->where('id_categoria', (int) $id_cat);
+        $this->db->where_in('estado', array('PROGRAMADO', 'EN_CURSO', 'FINALIZADO'));
+        $partidos = $this->db->get('fixtures')->result_array();
+
+        foreach ($partidos as $p) {
+            $id1 = (int) $p['id_ute_1'];
+            $id2 = (int) $p['id_ute_2'];
+            if (!$id1 || !$id2) continue;
+            if (!in_array($id1, $ute_ids, true) || !in_array($id2, $ute_ids, true)) continue;
+            if ($id1 === $id2) continue;
+
+            $pg1 = isset($p['marcador_1']) ? (int) $p['marcador_1'] : -1;
+            $pg2 = isset($p['marcador_2']) ? (int) $p['marcador_2'] : -1;
+            $mismo_orden   = ($id1 === $ute_ids[0] && $id2 === $ute_ids[1]);
+            $orden_invertido = !$mismo_orden;
+
+            if ($pg1 >= 0 && $pg2 >= 0) {
+                // El fixture ya tiene marcador: debe coincidir (en el orden que esté).
+                if ($mismo_orden && $pg1 === $g1 && $pg2 === $g2) return (int) $p['id_fixture'];
+                if ($orden_invertido && $pg1 === $g2 && $pg2 === $g1) return (int) $p['id_fixture'];
+                continue;
+            }
+
+            // Sin marcador en el fixture: si es el único partido pendiente entre
+            // ambos equipos, se asume ese (solo cuando no hay desempate posible).
+            $candidatos_pendientes = $this->_contar_pendientes_entre($partidos, $ute_ids);
+            if ($candidatos_pendientes === 1) return (int) $p['id_fixture'];
+            return null; // hay más de un partido pendiente: mejor no adivinar
+        }
+
+        return null;
+    }
+
+    /** Cantidad de partidos (de la lista) sin marcador entre los dos UTEs dados. */
+    private function _contar_pendientes_entre($partidos, $ute_ids) {
+        $cant = 0;
+        foreach ($partidos as $p) {
+            $id1 = (int) $p['id_ute_1'];
+            $id2 = (int) $p['id_ute_2'];
+            if (!$id1 || !$id2 || $id1 === $id2) continue;
+            if (!in_array($id1, $ute_ids, true) || !in_array($id2, $ute_ids, true)) continue;
+            $tiene_marca = isset($p['marcador_1']) && $p['marcador_1'] !== null
+                && isset($p['marcador_2']) && $p['marcador_2'] !== null;
+            if (!$tiene_marca) $cant++;
+        }
+        return $cant;
     }
 
     /** Resuelve el id_ute: valor positivo elegido del select, o lo buscamos por nombre. */
@@ -211,9 +297,22 @@ class Resultado_model extends CI_Model {
 
     /** Partidos/jornadas del fixture de una categoría (para vincular el resultado). */
     public function obtener_fixtures_por_categoria($id_categoria) {
-        $this->db->select('id_fixture, nombre_prueba, fase, numero_fecha, estado', FALSE);
-        $this->db->where('id_categoria', (int) $id_categoria);
+        // Se resuelven también los nombres de los equipos (UTE 1 y UTE 2) para
+        // que la pestaña Resultados pueda autocompletar el formulario entero
+        // desde el fixture.
+        $this->db->select('
+            f.id_fixture, f.nombre_prueba, f.fase, f.numero_fecha, f.estado,
+            f.fecha_competencia, f.hora_inicio, f.hora_fin,
+            f.id_ute_1, f.id_ute_2,
+            u1.nombre_ute as ute_1_nombre, u2.nombre_ute as ute_2_nombre,
+            l.nombre as lugar_nombre
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->where('f.id_categoria', (int) $id_categoria);
         $this->db->order_by('numero_fecha, fecha_competencia, hora_inicio', 'ASC');
-        return $this->db->get('fixtures')->result_array();
+        return $this->db->get()->result_array();
     }
 }
