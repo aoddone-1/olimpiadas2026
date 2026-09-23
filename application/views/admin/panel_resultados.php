@@ -341,6 +341,7 @@
     let fixturesDelModal = [];   // partidos/jornadas del fixture de la categoría elegida
     let modalidadActual = '';    // ENFRENTAMIENTO | MASIVO_TIEMPO (viene del deporte)
     let competidoresDisponibles = []; // inscriptos (personales) + UTEs de la categoría
+    let participantesPorFixture = {}; // MASIVO_TIEMPO: participantes que compitieron en cada jornada
 
     function mostrarBloqueSegunTipo() {
         const t = selTipo.value;
@@ -402,6 +403,18 @@
 
         if (selTipo.value === 'TIEMPO' || f.fase === 'JORNADA_UNICA') {
             // Deporte masivo: la jornada no tiene marcador, solo posiciones/tiempos.
+            // Repintar la planilla con los participantes que compitieron en ESA
+            // jornada (fixture + inscripciones_deportivas). Si todavía no se
+            // cargaron los competidores de la categoría, esperar y reintentar.
+            if (competidoresDisponibles.length) {
+                repoblarPlanillaTiempos();
+            } else if (selCatModal.value) {
+                const intentar = (n) => {
+                    if (competidoresDisponibles.length || n <= 0) { repoblarPlanillaTiempos(); return; }
+                    setTimeout(() => intentar(n - 1), 250);
+                };
+                intentar(12);
+            }
             return;
         }
 
@@ -443,25 +456,58 @@
             });
     }
 
-    /* ---- MASIVO_TIEMPO: buscar los PARTICIPANTES (inscripción personal) de la categoría ---- */
+    /* ---- MASIVO_TIEMPO: buscar los PARTICIPANTES (inscripción personal) de la categoría.
+       Además se traen, desde el fixture + inscripciones_deportivas, los participantes
+       que compitieron en cada partido/jornada (participantes_por_fixture) para
+       autocompletar la planilla al elegir la jornada. ---- */
     function cargarCompetidoresDelModal(idCategoria) {
         competidoresDisponibles = [];
+        participantesPorFixture = {};
         limpiarPlanillaTiempos();
         if (!idCategoria) return;
         fetch(BASE + '/ajax_competidores_por_categoria/' + idCategoria)
             .then(r => r.json())
             .then(res => {
                 competidoresDisponibles = (res.ok ? res.competidores : []) || [];
+                participantesPorFixture = (res.ok && res.participantes_por_fixture) || {};
                 alertSinParticipantes.classList.toggle('d-none', competidoresDisponibles.length > 0);
                 // Una fila por cada participante inscripto, ya numerada 1°, 2°, 3°...
                 tbodyTiempos.innerHTML = '';
-                competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
-                if (!competidoresDisponibles.length) for (let i = 1; i <= 3; i++) agregarFila(i);
+                const deJornada = participantesDeFixtureActual();
+                if (deJornada.length) {
+                    deJornada.forEach((c, i) => agregarFila(i + 1, c));
+                } else {
+                    competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
+                }
+                if (!tbodyTiempos.children.length) for (let i = 1; i <= 3; i++) agregarFila(i);
             })
             .catch(() => {
                 alertSinParticipantes.classList.remove('d-none');
                 for (let i = 1; i <= 3; i++) agregarFila(i);
             });
+    }
+
+    /** Participantes que compitieron en la jornada del fixture actualmente elegida. */
+    function participantesDeFixtureActual() {
+        if (!selFixture.value) return [];
+        const lista = participantesPorFixture[selFixture.value]
+                   || participantesPorFixture[String(selFixture.value)] || [];
+        // Solo se pueden preseleccionar los que siguen disponibles en la categoría
+        // (mismos ids: >0 UTE, <0 inscripción personal).
+        return lista.filter(c => competidoresDisponibles.some(d => String(d.id) === String(c.id)));
+    }
+
+    /** Repintar la planilla de tiempos según la jornada del fixture elegida. */
+    function repoblarPlanillaTiempos() {
+        if (selTipo.value !== 'TIEMPO') return;
+        tbodyTiempos.innerHTML = '';
+        const deJornada = participantesDeFixtureActual();
+        if (deJornada.length) {
+            deJornada.forEach((c, i) => agregarFila(i + 1, c));
+        } else {
+            competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
+        }
+        if (!tbodyTiempos.children.length) for (let i = 1; i <= 3; i++) agregarFila(i);
     }
 
     function limpiarPlanillaTiempos() {
