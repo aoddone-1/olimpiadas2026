@@ -14,7 +14,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Publica_controller extends OLIM_Controller {
 
     public function index() {
-        redirect('Inscripciones/panel');
+        redirect('inscripciones/panel');
     }
 
     public function panel(){
@@ -179,7 +179,7 @@ class Publica_controller extends OLIM_Controller {
         } else {
             // PANTALLA PÚBLICA: El participante escanea su propio QR
             // NUEVO: Guardamos en sesión a qué QR querías ir, por si el staff inicia sesión desde acá
-            $this->session->set_userdata('url_retorno_qr', 'Inscripciones/acreditacion/' . $token);
+            $this->session->set_userdata('url_retorno_qr', 'inscripciones/acreditacion/' . $token);
             
             $this->load->view('public/pase_valido', $data);
         }

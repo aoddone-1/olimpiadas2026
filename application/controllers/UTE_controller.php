@@ -12,7 +12,7 @@ class UTE_controller extends OLIM_Controller {
     public function panel_utes() {
         // Seguridad Superadmin
         if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('UTE_model');

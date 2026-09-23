@@ -72,7 +72,7 @@ class Inscripciones extends OLIM_Controller {
     }
 
     /** Resuelve qué controlador temático implementa una acción. */
-    private static function _controlador_para($metodo) {
+    public static function _controlador_para($metodo) {
         $mapa_clases = [
             'Auth_controller' => [
                 'login', 'procesar_login', 'logout', 'login_staff', 'dashboard',
