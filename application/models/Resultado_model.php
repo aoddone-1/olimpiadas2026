@@ -29,6 +29,64 @@ class Resultado_model extends CI_Model {
         return $ok;
     }
 
+    /** Modalidad_competencia del deporte asociado a una categoría. */
+    public function modalidad_de_categoria($id_categoria) {
+        $this->db->select('d.modalidad_competencia');
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('c.id_categoria', (int) $id_categoria);
+        $row = $this->db->get()->row_array();
+        return $row ? $row['modalidad_competencia'] : null;
+    }
+
+    /**
+     * Competidores de una categoría para la carga de resultados masivos:
+     *  - Participantes inscriptos individualmente ("INSCRIPCION PERSONAL":
+     *    tabla inscripciones_deportivas) -> id negativo (= -id_inscripcion),
+     *    igual que el resto del sistema (fixture masivo).
+     *  - Equipos/UTEs dados de alta en la categoría -> id positivo.
+     */
+    public function obtener_competidores_por_categoria($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+        $out = array();
+
+        // 1) Inscripciones personales (cada participante inscripto en la categoría)
+        $this->db->select('\n            i.id_inscripcion,\n            p.nombre_completo,\n            p.dni,\n            p.delegacion\n        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $id_categoria);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        foreach ($this->db->get()->result_array() as $r) {
+            $out[] = array(
+                'id'          => -(int) $r['id_inscripcion'],
+                'tipo'        => 'PERSONAL',
+                'nombre'      => $r['nombre_completo'],
+                'dni'         => $r['dni'],
+                'delegacion'  => $r['delegacion'],
+            );
+        }
+
+        // 2) UTEs / equipos de la categoría
+        $this->db->select('u.id_ute, u.nombre_ute, COUNT(pu.id_participante) cantidad', FALSE);
+        $this->db->from('utes u');
+        $this->db->join('participantes_utes pu', 'pu.id_ute = u.id_ute', 'left');
+        $this->db->where('u.id_categoria', $id_categoria);
+        $this->db->group_by('u.id_ute, u.nombre_ute');
+        $this->db->order_by('u.nombre_ute', 'ASC');
+        foreach ($this->db->get()->result_array() as $r) {
+            $out[] = array(
+                'id'         => (int) $r['id_ute'],
+                'tipo'       => 'EQUIPO',
+                'nombre'     => $r['nombre_ute'],
+                'dni'        => null,
+                'delegacion' => null,
+                'cantidad'   => (int) $r['cantidad'],
+            );
+        }
+
+        return $out;
+    }
+
     /* ============================================================
      *  GUARDAR / ELIMINAR
      * ============================================================ */
@@ -41,15 +99,14 @@ class Resultado_model extends CI_Model {
         $id_cat = isset($datos['id_categoria']) ? (int) $datos['id_categoria'] : 0;
         if (!$id_cat) throw new Exception('Elegí el deporte/categoría.');
 
-        $this->db->where('id_categoria', $id_cat);
-        if (!$this->db->get('categorias')->num_rows()) {
+        // ---------- el TIPO de resultado lo define la modalidad del deporte ----------
+        // ENFRENTAMIENTO -> MARCADOR (goles/tantos por equipo)
+        // MASIVO_TIEMPO  -> TIEMPO   (posición + tiempo por participante inscripto)
+        $modalidad = $this->modalidad_de_categoria($id_cat);
+        if ($modalidad === null) {
             throw new Exception('La categoría seleccionada no existe.');
         }
-
-        $tipo = strtoupper(trim(isset($datos['tipo_resultado']) ? $datos['tipo_resultado'] : ''));
-        if (!in_array($tipo, array('MARCADOR', 'TIEMPO'), true)) {
-            throw new Exception('Tipo de resultado inválido.');
-        }
+        $tipo = ($modalidad === 'MASIVO_TIEMPO') ? 'TIEMPO' : 'MARCADOR';
 
         $nombre = trim(isset($datos['nombre_evento']) ? $datos['nombre_evento'] : '');
         if ($nombre === '') throw new Exception('Poné un nombre para el partido/prueba.');
@@ -109,7 +166,7 @@ class Resultado_model extends CI_Model {
                 'marcador_local' => (int) $datos['goles_1'],
                 'marcador_visita' => (int) $datos['goles_2'],
             );
-        } else { // TIEMPO
+        } else { // TIEMPO (deporte MASIVO_TIEMPO): posiciones de los participantes inscriptos
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
             $posiciones = isset($datos['comp_posicion']) ? (array) $datos['comp_posicion'] : array();
             $tiempos = isset($datos['comp_tiempo']) ? (array) $datos['comp_tiempo'] : array();
@@ -119,8 +176,18 @@ class Resultado_model extends CI_Model {
                 $nom = trim($nom);
                 $pos = isset($posiciones[$i]) ? trim((string) $posiciones[$i]) : '';
                 $tie = isset($tiempos[$i]) ? trim($tiempos[$i]) : '';
-                if ($nom === '' && $pos === '' && $tie === '') continue; // fila vacía
-                if ($nom === '') throw new Exception('Fila de posición sin competidor.');
+                $id_comp = isset($utes[$i]) ? (int) $utes[$i] : 0; // >0 UTE, <0 inscripción personal
+                if ($nom === '' && !$id_comp && $pos === '' && $tie === '') continue; // fila vacía
+
+                if ($id_comp) {
+                    // El competidor sale de la lista de inscriptos de la categoría:
+                    // se guarda el nombre real resuelto desde la BD (no del form).
+                    $resuelto = $this->_resolver_competidor($id_cat, $id_comp);
+                    $nom = $resuelto['nombre'];
+                } elseif ($nom === '') {
+                    throw new Exception('Fila de posición sin competidor.');
+                }
+
                 if ($pos === '' || !ctype_digit($pos) || (int) $pos < 1) {
                     throw new Exception('La posición de "' . $nom . '" debe ser un número (1, 2, 3...).');
                 }
@@ -128,7 +195,7 @@ class Resultado_model extends CI_Model {
                     throw new Exception('Tiempo inválido para "' . $nom . '" (usá mm:ss o hh:mm:ss).');
                 }
                 $detalle[] = array(
-                    'id_ute' => $this->_resolver_ute($id_cat, isset($utes[$i]) ? $utes[$i] : null, $nom),
+                    'id_ute' => $id_comp ?: null,
                     'nombre_libre' => $nom,
                     'posicion' => (int) $pos,
                     'tiempo' => $tie !== '' ? $tie : null,
@@ -253,6 +320,31 @@ class Resultado_model extends CI_Model {
         $this->db->where('id_categoria', $id_cat)->where('nombre_ute', trim($nombre));
         $u = $this->db->get('utes')->row_array();
         return $u ? (int) $u['id_ute'] : null;
+    }
+
+    /**
+     * Verifica que el competidor elegido en la planilla masiva exista y
+     * pertenezca a la categoría, y devuelve su nombre real.
+     *   id > 0  -> UTE/equipo de la categoría (tabla utes)
+     *   id < 0  -> inscripción personal (inscripciones_deportivas, id = -id_inscripcion)
+     */
+    private function _resolver_competidor($id_cat, $id_comp) {
+        $id_comp = (int) $id_comp;
+        if ($id_comp > 0) {
+            $this->db->select('nombre_ute');
+            $this->db->where('id_ute', $id_comp)->where('id_categoria', $id_cat);
+            $u = $this->db->get('utes')->row_array();
+            if (!$u) throw new Exception('El equipo seleccionado no pertenece a esa categoría.');
+            return array('nombre' => $u['nombre_ute']);
+        }
+
+        $this->db->select('p.nombre_completo, p.dni', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_inscripcion', -$id_comp)->where('i.id_categoria', $id_cat);
+        $r = $this->db->get()->row_array();
+        if (!$r) throw new Exception('El participante seleccionado no pertenece a esa categoría.');
+        return array('nombre' => $r['nombre_completo'] . ' (' . $r['dni'] . ')');
     }
 
     /** Elimina un resultado (el detalle cae en cascada). */
