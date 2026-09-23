@@ -212,9 +212,14 @@
         const form = new FormData();
         Object.keys(datos).forEach(k => form.append(k, datos[k]));
         return fetch(BASE + '/' + url, { method: 'POST', body: form })
-            .then(r => {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url);
-                return r.json();
+            .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
+            .then(({ status, txt }) => {
+                try {
+                    return JSON.parse(txt);
+                } catch (e) {
+                    console.error('Respuesta no-JSON de ' + url + ' (HTTP ' + status + '):', txt.slice(0, 2000));
+                    throw new Error('El servidor devolvió una respuesta inesperada (HTTP ' + status + ' en ' + url + '). Revisá la consola.');
+                }
             });
     }
 
