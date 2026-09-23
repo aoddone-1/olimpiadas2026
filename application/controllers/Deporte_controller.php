@@ -11,7 +11,7 @@ class Deporte_controller extends OLIM_Controller {
 
     public function gestion_deportes() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('Deporte_model');
@@ -31,7 +31,7 @@ class Deporte_controller extends OLIM_Controller {
 
     public function guardar_categoria() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('Categoria_model');
@@ -45,7 +45,7 @@ class Deporte_controller extends OLIM_Controller {
             $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
         }
 
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     public function eliminar_categoria($id_categoria) {
@@ -53,7 +53,7 @@ class Deporte_controller extends OLIM_Controller {
             $this->Categoria_model->eliminar_categoria($id_categoria);
             $this->session->set_flashdata('msg_ok', 'Categoría eliminada correctamente.');
         }
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     // --- EDITAR CATEGORÍA ---
@@ -74,12 +74,12 @@ class Deporte_controller extends OLIM_Controller {
             $this->Categoria_model->actualizar_categoria($id_categoria, $data);
             $this->session->set_flashdata('msg_ok', 'Categoría actualizada correctamente.');
         }
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     public function guardar_lugar() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('Deporte_model');
@@ -92,7 +92,7 @@ class Deporte_controller extends OLIM_Controller {
             $this->session->set_flashdata('mensaje_error', 'El nombre del predio es obligatorio.');
         }
 
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     // --- ELIMINAR LUGAR ---
@@ -102,7 +102,7 @@ class Deporte_controller extends OLIM_Controller {
             $this->Deporte_model->eliminar_lugar($id_lugar);
             $this->session->set_flashdata('msg_ok', 'Sede/Predio eliminado correctamente.');
         }
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     // --- EDITAR LUGAR ---
@@ -119,19 +119,19 @@ class Deporte_controller extends OLIM_Controller {
             $this->Deporte_model->actualizar_lugar($id_lugar, $data);
             $this->session->set_flashdata('msg_ok', 'Predio actualizado correctamente.');
         }
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
 
     // 3. Procesar el formulario de Login
 
     public function guardar_deporte() {
-        if (!$this->session->userdata('is_organizador')) { redirect('Auth/login'); }
+        if (!$this->session->userdata('is_organizador')) { redirect('Auth_controller/login'); }
 
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
         $this->Deporte_model->guardar_deporte($data);
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     /**
@@ -139,14 +139,14 @@ class Deporte_controller extends OLIM_Controller {
      */
 
     public function eliminar_deporte($id_deporte) {
-        if (!$this->session->userdata('is_organizador')) { redirect('Auth/login'); }
+        if (!$this->session->userdata('is_organizador')) { redirect('Auth_controller/login'); }
 
         if (!empty($id_deporte) && is_numeric($id_deporte)) {
             // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
             $this->db->delete('categorias', ['id_deporte' => $id_deporte]);
             $this->db->delete('deportes', ['id_deporte' => $id_deporte]);
         }
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     public function editar_deporte() {
@@ -159,12 +159,12 @@ class Deporte_controller extends OLIM_Controller {
         // Acá llamas a tu modelo para hacer el update correspondinte, por ej:
         $this->Deporte_model->actualizar_deporte($id_deporte, $data);
         
-        redirect('Deporte/gestion_deportes');
+        redirect('Deporte_controller/gestion_deportes');
     }
 
     public function monitoreo_encuesta() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('Deporte_model');

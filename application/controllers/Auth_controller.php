@@ -30,7 +30,7 @@ class Auth_controller extends OLIM_Controller {
         }
         
         if ($this->session->userdata('is_delegado')) {
-            redirect('Delegado/panel_delegado');
+            redirect('Delegado_controller/panel_delegado');
         }
         
         $this->load->view('admin/login');
@@ -60,7 +60,7 @@ class Auth_controller extends OLIM_Controller {
                     'user_rol'    => $logged_user['rol']
                 ]);
                 
-                redirect('Delegado/panel_delegado');
+                redirect('Delegado_controller/panel_delegado');
             } else {
                 // Session para staff/organizador
                 $this->session->set_userdata([
@@ -77,12 +77,12 @@ class Auth_controller extends OLIM_Controller {
                     $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
                     redirect($redirigir_a);
                 } else {               
-                    redirect('Auth/dashboard');
+                    redirect('Auth_controller/dashboard');
                 }
             }
         } else {
             $this->session->set_flashdata('error', 'Usuario o contraseña incorrectos.');
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
     }
 
@@ -90,18 +90,18 @@ class Auth_controller extends OLIM_Controller {
 
     public function logout() {
         $this->session->sess_destroy();
-        redirect('Auth/login');
+        redirect('Auth_controller/login');
     }
 
     public function login_staff() {
-        redirect('Auth/login');
+        redirect('Auth_controller/login');
     }
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL KIT ENTREGADO A 1 ---
 
     public function dashboard() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
         
         $this->load->model('Participante_model');

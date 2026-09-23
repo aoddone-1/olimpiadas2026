@@ -55,7 +55,7 @@ class Admin_controller extends OLIM_Controller {
     public function control_total() {
         // Seguridad Superadmin
         if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         $this->load->model('Deporte_model');
@@ -124,13 +124,13 @@ class Admin_controller extends OLIM_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -155,7 +155,7 @@ class Admin_controller extends OLIM_Controller {
             $this->session->set_flashdata('error', 'Error al eliminar la inscripción. Intente nuevamente.');
         }
         
-        redirect('Admin/control_total');
+        redirect('Admin_controller/control_total');
     }
 
     /**
@@ -218,13 +218,13 @@ class Admin_controller extends OLIM_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -236,7 +236,7 @@ class Admin_controller extends OLIM_Controller {
         
         if (!$data['participante']) {
             $this->session->set_flashdata('error', 'Participante no encontrado.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
         
@@ -255,7 +255,7 @@ class Admin_controller extends OLIM_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -264,7 +264,7 @@ class Admin_controller extends OLIM_Controller {
 
         if (empty($post['id_participante'])) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -289,7 +289,7 @@ class Admin_controller extends OLIM_Controller {
             $this->session->set_flashdata('error', 'Error al modificar la inscripción. Intente nuevamente.');
         }
 
-        redirect('Admin/control_total');
+        redirect('Admin_controller/control_total');
     }
 
     /**
@@ -300,7 +300,7 @@ class Admin_controller extends OLIM_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -321,7 +321,7 @@ class Admin_controller extends OLIM_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Admin/control_total');
+            redirect('Admin_controller/control_total');
             return;
         }
 
@@ -348,7 +348,7 @@ class Admin_controller extends OLIM_Controller {
             $this->session->set_flashdata('error', 'Error al guardar la nueva inscripción. Intente nuevamente.');
         }
 
-        redirect('Admin/control_total');
+        redirect('Admin_controller/control_total');
     }
 
     // =========================================================================
@@ -369,7 +369,7 @@ class Admin_controller extends OLIM_Controller {
         
         // Pasamos el ID y el nuevo valor
         $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado);
-        redirect('Inscripciones/acreditacion/' . $token);
+        redirect('inscripciones/acreditacion/' . $token);
     }
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL ASISTIO DEL DEPORTE A 1 ---
@@ -384,7 +384,7 @@ class Admin_controller extends OLIM_Controller {
         
         // Pasamos el ID y el nuevo valor
         $this->Participante_model->marcar_asistencia_deporte($id_inscripcion, $nuevo_estado);
-        redirect('Inscripciones/acreditacion/' . $token);
+        redirect('inscripciones/acreditacion/' . $token);
     }
 
     public function imprimir_credencial($token = NULL) {
@@ -411,7 +411,7 @@ class Admin_controller extends OLIM_Controller {
 
 public function descargar_csv_todos_inscriptos() {
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
 
         // Exporta a TODOS los inscriptos (sin filtrar por delegación)

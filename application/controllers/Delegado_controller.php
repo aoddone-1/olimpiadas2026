@@ -11,7 +11,7 @@ class Delegado_controller extends OLIM_Controller {
 
     public function panel_delegado() {
         if (!$this->session->userdata('is_delegado')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
         
         $this->load->model('Participante_model');
@@ -33,7 +33,7 @@ class Delegado_controller extends OLIM_Controller {
 
     public function descargar_csv_inscriptos() {
         if (!$this->session->userdata('is_delegado')) {
-            redirect('Auth/login');
+            redirect('Auth_controller/login');
         }
         
         $this->load->model('Participante_model');

@@ -49,48 +49,101 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 | Examples:	my-controller/index	-> my_controller/index
 |		my-controller/my-method	-> my_controller/my_method
 */
-$route['default_controller'] = 'Publica/index';
+$route['default_controller'] = 'inscripciones';
 $route['404_override'] = '';
 $route['translate_uri_dashes'] = FALSE;
 
+/*
 | ---------------------------------------------------------------------------
 | RUTAS DE COMPATIBILIDAD (reestructuración Sept-2026)
 | ---------------------------------------------------------------------------
 | El monolito `Inscripciones` se dividió en controladores temáticos
 | (Publica, Auth, Admin, Deporte, UTE, Fixture, Resultado, Delegado).
 | Para no romper URLs existentes/bookmarks/QR impresos, cualquier request a
-| `Inscripciones/<accion>` se re-mapea al controlador que hoy la implementa.
+| `(Inscripciones|inscripciones)/<accion>` se re-mapea al controlador que hoy
+| la implementa.
+|
+| Notas:
+|   - CodeIgniter 3 coincide las rutas contra el segmento URI tal como viene,
+|     pero sensible a mayúsculas; por eso el patrón acepta ambas grafías.
+|   - Los nombres de clase son `<Tema>_controller` (CI exige que la clase
+|     esté en un archivo con el mismo nombre), por eso cada destino es
+|     `Tema_controller/<accion>`.
+|   - La captura `(/(.*))?` + `$2` evita el bug de CI3 que duplica el prefijo
+|     cuando el grupo `(:any)` queda vacío.
 */
 
-// Inscripción pública y acreditación por QR
-foreach (array('index','panel','formulario_inscripcion','getCategorias','getDeportesPorGenero','buscar_por_dni','guardar','acreditacion','descargar_deslinde') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Publica/'.$r.'$1';
+$_olim_acciones = array(
+    // Inscripción pública y acreditación por QR => Publica
+    'index'                     => 'Publica',
+    'panel'                     => 'Publica',
+    'formulario_inscripcion'    => 'Publica',
+    'getCategorias'             => 'Publica',
+    'getDeportesPorGenero'      => 'Publica',
+    'buscar_por_dni'            => 'Publica',
+    'guardar'                   => 'Publica',
+    'acreditacion'              => 'Publica',
+    'descargar_deslinde'        => 'Publica',
+    // Autenticación => Auth
+    'login'                     => 'Auth',
+    'procesar_login'            => 'Auth',
+    'logout'                    => 'Auth',
+    'login_staff'               => 'Auth',
+    'dashboard'                 => 'Auth',
+    // Administración de inscripciones / acreditación / CSV => Admin
+    'control_total'                 => 'Admin',
+    'detalle_ajax'                  => 'Admin',
+    'eliminar_inscripcion'          => 'Admin',
+    'eliminar_inscripcion_ajax'     => 'Admin',
+    'modificar_inscripcion'         => 'Admin',
+    'guardar_modificacion'          => 'Admin',
+    'nueva_inscripcion'             => 'Admin',
+    'guardar_nueva_inscripcion'     => 'Admin',
+    'acreditar_kit'                 => 'Admin',
+    'acreditar_deporte'             => 'Admin',
+    'imprimir_credencial'           => 'Admin',
+    'descargar_csv_todos_inscriptos'=> 'Admin',
+    // Deportes, categorías, lugares y sondeo => Deporte
+    'gestion_deportes'      => 'Deporte',
+    'guardar_categoria'     => 'Deporte',
+    'eliminar_categoria'    => 'Deporte',
+    'editar_categoria'      => 'Deporte',
+    'guardar_lugar'         => 'Deporte',
+    'eliminar_lugar'        => 'Deporte',
+    'editar_lugar'          => 'Deporte',
+    'guardar_deporte'       => 'Deporte',
+    'eliminar_deporte'      => 'Deporte',
+    'editar_deporte'        => 'Deporte',
+    'monitoreo_encuesta'    => 'Deporte',
+    // UTEs / Equipos => UTE
+    'panel_utes'                        => 'UTE',
+    'ajax_participantes_disponibles'    => 'UTE',
+    'ajax_crear_ute'                    => 'UTE',
+    'ajax_agregar_participante_ute'     => 'UTE',
+    'ajax_eliminar_participante_ute'    => 'UTE',
+    'ajax_eliminar_ute'                 => 'UTE',
+    'ajax_detalle_ute'                  => 'UTE',
+    // Fixture => Fixture
+    'ajax_fixture_categoria'    => 'Fixture',
+    'ajax_fixture_todo'         => 'Fixture',
+    'ajax_generar_fixture'      => 'Fixture',
+    'ajax_guardar_partido'      => 'Fixture',
+    'ajax_resultado_partido'    => 'Fixture',
+    'ajax_resultado_masivo'     => 'Fixture',
+    'ajax_eliminar_fixture'     => 'Fixture',
+    'ajax_eliminar_partido'     => 'Fixture',
+    // Resultados => Resultado
+    'ajax_guardar_resultado'            => 'Resultado',
+    'ajax_resultados_todo'              => 'Resultado',
+    'ajax_fixtures_por_categoria'       => 'Resultado',
+    'ajax_competidores_por_categoria'   => 'Resultado',
+    'ajax_eliminar_resultado'           => 'Resultado',
+    // Delegados => Delegado
+    'panel_delegado'            => 'Delegado',
+    'descargar_csv_inscriptos'  => 'Delegado',
+);
+
+foreach ($_olim_acciones as $_r => $_c) {
+    $route['(?i)inscripciones/'.$_r.'(/(.*))?'] = $_c.'_controller/'.$_r.'$2';
 }
-// Autenticación
-foreach (array('login','procesar_login','logout','login_staff','dashboard') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Auth/'.$r.'$1';
-}
-// Administración de inscripciones / acreditación / CSV
-foreach (array('control_total','detalle_ajax','eliminar_inscripcion','eliminar_inscripcion_ajax','modificar_inscripcion','guardar_modificacion','nueva_inscripcion','guardar_nueva_inscripcion','acreditar_kit','acreditar_deporte','imprimir_credencial','descargar_csv_todos_inscriptos') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Admin/'.$r.'$1';
-}
-// Deportes, categorías, lugares y sondeo
-foreach (array('gestion_deportes','guardar_categoria','eliminar_categoria','editar_categoria','guardar_lugar','eliminar_lugar','editar_lugar','guardar_deporte','eliminar_deporte','editar_deporte','monitoreo_encuesta') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Deporte/'.$r.'$1';
-}
-// UTEs / Equipos
-foreach (array('panel_utes','ajax_participantes_disponibles','ajax_crear_ute','ajax_agregar_participante_ute','ajax_eliminar_participante_ute','ajax_eliminar_ute','ajax_detalle_ute') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'UTE/'.$r.'$1';
-}
-// Fixture
-foreach (array('ajax_fixture_categoria','ajax_fixture_todo','ajax_generar_fixture','ajax_guardar_partido','ajax_resultado_partido','ajax_resultado_masivo','ajax_eliminar_fixture','ajax_eliminar_partido') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Fixture/'.$r.'$1';
-}
-// Resultados
-foreach (array('ajax_guardar_resultado','ajax_resultados_todo','ajax_fixtures_por_categoria','ajax_competidores_por_categoria','ajax_eliminar_resultado') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Resultado/'.$r.'$1';
-}
-// Delegados
-foreach (array('panel_delegado','descargar_csv_inscriptos') as $r) {
-    $route['inscripciones/'.$r.'(/.*)?'] = 'Delegado/'.$r.'$1';
-}
+unset($_olim_acciones, $_r, $_c);
