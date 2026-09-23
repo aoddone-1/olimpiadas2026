@@ -64,7 +64,7 @@
                     <div class="row g-2">
                         <div class="col-md-6">
                             <label class="form-label small fw-bold">Deporte / Categoría *</label>
-                            <select id="rs_modal_categoria" class="form-select" required>
+                            <select id="rs_modal_categoria" id="id_categoria" class="form-select" required>
                                 <option value="">— Elegí una categoría —</option>
                                 <?php foreach ($categorias_fixture as $cat): ?>
                                     <option value="<?= $cat['id_categoria'] ?>"
@@ -77,10 +77,16 @@
                             </select>
                         </div>
                         <div class="col-md-6">
+                            <label class="form-label small fw-bold">Partido del fixture *</label>
+                            <select id="rs_modal_fixture" name="id_fixture" required class="form-select">
+                                <option value="">— Sin vincular —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
                             <label class="form-label small fw-bold">Tipo de resultado *</label>
                             <select id="rs_modal_tipo" name="tipo_resultado" class="form-select" required>
-                                <option value="MARCADOR">⚽ Marcador (goles/tantos: X vs Y)</option>
-                                <option value="TIEMPO">🏃 Posiciones y tiempos (running, natación...)</option>
+                                <option value="MARCADOR">Marcador (goles/tantos: X vs Y)</option>
+                                <option value="TIEMPO">Posiciones y tiempos (running, natación...)</option>
                             </select>
                         </div>
                         <div class="col-md-5">
@@ -91,26 +97,6 @@
                         <div class="col-md-3">
                             <label class="form-label small fw-bold">Fecha</label>
                             <input type="date" name="fecha_resultado" class="form-control">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold">Partido del fixture (opcional)</label>
-                            <select id="rs_modal_fixture" name="id_fixture" class="form-select">
-                                <option value="">— Sin vincular —</option>
-                            </select>
-                            <div class="form-text small">Elegí el partido y se autocompletan los equipos, el nombre y la fecha. Si no lo elegís, igual se vincula solo cuando coincide con un partido del fixture.</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Lugar</label>
-                            <select name="lugar" class="form-select">
-                                <option value="">— Sin asignar —</option>
-                                <?php foreach ($lugares_db as $lugar): ?>
-                                    <option value="<?= htmlspecialchars($lugar['nombre']) ?>"><?= htmlspecialchars($lugar['nombre']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Observaciones</label>
-                            <input type="text" name="observaciones" class="form-control" placeholder="Opcional">
                         </div>
                     </div>
 
