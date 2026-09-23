@@ -73,9 +73,12 @@ if (!function_exists('olim_disciplinas_desde_post')) {
 }
 
 if (!function_exists('olim_generar_token_qr')) {
-    /** Semilla determinística del QR ligada al DNI del participante. */
-    function olim_generar_token_qr($dni) {
-        return sha1($dni . 'olimpiadas2026' . time());
+    /**
+     * Token criptográficamente seguro para el QR de acreditación.
+     * (Reemplaza al antiguo sha1(dni + salta fija + time()), predecible.)
+     */
+    function olim_generar_token_qr() {
+        return bin2hex(random_bytes(32));
     }
 }
 
