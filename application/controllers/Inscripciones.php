@@ -819,6 +819,17 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures, 'utes' => $utes)));
     }
 
+    /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
+    public function ajax_fixture_todo() {
+        if (!$this->_fixture_auth_json()) return;
+
+        $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
+    }
+
     /** Genera automáticamente el fixture de una categoría. */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;

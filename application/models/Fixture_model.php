@@ -63,6 +63,28 @@ class Fixture_model extends CI_Model {
         return $this->db->get('fixtures')->row_array();
     }
 
+    /** Fixture completo de TODAS las categorías (para visualizar todo sin filtros). */
+    public function obtener_todo_el_fixture() {
+        $this->db->select('\n            f.*,
+            u1.nombre_ute as ute_1_nombre,
+            u2.nombre_ute as ute_2_nombre,
+            l.nombre as lugar_nombre,
+            c.nombre_categoria,
+            c.genero as genero_categoria,
+            d.nombre_deporte,
+            d.modalidad_competencia,
+            d.tipo_duracion
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
     /* ============================================================
      *  GENERACIÓN AUTOMÁTICA
      * ============================================================ */
