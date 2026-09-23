@@ -333,9 +333,9 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
-                            ${(esMasivo && (f.utes_categoria || []).length) ? `
+                            ${esMasivo ? `
                                 <button class="btn btn-sm btn-outline-primary fx-masivo" data-id="${f.id_fixture}">
-                                    <i class="bi bi-flag me-1"></i>Cargar resultados
+                                    <i class="bi bi-flag me-1"></i>${ordenGuardado.length ? 'Editar resultados' : 'Cargar resultados'}
                                 </button>` : ''}
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
                                 <div class="btn-group btn-group-sm">
@@ -396,7 +396,33 @@
                     return;
                 }
                 todosFixtures = res.fixtures || [];
-                render();
+
+                // Fallback: si el server no adjuntó las UTEs de cada categoría
+                // (p. ej. BD vieja sin la columna resultado), las pedimos por
+                // categoría para que el botón "Cargar resultados" siempre aparezca.
+                const catsSinUtes = {};
+                todosFixtures.forEach(f => {
+                    const esMasivo = f.fase === 'JORNADA_UNICA' || f.modalidad_competencia === 'MASIVO_TIEMPO';
+                    if (esMasivo && !(f.utes_categoria && f.utes_categoria.length)) {
+                        catsSinUtes[f.id_categoria] = true;
+                    }
+                });
+                const idsCats = Object.keys(catsSinUtes);
+                if (!idsCats.length) { render(); return; }
+
+                Promise.all(idsCats.map(idCat =>
+                    fetch(BASE + '/ajax_fixture_categoria/' + idCat)
+                        .then(r => r.json())
+                        .then(rr => ({ idCat: idCat, utes: rr.ok ? (rr.utes || []) : [] }))
+                        .catch(() => ({ idCat: idCat, utes: [] }))
+                )).then(results => {
+                    results.forEach(r => {
+                        todosFixtures.forEach(f => {
+                            if (String(f.id_categoria) === String(r.idCat)) f.utes_categoria = r.utes;
+                        });
+                    });
+                    render();
+                });
             })
             .catch(err => {
                 console.error(err);
