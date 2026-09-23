@@ -844,7 +844,6 @@ class Inscripciones extends CI_Controller {
         try {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
             // fixture, para que siempre se puedan cargar resultados.
-            $this->Fixture_model->asegurar_jornadas_masivas();
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());

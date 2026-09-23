@@ -184,9 +184,9 @@ class Fixture_model extends CI_Model {
     /** Nombres de inscripciones individuales usadas en fixtures (clave: id negativo). */
     private function _nombres_individuales_en_fixtures(&$fixtures) {
         $nombres = array();
-        if (!$this->_existe_columna_resultado()) {
+        /*if (!$this->_existe_columna_resultado()) {
             return $nombres;
-        }
+        }*/
         $ids_neg = array();
         foreach ($fixtures as $f) {
             if (!empty($f['id_ute_1']) && (int) $f['id_ute_1'] < 0) $ids_neg[] = -(int) $f['id_ute_1'];

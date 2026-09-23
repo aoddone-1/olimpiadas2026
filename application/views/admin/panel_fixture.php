@@ -31,7 +31,7 @@
                     <i class="bi bi-trash me-1"></i>Borrar fixture de la categoría
                 </button>
                 <button id="fx_btn_nuevo" class="btn btn-success">
-                    <i class="bi bi-plus-lg me-1"></i>+ Partido manual
+                    <i class="bi bi-plus-lg me-1"></i>Partido manual
                 </button>
             </div>
         </div>
@@ -338,10 +338,6 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
-                            ${esMasivo ? `
-                                <button class="btn btn-sm btn-outline-primary fx-masivo" data-id="${f.id_fixture}">
-                                    <i class="bi bi-flag me-1"></i>${ordenGuardado.length ? 'Editar resultados' : 'Cargar resultados'}
-                                </button>` : ''}
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
@@ -371,10 +367,6 @@
                     mensaje(res.ok ? res.mensaje : res.error, res.ok ? 'success' : 'danger');
                     cargarTodo();
                 });
-        }));
-        lista.querySelectorAll('.fx-masivo').forEach(b => b.addEventListener('click', () => {
-            const f = todosFixtures.find(x => x.id_fixture == b.dataset.id);
-            abrirModalMasivo(f);
         }));
         lista.querySelectorAll('.fx-editar').forEach(b => b.addEventListener('click', () => {
             const f = todosFixtures.find(x => x.id_fixture == b.dataset.id);
@@ -505,29 +497,7 @@
     let jornadaActual = null;      // fixture que se está cargando
     let ordenLlegada = [];         // ids de UTE en el orden elegido
 
-    function abrirModalMasivo(f) {
-        if (!f) return;
-        const disponibles = (f.utes_categoria || []).map(u => String(u.id_ute));
-        if (!disponibles.length) {
-            mensaje('No hay UTEs/equipos inscriptos en esta categoría todavía. Cargalos primero en el panel de equipos.', 'warning');
-            return;
-        }
-
-        // Orden previo guardado (si ya se había cargado) + resto de los equipos.
-        let previo = [];
-        try { previo = JSON.parse(f.resultado || '[]') || []; } catch (e) { previo = []; }
-        previo = previo.map(String).filter(id => disponibles.includes(id));
-        ordenLlegada = previo.concat(disponibles.filter(id => !previo.includes(id)));
-        f._limite = previo.length;   // cursor: cuántos ya "llegaron"
-        jornadaActual = f;
-        renderOrden();
-
-        document.getElementById('fxm_titulo').textContent =
-            (f.nombre_deporte || '') + ' — ' + (f.nombre_categoria || '') + ' (' + (f.nombre_prueba || 'Jornada') + ')';
-
-        if (!modalMasivo) modalMasivo = new bootstrap.Modal(document.getElementById('modalMasivo'));
-        modalMasivo.show();
-    }
+    
 
     function renderOrden() {
         const cont = document.getElementById('fxm_lista');
