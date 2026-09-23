@@ -34,7 +34,32 @@ class Fixture_model extends CI_Model {
     public function obtener_utes_por_categoria($id_categoria) {
         $this->db->where('id_categoria', $id_categoria);
         $this->db->order_by('nombre_ute', 'ASC');
-        return $this->db->get('utes')->result_array();
+        $utes = $this->db->get('utes')->result_array();
+
+        // Complemento: en deportes INDIVIDUALES / MASIVOS (running, ciclismo,
+        // ajedrez...) el competidor corre por su cuenta, no arma UTE/equipo.
+        // Cada inscripción sin UTE se convierte en un "participante individual"
+        // con id_ute negativo (para no pisar ids reales de la tabla utes).
+        $individuales = $this->obtener_individuales_por_categoria($id_categoria);
+        foreach ($individuales as $i) {
+            $utes[] = array(
+                'id_ute'      => -(int) $i['id_inscripcion'],
+                'id_categoria'=> (int) $id_categoria,
+                'nombre_ute'  => $i['nombre_completo'] . ' (' . $i['dni'] . ')',
+            );
+        }
+        return $utes;
+    }
+
+    /** Inscripciones SIN UTE de una categoría (competidores individuales). */
+    public function obtener_individuales_por_categoria($id_categoria) {
+        $this->db->select('i.id_inscripcion, p.dni, p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', (int) $id_categoria);
+        $this->db->where('(i.id_ute IS NULL OR i.id_ute = 0)', NULL, FALSE);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        return $this->db->get()->result_array();
     }
 
 
@@ -86,6 +111,23 @@ class Fixture_model extends CI_Model {
         foreach ($utes as $u) {
             $por_cat[(int) $u['id_categoria']][] = $u;
         }
+
+        // Sumar los competidores individuales (inscripciones sin UTE), igual
+        // que hace obtener_utes_por_categoria(), para que el listado general
+        // también los muestre en deportes masivos/individuales.
+        $this->db->select('i.id_inscripcion, i.id_categoria, p.dni, p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('(i.id_ute IS NULL OR i.id_ute = 0)', NULL, FALSE);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $individuales = $this->db->get()->result_array();
+        foreach ($individuales as $i) {
+            $por_cat[(int) $i['id_categoria']][] = array(
+                'id_ute'       => -(int) $i['id_inscripcion'],
+                'id_categoria' => (int) $i['id_categoria'],
+                'nombre_ute'   => $i['nombre_completo'] . ' (' . $i['dni'] . ')',
+            );
+        }
         return $por_cat;
     }
 
@@ -121,7 +163,55 @@ class Fixture_model extends CI_Model {
         }
         unset($f);
 
+        // Resolver nombres de competidores individuales (ids negativos del podio
+        // masivo y slots libres del fixture, p. ej. running donde corre cada uno).
+        $nombres_ind = $this->_nombres_individuales_en_fixtures($fixtures);
+        foreach ($fixtures as &$f) {
+            if (empty($f['ute_1_nombre']) && !empty($f['id_ute_1'])) {
+                $f['ute_1_nombre'] = isset($nombres_ind[(int) $f['id_ute_1']])
+                    ? $nombres_ind[(int) $f['id_ute_1']] : null;
+            }
+            if (empty($f['ute_2_nombre']) && !empty($f['id_ute_2'])) {
+                $f['ute_2_nombre'] = isset($nombres_ind[(int) $f['id_ute_2']])
+                    ? $nombres_ind[(int) $f['id_ute_2']] : null;
+            }
+        }
+        unset($f);
+
         return $fixtures;
+    }
+
+    /** Nombres de inscripciones individuales usadas en fixtures (clave: id negativo). */
+    private function _nombres_individuales_en_fixtures(&$fixtures) {
+        $nombres = array();
+        if (!$this->_existe_columna_resultado()) {
+            return $nombres;
+        }
+        $ids_neg = array();
+        foreach ($fixtures as $f) {
+            if (!empty($f['id_ute_1']) && (int) $f['id_ute_1'] < 0) $ids_neg[] = -(int) $f['id_ute_1'];
+            if (!empty($f['id_ute_2']) && (int) $f['id_ute_2'] < 0) $ids_neg[] = -(int) $f['id_ute_2'];
+            if (!empty($f['resultado'])) {
+                $arr = json_decode($f['resultado'], true);
+                if (is_array($arr)) {
+                    foreach ($arr as $id) {
+                        if ((int) $id < 0) $ids_neg[] = -(int) $id;
+                    }
+                }
+            }
+        }
+        $ids_neg = array_values(array_unique($ids_neg));
+        if (!$ids_neg) return $nombres;
+
+        $this->db->select('i.id_inscripcion, p.dni, p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where_in('i.id_inscripcion', $ids_neg);
+        $rows = $this->db->get()->result_array();
+        foreach ($rows as $r) {
+            $nombres[-(int) $r['id_inscripcion']] = $r['nombre_completo'] . ' (' . $r['dni'] . ')';
+        }
+        return $nombres;
     }
 
     /* ============================================================
@@ -527,20 +617,19 @@ class Fixture_model extends CI_Model {
             $cat = $this->db->get()->row_array();
             $es_masivo = $cat && $cat['modalidad_competencia'] === 'MASIVO_TIEMPO';
         }
-        if (!$es_masivo) {
-            throw new Exception('Este partido no es una jornada de deporte masivo.');
-        }
 
-        // Validar que las UTEs existan y pertenezcan a la categoría de la jornada.
+        // Validar que los competidores existan y pertenezcan a la categoría.
+        // Acepta UTEs/equipos reales Y competidores individuales (inscripciones
+        // sin equipo, id negativo), para deportes como running/ciclismo.
         $utes_cat = $this->obtener_utes_por_categoria($partido['id_categoria']);
         $ids_validos = array_map('intval', array_column($utes_cat, 'id_ute'));
 
         $orden = array();
         foreach ((array) $ute_ids_ordenados as $id) {
             $id = (int) $id;
-            if ($id <= 0) continue;
+            if ($id === 0) continue;
             if (!in_array($id, $ids_validos, true)) {
-                throw new Exception('Hay un equipo que no pertenece a esta categoría.');
+                throw new Exception('Hay un competidor que no pertenece a esta categoría.');
             }
             if (in_array($id, $orden, true)) {
                 throw new Exception('Hay equipos repetidos en la planilla de resultados.');
@@ -549,7 +638,10 @@ class Fixture_model extends CI_Model {
         }
 
         if (empty($orden)) {
-            throw new Exception('No seleccionaste ningún equipo. Elegí al menos al ganador.');
+            if (!$es_masivo) {
+                throw new Exception('Este partido no es una jornada de deporte masivo.');
+            }
+            throw new Exception('No seleccionaste ningún competidor. Elegí al menos al ganador.');
         }
 
         // Si la columna fixtures.resultado no existe todavía, avisar en vez de
@@ -570,11 +662,35 @@ class Fixture_model extends CI_Model {
 
     /** Borrar todo el fixture de una categoría. */
     public function eliminar_fixture_por_categoria($id_categoria) {
+        // Si algún partido usa competidores individuales (ids negativos), la FK
+        // fk_fixture_ute1/2 hacia utes rechazaría el UPDATE en cascada. Para
+        // evitar errores, se limpian primero esos slots y recién se borra.
+        $this->db->select('id_fixture', FALSE);
+        $this->db->from('fixtures');
+        $this->db->where('id_categoria', (int) $id_categoria);
+        $this->db->group_start();
+        $this->db->where('id_ute_1 <', 0);
+        $this->db->or_where('id_ute_2 <', 0);
+        $this->db->group_end();
+        $rows = $this->db->get()->result_array();
+        foreach ($rows as $r) {
+            $this->db->where('id_fixture', (int) $r['id_fixture']);
+            $this->db->update('fixtures', array('id_ute_1' => null, 'id_ute_2' => null));
+        }
+
         $this->db->where('id_categoria', $id_categoria);
         return $this->db->delete('fixtures');
     }
 
     public function eliminar_partido($id_fixture) {
+        // Misma protección que arriba: sin esto, borrar una jornada de running
+        // con podio de individuos da error de clave foránea.
+        $p = $this->obtener_fixture_por_id($id_fixture);
+        if ($p && ((int) $p['id_ute_1'] < 0 || (int) $p['id_ute_2'] < 0)) {
+            $this->db->where('id_fixture', (int) $id_fixture);
+            $this->db->update('fixtures', array('id_ute_1' => null, 'id_ute_2' => null));
+        }
+
         $this->db->where('id_fixture', $id_fixture);
         return $this->db->delete('fixtures');
     }
