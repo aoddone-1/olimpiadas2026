@@ -488,7 +488,7 @@ class Resultado_model extends CI_Model {
         // --- 3) Inscripciones de la categoría desde inscripciones_deportivas
         // (se usan como base cuando la jornada aún no tiene competidores asignados).
         if (!$out) {
-            $this->db->select('\n                i.id_inscripcion,\n                i.id_ute,\n                p.nombre_completo,\n                p.dni,\n                p.delegacion\n            ', FALSE);
+            $this->db->select('i.id_inscripcion,i.id_ute,p.nombre_completo, p.dni,p.delegacion', FALSE);
             $this->db->from('inscripciones_deportivas i');
             $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
             $this->db->where('i.id_categoria', $id_cat);
@@ -538,7 +538,7 @@ class Resultado_model extends CI_Model {
         }
         $nombres_ins = array();
         if ($ins_ids) {
-            $this->db->select('\n                i.id_inscripcion, i.id_ute, p.nombre_completo, p.dni, p.delegacion\n            ', FALSE);
+            $this->db->select('i.id_inscripcion, i.id_ute, p.nombre_completo, p.dni, p.delegacion', FALSE);
             $this->db->from('inscripciones_deportivas i');
             $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
             $this->db->where_in('i.id_inscripcion', array_unique($ins_ids));

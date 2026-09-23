@@ -86,14 +86,14 @@
                         <!-- El tipo de resultado NO se elige: lo define la modalidad
                              del deporte (ENFRENTAMIENTO = marcador, MASIVO_TIEMPO = posiciones/tiempos) -->
                         <input type="hidden" id="rs_modal_tipo" name="tipo_resultado" value="MARCADOR">
-                        <div class="col-md-5">
+                        <div class="col-md-6">
                             <label class="form-label small fw-bold">Nombre del partido / prueba *</label>
-                            <input type="text" name="nombre_evento" id="rs_modal_nombre" class="form-control"
+                            <input type="text" name="nombre_evento" readonly id="rs_modal_nombre" class="form-control"
                                    placeholder="Ej: Final - Partido 1, 5K Masculino...">
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <label class="form-label small fw-bold">Fecha</label>
-                            <input type="date" name="fecha_resultado" class="form-control">
+                            <input type="date" name="fecha_resultado" readonly class="form-control">
                         </div>
                     </div>
 
