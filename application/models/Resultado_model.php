@@ -108,18 +108,59 @@ class Resultado_model extends CI_Model {
     }
 
     /**
-     * Competidores de una categoría para la carga de resultados masivos:
-     *  - Participantes inscriptos individualmente ("INSCRIPCION PERSONAL":
-     *    tabla inscripciones_deportivas) -> id negativo (= -id_inscripcion),
-     *    igual que el resto del sistema (fixture masivo).
-     *  - Equipos/UTEs dados de alta en la categoría -> id positivo.
+     * Competidores de una categoría para la carga de resultados masivos.
+     * Criterio UNIFICADO con el fixture (Fixture_model::obtener_utes_por_categoria):
+     * cada UTE/equipo dado de alta en la categoría es un competidor (id positivo),
+     * con sus integrantes resueltos desde participantes_utes e inscripciones.
+     * Si la categoría no tiene ninguna UTE, se listan los inscriptos individuales
+     * (inscripciones_deportivas) con id negativo (= -id_inscripcion).
+     * ANTES se devolvían las inscripciones personales + las UTEs por separado,
+     * y si el participante estaba en una UTE la lista quedaba vacía o desdoblada.
      */
     public function obtener_competidores_por_categoria($id_categoria) {
         $id_categoria = (int) $id_categoria;
         $out = array();
 
-        // 1) Inscripciones personales (cada participante inscripto en la categoría)
-        $this->db->select('\n            i.id_inscripcion,\n            p.nombre_completo,\n            p.dni,\n            p.delegacion\n        ', FALSE);
+        // 1) UTEs / equipos de la categoría (mismo criterio que usa el fixture)
+        $this->db->select('u.id_ute, u.nombre_ute', FALSE);
+        $this->db->from('utes u');
+        $this->db->where('u.id_categoria', $id_categoria);
+        $this->db->order_by('u.nombre_ute', 'ASC');
+        $utes = $this->db->get()->result_array();
+
+        if ($utes) {
+            // Integrantes de cada UTE (para mostrar "Equipo X (Juan Pérez, Ana G.)")
+            $ute_ids = array_map('intval', array_column($utes, 'id_ute'));
+            $this->db->select('pu.id_ute, p.nombre_completo', FALSE);
+            $this->db->from('participantes_utes pu');
+            $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+            $this->db->where_in('pu.id_ute', $ute_ids);
+            $this->db->order_by('p.nombre_completo', 'ASC');
+            $integrantes = array();
+            $cant = array();
+            foreach ($this->db->get()->result_array() as $r) {
+                $uid = (int) $r['id_ute'];
+                $integrantes[$uid][] = $r['nombre_completo'];
+                $cant[$uid] = isset($cant[$uid]) ? $cant[$uid] + 1 : 1;
+            }
+
+            foreach ($utes as $u) {
+                $uid = (int) $u['id_ute'];
+                $out[] = array(
+                    'id'          => $uid,
+                    'tipo'        => 'EQUIPO',
+                    'nombre'      => $u['nombre_ute'],
+                    'dni'         => null,
+                    'delegacion'  => null,
+                    'cantidad'    => isset($cant[$uid]) ? $cant[$uid] : 0,
+                    'integrantes' => isset($integrantes[$uid]) ? implode(', ', $integrantes[$uid]) : '',
+                );
+            }
+            return $out;
+        }
+
+        // 2) Sin UTEs creadas: inscriptos individuales de la categoría
+        $this->db->select('i.id_inscripcion, p.nombre_completo, p.dni, p.delegacion', FALSE);
         $this->db->from('inscripciones_deportivas i');
         $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
         $this->db->where('i.id_categoria', $id_categoria);
@@ -131,24 +172,6 @@ class Resultado_model extends CI_Model {
                 'nombre'      => $r['nombre_completo'],
                 'dni'         => $r['dni'],
                 'delegacion'  => $r['delegacion'],
-            );
-        }
-
-        // 2) UTEs / equipos de la categoría
-        $this->db->select('u.id_ute, u.nombre_ute, COUNT(pu.id_participante) cantidad', FALSE);
-        $this->db->from('utes u');
-        $this->db->join('participantes_utes pu', 'pu.id_ute = u.id_ute', 'left');
-        $this->db->where('u.id_categoria', $id_categoria);
-        $this->db->group_by('u.id_ute, u.nombre_ute');
-        $this->db->order_by('u.nombre_ute', 'ASC');
-        foreach ($this->db->get()->result_array() as $r) {
-            $out[] = array(
-                'id'         => (int) $r['id_ute'],
-                'tipo'       => 'EQUIPO',
-                'nombre'     => $r['nombre_ute'],
-                'dni'        => null,
-                'delegacion' => null,
-                'cantidad'   => (int) $r['cantidad'],
             );
         }
 
@@ -557,52 +580,23 @@ class Resultado_model extends CI_Model {
             }
         }
 
-        // --- 3) TODOS los inscriptos de la categoría (inscripciones_deportivas).
-        // Antes solo se cargaban si la jornada estaba completamente vacía (!out),
-        // lo que dejaba la planilla sin nombres cuando el fixture tenía slots
-        // ocupados (aunque fueran ids inválidos o un podio parcial). Ahora se
-        // agregan siempre (sin repetir), para que en "escribí o elegí un nombre"
-        // aparezcan los 10 inscriptos de la categoría aunque no haya fixture.
-        $this->db->select('i.id_inscripcion, i.id_ute, p.nombre_completo, p.dni, p.delegacion', FALSE);
-        $this->db->from('inscripciones_deportivas i');
-        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-        $this->db->where('i.id_categoria', $id_cat);
-        $this->db->order_by('p.nombre_completo', 'ASC');
-        $inscriptos = $this->db->get()->result_array();
-
-        // Nombres de las UTEs involucradas (para no hacer una query por fila).
-        $ute_ids_needed = array();
-        foreach ($inscriptos as $r) {
-            if (!empty($r['id_ute'])) $ute_ids_needed[] = (int) $r['id_ute'];
-        }
-        $nombres_ute_cat = array();
-        if ($ute_ids_needed) {
-            $this->db->select('id_ute, nombre_ute');
-            $this->db->where_in('id_ute', array_unique($ute_ids_needed));
-            foreach ($this->db->get('utes')->result_array() as $u) {
-                $nombres_ute_cat[(int) $u['id_ute']] = $u['nombre_ute'];
-            }
-        }
-
-        foreach ($inscriptos as $r) {
-            $id_ute = !empty($r['id_ute']) ? (int) $r['id_ute'] : 0;
-            if ($id_ute > 0) {
-                // Competidor que corre bajo un equipo/UTE: se agrega una sola vez por UTE.
-                if (isset($orden[$id_ute])) continue;
-                if (!isset($nombres_ute_cat[$id_ute])) continue;
-                $orden[$id_ute] = count($out);
-                $out[] = array(
-                    'id' => $id_ute, 'tipo' => 'EQUIPO', 'nombre' => $nombres_ute_cat[$id_ute],
-                    'dni' => null, 'delegacion' => null, 'posicion' => null,
-                );
-                continue;
-            }
-            $id = -(int) $r['id_inscripcion']; // inscripción personal (id negativo)
-            if (isset($orden[$id])) continue;
+        // --- 3) TODOS los competidores de la categoría, con el MISMO criterio
+        // que obtener_competidores_por_categoria(): si hay UTEs creadas, cada
+        // UTE es un competidor (con sus integrantes entre paréntesis); si no,
+        // se listan los inscriptos individuales. Así la planilla por jornada
+        // coincide exactamente con la lista general y nunca queda vacía.
+        foreach ($this->obtener_competidores_por_categoria($id_cat) as $c) {
+            $id = (int) $c['id'];
+            if ($id === 0 || isset($orden[$id])) continue;
             $orden[$id] = count($out);
             $out[] = array(
-                'id' => $id, 'tipo' => 'PERSONAL', 'nombre' => $r['nombre_completo'],
-                'dni' => $r['dni'], 'delegacion' => $r['delegacion'], 'posicion' => null,
+                'id'          => $id,
+                'tipo'        => $c['tipo'],
+                'nombre'      => $c['nombre'],
+                'dni'         => isset($c['dni']) ? $c['dni'] : null,
+                'delegacion'  => isset($c['delegacion']) ? $c['delegacion'] : null,
+                'integrantes' => isset($c['integrantes']) ? $c['integrantes'] : '',
+                'posicion'    => null,
             );
         }
 
