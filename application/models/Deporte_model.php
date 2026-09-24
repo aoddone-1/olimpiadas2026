@@ -4,9 +4,11 @@ class Deporte_model extends CI_Model {
         return $this->db->get('deportes')->result_array();
     }
 
-    // 1. Arma la estructura jerárquica: trae los deportes y les inyecta sus categorías con sus lugares
+    // 1. Arma la estructura jerárquica: trae los deportes (ordenados alfabéticamente)
+    // y les inyecta sus categorías con sus lugares + totales de inscriptos por disciplina
     public function obtener_fixture_completo() {
-        // Traemos todos los deportes
+        // Traemos todos los deportes ordenados alfabéticamente por nombre
+        $this->db->order_by('nombre_deporte', 'ASC');
         $deportes = $this->db->get('deportes')->result_array();
 
         // A cada deporte le buscamos sus categorías haciendo un JOIN con lugares
@@ -18,17 +20,35 @@ class Deporte_model extends CI_Model {
             
             $categorias = $this->db->get()->result_array();
             
-            // Para cada categoría, contamos cuántos inscriptos tiene
+            $total_inscriptos = 0;
+            $total_mujeres = 0;
+            $total_hombres = 0;
+
+            // Para cada categoría, contamos cuántos inscriptos tiene (y desglose por sexo)
             foreach ($categorias as $cat_key => $c) {
-                $this->db->select('COUNT(*) as cantidad_inscriptos');
-                $this->db->from('inscripciones_deportivas');
-                $this->db->where('id_categoria', $c['id_categoria']);
+                $this->db->select("
+                    COUNT(*) as cantidad_inscriptos,
+                    SUM(CASE WHEN UPPER(p.sexo) = 'FEMENINO' THEN 1 ELSE 0 END) as inscriptas_mujeres,
+                    SUM(CASE WHEN UPPER(p.sexo) = 'MASCULINO' THEN 1 ELSE 0 END) as inscriptos_hombres
+                ", FALSE);
+                $this->db->from('inscripciones_deportivas id');
+                $this->db->join('participantes p', 'p.id_participante = id.id_participante', 'left');
+                $this->db->where('id.id_categoria', $c['id_categoria']);
                 $resultado = $this->db->get()->row_array();
-                
-                $categorias[$cat_key]['cantidad_inscriptos'] = $resultado['cantidad_inscriptos'] ?? 0;
+
+                $categorias[$cat_key]['cantidad_inscriptos'] = intval($resultado['cantidad_inscriptos'] ?? 0);
+
+                $total_inscriptos += intval($resultado['cantidad_inscriptos'] ?? 0);
+                $total_mujeres    += intval($resultado['inscriptas_mujeres'] ?? 0);
+                $total_hombres    += intval($resultado['inscriptos_hombres'] ?? 0);
             }
-            
+
             $deportes[$key]['categorias'] = $categorias;
+
+            // Totales de la disciplina para el encabezado de la tarjeta
+            $deportes[$key]['total_inscriptos'] = $total_inscriptos;
+            $deportes[$key]['total_mujeres']    = $total_mujeres;
+            $deportes[$key]['total_hombres']    = $total_hombres;
         }
 
         return $deportes;
