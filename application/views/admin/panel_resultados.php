@@ -203,6 +203,22 @@
     let modalResultado = new bootstrap.Modal(document.getElementById('modalResultado'));
     let modalDetalle = new bootstrap.Modal(document.getElementById('modalDetalleResultado'));
 
+    /* ---------- Confirmación estilizada (SweetAlert2 si está cargado) ---------- */
+    function confirmarAccion(texto, icono, btnOk, btnCancelar) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: '¿Confirmás?',
+                text: texto,
+                icon: icono || 'question',
+                showCancelButton: true,
+                confirmButtonText: btnOk || 'Sí, confirmar',
+                cancelButtonText: btnCancelar || 'Cancelar',
+                reverseButtons: true
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(texto));
+    }
+
     function esc(s) {
         if (s === null || s === undefined) return '';
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -500,10 +516,12 @@
         });
 
         lista.querySelectorAll('.rs-borrar').forEach(b => b.addEventListener('click', () => {
-            if (!confirm('¿Eliminar este resultado?')) return;
-            post('ajax_eliminar_resultado', { id_resultado: b.dataset.id }).then(res => {
-                mensaje(res.ok ? res.mensaje : (res.error || 'No se pudo eliminar.'), res.ok ? 'success' : 'danger');
-                if (res.ok) cargarTodo();
+            confirmarAccion('¿Eliminar este resultado?', 'warning', 'Sí, eliminar').then(ok => {
+                if (!ok) return;
+                post('ajax_eliminar_resultado', { id_resultado: b.dataset.id }).then(res => {
+                    mensaje(res.ok ? res.mensaje : (res.error || 'No se pudo eliminar.'), res.ok ? 'success' : 'danger');
+                    if (res.ok) cargarTodo();
+                });
             });
         }));
     }
