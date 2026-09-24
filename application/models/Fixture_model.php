@@ -276,126 +276,126 @@ class Fixture_model extends CI_Model {
     }
 
     private function _generar_eliminatoria($categoria) {
-    $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
-    $cant = count($utes);
+        $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
+        $cant = count($utes);
 
-    if ($cant < 2) {
-        throw new Exception('Se necesitan al menos 2 UTEs/equipos para generar un fixture de enfrentamiento.');
-    }
+        if ($cant < 2) {
+            throw new Exception('Se necesitan al menos 2 UTEs/equipos para generar un fixture de enfrentamiento.');
+        }
 
-    shuffle($utes);
-    $slots = array_column($utes, 'id_ute');
+        shuffle($utes);
+        $slots = array_column($utes, 'id_ute');
 
-    $fases_por_partidos = array(
-        1  => 'FINAL',
-        2  => 'SEMIFINAL',
-        4  => 'CUARTOS',
-        8  => 'OCTAVOS',
-        16 => '16AVOS'
-    );
+        $fases_por_partidos = array(
+            1  => 'FINAL',
+            2  => 'SEMIFINAL',
+            4  => 'CUARTOS',
+            8  => 'OCTAVOS',
+            16 => '16AVOS'
+        );
 
-    $rondas = array();
+        $rondas = array();
 
-    // 1. PRIMERA RONDA (GRUPO): TODOS LOS EQUIPOS INGRESAN AQUÍ
-    // Si $cant es impar (ej: 9), ceil(9/2) = 5 partidos en GRUPO (4 dobles + 1 libre)
-    $partidos_grupo = (int) ceil($cant / 2);
-    $llaves_grupo = array();
+        // 1. PRIMERA RONDA (GRUPO): TODOS LOS EQUIPOS INGRESAN AQUÍ
+        $partidos_grupo = (int) ceil($cant / 2);
+        $llaves_grupo = array();
 
-    for ($i = 0; $i < $cant; $i += 2) {
-        $e1 = $slots[$i];
-        $e2 = isset($slots[$i + 1]) ? $slots[$i + 1] : null; // Si es impar, el último queda con NULL
-        $llaves_grupo[] = array($e1, $e2);
-    }
-
-    $rondas[] = array(
-        'fase'   => 'GRUPO',
-        'llaves' => $llaves_grupo
-    );
-
-    // 2. DETERMINAR LA SIGUIENTE FASE DE ELIMINACIÓN DIRECTA
-    // Buscamos la potencia de 2 más cercana (ej: para 5 ganadores de grupo -> potencia es 4, o sea CUARTOS)
-    $potencia_siguiente = 1;
-    while ($potencia_siguiente * 2 < $partidos_grupo) {
-        $potencia_siguiente *= 2;
-    }
-    
-    // Si de Grupo salen 5 clasificados, la ronda siguiente necesita 4 partidos (CUARTOS)
-    $partidos_siguiente = max(1, $potencia_siguiente);
-
-    // 3. GENERAR TODAS LAS FASES SIGUIENTES 100% VACÍAS (Pendiente vs Pendiente)
-    while ($partidos_siguiente >= 1) {
-        $fase_nombre = isset($fases_por_partidos[$partidos_siguiente]) 
-            ? $fases_por_partidos[$partidos_siguiente] 
-            : 'GRUPO';
-
-        $llaves_fase = array();
-        for ($i = 0; $i < $partidos_siguiente; $i++) {
-            $llaves_fase[] = array(null, null);
+        for ($i = 0; $i < $cant; $i += 2) {
+            $e1 = $slots[$i];
+            $e2 = isset($slots[$i + 1]) ? $slots[$i + 1] : null;
+            $llaves_grupo[] = array($e1, $e2);
         }
 
         $rondas[] = array(
-            'fase'   => $fase_nombre,
-            'llaves' => $llaves_fase
+            'fase'   => 'GRUPO',
+            'llaves' => $llaves_grupo
         );
 
-        // Si es SEMIFINAL, agregar la llave del TERCER PUESTO
-        if ($fase_nombre === 'SEMIFINAL') {
-            $rondas[] = array(
-                'fase'   => 'TERCER_PUESTO',
-                'llaves' => array(
-                    array(null, null)
-                )
-            );
+        // 2. DETERMINAR LA SIGUIENTE FASE DE ELIMINACIÓN DIRECTA
+        $potencia_siguiente = 1;
+        while ($potencia_siguiente * 2 < $partidos_grupo) {
+            $potencia_siguiente *= 2;
         }
+        
+        $partidos_siguiente = max(1, $potencia_siguiente);
 
-        if ($partidos_siguiente === 1) {
-            break; // Llegamos a la FINAL
-        }
+        // 3. GENERAR TODAS LAS FASES SIGUIENTES 100% VACÍAS (Pendiente vs Pendiente)
+        while ($partidos_siguiente >= 1) {
+            $fase_nombre = isset($fases_por_partidos[$partidos_siguiente]) 
+                ? $fases_por_partidos[$partidos_siguiente] 
+                : 'GRUPO';
 
-        $partidos_siguiente = (int) ($partidos_siguiente / 2);
-    }
-
-    // 4. PERSISTENCIA EN BASE DE DATOS
-    $lugar = $categoria['id_lugar'] ?: $this->_primer_lugar();
-    $fecha_base = $categoria['dia_competencia'] ?: date('Y-m-d');
-    $hora_base  = $categoria['hora_competencia'] ?: '09:00:00';
-
-    $generados = 0;
-    foreach ($rondas as $idx_ronda => $ronda) {
-        $fase = $ronda['fase'];
-        $es_final = ($fase === 'FINAL');
-        $es_tercer = ($fase === 'TERCER_PUESTO');
-
-        foreach ($ronda['llaves'] as $i => $par) {
-            if ($es_final) {
-                $nombre_prueba = 'GRAN FINAL';
-            } elseif ($es_tercer) {
-                $nombre_prueba = 'TERCER Y CUARTO PUESTO';
-            } else {
-                $nombre_prueba = $fase . ' - Partido ' . ($i + 1);
+            $llaves_fase = array();
+            for ($i = 0; $i < $partidos_siguiente; $i++) {
+                $llaves_fase[] = array(null, null);
             }
 
-            $datos = array(
-                'id_categoria'      => $categoria['id_categoria'],
-                'id_lugar'          => $lugar,
-                'id_ute_1'          => $par[0],
-                'id_ute_2'          => $par[1],
-                'nombre_prueba'     => $nombre_prueba,
-                'fase'              => $fase,
-                'numero_fecha'      => $idx_ronda + 1,
-                'fecha_competencia' => date('Y-m-d', strtotime($fecha_base . ' +' . $idx_ronda . ' days')),
-                'hora_inicio'       => $hora_base,
-                'hora_fin'          => $this->_sumar_horas($hora_base, 1),
-                'estado'            => 'PROGRAMADO'
+            $rondas[] = array(
+                'fase'   => $fase_nombre,
+                'llaves' => $llaves_fase
             );
 
-            $this->db->insert('fixtures', $datos);
-            $generados++;
-        }
-    }
+            // Agregamos el TERCER PUESTO ÚNICAMENTE cuando llegamos a la FINAL
+            if ($fase_nombre === 'FINAL') {
+                $rondas[] = array(
+                    'fase'   => 'TERCER_PUESTO',
+                    'llaves' => array(
+                        array(null, null)
+                    )
+                );
+            }
 
-    return $generados;
-}
+            if ($partidos_siguiente === 1) {
+                break; // Llegamos a la FINAL
+            }
+
+            $partidos_siguiente = (int) ($partidos_siguiente / 2);
+        }
+
+        // 4. PERSISTENCIA EN BASE DE DATOS
+        $lugar = $categoria['id_lugar'] ?: $this->_primer_lugar();
+        $fecha_base = $categoria['dia_competencia'] ?: date('Y-m-d');
+        $hora_base  = $categoria['hora_competencia'] ?: '09:00:00';
+
+        $generados = 0;
+        foreach ($rondas as $idx_ronda => $ronda) {
+            $fase = $ronda['fase'];
+            $es_final = ($fase === 'FINAL');
+            $es_tercer = ($fase === 'TERCER_PUESTO');
+
+            // Si es TERCER_PUESTO, sincronizamos la jornada/fecha con la ronda anterior (la FINAL)
+            $desfase_dias = $es_tercer ? ($idx_ronda - 1) : $idx_ronda;
+
+            foreach ($ronda['llaves'] as $i => $par) {
+                if ($es_final) {
+                    $nombre_prueba = 'GRAN FINAL';
+                } elseif ($es_tercer) {
+                    $nombre_prueba = 'TERCER Y CUARTO PUESTO';
+                } else {
+                    $nombre_prueba = $fase . ' - Partido ' . ($i + 1);
+                }
+
+                $datos = array(
+                    'id_categoria'      => $categoria['id_categoria'],
+                    'id_lugar'          => $lugar,
+                    'id_ute_1'          => $par[0],
+                    'id_ute_2'          => $par[1],
+                    'nombre_prueba'     => $nombre_prueba,
+                    'fase'              => $fase,
+                    'numero_fecha'      => $desfase_dias + 1,
+                    'fecha_competencia' => date('Y-m-d', strtotime($fecha_base . ' +' . $desfase_dias . ' days')),
+                    'hora_inicio'       => $hora_base,
+                    'hora_fin'          => $this->_sumar_horas($hora_base, 1),
+                    'estado'            => 'PROGRAMADO'
+                );
+
+                $this->db->insert('fixtures', $datos);
+                $generados++;
+            }
+        }
+
+        return $generados;
+    }
 
     /* ============================================================
      *  EDICIÓN MANUAL / RESULTADOS
@@ -519,33 +519,85 @@ class Fixture_model extends CI_Model {
     public function buscar_siguiente_instancia($partido) {
         $fase_actual = $partido['fase'];
 
-        // Si ya está en fase FINAL, no hay instancia superior.
-        if ($fase_actual === 'FINAL') {
+        if ($fase_actual === 'FINAL' || $fase_actual === 'TERCER_PUESTO') {
             return null;
         }
 
-        // Determinar la fase destino:
-        // - TERCER_PUESTO: no clasifica a nadie (define el 3er puesto) -> sin destino.
-        if ($fase_actual === 'TERCER_PUESTO') {
-            return null;
-        }
-
-        // Fase inmediatamente superior según el orden canónico.
         $pos_fase = array_search($fase_actual, self::FASE_ORDEN);
         if ($pos_fase === false || $pos_fase === count(self::FASE_ORDEN) - 1) {
-            return null; // fase desconocida o ya es la última
+            return null; 
         }
-        $fase_destino = self::FASE_ORDEN[$pos_fase + 1];
 
-        // La semifinal puede mandar a FINAL o a TERCER_PUESTO... pero el perdedor
-        // no avanza, así que siempre buscamos la fase superior real con huecos.
-        // Buscamos primero en la fase destino; si no existe, probamos más arriba.
         $hueco = $this->buscar_hueco_en_fases_superiores($partido['id_categoria'], $pos_fase + 1);
         if ($hueco !== null) {
             return $hueco;
         }
 
         return null;
+    }
+    
+    /**
+     * Verifica si el partido actual pertenece a la fase inmediatamente previa a la FINAL.
+     */
+    private function _es_fase_previa_a_final($partido) {
+        // 1. Si la fase actual es explícitamente SEMIFINAL
+        if ($partido['fase'] === 'SEMIFINAL') {
+            return true;
+        }
+
+        // 2. Si es fase GRUPO (o cualquier otra), comprobamos si la fase "Siguiente" en el orden 
+        // corresponde a la FINAL o si directamente existe un partido de FINAL creado para esta categoría.
+        $this->db->where('id_categoria', $partido['id_categoria']);
+        $this->db->where('fase', 'FINAL');
+        $partido_final = $this->db->get('fixtures')->row_array();
+
+        if (!$partido_final) {
+            return false;
+        }
+
+        // Si la fase actual es la inmediatamente anterior a la FINAL según el torneo
+        // (Ejemplo: si la fase actual es GRUPO y la siguiente ronda creada en la BD es la FINAL)
+        $fases_torneo = array('GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL');
+        $pos_actual = array_search($partido['fase'], $fases_torneo);
+        $pos_final  = array_search('FINAL', $fases_torneo);
+
+        // Si la diferencia entre la posición actual y la final es de 1 paso (es decir, es la previa)
+        // O si en la BD solo existen GRUPO y FINAL como rondas registradas.
+        if ($pos_actual !== false && $pos_final !== false) {
+            // Consultamos qué fases existen en la BD para esta categoría
+            $this->db->select('DISTINCT(fase) as fase');
+            $this->db->where('id_categoria', $partido['id_categoria']);
+            $fases_existentes = array_column($this->db->get('fixtures')->result_array(), 'fase');
+
+            // Si la fase del partido actual es la penúltima fase existente en la BD
+            $pos_en_existentes = array_search($partido['fase'], $fases_existentes);
+            $pos_final_existente = array_search('FINAL', $fases_existentes);
+
+            if ($pos_en_existentes !== false && $pos_final_existente !== false) {
+                return ($pos_en_existentes === $pos_final_existente - 1);
+            }
+        }
+
+        return false;
+    }
+
+    public function buscar_instancia_tercer_puesto($id_categoria) {
+        $this->db->where('id_categoria', $id_categoria);
+        $this->db->where('fase', 'TERCER_PUESTO');
+        $partido_tercer = $this->db->get('fixtures')->row_array();
+
+        if (!$partido_tercer) {
+            return null;
+        }
+
+        // Comprobamos estrictamente si el campo está vacío, nulo o es cero/cadena vacía
+        if (empty($partido_tercer['id_ute_1'])) {
+            return array('fixture' => $partido_tercer, 'campo' => 'id_ute_1');
+        } elseif (empty($partido_tercer['id_ute_2'])) {
+            return array('fixture' => $partido_tercer, 'campo' => 'id_ute_2');
+        }
+
+        return null; // Ya están ocupados ambos casilleros
     }
 
     /**
@@ -600,24 +652,36 @@ class Fixture_model extends CI_Model {
             throw new Exception('El ganador seleccionado no corresponde a este partido.');
         }
 
-        // Marcar finalizado
+        // Obtener ID del perdedor
+        $id_perdedor = ((int) $id_ganador === (int) $partido['id_ute_1']) 
+            ? $partido['id_ute_2'] 
+            : $partido['id_ute_1'];
+
+        // Marcar partido como finalizado
         $this->db->where('id_fixture', $id_fixture);
         $this->db->update('fixtures', array('estado' => 'FINALIZADO'));
 
-        if ($partido['fase'] === 'FINAL') {
-            return 'Campeón registrado. No hay instancia superior.';
+        if ($partido['fase'] === 'FINAL' || $partido['fase'] === 'TERCER_PUESTO') {
+            return 'Resultado registrado. No hay instancia superior.';
         }
 
+        // 1. EL GANADOR SIEMPRE AVANZA A LA SIGUIENTE INSTANCIA
         $siguiente = $this->buscar_siguiente_instancia($partido);
-
-        if (!$siguiente) {
-            return 'Resultado guardado. No se encontró la instancia siguiente para clasificar.';
+        if ($siguiente) {
+            $this->db->where('id_fixture', $siguiente['fixture']['id_fixture']);
+            $this->db->update('fixtures', array($siguiente['campo'] => $id_ganador));
         }
 
-        $this->db->where('id_fixture', $siguiente['fixture']['id_fixture']);
-        $this->db->update('fixtures', array($siguiente['campo'] => $id_ganador));
+        // 2. EL PERDEDOR SOLO AVANZA AL TERCER PUESTO SI VIENE DE LA INSTANCIA PREVIA A LA FINAL
+        if ($id_perdedor !== null && $this->_es_fase_previa_a_final($partido)) {
+            $siguiente_tercer = $this->buscar_instancia_tercer_puesto($partido['id_categoria']);
+            if ($siguiente_tercer) {
+                $this->db->where('id_fixture', $siguiente_tercer['fixture']['id_fixture']);
+                $this->db->update('fixtures', array($siguiente_tercer['campo'] => $id_perdedor));
+            }
+        }
 
-        return 'Resultado guardado. El ganador clasificó a ' . $siguiente['fixture']['nombre_prueba'] . '.';
+        return 'Resultado guardado correctamente.';
     }
 
     /**

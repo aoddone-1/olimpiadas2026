@@ -366,7 +366,7 @@
                 const pos = parseInt(d.posicion, 10) || 0;
                 const med = medallaPos(pos);
                 html += `<tr class="${pos <= 3 ? 'table-warning-subtle' : ''}">
-                    <td class="fw-bold">${med ? med + ' ' : ''}${pos}º</td>
+                    <td>${med ? med + ' ' : ''}${pos}º</td>
                     <td>${esc(nombreDet(d, 'participante sin nombre'))}</td>
                     <td class="font-monospace">${d.tiempo ? esc(d.tiempo) : '—'}</td>
                 </tr>`;
@@ -419,7 +419,7 @@
 
             html += `<div class="card mb-3 shadow-sm">
                 <div class="card-header bg-white py-2">
-                    <span class="fw-bold"><i class="bi bi-trophy me-1"></i>${esc(partes[0])}</span>
+                    <span><i class="bi bi-trophy me-1"></i>${esc(partes[0])}</span>
                     <span class="text-muted mx-1">›</span><span>${esc(partes[1])}</span>
                     <span class="small text-muted ms-2">(${cantidadEnGrupo} resultado/s)</span>
                 </div>
