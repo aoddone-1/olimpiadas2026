@@ -92,17 +92,27 @@
                     </button>
                 </div>
                 <div class="card-body p-3 scroll-panel">
+                    <!-- Filtro por deporte -->
+                    <div class="mb-2">
+                        <select id="filtro_deporte_categorias" class="form-select form-select-sm rounded-pill fw-bold text-muted" style="font-size: 0.78rem;">
+                            <option value="">🔽 Filtrar por deporte (todos)</option>
+                            <?php if(!empty($deportes)): ?>
+                                <?php foreach($deportes as $df): ?>
+                                    <option value="<?= $df['id_deporte'] ?>"><?= htmlspecialchars($df['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-hover align-middle" style="font-size: 0.82rem;">
                             <thead class="table-light">
                                 <tr>
                                     <th>Categoría / Deporte</th>
-                                    <th class="text-center">Sexo</th>
                                     <th class="text-center">Cronograma</th>
                                     <th class="text-end">Acciones</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="tabla_categorias_body">
                                 <?php 
                                 $hay_categorias = false;
                                 if(!empty($deportes)):
@@ -111,17 +121,14 @@
                                             foreach($d['categorias'] as $c): 
                                                 $hay_categorias = true;
                                 ?>
-                                                <tr>
+                                                <tr data-deporte="<?= $d['id_deporte'] ?>">
                                                     <td>
                                                         <span class="fw-bold text-dark d-block"><?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?></span>
                                                         <small class="text-muted text-uppercase" style="font-size:0.7rem;"><?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></small>
                                                     </td>
                                                     <td class="text-center">
-                                                        <span class="badge bg-light text-dark border" style="font-size: 0.65rem;"><?= $c['genero_categoria'] ?? 'TODOS' ?></span>
-                                                    </td>
-                                                    <td>
-                                                        <small class="d-block text-nowrap"><i class="bi bi-calendar3 me-1 text-muted"></i><?= !empty($c['dia_competencia']) ? date('d/m', strtotime($c['dia_competencia'])) : '--/--' ?></small>
-                                                        <small class="d-block text-muted text-nowrap"><i class="bi bi-clock me-1"></i><?= !empty($c['hora_competencia']) ? date('H:i', strtotime($c['hora_competencia'])) : '--:--' ?> hs</small>
+                                                        <small class="d-block text-nowrap"><i class="bi bi-calendar3 me-1 text-muted"></i><?= !empty($c['dia_competencia']) ? date('d/m', strtotime($c['dia_competencia'])) : '--/--' ?> <i class="bi bi-clock me-1 ms-2 text-muted"></i><?= !empty($c['hora_competencia']) ? date('H:i', strtotime($c['hora_competencia'])) : '--:--' ?> hs</small>
+                                                        <small class="d-block text-muted text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($c['nombre_lugar'] ?? '', ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-geo-alt-fill me-1"></i><?= !empty($c['nombre_lugar']) ? htmlspecialchars($c['nombre_lugar'], ENT_QUOTES, 'UTF-8') : 'Sin lugar asignado' ?></small>
                                                     </td>
                                                     <td class="text-end">
                                                         <div class="d-flex justify-content-end gap-2">
@@ -150,7 +157,7 @@
                                     endforeach;
                                 endif;
                                 if(!$hay_categorias): ?>
-                                    <tr><td colspan="4" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -522,6 +529,37 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_id_lugar').value = boton.getAttribute('data-id');
             document.getElementById('edit_nombre_lugar').value = boton.getAttribute('data-nombre');
             document.getElementById('edit_direccion_lugar').value = boton.getAttribute('data-direccion');
+        });
+    }
+
+    // --- Filtro por deporte en el Listado de Categorías ---
+    var filtroDeportes = document.getElementById('filtro_deporte_categorias');
+    if (filtroDeportes) {
+        filtroDeportes.addEventListener('change', function () {
+            var valor = this.value;
+            var filas = document.querySelectorAll('#tabla_categorias_body tr[data-deporte]');
+            var visibles = 0;
+            filas.forEach(function (fila) {
+                if (valor === '' || fila.getAttribute('data-deporte') === valor) {
+                    fila.style.display = '';
+                    visibles++;
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+            // Mensaje cuando el filtro no arroja resultados
+            var vacio = document.getElementById('filtro_sin_resultados');
+            if (!vacio && visibles === 0) {
+                var tbody = document.getElementById('tabla_categorias_body');
+                if (tbody) {
+                    var tr = document.createElement('tr');
+                    tr.id = 'filtro_sin_resultados';
+                    tr.innerHTML = '<td colspan="3" class="text-center text-muted py-3">No hay categorías para este deporte.</td>';
+                    tbody.appendChild(tr);
+                }
+            } else if (vacio && visibles > 0) {
+                vacio.remove();
+            }
         });
     }
 });
