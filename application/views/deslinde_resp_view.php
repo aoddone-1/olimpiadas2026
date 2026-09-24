@@ -2,7 +2,7 @@
 
 class MYPDF extends TCPDF {
     public function Header() {
-        $this->Image('assets/img/header.png', 30, 15, 50, '', '', '', 'C', false, 50, '', false, false,1, false, false, false);
+        $this->Image('assets/img/header.jpg', 30, 15, 50, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
         
         
         
