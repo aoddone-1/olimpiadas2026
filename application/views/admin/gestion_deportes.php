@@ -19,9 +19,9 @@
         <div class="col-12 col-xl-5">
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
-                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-calendar-event text-primary me-2"></i>Deportes y Cronograma</h6>
+                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-calendar-event text-success me-2"></i>Deportes</h6>
                     <button class="btn btn-xs btn-success rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalDeporte">
-                        <i class="bi bi-trophy me-1"></i> + Nuevo Deporte
+                        <i class="bi bi-plus-circle me-1"></i> Nuevo Deporte
                     </button>
                 </div>
                 <div class="card-body p-3 scroll-panel">
@@ -88,7 +88,7 @@
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-tags-fill text-primary me-2"></i>Listado de Categorías</h6>
                     <button class="btn btn-xs btn-primary rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalCategoria">
-                        <i class="bi bi-plus-circle me-1"></i> + Nueva Categoría
+                        <i class="bi bi-plus-circle me-1"></i>Nueva Categoría
                     </button>
                 </div>
                 <div class="card-body p-3 scroll-panel">
@@ -170,8 +170,8 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-geo-alt-fill text-danger me-2"></i>Predios / Sedes</h6>
-                    <button class="btn btn-xs btn-outline-dark rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalLugar">
-                        <i class="bi bi-plus me-1"></i> Sede
+                    <button class="btn btn-xs btn-danger rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalLugar">
+                        <i class="bi bi-plus-circle me-1"></i> Nueva Sede
                     </button>
                 </div>
                 <div class="card-body p-3 scroll-panel">
