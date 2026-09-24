@@ -31,6 +31,27 @@ class Fixtures extends OLIM_Controller {
         $this->_json(['ok' => true, 'fixtures' => $fixtures, 'utes' => $utes]);
     }
 
+    /** Devuelve las categorías con fixture habilitado de un deporte (selector Deporte → Categoría). */
+    public function ajax_categorias_por_deporte($id_deporte = null) {
+        if (!$this->_auth_admin_json()) return;
+
+        $id_deporte = (int) ($id_deporte !== null ? $id_deporte : $this->input->post('id_deporte'));
+
+        try {
+            $categorias = array_values(array_filter(
+                $this->Fixture_model->obtener_categorias_para_fixture(),
+                function ($cat) use ($id_deporte) {
+                    return (int) $cat['id_deporte'] === $id_deporte;
+                }
+            ));
+        } catch (Throwable $e) {
+            $this->_json_error('Fixture', 'Error al consultar las categorías del deporte.', $e->getMessage());
+            return;
+        }
+
+        $this->_json(['ok' => true, 'categorias' => $categorias]);
+    }
+
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function ajax_todo() {
         if (!$this->_auth_admin_json()) return;
