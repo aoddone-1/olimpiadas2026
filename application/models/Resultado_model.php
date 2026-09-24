@@ -238,18 +238,24 @@ class Resultado_model extends CI_Model {
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
             $posiciones = isset($datos['comp_posicion']) ? (array) $datos['comp_posicion'] : array();
             $tiempos = isset($datos['comp_tiempo']) ? (array) $datos['comp_tiempo'] : array();
-            // El id del competidor ahora viaja en comp_id[] (el select visible
-            // puede quedar oculto/vacío en las filas con nombre fijo). Se acepta
-            // también comp_ute[] por compatibilidad.
+            // El id del competidor viaja en comp_id[]. Se acepta comp_ute[] por
+            // compatibilidad con resultados cargados con versiones anteriores.
             $ids = isset($datos['comp_id']) ? (array) $datos['comp_id']
                  : (isset($datos['comp_ute']) ? (array) $datos['comp_ute'] : array());
 
             foreach ($nombres as $i => $nom) {
                 $nom = trim($nom);
-                $pos = isset($posiciones[$i]) ? trim((string) $posiciones[$i]) : '';
                 $tie = isset($tiempos[$i]) ? trim($tiempos[$i]) : '';
                 $id_comp = isset($ids[$i]) ? (int) $ids[$i] : 0; // >0 UTE, <0 inscripción personal
-                if ($nom === '' && !$id_comp && $pos === '' && $tie === '') continue; // fila vacía
+                if ($nom === '' && !$id_comp && $tie === '') continue; // fila vacía
+
+                // La posición NO la elige el usuario: se asigna según el ORDEN
+                // de las filas cargadas (1°, 2°, 3°...). Si llega una posición
+                // explícita válida (compatibilidad), se respeta.
+                $pos = isset($posiciones[$i]) ? trim((string) $posiciones[$i]) : '';
+                if ($pos === '' || !ctype_digit($pos) || (int) $pos < 1) {
+                    $pos = (string) (count($detalle) + 1);
+                }
 
                 if ($id_comp) {
                     // El competidor sale de la lista de inscriptos de la categoría:
@@ -260,9 +266,6 @@ class Resultado_model extends CI_Model {
                     throw new Exception('Fila de posición sin competidor.');
                 }
 
-                if ($pos === '' || !ctype_digit($pos) || (int) $pos < 1) {
-                    throw new Exception('La posición de "' . $nom . '" debe ser un número (1, 2, 3...).');
-                }
                 if ($tie !== '' && !preg_match('/^(\d{1,2}:)?\d{1,2}:\d{1,2}(\.\d{1,6})?$/', $tie)) {
                     throw new Exception('Tiempo inválido para "' . $nom . '" (usá mm:ss o hh:mm:ss).');
                 }
@@ -273,7 +276,7 @@ class Resultado_model extends CI_Model {
                     'tiempo' => $tie !== '' ? $tie : null,
                 );
             }
-            if (!$detalle) throw new Exception('Cargá al menos una posición con su tiempo.');
+            if (!$detalle) throw new Exception('Cargá al menos un tiempo.');
         }
 
         // ---------- insertar cabecera + detalle ----------
