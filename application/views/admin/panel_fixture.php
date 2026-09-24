@@ -5,14 +5,26 @@
             <i class="bi bi-calendar3 me-2"></i>Gestión de Fixture
         </h5>
 
-        <!-- Barra de acciones: el selector es solo para generar/borrar, NO para ver -->
+        <!-- Barra de acciones: los selectores son solo para generar/borrar, NO para ver -->
         <div class="row g-2 align-items-end mb-3">
-            <div class="col-md-5">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold">Deporte</label>
+                <select id="fx_deporte" class="form-select">
+                    <option value="">— Todos los deportes —</option>
+                    <?php foreach ($deportes_fixture as $dep): ?>
+                        <option value="<?= $dep['id_deporte'] ?>">
+                            <?= htmlspecialchars($dep['nombre_deporte']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-4">
                 <label class="form-label small fw-bold">Categoría (para generar / borrar fixture)</label>
                 <select id="fx_categoria" class="form-select">
                     <option value="">— Seleccioná una categoría —</option>
                     <?php foreach ($categorias_fixture as $cat): ?>
                         <option value="<?= $cat['id_categoria'] ?>"
+                                data-id-deporte="<?= $cat['id_deporte'] ?>"
                                 data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
                                 data-categoria="<?= htmlspecialchars($cat['nombre_categoria']) ?>"
                                 data-modalidad="<?= $cat['modalidad_competencia'] ?>"
@@ -23,7 +35,7 @@
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-7">
+            <div class="col-md-5">
                 <button id="fx_btn_generar" class="btn btn-primary" disabled>
                     <i class="bi bi-magic me-1"></i>Generar fixture automático
                 </button>
@@ -178,6 +190,7 @@
         </div>`);
     }
 
+    const selDeporte = document.getElementById('fx_deporte');
     const selCategoria = document.getElementById('fx_categoria');
     const btnGenerar = document.getElementById('fx_btn_generar');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
@@ -591,6 +604,43 @@
             }
         });
     });
+
+    /* ---------- Filtro Deporte → Categoría ---------- */
+    // Al elegir un deporte, la lista de categorías se reduce a las de ese deporte.
+    const todasLasCategorias = Array.from(selCategoria.options)
+        .filter(o => o.value !== '')
+        .map(o => ({
+            id: o.value,
+            idDeporte: o.dataset.idDeporte,
+            html: o.innerHTML,
+            dataset: Object.assign({}, o.dataset)
+        }));
+
+    function filtrarCategoriasPorDeporte() {
+        const dep = selDeporte.value;
+        const actual = selCategoria.value;
+
+        selCategoria.innerHTML = '<option value="">— Seleccioná una categoría —</option>';
+
+        todasLasCategorias.forEach(c => {
+            if (dep && c.idDeporte !== dep) return;
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.innerHTML = c.html;
+            Object.keys(c.dataset).forEach(k => opt.dataset[k] = c.dataset[k]);
+            selCategoria.appendChild(opt);
+        });
+
+        // Mantener la selección si sigue disponible dentro del nuevo filtro
+        selCategoria.value = actual;
+        if (!selCategoria.value) {
+            infoBox.classList.add('d-none');
+            btnGenerar.disabled = true;
+            btnBorrarTodo.disabled = true;
+        }
+    }
+
+    selDeporte.addEventListener('change', filtrarCategoriasPorDeporte);
 
     /* ---------- Acciones sobre la categoría del selector (solo generar/borrar) ---------- */
     selCategoria.addEventListener('change', () => {
