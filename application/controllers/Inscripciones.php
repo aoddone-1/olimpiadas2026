@@ -784,6 +784,7 @@ class Inscripciones extends CI_Controller {
         // Datos para la pestaña de Fixture
         $this->load->model('Fixture_model');
         $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
         $data['menu_activo'] = 'control';
