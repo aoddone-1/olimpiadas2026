@@ -1,4 +1,11 @@
 <!-- PANEL RESULTADOS -->
+<style>
+/* Podio "top 3" de deportes con tiempo: fondo claro + SIEMPRE letra negra
+   (el tema global pone .badge { color: #fff }, por eso el !important). */
+.rs-podio.badge,
+.rs-podio.badge strong,
+.rs-podio.badge span { color: #000 !important; background-color: #fff !important; }
+</style>
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
@@ -228,26 +235,32 @@
     }
 
     /* ---------- Helpers de marcador / posiciones ---------- */
-    // El guardado clásico duplica en cada fila el par (goles eq1, goles eq2),
-    // por lo que no se puede confiar en "marcador_local" de una sola fila.
-    // Esta función normaliza el detalle y devuelve los dos equipos con sus
-    // tantos reales + el índice del ganador (-1 si hay empate).
+    // Cada fila de resultado_detalle guarda el partido DESDE LA PERSPECTIVA de
+    // su propio equipo: marcador_local = tantos del equipo de la fila,
+    // marcador_visita = tantos del rival.
+    // (Los resultados viejos quedaron guardados "espejados": las dos filas con
+    // los mismos valores goles_1/goles_2. Eso hacía que siempre se leyera el
+    // marcador local y pareciera un empate. Lo detectamos y corregimos abajo,
+    // y además reparamos esos registros en el servidor al listar.)
+    function leerFila(d) {
+        return {
+            id: d.id_ute !== null && d.id_ute !== undefined ? String(d.id_ute) : '',
+            nombre: String(d.nombre_libre || ''),
+            prop: parseInt(d.marcador_local, 10) || 0,
+            rival: parseInt(d.marcador_visita, 10) || 0
+        };
+    }
+
     function infoMarcador(det) {
-        const a = det[0] || {}, b = det[1] || {};
-        let s1, s2;
-        if (det.length > 1 &&
-            String(a.nombre_libre ?? '') === String(b.nombre_libre ?? '') &&
-            String(a.id_ute ?? '') === String(b.id_ute ?? '')) {
-            // Filas espejadas (ambas representan al Equipo 1): la segunda es el Equipo 2.
-            s1 = parseInt(a.marcador_local ?? 0, 10) || 0;
-            s2 = parseInt(a.marcador_visita ?? 0, 10) || 0;
-        } else {
-            // Guardado "correcto": una fila por equipo con su propio marcador.
-            s1 = parseInt(a.marcador_local ?? a.marcador_visita ?? 0, 10) || 0;
-            s2 = parseInt(b.marcador_local ?? b.marcador_visita ?? a.marcador_visita ?? 0, 10) || 0;
+        const a = leerFila(det[0] || {});
+        let b = det.length > 1 ? leerFila(det[1]) : { id: '', nombre: '', prop: a.rival, rival: a.prop };
+        // ¿Filas espejadas (datos viejos)? Ambas muestran el mismo par de
+        // números; el segundo equipo era en realidad el visitante.
+        if (det.length > 1 && a.prop === b.prop && a.rival === b.rival) {
+            b = { id: b.id, nombre: b.nombre, prop: a.rival, rival: a.prop };
         }
-        const gan = s1 === s2 ? -1 : (s1 > s2 ? 0 : 1);
-        return { e1: nombreDet(a, 'Equipo 1'), e2: nombreDet(b, 'Equipo 2'), s1: s1, s2: s2, gan: gan };
+        const gan = a.prop === b.prop ? -1 : (a.prop > b.prop ? 0 : 1);
+        return { e1: a.nombre || 'Equipo 1', e2: b.nombre || 'Equipo 2', s1: a.prop, s2: b.prop, gan: gan };
     }
 
     function nombreDet(d, fallback) {
@@ -425,7 +438,7 @@
                     cuerpo = '<div class="d-flex flex-wrap gap-2 mt-1">' + top.map(d => {
                         const pos = parseInt(d.posicion, 10);
                         const medalla = MEDALLAS[pos - 1] || (pos + 'º');
-                        return `<span class="badge rounded-pill bg-light border rs-podio">
+                        return `<span class="badge rounded-pill bg-white border text-dark rs-podio">
                                     ${medalla} <strong>${esc(nombreDet(d, ''))}</strong>${d.tiempo ? ' · <span class="font-monospace">' + esc(d.tiempo) + '</span>' : ''}
                                 </span>`;
                     }).join('') +

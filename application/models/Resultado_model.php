@@ -245,6 +245,11 @@ class Resultado_model extends CI_Model {
                 || !ctype_digit((string) $datos['goles_1']) || !ctype_digit((string) $datos['goles_2'])) {
                 throw new Exception('Los goles/tantos deben ser números (ej: 4 y 2).');
             }
+            // Cada fila guarda SU PROPIO resultado: marcador_local = tantos del
+            // propio equipo, marcador_visita = tantos del rival. Antes ambas
+            // filas se guardaban "espejadas" (las dos con goles_1/goles_2), lo
+            // que hacía que la vista siempre leyera el marcador local y nunca
+            // pudiera determinar el ganador.
             $detalle[] = array(
                 'id_ute' => $this->_resolver_ute($id_cat, $datos['id_ute_1'] ?? null, $eq1),
                 'nombre_libre' => $eq1,
@@ -254,8 +259,8 @@ class Resultado_model extends CI_Model {
             $detalle[] = array(
                 'id_ute' => $this->_resolver_ute($id_cat, $datos['id_ute_2'] ?? null, $eq2),
                 'nombre_libre' => $eq2,
-                'marcador_local' => (int) $datos['goles_1'],
-                'marcador_visita' => (int) $datos['goles_2'],
+                'marcador_local' => (int) $datos['goles_2'],
+                'marcador_visita' => (int) $datos['goles_1'],
             );
         } else { // TIEMPO (deporte MASIVO_TIEMPO): posiciones de los participantes inscriptos
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
@@ -502,11 +507,48 @@ class Resultado_model extends CI_Model {
             $por_res[(int) $d['id_resultado']][] = $d;
         }
         foreach ($rows as &$r) {
-            $r['detalle'] = isset($por_res[(int) $r['id_resultado']])
+            $det = isset($por_res[(int) $r['id_resultado']])
                 ? $por_res[(int) $r['id_resultado']] : array();
+            if ($r['tipo_resultado'] === 'MARCADOR') {
+                $det = $this->_reparar_marcador_espejado((int) $r['id_resultado'], $det);
+            }
+            $r['detalle'] = $det;
         }
         unset($r);
         return $rows;
+    }
+
+    /**
+     * Reparación de datos históricos: versiones anteriores guardaban las dos
+     * filas MARCADOR "espejadas" (ambas con goles_1/goles_2), lo que hacía que
+     * la vista siempre leyera el marcador local y mostrara "empate". Cuando
+     * detectamos ese patrón, corregimos la segunda fila para que quede desde la
+     * perspectiva del segundo equipo (local = goles_2, visita = goles_1).
+     */
+    private function _reparar_marcador_espejado($id_resultado, $det) {
+        if (count($det) < 2) return $det;
+        $a = $det[0];
+        $b = $det[1];
+        $gl_a = (int) $a['marcador_local'];
+        $gv_a = (int) $a['marcador_visita'];
+        // Patrón espejado: ambas filas con el mismo par de números. Con equipos
+        // distintos es seguro que la segunda fila debía guardar el marcador
+        // invertido (goles_2 : goles_1). Con nombres/UTE idénticos podría ser
+        // un empate real cargado duplicado: no lo tocamos.
+        $equipos_distintos = trim((string) $a['nombre_libre']) !== trim((string) $b['nombre_libre'])
+            || ($a['id_ute'] !== null && $b['id_ute'] !== null
+                && (int) $a['id_ute'] !== (int) $b['id_ute']);
+        if (!$equipos_distintos) return $det;
+        if ((int) $b['marcador_local'] === $gl_a && (int) $b['marcador_visita'] === $gv_a) {
+            $this->db->where('id_detalle', (int) $b['id_detalle']);
+            $this->db->update('resultado_detalle', array(
+                'marcador_local' => $gv_a,
+                'marcador_visita' => $gl_a,
+            ));
+            $det[1]['marcador_local'] = $gv_a;
+            $det[1]['marcador_visita'] = $gl_a;
+        }
+        return $det;
     }
 
     /** Partidos/jornadas del fixture de una categoría (para vincular el resultado). */
