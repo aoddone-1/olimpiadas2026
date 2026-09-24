@@ -1,72 +1,19 @@
-<!-- PANEL PREMIACIÓN -->
-<style>
-/* ---------- Cabecera de la noche ---------- */
-.pm-hero {
-    background: linear-gradient(135deg, #14213d 0%, #1b2a5e 55%, #3a2f7c 100%);
-    border-radius: 1rem;
-    color: #fff;
-    position: relative;
-    overflow: hidden;
-}
-.pm-hero::after {
-    content: "🏆";
-    position: absolute;
-    right: -10px;
-    bottom: -28px;
-    font-size: 130px;
-    opacity: .08;
-    transform: rotate(-12deg);
-}
-.pm-fecha-hoy { font-size: 1.6rem; }
-.pm-chip {
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.25);
-    border-radius: 2rem;
-    padding: .35rem .9rem;
-    font-size: .85rem;
-    backdrop-filter: blur(4px);
-}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premiación - <?= NOMBRE_META; ?></title>
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+</head>
+<body>
 
-/* ---------- Tarjetas de podio ---------- */
-.pm-card { border: 0; border-radius: .9rem; overflow: hidden; transition: box-shadow .15s ease; }
-.pm-card:hover { box-shadow: 0 .5rem 1.2rem rgba(20,33,61,.15) !important; }
-.pm-card .pm-head { display:flex; justify-content:space-between; align-items:center; gap:.5rem; flex-wrap:wrap;
-                    padding:.7rem 1rem; background:#fff; border-bottom:1px solid #eef0f4; }
-.pm-deporte { font-weight: 800; color:#14213d; }
-.pm-cat { color:#6c757d; font-size:.85rem; }
+<?php $this->load->view('admin/header_admin'); ?>
 
-.pm-podio { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; padding: 1rem; background: #fbfcfe; }
-@media (max-width: 700px){ .pm-podio { grid-template-columns: 1fr; } }
-
-.pm-medalla {
-    border-radius: .8rem; padding: .8rem .7rem; text-align: center;
-    border: 2px solid transparent; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.06);
-    display: flex; flex-direction: column; gap: .25rem; align-items: center; min-height: 118px; justify-content: center;
-}
-.pm-medalla .pm-disco { font-size: 1.7rem; line-height: 1; }
-.pm-medalla .pm-puesto-label { font-size: .7rem; letter-spacing: .06em; text-transform: uppercase; font-weight: 700; color: #6c757d; }
-.pm-medalla .pm-nombre { font-weight: 800; color: #14213d; word-break: break-word; }
-.pm-medalla .pm-extra { font-size: .72rem; color: #6c757d; }
-.pm-oro    { border-color: #f1c40f; background: linear-gradient(180deg,#fffdf2,#fff8db); }
-.pm-plata  { border-color: #b9c2cc; background: linear-gradient(180deg,#fbfcfd,#eef2f6); }
-.pm-bronce { border-color: #cd8b52; background: linear-gradient(180deg,#fffaf5,#fbeee2); }
-.pm-vacio  { border-style: dashed; border-color: #d6dbe2; background: #fff; }
-.pm-vacio .pm-nombre { color:#adb5bd; font-weight: 600; font-style: italic; }
-
-.pm-stamp {
-    position: absolute; top: .6rem; right: .8rem; font-size: .72rem; font-weight: 800;
-    color: #146c43; border: 2px solid #146c43; border-radius: .4rem; padding: .05rem .45rem;
-    transform: rotate(6deg); background: rgba(255,255,255,.85); letter-spacing: .04em;
-}
-.pm-cuerpo { position: relative; }
-
-.pm-badge-origen { font-size: .68rem; letter-spacing: .05em; }
-.pm-resumen-num { font-size: 2rem; font-weight: 800; line-height: 1; }
-.pm-resumen-lbl { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; opacity: .85; }
-
-/* Inputs del modal */
-.pm-input-puesto { border-left: 4px solid var(--color-medalla, #ccc); }
-</style>
+<div class="container mb-5 mt-4">
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
@@ -430,3 +377,8 @@
     cargar();
 })();
 </script>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bundle.min.js"></script>
+</body>
+</html>

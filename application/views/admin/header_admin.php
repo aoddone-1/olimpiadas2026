@@ -22,6 +22,12 @@
             
             <?php if($this->session->userdata('user_rol') === 'superadmin'){ ?> 
             <li class="nav-item">
+                <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'premiacion') ? 'active' : ''; ?>" 
+                   href="<?= base_url('Inscripciones/premiacion') ?>">
+                    <i class="bi bi-award-fill me-1"></i> Premiación
+                </a>
+            </li>
+            <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'control') ? 'active' : ''; ?>" 
                    href="<?= base_url('Inscripciones/control_total') ?>">
                     <i class="bi bi-person me-1"></i> Control Total
