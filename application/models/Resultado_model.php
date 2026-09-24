@@ -468,6 +468,10 @@ class Resultado_model extends CI_Model {
             u1.nombre_ute as ute_1_nombre, u2.nombre_ute as ute_2_nombre,
             l.nombre as lugar_nombre
         ', FALSE);
+        // fixtures.resultado (podio masivo en JSON) solo si la columna existe.
+        if ($this->_existe_columna_resultado()) {
+            $this->db->select('f.resultado');
+        }
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
         $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
@@ -481,6 +485,13 @@ class Resultado_model extends CI_Model {
         if ($this->modalidad_de_categoria($id_categoria) === 'MASIVO_TIEMPO') {
             foreach ($rows as &$f) {
                 $f['competidores'] = $this->obtener_participantes_de_jornada((int) $f['id_fixture']);
+                // Adjuntar también el "podio" guardado (fixtures.resultado) para la vista.
+                if ($this->_existe_columna_resultado() && !empty($f['resultado'])) {
+                    $arr = json_decode($f['resultado'], true);
+                    $f['resultado'] = is_array($arr) ? array_map('intval', $arr) : null;
+                } else {
+                    $f['resultado'] = null;
+                }
             }
             unset($f);
         }
@@ -539,38 +550,53 @@ class Resultado_model extends CI_Model {
             }
         }
 
-        // --- 3) Inscripciones de la categoría desde inscripciones_deportivas
-        // (se usan como base cuando la jornada aún no tiene competidores asignados).
-        if (!$out) {
-            $this->db->select('i.id_inscripcion,i.id_ute,p.nombre_completo, p.dni,p.delegacion', FALSE);
-            $this->db->from('inscripciones_deportivas i');
-            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-            $this->db->where('i.id_categoria', $id_cat);
-            $this->db->order_by('p.nombre_completo', 'ASC');
-            foreach ($this->db->get()->result_array() as $r) {
-                $id_ute = !empty($r['id_ute']) ? (int) $r['id_ute'] : 0;
-                if ($id_ute > 0) {
-                    // Competidor que corre bajo un equipo/UTE: se agrega una sola vez por UTE.
-                    if (isset($orden[$id_ute])) continue;
-                    $this->db->select('nombre_ute');
-                    $this->db->where('id_ute', $id_ute);
-                    $u = $this->db->get('utes')->row_array();
-                    if (!$u) continue;
-                    $orden[$id_ute] = count($out);
-                    $out[] = array(
-                        'id' => $id_ute, 'tipo' => 'EQUIPO', 'nombre' => $u['nombre_ute'],
-                        'dni' => null, 'delegacion' => null, 'posicion' => null,
-                    );
-                    continue;
-                }
-                $id = -(int) $r['id_inscripcion']; // inscripción personal (id negativo)
-                if (isset($orden[$id])) continue;
-                $orden[$id] = count($out);
-                $out[] = array(
-                    'id' => $id, 'tipo' => 'PERSONAL', 'nombre' => $r['nombre_completo'],
-                    'dni' => $r['dni'], 'delegacion' => $r['delegacion'], 'posicion' => null,
-                );
+        // --- 3) TODOS los inscriptos de la categoría (inscripciones_deportivas).
+        // Antes solo se cargaban si la jornada estaba completamente vacía (!out),
+        // lo que dejaba la planilla sin nombres cuando el fixture tenía slots
+        // ocupados (aunque fueran ids inválidos o un podio parcial). Ahora se
+        // agregan siempre (sin repetir), para que en "escribí o elegí un nombre"
+        // aparezcan los 10 inscriptos de la categoría aunque no haya fixture.
+        $this->db->select('i.id_inscripcion, i.id_ute, p.nombre_completo, p.dni, p.delegacion', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $id_cat);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $inscriptos = $this->db->get()->result_array();
+
+        // Nombres de las UTEs involucradas (para no hacer una query por fila).
+        $ute_ids_needed = array();
+        foreach ($inscriptos as $r) {
+            if (!empty($r['id_ute'])) $ute_ids_needed[] = (int) $r['id_ute'];
+        }
+        $nombres_ute_cat = array();
+        if ($ute_ids_needed) {
+            $this->db->select('id_ute, nombre_ute');
+            $this->db->where_in('id_ute', array_unique($ute_ids_needed));
+            foreach ($this->db->get('utes')->result_array() as $u) {
+                $nombres_ute_cat[(int) $u['id_ute']] = $u['nombre_ute'];
             }
+        }
+
+        foreach ($inscriptos as $r) {
+            $id_ute = !empty($r['id_ute']) ? (int) $r['id_ute'] : 0;
+            if ($id_ute > 0) {
+                // Competidor que corre bajo un equipo/UTE: se agrega una sola vez por UTE.
+                if (isset($orden[$id_ute])) continue;
+                if (!isset($nombres_ute_cat[$id_ute])) continue;
+                $orden[$id_ute] = count($out);
+                $out[] = array(
+                    'id' => $id_ute, 'tipo' => 'EQUIPO', 'nombre' => $nombres_ute_cat[$id_ute],
+                    'dni' => null, 'delegacion' => null, 'posicion' => null,
+                );
+                continue;
+            }
+            $id = -(int) $r['id_inscripcion']; // inscripción personal (id negativo)
+            if (isset($orden[$id])) continue;
+            $orden[$id] = count($out);
+            $out[] = array(
+                'id' => $id, 'tipo' => 'PERSONAL', 'nombre' => $r['nombre_completo'],
+                'dni' => $r['dni'], 'delegacion' => $r['delegacion'], 'posicion' => null,
+            );
         }
 
         // --- Resolver nombres/DNI/delegación de los ids sacados del fixture
