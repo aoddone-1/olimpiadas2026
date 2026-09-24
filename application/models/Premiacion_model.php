@@ -23,15 +23,55 @@ class Premiacion_model extends CI_Model {
 
     /** ¿Existe la tabla de premiaciones? (aviso amigable si falta el SQL). */
     public function tablas_existentes() {
-        static $ok = null;
-        if ($ok === null) {
+        return $this->_tabla_existe('premiaciones');
+    }
+
+    /** ¿Existe una tabla? (tolera bases sin alguna dependencia). */
+    private function _tabla_existe($tabla) {
+        static $cache = array();
+        if (!isset($cache[$tabla])) {
             try {
-                $ok = $this->db->table_exists('premiaciones');
+                $cache[$tabla] = (bool) $this->db->table_exists($tabla);
             } catch (Throwable $e) {
-                $ok = false;
+                $cache[$tabla] = false;
             }
         }
-        return $ok;
+        return $cache[$tabla];
+    }
+
+    /**
+     * Filas de la última consulta construida (select/from/join/where/order_by),
+     * o de una tabla si se pasa por argumento. Nunca revienta: si la tabla no
+     * existe o la consulta falla, devuelve array vacío (era la causa del error
+     * "Call to a member function result_array() on bool").
+     */
+    private function _filas_seguras($tabla = null) {
+        try {
+            if ($tabla !== null && !$this->_tabla_existe($tabla)) return array();
+            $q = $tabla === null ? $this->db->get() : $this->db->get($tabla);
+            if (!$q) return array();
+            return $q->result_array();
+        } catch (Throwable $e) {
+            log_message('error', '[Premiación] no se pudo leer ' . ($tabla ?: 'última consulta') . ': ' . $e->getMessage());
+            return array();
+        }
+    }
+
+    /**
+     * Fila de la última consulta construida (o de una tabla si se pasa por
+     * argumento). Devuelve null ante error en lugar de fatal
+     * "call to a member function row_array() on bool".
+     */
+    private function _fila_segura($tabla = null) {
+        try {
+            $q = $tabla === null ? $this->db->get() : $this->db->get($tabla);
+            if (!$q) return null;
+            $row = $q->row_array();
+            return $row ? $row : null;
+        } catch (Throwable $e) {
+            log_message('error', '[Premiación] consulta fallida: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /* ============================================================
@@ -144,7 +184,7 @@ class Premiacion_model extends CI_Model {
         $this->db->where('f.fase', $fase);
         $this->db->order_by('r.id_resultado', 'DESC');
         $this->db->limit(1);
-        $row = $this->db->get()->row_array();
+        $row = $this->_fila_segura();
         if (!$row) return null;
         $row['detalle'] = $this->_detalle_de_resultados(array((int) $row['id_resultado']))
             [(int) $row['id_resultado']] ?? array();
@@ -153,11 +193,11 @@ class Premiacion_model extends CI_Model {
 
     /** Detalle agrupado por id_resultado (una sola consulta). */
     private function _detalle_de_resultados($ids) {
-        if (!$ids) return array();
+        if (!$ids || !$this->_tabla_existe('resultado_detalle')) return array();
         $this->db->where_in('id_resultado', $ids);
         $this->db->order_by('id_detalle', 'ASC');
         $out = array();
-        foreach ($this->db->get('resultado_detalle')->result_array() as $d) {
+        foreach ($this->_filas_seguras('resultado_detalle') as $d) {
             $out[(int) $d['id_resultado']][] = $d;
         }
         return $out;
@@ -176,7 +216,7 @@ class Premiacion_model extends CI_Model {
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
-        return $this->db->get()->result_array();
+        return $this->_filas_seguras();
     }
 
     /**
@@ -190,16 +230,15 @@ class Premiacion_model extends CI_Model {
      *   total_puestos
      */
     public function obtener_estado_premiables() {
-        if (!$this->tablas_existentes()) return array();
-        if (!$this->db->table_exists('resultados')) return array();
+        if (!$this->_tabla_existe('resultados')) return array();
+        if (!$this->_tabla_existe('fixtures')) return array();
 
         $categorias = $this->_categorias_base();
         if (!$categorias) return array();
 
         // Resultados por categoría (con detalle) y fixtures por categoría.
-        $this->db->select('r.*', FALSE);
-        $this->db->from('resultados r');
-        $rows = $this->db->get()->result_array();
+        $rows = $this->_filas_seguras('resultados');
+        if (!$rows) return array();
         $detalles = $this->_detalle_de_resultados(array_column($rows, 'id_resultado'));
         $resultados_por_cat = array();
         foreach ($rows as $r) {
@@ -210,13 +249,13 @@ class Premiacion_model extends CI_Model {
 
         $this->db->select('f.id_fixture, f.id_categoria, f.fase, f.estado, f.fecha_competencia, f.numero_fecha', FALSE);
         $fixtures_por_cat = array();
-        foreach ($this->db->get('fixtures')->result_array() as $f) {
+        foreach ($this->_filas_seguras('fixtures') as $f) {
             $fixtures_por_cat[(int) $f['id_categoria']][] = $f;
         }
 
-        // Premios ya registrados por categoría.
+        // Premios ya registrados por categoría (tolera tabla inexistente).
         $entregadas_por_cat = array();
-        foreach ($this->db->get('premiaciones')->result_array() as $p) {
+        foreach ($this->_filas_seguras('premiaciones') as $p) {
             $entregadas_por_cat[(int) $p['id_categoria']][] = $p;
         }
 
@@ -267,7 +306,7 @@ class Premiacion_model extends CI_Model {
             } else {
                 // MULTIDIA: cierra el día de la definición (fecha de la FINAL).
                 $this->db->where('id_resultado', (int) ($podio[1]['id_resultado_ref'] ?? 0));
-                $f_res = $this->db->get('resultados')->row_array();
+                $f_res = $this->_fila_segura('resultados');
                 $final_fx = null;
                 foreach ($fixtures as $f) {
                     if ($f['fase'] === 'FINAL') { $final_fx = $f; break; }
@@ -318,7 +357,7 @@ class Premiacion_model extends CI_Model {
         $this->db->join('categorias c', 'c.id_categoria = p.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
         $this->db->order_by('p.fecha_entrega DESC, p.puesto ASC, p.id_premiacion ASC');
-        return $this->db->get()->result_array();
+        return $this->_filas_seguras();
     }
 
     /* ============================================================
