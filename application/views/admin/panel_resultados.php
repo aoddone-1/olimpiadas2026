@@ -134,7 +134,8 @@
 
                     <!-- BLOQUE TIEMPO (deportes MASIVO_TIEMPO) -->
                     <div id="rs_bloque_tiempo" class="d-none">
-                        <h6 class="fw-bold small mb-2"><i class="bi bi-stopwatch me-1"></i>Posiciones y tiempos</h6>
+                        <h6 class="fw-bold small mb-1"><i class="bi bi-stopwatch me-1"></i>Tiempos de los participantes</h6>
+                        <p class="text-muted small mb-2">La posición se asigna automáticamente según el orden de carga.</p>
                         <div class="alert alert-warning py-2 small d-none" id="rs_sin_participantes">
                             <i class="bi bi-exclamation-triangle me-1"></i>
                             No hay participantes inscriptos en esta categoría todavía.
@@ -142,17 +143,13 @@
                         <table class="table table-sm align-middle mb-1" id="rs_tabla_tiempos">
                             <thead class="table-light">
                                 <tr class="small fw-bold">
-                                    <th style="width:70px">Posición</th>
-                                    <th>Participante / Equipo</th>
-                                    <th style="width:160px">Tiempo (mm:ss)</th>
-                                    <th style="width:40px"></th>
+                                    <th style="width:50px">#</th>
+                                    <th>Participante</th>
+                                    <th style="width:170px">Tiempo (mm:ss)</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
                         </table>
-                        <button type="button" id="rs_btn_agregar_fila" class="btn btn-outline-primary btn-sm">
-                            <i class="bi bi-plus-lg me-1"></i>Agregar fila
-                        </button>
                     </div>
                 </form>
             </div>
@@ -484,11 +481,12 @@
                 } else {
                     competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
                 }
-                if (!tbodyTiempos.children.length) for (let i = 1; i <= 3; i++) agregarFila(i);
+                if (!tbodyTiempos.children.length) {
+                    alertSinParticipantes.classList.remove('d-none');
+                }
             })
             .catch(() => {
                 alertSinParticipantes.classList.remove('d-none');
-                for (let i = 1; i <= 3; i++) agregarFila(i);
             });
     }
 
@@ -512,12 +510,9 @@
         if (selTipo.value !== 'TIEMPO') return;
         tbodyTiempos.innerHTML = '';
         const deJornada = participantesDeFixtureActual();
-        if (deJornada.length) {
-            deJornada.forEach((c, i) => agregarFila(i + 1, c));
-        } else {
-            competidoresDisponibles.forEach((c, i) => agregarFila(i + 1, c));
-        }
-        if (!tbodyTiempos.children.length) for (let i = 1; i <= 3; i++) agregarFila(i);
+        const lista = deJornada.length ? deJornada : competidoresDisponibles;
+        lista.forEach((c, i) => agregarFila(i + 1, c));
+        alertSinParticipantes.classList.toggle('d-none', lista.length > 0);
     }
 
     function limpiarPlanillaTiempos() {
@@ -526,187 +521,27 @@
         alertSinParticipantes.classList.add('d-none');
     }
 
-    /** Opciones <select> de los competidores que todavía no usó otra fila. */
-    function opcionesCompetidor(exceptoId) {
-        let html = '<option value="">— Escribí o elegí un nombre libre —</option>';
-        let grupoActual = '';
-        competidoresDisponibles.forEach(c => {
-            if (String(c.id) === String(exceptoId)) return;
-            const etiqueta = c.tipo === 'PERSONAL'
-                ? `${c.nombre} (${c.dni})`
-                : `${c.nombre} [equipo]`;
-            if (c.tipo !== grupoActual) {
-                if (grupoActual !== '') html += '</optgroup>';
-                grupoActual = c.tipo;
-                html += `<optgroup label="${c.tipo === 'PERSONAL' ? 'Participantes inscriptos' : 'Equipos / UTEs'}">`;
-            }
-            html += `<option value="${c.id}">${esc(etiqueta)}</option>`;
-        });
-        if (grupoActual !== '') html += '</optgroup>';
-        return html;
-    }
-
+    /**
+     * Fila SIMPLE para deportes MASIVO_TIEMPO:
+     *   [# orden] [label con el nombre — no editable] [input de tiempo]
+     * La posición NO se tipea: al guardar se asigna según el orden de las filas.
+     */
     function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
         const c = competidor || null;
-        // El nombre NO se puede modificar: es fijo (viene de la inscripción).
-        // Las filas nuevas sin competidor asignado permiten buscar/elegir uno.
-        const nombreFijo = c
-            ? `<div class="rs-nombre-fijo fw-semibold small text-truncate" title="${esc(c.nombre || '')}">${esc(c.nombre)}${c.dni ? ' <span class="text-muted">(' + esc(c.dni) + ')</span>' : ''}</div>`
-            : `<input type="text" class="form-control form-control-sm rs-buscar mb-1" list="rs_lista_utes" placeholder="Buscar por nombre...">`;
+        const nombreTxt = c
+            ? esc(c.nombre) + (c.dni ? ' <span class="text-muted small">(' + esc(c.dni) + ')</span>' : '')
+            : '<span class="text-muted fst-italic small">participante sin nombre</span>';
         tr.innerHTML = `
-            <td><input type="number" name="comp_posicion[]" class="form-control form-control-sm" min="1" value="${pos}"></td>
+            <td class="text-muted small fw-bold">${pos}º</td>
+            <td class="small fw-semibold text-truncate" style="max-width:260px">${nombreTxt}</td>
             <td>
-                ${nombreFijo}
-                <select name="comp_ute[]" class="form-select form-select-sm rs-comp ${c ? 'd-none' : ''}"></select>
-                <!-- el id real del competidor (>0 UTE / <0 inscripción personal):
-                     el select muestra nombres libres, este hidden guarda el id -->
-                <input type="hidden" name="comp_id[]" class="rs-comp-id" value="${c ? esc(String(c.id)) : ''}">
-                <!-- respaldo del nombre: el backend usa este nombre para la fila -->
-                <input type="hidden" name="comp_nombre[]" class="rs-nombre-hidden" value="${c ? esc(c.nombre || '') : ''}">
-            </td>
-            <td><input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42 o 1:05:30"></td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger rs-quitar-fila"><i class="bi bi-dash-lg"></i></button></td>`;
+                <input type="hidden" name="comp_id[]" value="${c ? esc(String(c.id)) : ''}">
+                <input type="hidden" name="comp_nombre[]" value="${c ? esc(c.nombre || '') : ''}">
+                <input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42">
+            </td>`;
         tbodyTiempos.appendChild(tr);
-
-        const selComp = tr.querySelector('.rs-comp');
-        const inpBuscar = tr.querySelector('.rs-buscar');
-        const inpId = tr.querySelector('.rs-comp-id');
-        const inpNomHidden = tr.querySelector('.rs-nombre-hidden');
-
-        // Pinchar el nombre fijo => permite cambiarlo (vuelve a modo edición)
-        const fijo = tr.querySelector('.rs-nombre-fijo');
-        if (fijo) {
-            fijo.style.cursor = 'pointer';
-            fijo.title = (fijo.title || '') + ' — clic para cambiar';
-            fijo.addEventListener('click', () => {
-                fijo.remove();
-                selComp.classList.remove('d-none');
-                inpId.value = '';
-                inpNomHidden.value = '';
-                const aux = document.createElement('input');
-                aux.type = 'text';
-                aux.className = 'form-control form-control-sm rs-buscar mb-1';
-                aux.setAttribute('list', 'rs_lista_utes');
-                aux.placeholder = 'Buscar por nombre...';
-                selComp.parentNode.insertBefore(aux, selComp);
-                activarBuscador(aux);
-                selComp.dispatchEvent(new Event('change'));
-                aux.focus();
-            });
-        }
-
-        // Al elegir del select => guarda el id + nombre reales y oculta el buscador
-        selComp.addEventListener('change', () => {
-            const opt = selComp.selectedOptions[0];
-            if (opt && opt.value !== '') {
-                inpId.value = opt.value;
-                inpNomHidden.value = opt.textContent.trim();
-                if (inpBuscar) inpBuscar.remove();
-                selComp.classList.add('d-none');
-                const div = document.createElement('div');
-                div.className = 'rs-nombre-fijo fw-semibold small text-truncate';
-                div.textContent = opt.textContent.trim();
-                div.title = 'Clic para cambiar';
-                div.style.cursor = 'pointer';
-                selComp.parentNode.insertBefore(div, selComp);
-                div.addEventListener('click', () => {
-                    div.remove();
-                    selComp.classList.remove('d-none');
-                    inpId.value = '';
-                    inpNomHidden.value = '';
-                    const aux = document.createElement('input');
-                    aux.type = 'text';
-                    aux.className = 'form-control form-control-sm rs-buscar mb-1';
-                    aux.setAttribute('list', 'rs_lista_utes');
-                    aux.placeholder = 'Buscar por nombre...';
-                    selComp.parentNode.insertBefore(aux, selComp);
-                    activarBuscador(aux);
-                    refrescarOpciones();
-                    aux.focus();
-                });
-            } else {
-                inpId.value = '';
-                inpNomHidden.value = inpBuscar ? inpBuscar.value.trim() : '';
-            }
-            refrescarOpciones();
-        });
-
-        function refrescarOpciones() {
-            const actual = inpId.value || selComp.value;
-            selComp.innerHTML = opcionesCompetidor(actual || null);
-            if (actual && [...selComp.options].some(o => o.value === actual)) selComp.value = actual;
-        }
-        if (!c) {
-            selComp.innerHTML = opcionesCompetidor(null);
-            if (inpBuscar) activarBuscador(inpBuscar);
-        }
-
-        function activarBuscador(inp) {
-            inp.addEventListener('input', () => {
-                inpNomHidden.value = inp.value.trim();
-            });
-            // Escribir un nombre exacto de un competidor => lo selecciona y fija
-            inp.addEventListener('change', () => {
-                const txt = inp.value.trim().toLowerCase();
-                if (!txt) return;
-                const match = competidoresDisponibles.find(cc => cc.nombre.toLowerCase() === txt);
-                if (match) {
-                    inpId.value = String(match.id);
-                    inpNomHidden.value = match.nombre;
-                    inp.remove();
-                    selComp.classList.add('d-none');
-                    const div = document.createElement('div');
-                    div.className = 'rs-nombre-fijo fw-semibold small text-truncate';
-                    div.textContent = match.nombre + (match.dni ? ' (' + match.dni + ')' : '');
-                    div.title = 'Clic para cambiar';
-                    div.style.cursor = 'pointer';
-                    selComp.parentNode.insertBefore(div, selComp);
-                    div.addEventListener('click', () => {
-                        div.remove();
-                        selComp.classList.remove('d-none');
-                        inpId.value = '';
-                        inpNomHidden.value = '';
-                        const aux = document.createElement('input');
-                        aux.type = 'text';
-                        aux.className = 'form-control form-control-sm rs-buscar mb-1';
-                        aux.setAttribute('list', 'rs_lista_utes');
-                        aux.placeholder = 'Buscar por nombre...';
-                        selComp.parentNode.insertBefore(aux, selComp);
-                        activarBuscador(aux);
-                        refrescarOpciones();
-                        aux.focus();
-                    });
-                    refrescarOpciones();
-                }
-            });
-        }
-
-        tr.querySelector('.rs-quitar-fila').addEventListener('click', () => {
-            tr.remove();
-            renumerarFilas();
-            // refrescar las opciones para que vuelva a aparecer el quitado
-            refrescarTodasLasOpciones();
-        });
     }
-
-    /** Vuelve a pintar los <select> de todas las filas excluyendo los ya asignados. */
-    function refrescarTodasLasOpciones() {
-        tbodyTiempos.querySelectorAll('tr').forEach(fila => {
-            const s = fila.querySelector('.rs-comp');
-            if (!s) return;
-            const actual = fila.querySelector('.rs-comp-id').value || s.value;
-            s.innerHTML = opcionesCompetidor(actual || null);
-            if (actual && [...s.options].some(o => o.value === actual)) s.value = actual;
-        });
-    }
-
-    function renumerarFilas() {
-        tbodyTiempos.querySelectorAll('input[name="comp_posicion[]"]').forEach((inp, i) => inp.value = i + 1);
-    }
-    document.getElementById('rs_btn_agregar_fila').addEventListener('click', () => {
-        agregarFila(tbodyTiempos.children.length + 1);
-    });
 
     document.getElementById('rs_btn_nuevo').addEventListener('click', () => {
         document.getElementById('form_resultado').reset();
@@ -715,7 +550,6 @@
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
         datalistUtes.innerHTML = '';
         tbodyTiempos.innerHTML = '';
-        for (let i = 1; i <= 3; i++) agregarFila(i); // 1°, 2°, 3° por defecto
         mostrarBloqueSegunTipo();
         modalResultado.show();
     });
@@ -723,21 +557,16 @@
     document.getElementById('rs_btn_guardar').addEventListener('click', () => {
         const fd = new FormData(document.getElementById('form_resultado'));
         const datos = {};
-        // Recoger arrays (filas de tiempo) manualmente
-        const arrays = {};
         for (const [k, v] of fd.entries()) {
-            if (k.endsWith('[]')) {
-                (arrays[k] = arrays[k] || []).push(v);
-            } else {
-                datos[k] = v;
-            }
+            if (!k.endsWith('[]')) datos[k] = v; // las filas de tiempo se leen del DOM abajo
         }
-        // IMPORTANTE: se envían los valores REALES del DOM (no el FormData, que
-        // captura también los <select hidden> vacíos de las filas con nombre fijo).
-        datos['comp_posicion'] = [...tbodyTiempos.querySelectorAll('input[name="comp_posicion[]"]')].map(i => i.value);
-        datos['comp_nombre']   = [...tbodyTiempos.querySelectorAll('input[name="comp_nombre[]"]')].map(i => i.value);
-        datos['comp_id']       = [...tbodyTiempos.querySelectorAll('input[name="comp_id[]"]')].map(i => i.value);
-        datos['comp_tiempo']   = [...tbodyTiempos.querySelectorAll('input[name="comp_tiempo[]"]')].map(i => i.value);
+
+        // MASIVO_TIEMPO: una fila por participante. La POSICION se asigna
+        // automaticamente segun el ORDEN de las filas (1°, 2°, 3°...).
+        datos['comp_nombre'] = [...tbodyTiempos.querySelectorAll('input[name="comp_nombre[]"]')].map(i => i.value);
+        datos['comp_id']     = [...tbodyTiempos.querySelectorAll('input[name="comp_id[]"]')].map(i => i.value);
+        datos['comp_tiempo'] = [...tbodyTiempos.querySelectorAll('input[name="comp_tiempo[]"]')].map(i => i.value);
+        datos['comp_posicion'] = datos['comp_nombre'].map((_, i) => String(i + 1));
 
         if (!datos.id_categoria) { mensaje('Elegí el deporte/categoría.', 'warning'); return; }
         if (!datos.nombre_evento) { mensaje('Poné un nombre al partido/prueba.', 'warning'); return; }
