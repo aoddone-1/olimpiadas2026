@@ -295,7 +295,7 @@
             <div class="row g-2 small mb-3">
                 <div class="col-sm-6"><i class="bi bi-trophy text-success me-1"></i><strong>Deporte:</strong> ${esc(r.nombre_deporte || '—')}</div>
                 <div class="col-sm-6"><i class="bi bi-layers text-success me-1"></i><strong>Categoría:</strong> ${esc(r.nombre_categoria || '—')}</div>
-                <div class="col-sm-6"><i class="bi bi-calendar3 text-success me-1"></i><strong>Fecha:</strong> ${fechaArma(r.fecha_resultado)}</div>
+                <div class="col-sm-6"><i class="bi bi-calendar3 text-success me-1"></i><strong>Fecha:</strong> ${fechaArma(r.fecha_competencia || r.fecha_resultado)}</div>
                 ${r.nombre_prueba ? `<div class="col-12"><i class="bi bi-journal-text text-success me-1"></i><strong>Prueba:</strong> ${esc(r.nombre_prueba)}</div>` : ''}
             </div>`;
 
@@ -453,7 +453,7 @@
                         <strong>${esc(r.nombre_evento)}</strong>
                         ${r.nombre_prueba ? `<span class="small text-muted ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(r.nombre_prueba)}</span>` : ''}
                         <div class="small text-muted">
-                            <i class="bi bi-clock me-1"></i>${fechaArma(r.fecha_resultado)}
+                            <i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}
                             ${r.observaciones ? '&nbsp;<i class="bi bi-chat-left-text me-1"></i>' + esc(r.observaciones) : ''}
                         </div>
                         ${cuerpo}
@@ -599,9 +599,11 @@
                 fixturesDelModal = res.fixtures || [];
                 fixturesDelModal.forEach(f => {
                     const equipos = [f.ute_1_nombre, f.ute_2_nombre].filter(Boolean).join(' vs ');
+                    const fFx = f.fecha_competencia ? fechaArma(f.fecha_competencia) : '';
                     selFixture.insertAdjacentHTML('beforeend',
                         `<option value="${f.id_fixture}">F${esc(f.numero_fecha)} · ${esc(f.nombre_prueba)}` +
-                        (equipos ? ' · ' + esc(equipos) : '') + ` (${esc(f.estado)})</option>`);
+                        (equipos ? ' · ' + esc(equipos) : '') +
+                        (fFx ? ' · 📅' + fFx : '') + ` (${esc(f.estado)})</option>`);
                 });
             });
     }
