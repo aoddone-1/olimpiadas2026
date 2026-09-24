@@ -1116,6 +1116,136 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /* ============================================================
+     *  PREMIACIÓN (pestaña de Control Total) - endpoints AJAX
+     * ============================================================ */
+
+    private function _premiacion_auth_json() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
+            return false;
+        }
+        $this->load->model('Premiacion_model');
+        return true;
+    }
+
+    /**
+     * Resumen de la noche: qué competencias cerradas se premian en la fecha
+     * pedida (?fecha=YYYY-MM-DD, por defecto hoy), con su podio resuelto y
+     * el estado de entrega. Incluye además el histórico ya entregado.
+     */
+    public function ajax_premiacion_noche() {
+        try {
+            if (!$this->_premiacion_auth_json()) return;
+
+            if (!$this->Premiacion_model->tablas_existentes()) {
+                $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array(
+                        'ok' => false,
+                        'error' => 'Falta la tabla de premiaciones. Ejecutá el script sql/premiaciones.sql y recargá la página.'
+                    )));
+                return;
+            }
+
+            $fecha = trim((string) $this->input->get('fecha'));
+            $ts = $fecha ? strtotime($fecha) : strtotime('today');
+            if (!$ts) $ts = strtotime('today');
+            $fecha = date('Y-m-d', $ts);
+
+            $items = $this->Premiacion_model->obtener_resumen_noche($fecha);
+            $premiados = array();   // categorías con todos sus puestos confirmados
+            $pendientes = array();  // categorías listas para premiar (o parciales)
+            foreach ($items as $it) {
+                $entregados = array();
+                foreach ($it['entregadas'] as $e) {
+                    $entregados[(int) $e['puesto']] = $e;
+                }
+                $fila = array(
+                    'categoria'     => $it['categoria'],
+                    'origen'        => $it['origen'],
+                    'motivo'        => $it['motivo'],
+                    'fecha_entrega' => $it['fecha_entrega'],
+                    'podio'         => $it['podio'],
+                    'entregados'    => $entregados,
+                );
+                $puestos_esperados = array_keys($it['podio']);
+                $completa = !empty($puestos_esperados);
+                foreach ($puestos_esperados as $p) {
+                    if (!isset($entregados[$p])) { $completa = false; break; }
+                }
+                if ($completa) $premiados[] = $fila;
+                else $pendientes[] = $fila;
+            }
+
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'fecha' => $fecha,
+                    'pendientes' => $pendientes,
+                    'premiados' => $premiados,
+                )));
+        } catch (Throwable $e) {
+            log_message('error', '[Premiación] ' . $e->getMessage());
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Confirma la entrega del podio de una categoría en la noche indicada. */
+    public function ajax_confirmar_premiacion() {
+        try {
+            if (!$this->_premiacion_auth_json()) return;
+
+            $id_cat = (int) $this->input->post('id_categoria');
+            $fecha = trim((string) $this->input->post('fecha_entrega'));
+            $puestos_raw = $this->input->post('puestos');
+            if (is_string($puestos_raw)) {
+                $puestos = json_decode(stripslashes($puestos_raw), true);
+            } else {
+                $puestos = $puestos_raw;
+            }
+            if (!is_array($puestos)) $puestos = array();
+
+            $cant = $this->Premiacion_model->confirmar_podio(
+                $id_cat, $puestos, $fecha, $this->session->userdata('user_id'),
+                $this->input->post('observaciones'));
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'mensaje' => 'Premiación registrada: ' . $cant . ' puesto/s confirmados.'
+                )));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Anula la premiación registrada de una categoría (vuelve a pendiente). */
+    public function ajax_anular_premiacion() {
+        try {
+            if (!$this->_premiacion_auth_json()) return;
+
+            $id_cat = (int) $this->input->post('id_categoria');
+            if (!$id_cat) throw new Exception('Categoría inexistente.');
+            $this->Premiacion_model->anular_premiacion($id_cat);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Premiación anulada.')));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     public function detalle_ajax($id_participante) {
         // Validar que el usuario esté logueado (staff o delegado)
         if (!$this->session->userdata('is_organizador') && !$this->session->userdata('is_delegado')) {

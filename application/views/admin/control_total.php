@@ -38,6 +38,11 @@
                     <i class="bi bi-trophy-fill me-2"></i>Resultados
                 </button>
             </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill px-4 fw-bold js-tab-btn text-warning" data-target="#panel-premiacion" type="button">
+                    <i class="bi bi-award-fill me-2"></i>Premiación
+                </button>
+            </li>
         </ul>
     </div>
 
@@ -54,6 +59,11 @@
         </div>
         <div class="tab-custom-pane fade" id="panel-resultados">
             <?php $this->load->view('admin/panel_resultados'); ?>
+        </div>
+
+        <!-- Panel Premiación -->
+        <div class="tab-custom-pane fade" id="panel-premiacion">
+            <?php $this->load->view('admin/panel_premiacion'); ?>
         </div>
 
     </div>
