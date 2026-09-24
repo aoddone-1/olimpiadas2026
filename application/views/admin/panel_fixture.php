@@ -36,15 +36,18 @@
                 </select>
             </div>
             <div class="col-md-5">
-                <button id="fx_btn_generar" class="btn btn-primary" disabled>
-                    <i class="bi bi-magic me-1"></i>Generar fixture automático
-                </button>
-                <button id="fx_btn_borrar_todo" class="btn btn-outline-danger" disabled>
-                    <i class="bi bi-trash me-1"></i>Borrar fixture de la categoría
-                </button>
-                <button id="fx_btn_nuevo" class="btn btn-success">
-                    <i class="bi bi-plus-lg me-1"></i>Partido manual
-                </button>
+                <label class="form-label small fw-bold">Acciones</label>
+                <div class="d-flex flex-wrap gap-2">
+                    <button id="fx_btn_generar" class="btn btn-primary d-inline-flex align-items-center" disabled>
+                        <i class="bi bi-magic me-2"></i>Generar fixture
+                    </button>
+                    <button id="fx_btn_nuevo" class="btn btn-success d-inline-flex align-items-center">
+                        <i class="bi bi-plus-lg me-2"></i>Partido manual
+                    </button>
+                    <button id="fx_btn_borrar_todo" class="btn btn-outline-danger d-inline-flex align-items-center" disabled title="Borra el fixture de la categoría seleccionada">
+                        <i class="bi bi-trash me-2"></i>Borrar fixture
+                    </button>
+                </div>
             </div>
         </div>
 
