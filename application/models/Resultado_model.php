@@ -39,6 +39,74 @@ class Resultado_model extends CI_Model {
         return $row ? $row['modalidad_competencia'] : null;
     }
 
+    /** ¿Existe la columna fixtures.resultado? (ver sql/fixture_resultado_masivo.sql). */
+    private function _existe_columna_resultado() {
+        static $existe = null;
+        if ($existe === null) {
+            try {
+                $cols = $this->db->field_names('fixtures');
+                $existe = is_array($cols) && in_array('resultado', $cols, true);
+            } catch (Throwable $e) {
+                $existe = false;
+            }
+        }
+        return $existe;
+    }
+
+    /**
+     * Asegura que la categoría masiva tenga al menos una jornada (fila JORNADA_UNICA
+     * en fixtures). Sin esto, los deportes MASIVO_TIEMPO nunca muestran participantes
+     * en la pestaña Resultados porque no hay jornada a la cual vincularlos.
+     * Devuelve el id_fixture de la jornada (existente o recién creada), o 0 si falla.
+     */
+    public function asegurar_jornada_masiva($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+        if (!$id_categoria) return 0;
+
+        $this->db->select('id_fixture');
+        $this->db->where('id_categoria', $id_categoria);
+        $this->db->order_by('numero_fecha, fecha_competencia, hora_inicio, id_fixture', 'ASC');
+        $this->db->limit(1);
+        $fx = $this->db->get('fixtures')->row_array();
+        if ($fx) return (int) $fx['id_fixture'];
+
+        // No hay fixture: se crea la "Largada General" con los datos de la categoría.
+        $this->db->select('c.dia_competencia, c.hora_competencia, c.id_lugar', FALSE);
+        $this->db->where('c.id_categoria', $id_categoria);
+        $cat = $this->db->get('categorias')->row_array();
+        if (!$cat) return 0;
+
+        $lugar = !empty($cat['id_lugar']) ? (int) $cat['id_lugar'] : 0;
+        if (!$lugar) {
+            $this->db->order_by('id', 'ASC');
+            $this->db->limit(1);
+            $l = $this->db->get('lugares')->row_array();
+            $lugar = $l ? (int) $l['id'] : 0;
+        }
+        if (!$lugar) return 0; // sin lugares no se puede crear (fixtures.id_lugar NOT NULL)
+
+        $cant_equipos = (int) $this->db
+            ->where('id_categoria', $id_categoria)
+            ->count_all_results('utes', FALSE);
+
+        $fecha = $cat['dia_competencia'] ?: date('Y-m-d');
+        $hora  = $cat['hora_competencia'] ?: '09:00:00';
+        $this->db->insert('fixtures', array(
+            'id_categoria'      => $id_categoria,
+            'id_lugar'          => $lugar,
+            'id_ute_1'          => null,
+            'id_ute_2'          => null,
+            'nombre_prueba'     => 'Largada General (' . $cant_equipos . ' equipos)',
+            'fase'              => 'JORNADA_UNICA',
+            'numero_fecha'      => 1,
+            'fecha_competencia' => $fecha,
+            'hora_inicio'       => $hora,
+            'hora_fin'          => $hora,
+            'estado'            => 'PROGRAMADO',
+        ));
+        return (int) $this->db->insert_id();
+    }
+
     /**
      * Competidores de una categoría para la carga de resultados masivos:
      *  - Participantes inscriptos individualmente ("INSCRIPCION PERSONAL":
@@ -418,20 +486,6 @@ class Resultado_model extends CI_Model {
         }
 
         return $rows;
-    }
-
-    /** ¿Existe la columna fixtures.resultado? (ver sql/fixture_resultado_masivo.sql). */
-    private function _existe_columna_resultado() {
-        static $existe = null;
-        if ($existe === null) {
-            try {
-                $cols = $this->db->field_names('fixtures');
-                $existe = is_array($cols) && in_array('resultado', $cols, true);
-            } catch (Throwable $e) {
-                $existe = false;
-            }
-        }
-        return $existe;
     }
 
     /**

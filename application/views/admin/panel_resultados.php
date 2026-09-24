@@ -497,9 +497,14 @@
         if (!selFixture.value) return [];
         const lista = participantesPorFixture[selFixture.value]
                    || participantesPorFixture[String(selFixture.value)] || [];
-        // Solo se pueden preseleccionar los que siguen disponibles en la categoría
-        // (mismos ids: >0 UTE, <0 inscripción personal).
-        return lista.filter(c => competidoresDisponibles.some(d => String(d.id) === String(c.id)));
+        // Si todavía no cargó la lista general de la categoría, igual se muestran
+        // los de la jornada (vienen resueltos desde el fixture + inscripciones).
+        if (!competidoresDisponibles.length) return lista;
+        // Si ninguno de los de la jornada coincide con la lista general (p.ej.
+        // inscripciones dadas de baja), se muestran igual los de la jornada:
+        // es preferible eso a una planilla vacía.
+        const filtrados = lista.filter(c => competidoresDisponibles.some(d => String(d.id) === String(c.id)));
+        return filtrados.length ? filtrados : lista;
     }
 
     /** Repintar la planilla de tiempos según la jornada del fixture elegida. */
@@ -549,6 +554,9 @@
             <td>
                 <input type="text" class="form-control form-control-sm rs-nombre mb-1" list="rs_lista_utes" placeholder="Buscar por nombre...">
                 <select name="comp_ute[]" class="form-select form-select-sm rs-comp"></select>
+                <!-- respaldo del nombre: si el select queda vacío (el competidor no está
+                     en la lista de la categoría), el backend usa este nombre -->
+                <input type="hidden" name="comp_nombre[]" class="rs-nombre-hidden" value="">
             </td>
             <td><input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42 o 1:05:30"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger rs-quitar-fila"><i class="bi bi-dash-lg"></i></button></td>`;
@@ -556,6 +564,12 @@
 
         const selComp = tr.querySelector('.rs-comp');
         const inpNom = tr.querySelector('.rs-nombre');
+        const inpNomHidden = tr.querySelector('.rs-nombre-hidden');
+        const sincronizarNombre = () => {
+            const opt = selComp.selectedOptions[0];
+            inpNomHidden.value = (opt && opt.value) ? opt.textContent.trim() : inpNom.value.trim();
+        };
+        if (c) inpNomHidden.value = c.nombre || '';
         const pintarOpciones = () => {
             const actual = selComp.value || (c ? String(c.id) : '');
             selComp.innerHTML = opcionesCompetidor(actual ? parseInt(actual, 10) : null);
@@ -568,7 +582,9 @@
         selComp.addEventListener('change', () => {
             inpNom.value = '';
             pintarOpciones();
+            sincronizarNombre();
         });
+        inpNom.addEventListener('input', sincronizarNombre);
         // Escribir un nombre exacto de un competidor => lo selecciona en el select
         inpNom.addEventListener('change', () => {
             const txt = inpNom.value.trim().toLowerCase();
@@ -579,6 +595,7 @@
                 selComp.value = String(match.id);
                 inpNom.value = '';
             }
+            sincronizarNombre();
         });
 
         tr.querySelector('.rs-quitar-fila').addEventListener('click', () => {
