@@ -526,7 +526,7 @@
         let html = '<option value="">— Escribí o elegí un nombre libre —</option>';
         let grupoActual = '';
         competidoresDisponibles.forEach(c => {
-            if (c.id === exceptoId) return;
+            if (String(c.id) === String(exceptoId)) return;
             const etiqueta = c.tipo === 'PERSONAL'
                 ? `${c.nombre} (${c.dni})`
                 : `${c.nombre} [equipo]`;
@@ -544,66 +544,155 @@
     function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
         const c = competidor || null;
+        // El nombre NO se puede modificar: es fijo (viene de la inscripción).
+        // Las filas nuevas sin competidor asignado permiten buscar/elegir uno.
+        const nombreFijo = c
+            ? `<div class="rs-nombre-fijo fw-semibold small text-truncate" title="${esc(c.nombre || '')}">${esc(c.nombre)}${c.dni ? ' <span class="text-muted">(' + esc(c.dni) + ')</span>' : ''}</div>`
+            : `<input type="text" class="form-control form-control-sm rs-buscar mb-1" list="rs_lista_utes" placeholder="Buscar por nombre...">`;
         tr.innerHTML = `
             <td><input type="number" name="comp_posicion[]" class="form-control form-control-sm" min="1" value="${pos}"></td>
             <td>
-                <input type="text" class="form-control form-control-sm rs-nombre mb-1" list="rs_lista_utes" placeholder="Buscar por nombre...">
-                <select name="comp_ute[]" class="form-select form-select-sm rs-comp"></select>
-                <!-- respaldo del nombre: si el select queda vacío (el competidor no está
-                     en la lista de la categoría), el backend usa este nombre -->
-                <input type="hidden" name="comp_nombre[]" class="rs-nombre-hidden" value="">
+                ${nombreFijo}
+                <select name="comp_ute[]" class="form-select form-select-sm rs-comp ${c ? 'd-none' : ''}"></select>
+                <!-- el id real del competidor (>0 UTE / <0 inscripción personal):
+                     el select muestra nombres libres, este hidden guarda el id -->
+                <input type="hidden" name="comp_id[]" class="rs-comp-id" value="${c ? esc(String(c.id)) : ''}">
+                <!-- respaldo del nombre: el backend usa este nombre para la fila -->
+                <input type="hidden" name="comp_nombre[]" class="rs-nombre-hidden" value="${c ? esc(c.nombre || '') : ''}">
             </td>
             <td><input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42 o 1:05:30"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger rs-quitar-fila"><i class="bi bi-dash-lg"></i></button></td>`;
         tbodyTiempos.appendChild(tr);
 
         const selComp = tr.querySelector('.rs-comp');
-        const inpNom = tr.querySelector('.rs-nombre');
+        const inpBuscar = tr.querySelector('.rs-buscar');
+        const inpId = tr.querySelector('.rs-comp-id');
         const inpNomHidden = tr.querySelector('.rs-nombre-hidden');
-        const sincronizarNombre = () => {
-            const opt = selComp.selectedOptions[0];
-            inpNomHidden.value = (opt && opt.value) ? opt.textContent.trim() : inpNom.value.trim();
-        };
-        if (c) inpNomHidden.value = c.nombre || '';
-        const pintarOpciones = () => {
-            const actual = selComp.value || (c ? String(c.id) : '');
-            selComp.innerHTML = opcionesCompetidor(actual ? parseInt(actual, 10) : null);
-            if ([...selComp.options].some(o => o.value === actual && actual !== '')) selComp.value = actual;
-        };
-        pintarOpciones();
-        if (c) { selComp.value = String(c.id); inpNom.placeholder = 'Filtrar en la lista...'; }
 
-        // Elegir del select => fija el competidor y limpia el texto de búsqueda
+        // Pinchar el nombre fijo => permite cambiarlo (vuelve a modo edición)
+        const fijo = tr.querySelector('.rs-nombre-fijo');
+        if (fijo) {
+            fijo.style.cursor = 'pointer';
+            fijo.title = (fijo.title || '') + ' — clic para cambiar';
+            fijo.addEventListener('click', () => {
+                fijo.remove();
+                selComp.classList.remove('d-none');
+                inpId.value = '';
+                inpNomHidden.value = '';
+                const aux = document.createElement('input');
+                aux.type = 'text';
+                aux.className = 'form-control form-control-sm rs-buscar mb-1';
+                aux.setAttribute('list', 'rs_lista_utes');
+                aux.placeholder = 'Buscar por nombre...';
+                selComp.parentNode.insertBefore(aux, selComp);
+                activarBuscador(aux);
+                selComp.dispatchEvent(new Event('change'));
+                aux.focus();
+            });
+        }
+
+        // Al elegir del select => guarda el id + nombre reales y oculta el buscador
         selComp.addEventListener('change', () => {
-            inpNom.value = '';
-            pintarOpciones();
-            sincronizarNombre();
-        });
-        inpNom.addEventListener('input', sincronizarNombre);
-        // Escribir un nombre exacto de un competidor => lo selecciona en el select
-        inpNom.addEventListener('change', () => {
-            const txt = inpNom.value.trim().toLowerCase();
-            if (!txt) return;
-            const match = competidoresDisponibles.find(cc => cc.nombre.toLowerCase() === txt);
-            if (match) {
-                selComp.innerHTML = opcionesCompetidor(match.id);
-                selComp.value = String(match.id);
-                inpNom.value = '';
+            const opt = selComp.selectedOptions[0];
+            if (opt && opt.value !== '') {
+                inpId.value = opt.value;
+                inpNomHidden.value = opt.textContent.trim();
+                if (inpBuscar) inpBuscar.remove();
+                selComp.classList.add('d-none');
+                const div = document.createElement('div');
+                div.className = 'rs-nombre-fijo fw-semibold small text-truncate';
+                div.textContent = opt.textContent.trim();
+                div.title = 'Clic para cambiar';
+                div.style.cursor = 'pointer';
+                selComp.parentNode.insertBefore(div, selComp);
+                div.addEventListener('click', () => {
+                    div.remove();
+                    selComp.classList.remove('d-none');
+                    inpId.value = '';
+                    inpNomHidden.value = '';
+                    const aux = document.createElement('input');
+                    aux.type = 'text';
+                    aux.className = 'form-control form-control-sm rs-buscar mb-1';
+                    aux.setAttribute('list', 'rs_lista_utes');
+                    aux.placeholder = 'Buscar por nombre...';
+                    selComp.parentNode.insertBefore(aux, selComp);
+                    activarBuscador(aux);
+                    refrescarOpciones();
+                    aux.focus();
+                });
+            } else {
+                inpId.value = '';
+                inpNomHidden.value = inpBuscar ? inpBuscar.value.trim() : '';
             }
-            sincronizarNombre();
+            refrescarOpciones();
         });
+
+        function refrescarOpciones() {
+            const actual = inpId.value || selComp.value;
+            selComp.innerHTML = opcionesCompetidor(actual || null);
+            if (actual && [...selComp.options].some(o => o.value === actual)) selComp.value = actual;
+        }
+        if (!c) {
+            selComp.innerHTML = opcionesCompetidor(null);
+            if (inpBuscar) activarBuscador(inpBuscar);
+        }
+
+        function activarBuscador(inp) {
+            inp.addEventListener('input', () => {
+                inpNomHidden.value = inp.value.trim();
+            });
+            // Escribir un nombre exacto de un competidor => lo selecciona y fija
+            inp.addEventListener('change', () => {
+                const txt = inp.value.trim().toLowerCase();
+                if (!txt) return;
+                const match = competidoresDisponibles.find(cc => cc.nombre.toLowerCase() === txt);
+                if (match) {
+                    inpId.value = String(match.id);
+                    inpNomHidden.value = match.nombre;
+                    inp.remove();
+                    selComp.classList.add('d-none');
+                    const div = document.createElement('div');
+                    div.className = 'rs-nombre-fijo fw-semibold small text-truncate';
+                    div.textContent = match.nombre + (match.dni ? ' (' + match.dni + ')' : '');
+                    div.title = 'Clic para cambiar';
+                    div.style.cursor = 'pointer';
+                    selComp.parentNode.insertBefore(div, selComp);
+                    div.addEventListener('click', () => {
+                        div.remove();
+                        selComp.classList.remove('d-none');
+                        inpId.value = '';
+                        inpNomHidden.value = '';
+                        const aux = document.createElement('input');
+                        aux.type = 'text';
+                        aux.className = 'form-control form-control-sm rs-buscar mb-1';
+                        aux.setAttribute('list', 'rs_lista_utes');
+                        aux.placeholder = 'Buscar por nombre...';
+                        selComp.parentNode.insertBefore(aux, selComp);
+                        activarBuscador(aux);
+                        refrescarOpciones();
+                        aux.focus();
+                    });
+                    refrescarOpciones();
+                }
+            });
+        }
 
         tr.querySelector('.rs-quitar-fila').addEventListener('click', () => {
             tr.remove();
             renumerarFilas();
             // refrescar las opciones para que vuelva a aparecer el quitado
-            tbodyTiempos.querySelectorAll('tr').forEach(fila => {
-                const s = fila.querySelector('.rs-comp');
-                if (!s) return;
-                const actual = s.value;
-                s.innerHTML = opcionesCompetidor(actual ? parseInt(actual, 10) : null);
-                if ([...s.options].some(o => o.value === actual)) s.value = actual;
-            });
+            refrescarTodasLasOpciones();
+        });
+    }
+
+    /** Vuelve a pintar los <select> de todas las filas excluyendo los ya asignados. */
+    function refrescarTodasLasOpciones() {
+        tbodyTiempos.querySelectorAll('tr').forEach(fila => {
+            const s = fila.querySelector('.rs-comp');
+            if (!s) return;
+            const actual = fila.querySelector('.rs-comp-id').value || s.value;
+            s.innerHTML = opcionesCompetidor(actual || null);
+            if (actual && [...s.options].some(o => o.value === actual)) s.value = actual;
         });
     }
 
@@ -638,10 +727,12 @@
                 datos[k] = v;
             }
         }
-        datos['comp_nombre'] = arrays['comp_nombre[]'] || [];
-        datos['comp_posicion'] = arrays['comp_posicion[]'] || [];
-        datos['comp_tiempo'] = arrays['comp_tiempo[]'] || [];
-        datos['comp_ute'] = arrays['comp_ute[]'] || [];
+        // IMPORTANTE: se envían los valores REALES del DOM (no el FormData, que
+        // captura también los <select hidden> vacíos de las filas con nombre fijo).
+        datos['comp_posicion'] = [...tbodyTiempos.querySelectorAll('input[name="comp_posicion[]"]')].map(i => i.value);
+        datos['comp_nombre']   = [...tbodyTiempos.querySelectorAll('input[name="comp_nombre[]"]')].map(i => i.value);
+        datos['comp_id']       = [...tbodyTiempos.querySelectorAll('input[name="comp_id[]"]')].map(i => i.value);
+        datos['comp_tiempo']   = [...tbodyTiempos.querySelectorAll('input[name="comp_tiempo[]"]')].map(i => i.value);
 
         if (!datos.id_categoria) { mensaje('Elegí el deporte/categoría.', 'warning'); return; }
         if (!datos.nombre_evento) { mensaje('Poné un nombre al partido/prueba.', 'warning'); return; }

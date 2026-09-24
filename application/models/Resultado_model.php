@@ -238,13 +238,17 @@ class Resultado_model extends CI_Model {
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
             $posiciones = isset($datos['comp_posicion']) ? (array) $datos['comp_posicion'] : array();
             $tiempos = isset($datos['comp_tiempo']) ? (array) $datos['comp_tiempo'] : array();
-            $utes = isset($datos['comp_ute']) ? (array) $datos['comp_ute'] : array();
+            // El id del competidor ahora viaja en comp_id[] (el select visible
+            // puede quedar oculto/vacío en las filas con nombre fijo). Se acepta
+            // también comp_ute[] por compatibilidad.
+            $ids = isset($datos['comp_id']) ? (array) $datos['comp_id']
+                 : (isset($datos['comp_ute']) ? (array) $datos['comp_ute'] : array());
 
             foreach ($nombres as $i => $nom) {
                 $nom = trim($nom);
                 $pos = isset($posiciones[$i]) ? trim((string) $posiciones[$i]) : '';
                 $tie = isset($tiempos[$i]) ? trim($tiempos[$i]) : '';
-                $id_comp = isset($utes[$i]) ? (int) $utes[$i] : 0; // >0 UTE, <0 inscripción personal
+                $id_comp = isset($ids[$i]) ? (int) $ids[$i] : 0; // >0 UTE, <0 inscripción personal
                 if ($nom === '' && !$id_comp && $pos === '' && $tie === '') continue; // fila vacía
 
                 if ($id_comp) {
