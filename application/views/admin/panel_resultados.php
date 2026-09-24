@@ -1,15 +1,20 @@
 <!-- PANEL RESULTADOS -->
 <div class="card shadow-sm border-0">
+    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="d-flex align-items-center">
+                 <i class="bi bi-trophy-fill me-2 text-success"></i>
+                <span>Carga de Resultados</span>
+            </div>
+        </div>
+    </div>
     <div class="card-body">
-        <h5 class="card-title fw-bold mb-3">
-            <i class="bi bi-trophy-fill me-2 text-warning"></i>Carga de Resultados
-        </h5>
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <!-- Filtros al estilo UTEs/Equipos -->
             <div class="d-flex flex-wrap gap-2 align-items-end" id="rs_filtros">
                 <div>
-                    <label class="form-label small fw-bold mb-1"><i class="bi bi-trophy-fill text-warning me-1"></i>Deporte</label>
+                    <label class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-success me-1"></i>Deporte</label>
                     <select id="rs_filtro_deporte" class="form-select form-select-sm" style="min-width:180px">
                         <option value="">Todos los Deportes</option>
                         <?php
@@ -23,7 +28,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="form-label small fw-bold mb-1"><i class="bi bi-layers-fill text-warning me-1"></i>Categoría</label>
+                    <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-success me-1"></i>Categoría</label>
                     <select id="rs_filtro_categoria" class="form-select form-select-sm" style="min-width:230px">
                         <option value="" data-deporte="">Todas las Categorías</option>
                         <?php foreach ($categorias_fixture as $cat): ?>

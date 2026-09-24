@@ -1,14 +1,20 @@
 <!-- PANEL FIXTURE -->
 <div class="card shadow-sm border-0">
+    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-calendar3 me-2">
+                <span></i>Gestión de Fixture</span>
+            </div>
+        </div>
+        
+        
+    </div>
     <div class="card-body">
-        <h5 class="card-title fw-bold mb-3">
-            <i class="bi bi-calendar3 me-2"></i>Gestión de Fixture
-        </h5>
-
         <!-- Barra de acciones: los selectores son solo para generar/borrar, NO para ver -->
         <div class="row g-2 align-items-end mb-3">
             <div class="col-md-3">
-                <label class="form-label small fw-bold">Deporte</label>
+                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-danger me-1"></i>Deporte</label>
                 <select id="fx_deporte" class="form-select">
                     <option value="">— Todos los deportes —</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
@@ -19,7 +25,7 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label class="form-label small fw-bold">Categoría (para generar / borrar fixture)</label>
+                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (para generar / borrar fixture)</label>
                 <select id="fx_categoria" class="form-select">
                     <option value="">— Seleccioná una categoría —</option>
                     <?php foreach ($categorias_fixture as $cat): ?>
