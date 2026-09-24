@@ -260,46 +260,70 @@ class Resultado_model extends CI_Model {
         } else { // TIEMPO (deporte MASIVO_TIEMPO): posiciones de los participantes inscriptos
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
             $posiciones = isset($datos['comp_posicion']) ? (array) $datos['comp_posicion'] : array();
-            $tiempos = isset($datos['comp_tiempo']) ? (array) $datos['comp_tiempo'] : array();
-            // El id del competidor viaja en comp_id[]. Se acepta comp_ute[] por
-            // compatibilidad con resultados cargados con versiones anteriores.
             $ids = isset($datos['comp_id']) ? (array) $datos['comp_id']
-                 : (isset($datos['comp_ute']) ? (array) $datos['comp_ute'] : array());
+                : (isset($datos['comp_ute']) ? (array) $datos['comp_ute'] : array());
+
+            // --- PROCESAR TIEMPOS (soporta string separado por comas o array) ---
+            $tiempos_raw = isset($datos['comp_tiempo']) ? $datos['comp_tiempo'] : array();
+            if (is_string($tiempos_raw)) {
+                $tiempos = array_map('trim', explode(',', $tiempos_raw));
+            } else {
+                $tiempos = (array) $tiempos_raw;
+            }
+
+            // Helper para convertir formato hh:mm:ss o mm:ss a segundos totales
+            $a_segundos = function($str) {
+                if (!$str) return PHP_INT_MAX; // Si no hay tiempo, va al final
+                $p = explode(':', $str);
+                if (count($p) === 3) return ((int)$p[0] * 3600) + ((int)$p[1] * 60) + (float)$p[2];
+                if (count($p) === 2) return ((int)$p[0] * 60) + (float)$p[1];
+                return (float)$p[0];
+            };
 
             foreach ($nombres as $i => $nom) {
                 $nom = trim($nom);
-                $tie = isset($tiempos[$i]) ? trim($tiempos[$i]) : '';
-                $id_comp = isset($ids[$i]) ? (int) $ids[$i] : 0; // >0 UTE, <0 inscripción personal
-                if ($nom === '' && !$id_comp && $tie === '') continue; // fila vacía
+                $tie = isset($tiempos[$i]) ? trim((string)$tiempos[$i]) : '';
+                $id_comp = isset($ids[$i]) ? (int) $ids[$i] : 0;
 
-                // La posición NO la elige el usuario: se asigna según el ORDEN
-                // de las filas cargadas (1°, 2°, 3°...). Si llega una posición
-                // explícita válida (compatibilidad), se respeta.
-                $pos = isset($posiciones[$i]) ? trim((string) $posiciones[$i]) : '';
-                if ($pos === '' || !ctype_digit($pos) || (int) $pos < 1) {
-                    $pos = (string) (count($detalle) + 1);
-                }
+                if ($nom === '' && !$id_comp && $tie === '') continue;
 
                 if ($id_comp) {
-                    // El competidor sale de la lista de inscriptos de la categoría:
-                    // se guarda el nombre real resuelto desde la BD (no del form).
                     $resuelto = $this->_resolver_competidor($id_cat, $id_comp);
                     $nom = $resuelto['nombre'];
                 } elseif ($nom === '') {
                     throw new Exception('Fila de posición sin competidor.');
                 }
 
-                if ($tie !== '' && !preg_match('/^(\d{1,2}:)?\d{1,2}:\d{1,2}(\.\d{1,6})?$/', $tie)) {
-                    throw new Exception('Tiempo inválido para "' . $nom . '" (usá mm:ss o hh:mm:ss).');
+                $tie_limpio = preg_replace('/\s+/', '', $tie);
+
+                if ($tie_limpio !== '') {
+                    if (!preg_match('/^(?:(?:\d{1,2}:)?\d{1,2}:\d{2}|\d{1,2})(?:\.\d{1,6})?$/', $tie_limpio)) {
+                        throw new Exception('Tiempo inválido para "' . $nom . '" (usá mm:ss o hh:mm:ss). Recibido: ' . $tie);
+                    }
                 }
+
                 $detalle[] = array(
                     'id_ute' => $id_comp ?: null,
                     'nombre_libre' => $nom,
-                    'posicion' => (int) $pos,
-                    'tiempo' => $tie !== '' ? $tie : null,
+                    'posicion' => 0, // Se recalculará tras el ordenamiento
+                    'tiempo' => $tie_limpio !== '' ? $tie_limpio : null,
+                    '_segundos' => $a_segundos($tie_limpio) // Clave auxiliar para ordenar
                 );
             }
+
             if (!$detalle) throw new Exception('Cargá al menos un tiempo.');
+
+            // --- REORDENAR DETALLE POR TIEMPO Y ASIGNAR POSICIONES ---
+            usort($detalle, function($a, $b) {
+                if ($a['_segundos'] == $b['_segundos']) return 0;
+                return ($a['_segundos'] < $b['_segundos']) ? -1 : 1;
+            });
+
+            foreach ($detalle as $idx => &$d) {
+                $d['posicion'] = $idx + 1; // Asigna 1 al más rápido, 2 al segundo, etc.
+                unset($d['_segundos']);    // Limpiamos la propiedad auxiliar antes de insertar
+            }
+            unset($d); // Romper referencia
         }
 
         // ---------- insertar cabecera + detalle ----------

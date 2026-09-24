@@ -19,9 +19,9 @@
                         <option value="">Todos los Deportes</option>
                         <?php
                         $deportesVistos = [];
-                        foreach ($categorias_fixture as $cat):
-                            if (!in_array($cat['nombre_deporte'], $deportesVistos)):
-                                $deportesVistos[] = $cat['nombre_deporte'];
+                        foreach ($categorias_fixture as$cat):
+                            if (!in_array($cat['nombre_deporte'],$deportesVistos)):
+                                $deportesVistos[] =$cat['nombre_deporte'];
                         ?>
                             <option value="<?= htmlspecialchars($cat['nombre_deporte']) ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
                         <?php endif; endforeach; ?>
@@ -31,7 +31,7 @@
                     <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-success me-1"></i>Categoría</label>
                     <select id="rs_filtro_categoria" class="form-select form-select-sm" style="min-width:230px">
                         <option value="" data-deporte="">Todas las Categorías</option>
-                        <?php foreach ($categorias_fixture as $cat): ?>
+                        <?php foreach ($categorias_fixture as$cat): ?>
                             <option value="<?= (int) $cat['id_categoria'] ?>"
                                     data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>">
                                 <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
@@ -71,7 +71,7 @@
                             <label class="form-label small fw-bold">Deporte / Categoría *</label>
                             <select id="rs_modal_categoria" name="id_categoria" class="form-select" required>
                                 <option value="">— Elegí una categoría —</option>
-                                <?php foreach ($categorias_fixture as $cat): ?>
+                                <?php foreach ($categorias_fixture as$cat): ?>
                                     <option value="<?= $cat['id_categoria'] ?>"
                                             data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
                                             data-modalidad="<?= $cat['modalidad_competencia'] ?>">
@@ -189,7 +189,13 @@
 
     function post(url, datos) {
         const form = new FormData();
-        Object.keys(datos).forEach(k => form.append(k, datos[k]));
+        Object.keys(datos).forEach(k => {
+            if (Array.isArray(datos[k])) {
+                datos[k].forEach(val => form.append(k + '[]', val));
+            } else {
+                form.append(k, datos[k]);
+            }
+        });
         return fetch(BASE + '/' + url, { method: 'POST', body: form })
             .then(r => r.json())
             .catch(e => ({ ok: false, error: 'Respuesta inesperada del servidor. Revisá la consola.' }));
@@ -203,11 +209,11 @@
 
     /* ---------- Render: agrupa por Deporte → Categoría ---------- */
     function render() {
-        const dep = filtroDeporte.value.toLowerCase();
+        const dep = filtroDeporte.value.toLowerCase().trim();
         const cat = filtroCategoria.value;
 
         const items = todosResultados.filter(r => {
-            if (dep && (r.nombre_deporte || '').toLowerCase() !== dep) return false;
+            if (dep && (r.nombre_deporte || '').toLowerCase().trim() !== dep) return false;
             if (cat && String(r.id_categoria) !== String(cat)) return false;
             return true;
         });
@@ -232,11 +238,13 @@
         let html = '';
         Object.keys(grupos).sort().forEach(clave => {
             const partes = clave.split('|||');
+            const cantidadEnGrupo = grupos[clave].length;
+
             html += `<div class="card mb-3 shadow-sm">
                 <div class="card-header bg-white py-2">
                     <span class="fw-bold"><i class="bi bi-trophy me-1"></i>${esc(partes[0])}</span>
                     <span class="text-muted mx-1">›</span><span>${esc(partes[1])}</span>
-                    <span class="small text-muted ms-2">(${items.length ? grupos[clave].length : 0} resultado/s)</span>
+                    <span class="small text-muted ms-2">(${cantidadEnGrupo} resultado/s)</span>
                 </div>
                 <div class="list-group list-group-flush">`;
 
@@ -307,15 +315,13 @@
             });
     }
 
-    /* ---------- Filtros (mismo comportamiento que UTEs/Equipos) ---------- */
+    /* ---------- Filtros ---------- */
     function filtrarOpcionesCategoria() {
         const deporte = filtroDeporte.value;
-        const actual = filtroCategoria.value;
         Array.from(filtroCategoria.options).forEach(opt => {
             const dep = opt.getAttribute('data-deporte') || '';
             opt.hidden = !(deporte === '' || dep === '' || dep === deporte);
         });
-        // Si la categoría elegida no pertenece al deporte nuevo, resetear
         if (filtroCategoria.selectedOptions[0] && filtroCategoria.selectedOptions[0].hidden) {
             filtroCategoria.value = '';
         }
@@ -340,10 +346,10 @@
     const hintModalidad = document.getElementById('rs_modal_modalidad_hint');
     const alertSinParticipantes = document.getElementById('rs_sin_participantes');
 
-    let fixturesDelModal = [];   // partidos/jornadas del fixture de la categoría elegida
-    let modalidadActual = '';    // ENFRENTAMIENTO | MASIVO_TIEMPO (viene del deporte)
-    let competidoresDisponibles = []; // inscriptos (personales) + UTEs de la categoría
-    let participantesPorFixture = {}; // MASIVO_TIEMPO: participantes que compitieron en cada jornada
+    let fixturesDelModal = []; 
+    let modalidadActual = ''; 
+    let competidoresDisponibles = []; 
+    let participantesPorFixture = {}; 
 
     function mostrarBloqueSegunTipo() {
         const t = selTipo.value;
@@ -351,7 +357,6 @@
         bloqueTiempo.classList.toggle('d-none', t !== 'TIEMPO');
     }
 
-    // El tipo NO lo elige el usuario: lo define la MODALIDAD_COMPETENCIA del deporte.
     function aplicarModalidad(modalidad) {
         modalidadActual = modalidad || '';
         if (modalidadActual === 'MASIVO_TIEMPO') {
@@ -366,7 +371,6 @@
         mostrarBloqueSegunTipo();
     }
 
-    // Al elegir categoría: modo según la modalidad del deporte + fixtures + participantes
     selCatModal.addEventListener('change', function () {
         const opt = this.selectedOptions[0];
         aplicarModalidad(opt ? opt.dataset.modalidad : '');
@@ -393,21 +397,15 @@
             });
     }
 
-    /* ---- DINÁMICA: al elegir un partido/jornada del fixture se autocompleta todo ---- */
     selFixture.addEventListener('change', function () {
         const f = fixturesDelModal.find(x => String(x.id_fixture) === String(this.value));
         if (!f) return;
 
-        // Nombre y fecha salen del fixture (se puede editar si hace falta)
         document.getElementById('rs_modal_nombre').value = f.nombre_prueba || '';
         const inpFecha = document.querySelector('#form_resultado input[name="fecha_resultado"]');
         if (inpFecha && f.fecha_competencia) inpFecha.value = f.fecha_competencia;
 
         if (selTipo.value === 'TIEMPO' || f.fase === 'JORNADA_UNICA') {
-            // Deporte masivo: la jornada no tiene marcador, solo posiciones/tiempos.
-            // Repintar la planilla con los participantes que compitieron en ESA
-            // jornada (fixture + inscripciones_deportivas). Si todavía no se
-            // cargaron los competidores de la categoría, esperar y reintentar.
             if (competidoresDisponibles.length) {
                 repoblarPlanillaTiempos();
             } else if (selCatModal.value) {
@@ -420,7 +418,6 @@
             return;
         }
 
-        // Marcador: autocompletar los dos equipos con sus ids reales
         const eq1 = document.getElementById('rs_eq1');
         const eq2 = document.getElementById('rs_eq2');
         eq1.value = f.ute_1_nombre || '';
@@ -429,7 +426,7 @@
         document.getElementById('rs_idute2').value = f.id_ute_2 || '';
         document.getElementById('rs_g1').value = 0;
         document.getElementById('rs_g2').value = 0;
-        setTimeout(() => eq1.focus(), 50); // directo a cargar los goles
+        setTimeout(() => eq1.focus(), 50);
     });
 
     function cargarUtesDelModal(idCategoria) {
@@ -445,7 +442,6 @@
                     mapa[u.nombre_ute.toLowerCase()] = u.id_ute;
                 });
                 window._utesPorNombre = mapa;
-                // Autocompletar ids cuando el nombre coincide con una UTE
                 [['rs_eq1', 'rs_idute1'], ['rs_eq2', 'rs_idute2']].forEach(([inp, hid]) => {
                     const el = document.getElementById(inp);
                     if (el.dataset.listener) return;
@@ -458,10 +454,6 @@
             });
     }
 
-    /* ---- MASIVO_TIEMPO: buscar los PARTICIPANTES (inscripción personal) de la categoría.
-       Además se traen, desde el fixture + inscripciones_deportivas, los participantes
-       que compitieron en cada partido/jornada (participantes_por_fixture) para
-       autocompletar la planilla al elegir la jornada. ---- */
     function cargarCompetidoresDelModal(idCategoria) {
         competidoresDisponibles = [];
         participantesPorFixture = {};
@@ -473,7 +465,6 @@
                 competidoresDisponibles = (res.ok ? res.competidores : []) || [];
                 participantesPorFixture = (res.ok && res.participantes_por_fixture) || {};
                 alertSinParticipantes.classList.toggle('d-none', competidoresDisponibles.length > 0);
-                // Una fila por cada participante inscripto, ya numerada 1°, 2°, 3°...
                 tbodyTiempos.innerHTML = '';
                 const deJornada = participantesDeFixtureActual();
                 if (deJornada.length) {
@@ -490,22 +481,15 @@
             });
     }
 
-    /** Participantes que compitieron en la jornada del fixture actualmente elegida. */
     function participantesDeFixtureActual() {
         if (!selFixture.value) return [];
         const lista = participantesPorFixture[selFixture.value]
                    || participantesPorFixture[String(selFixture.value)] || [];
-        // Si todavía no cargó la lista general de la categoría, igual se muestran
-        // los de la jornada (vienen resueltos desde el fixture + inscripciones).
         if (!competidoresDisponibles.length) return lista;
-        // Si ninguno de los de la jornada coincide con la lista general (p.ej.
-        // inscripciones dadas de baja), se muestran igual los de la jornada:
-        // es preferible eso a una planilla vacía.
         const filtrados = lista.filter(c => competidoresDisponibles.some(d => String(d.id) === String(c.id)));
         return filtrados.length ? filtrados : lista;
     }
 
-    /** Repintar la planilla de tiempos según la jornada del fixture elegida. */
     function repoblarPlanillaTiempos() {
         if (selTipo.value !== 'TIEMPO') return;
         tbodyTiempos.innerHTML = '';
@@ -521,11 +505,6 @@
         alertSinParticipantes.classList.add('d-none');
     }
 
-    /**
-     * Fila SIMPLE para deportes MASIVO_TIEMPO:
-     *   [# orden] [label con el nombre — no editable] [input de tiempo]
-     * La posición NO se tipea: al guardar se asigna según el orden de las filas.
-     */
     function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
         const c = competidor || null;
@@ -560,11 +539,10 @@
         const fd = new FormData(document.getElementById('form_resultado'));
         const datos = {};
         for (const [k, v] of fd.entries()) {
-            if (!k.endsWith('[]')) datos[k] = v; // las filas de tiempo se leen del DOM abajo
+            if (!k.endsWith('[]')) datos[k] = v;
         }
 
-        // MASIVO_TIEMPO: una fila por participante. La POSICION se asigna
-        // automaticamente segun el ORDEN de las filas (1°, 2°, 3°...).
+        // Se recopilan los arrays individualmente
         datos['comp_nombre'] = [...tbodyTiempos.querySelectorAll('input[name="comp_nombre[]"]')].map(i => i.value);
         datos['comp_id']     = [...tbodyTiempos.querySelectorAll('input[name="comp_id[]"]')].map(i => i.value);
         datos['comp_tiempo'] = [...tbodyTiempos.querySelectorAll('input[name="comp_tiempo[]"]')].map(i => i.value);
