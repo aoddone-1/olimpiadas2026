@@ -85,4 +85,13 @@ class OLIM_Controller extends CI_Controller {
             'detalle' => $detalle,
         ));
     }
+
+    /**
+     * Normaliza un texto de formulario: recorta espacios y aplica XSS cleaning
+     * defensivo. Centraliza el closure `$clean` que estaba duplicado en las
+     * tres acciones de guardado del monolito.
+     */
+    protected function _limpiar($valor, $default = '') {
+        return trim((string) $this->security->xss_clean($valor ?? $default));
+    }
 }

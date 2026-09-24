@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<!--
+    PHP_CodeSniffer — estilo de código del proyecto Olimpiadas IPV La Pampa.
+
+    Base: PSR-12 con adaptaciones pragmáticas para CodeIgniter 3:
+      - Se excluye el directorio third_party (tcpdf) y vendor/.
+      - Los archivos de vista (.php con HTML mezclado) no se auditan.
+    Uso:   composer lint          (revisar)
+           composer phpcbf        (corregir automáticamente)
+-->
+<ruleset name="OlimpiadasIPV">
+    <description>Estilo PSR-12 adaptado a CodeIgniter 3.</description>
+
+    <file>application/controllers</file>
+    <file>application/core</file>
+    <file>application/models</file>
+    <file>application/helpers</file>
+    <file>application/libraries/traits</file>
+    <file>tests</file>
+
+    <exclude-pattern>application/libraries/tcpdf/*</exclude-pattern>
+    <exclude-pattern>application/views/*</exclude-pattern>
+    <exclude-pattern>*/index.html</exclude-pattern>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="PSR12">
+        <!-- CI3 usa nombres de clase/method en snake_case en todo el proyecto. -->
+        <exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
+        <exclude name="Squiz.Classes.ValidClassName.NotCamelCaps"/>
+        <exclude name="PSR1.Methods.CamelCapsMethodName.NotCamelCaps"/>
+        <exclude name="Generic.Files.LineLength.TooLong"/>
+        <!-- Archivos legacy aún no migrados: se corrigen de a poco. -->
+        <exclude name="PSR1.Files.SideEffects.FoundWithSymbols"/>
+        <exclude name="Generic.PHP.LowerCaseConstant.Found"/>
+        <exclude name="Generic.PHP.UpperCaseConstant.Found"/>
+        <exclude name="Squiz.Scope.MethodScope.Missing"/>
+        <exclude name="PSR2.Methods.FunctionCallSignature.SpaceAfterOpenBracket"/>
+        <exclude name="PSR2.Methods.FunctionCallSignature.SpaceBeforeCloseBracket"/>
+        <exclude name="Generic.WhiteSpace.DisallowSpaceIndent.SpacesUsed"/>
+    </rule>
+
+    <!-- Reglas específicas que sí queremos hacer cumplir desde ya. -->
+    <rule ref="Generic.Files.ByteOrderMark"/>
+    <rule ref="Generic.WhiteSpace.ScopeIndent"/>
+    <rule ref="Squiz.WhiteSpace.SuperfluousWhitespace">
+        <properties>
+            <property name="ignoreBlankLines" value="false"/>
+        </properties>
+    </rule>
+</ruleset>
