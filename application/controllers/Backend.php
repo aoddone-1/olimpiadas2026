@@ -217,6 +217,8 @@ class Backend extends OLIM_Controller {
         $data['lugares_db']    = $this->Deporte_model->obtener_todos_los_lugares();
         $data['menu_activo']   = 'control';
 
+        // Deportes para el selector "Deporte → Categoría" de la pestaña Fixture
+        // (ya está en $data['deportes_db'], lo reutilizamos en panel_fixture).
         $this->load->model('Fixture_model');
         $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
 

@@ -113,6 +113,7 @@ foreach ([
     'ajax_fixture_categoria', 'ajax_fixture_todo', 'ajax_generar_fixture',
     'ajax_guardar_partido', 'ajax_resultado_partido', 'ajax_resultado_masivo',
     'ajax_eliminar_fixture', 'ajax_eliminar_partido',
+    'ajax_categorias_por_deporte',
 ] as $m) {
     $route['inscripciones/' . $m] = 'Fixtures/' . str_replace('ajax_fixture_', 'ajax_', $m);
     $route['inscripciones/' . $m . '/(:any)'] = 'Fixtures/' . str_replace('ajax_fixture_', 'ajax_', $m) . '/$1';
