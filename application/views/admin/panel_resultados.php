@@ -530,7 +530,9 @@
         const tr = document.createElement('tr');
         const c = competidor || null;
         const nombreTxt = c
-            ? esc(c.nombre) + (c.dni ? ' <span class="text-muted small">(' + esc(c.dni) + ')</span>' : '')
+            ? esc(c.nombre)
+              + (c.integrantes ? ' <span class="text-muted small fw-normal">(' + esc(c.integrantes) + ')</span>' : '')
+              + (!c.integrantes && c.dni ? ' <span class="text-muted small fw-normal">(' + esc(c.dni) + ')</span>' : '')
             : '<span class="text-muted fst-italic small">participante sin nombre</span>';
         tr.innerHTML = `
             <td class="text-muted small fw-bold">${pos}º</td>
