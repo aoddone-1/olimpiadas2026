@@ -35,14 +35,16 @@
                                                 <h6 class="fw-bold text-primary m-0 text-uppercase small">
                                                     <i class="bi bi-trophy-fill me-2 text-warning"></i><?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>
                                                 </h6>
-                                                <div>
-                                                    <?php if($d['genero'] == 'MASCULINO'): ?>
-                                                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.6rem;"><i class="bi bi-gender-male me-1"></i>MASCULINO</span>
-                                                    <?php elseif($d['genero'] == 'FEMENINO'): ?>
-                                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.6rem;"><i class="bi bi-gender-female me-1"></i>FEMENINO</span>
-                                                    <?php else: ?>
-                                                        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle" style="font-size:0.6rem;"><i class="bi bi-gender-ambiguous me-1"></i>TODOS</span>
-                                                    <?php endif; ?>
+                                                <div class="d-flex flex-wrap gap-1 align-items-center" style="font-size:0.7rem;">
+                                                    <span class="badge bg-dark border-0" style="font-size:0.65rem;">
+                                                        <i class="bi bi-people-fill me-1"></i><?= intval($d['total_inscriptos'] ?? 0) ?> Inscriptos
+                                                    </span>
+                                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.65rem;">
+                                                        <i class="bi bi-gender-female me-1"></i><?= intval($d['total_mujeres'] ?? 0) ?> Mujeres
+                                                    </span>
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.65rem;">
+                                                        <i class="bi bi-gender-male me-1"></i><?= intval($d['total_hombres'] ?? 0) ?> Hombres
+                                                    </span>
                                                 </div>
                                             </div>
                                             
