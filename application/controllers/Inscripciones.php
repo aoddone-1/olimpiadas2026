@@ -6,7 +6,6 @@ class Inscripciones extends CI_Controller {
     public function __construct() {
         parent::__construct();
         $this->load->library('Pdf');
-        $this->load->helper('security'); // necesario para $this->security->xss_clean()
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
     }
@@ -79,6 +78,141 @@ class Inscripciones extends CI_Controller {
         } else {
             echo json_encode(['existe' => false]);
         }
+    }
+
+    public function guardar() {
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        // =================================================================
+        // BLANCO DE PRUEBAS: Descomentá la línea de abajo para testear con datos fijos
+        // =================================================================
+        // $post = $this->_obtener_datos_prueba(); 
+        // =================================================================
+
+        $this->db->where('dni', trim($post['dni']));
+        $query_check = $this->db->get('participantes');
+        $existe = ($query_check->num_rows() > 0);
+
+        if ($existe) {
+            $participante_viejo = $query_check->row_array();
+            $id_participante = $participante_viejo['id_participante'];
+            $token = $participante_viejo['token_qr']; 
+        } else {
+            $semilla = $post['dni'] . 'olimpiadas2026' . time();
+            $token = sha1($semilla);
+        }
+
+        // Estructura de datos incluyendo Roles y Delegados
+        $data_persona = [
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), 
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // TRADUCCIÓN CLAVE PARA TU BASE DE DATOS:
+            // Si el rol es 'competidor' guarda 1, si es acompañante guarda 0
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            'token_qr'            => $token
+        ];
+
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            // Mapeamos dinámicamente cada categoría con su respectivo estado de UTE recibido del HTML
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecución en Base de Datos según existencia
+        if ($existe) {
+            // Pasamos la estructura completa de deportes con UTE. 
+            // NOTA: Si tu modelo viejo solo aceptaba IDs, adaptalo para leer este array asociativo de la forma: $disc['id_categoria']
+            $resultado = $this->Participante_model->actualizar_completo(
+                $id_participante, 
+                $data_persona, 
+                $deportes_seleccionados // <-- Asegurate de que viaje esta variable acá y no $categorias_ids
+            );
+        } else {
+            $data_persona['dni'] = trim($post['dni']);
+            $data_persona['fecha_inscripcion'] = date('Y-m-d H:i:s');
+
+            $resultado = $this->Participante_model->insertar_completo(
+                $data_persona, 
+                $deportes_seleccionados
+            );
+        }
+
+        if (!$resultado) {
+            $db_error = $this->db->error();
+            $mensaje = 'Verifique si ocurrió un error en el sistema o si faltan datos obligatorios.';
+            
+            if (isset($db_error['code']) && $db_error['code'] == 1062) {
+                $mensaje = 'El DNI <strong>' . $post['dni'] . '</strong> ya se encuentra registrado.';
+            }
+
+            $this->load->view('inscripcion_erronea', [
+                'mensaje' => $mensaje,
+                'dni'     => $post['dni']
+            ]);
+        } else {
+            $this->load->view('inscripcion_exitosa', [
+                'delegacion' => $post['delegacion'],
+                'nombre' => $post['nombre_completo'],
+                'token'  => $token
+            ]);
+        }
+    }
+
+    /**
+     * Función auxiliar con datos de prueba para testing rápido
+     */
+    private function _obtener_datos_prueba() {
+        return [
+            'dni'                 => '99888777',
+            'nombre_completo'     => 'Juan Carlos Prueba',
+            'email'               => 'juan.prueba@correo.com',
+            'telefono'            => '2954123456',
+            'delegacion'          => 'La Pampa',
+            'sexo'                => 'Masculino',
+            'fecha_nacimiento'    => '1995-05-15',
+            'grupo_sanguineo'     => '0+',
+            'obra_social'         => 'Sempre',
+            'tipo_empleado'       => 'Planta Permanente',
+            'dieta_especial'      => 'Sin restricciones',
+            'hotel_alojamiento'   => 'Hotel Central',
+            'contacto_emergencia' => 'Maria Gomez - 2954667788',
+            'rol_asistente'       => 'competidor',
+            'es_delegado'         => '1',
+            // Arrays simulando la carga de deportes (Frontend)
+            'deporte_id'          => ['1', '3'], // IDs de ejemplo de deportes
+            'categoria_id'        => ['13', '15'], // IDs de ejemplo de categorías
+            'tiene_ute'           => ['1', '0'],  // En el primero tiene UTE
+            'necesita_ute'        => ['0', '1'],  // En el segundo necesita UTE
+            'detalle_ute'         => ['Equipo Los Pampeanos FC', ''] 
+        ];
     }
 
     // 1. Pantalla que abre el código QR
@@ -385,29 +519,14 @@ class Inscripciones extends CI_Controller {
         }
 
         $this->load->model('Categoria_model');
-
-        // Validación server-side del alta de categoría
-        $this->load->library('form_validation');
-        $this->form_validation->set_rules([
-            ['field' => 'id_deporte',       'label' => 'Deporte',    'rules' => 'required|integer'],
-            ['field' => 'nombre_categoria', 'label' => 'Categoría',  'rules' => 'required|trim|max_length[100]'],
-            ['field' => 'cupo_maximo',      'label' => 'Cupo máximo','rules' => 'permit_empty|integer|min_value[0]|max_value[10000]'],
-            ['field' => 'id_lugar',         'label' => 'Lugar',      'rules' => 'permit_empty|integer'],
-        ]);
-
-        if ($this->form_validation->run() === FALSE) {
-            $this->session->set_flashdata('mensaje_error', validation_errors('<p>', '</p>') ?: 'Faltan datos obligatorios para crear la categoría.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-        // Le mandamos el POST validado al modelo para que él decida qué hacer
+        
+        // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
         $guardado = $this->Categoria_model->insertar_categoria_desde_post($this->input->post());
 
         if ($guardado) {
             $this->session->set_flashdata('mensaje_exito', 'Categoría registrada correctamente.');
         } else {
-            $this->session->set_flashdata('mensaje_error', 'No se pudo crear la categoría. Verificá los datos ingresados.');
+            $this->session->set_flashdata('mensaje_error', 'Faltan datos obligatorios para crear la categoría.');
         }
 
         redirect('Inscripciones/gestion_deportes');
@@ -611,20 +730,8 @@ class Inscripciones extends CI_Controller {
     public function guardar_deporte() {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
-        $this->load->library('form_validation');
-        $this->form_validation->set_rules([
-            ['field' => 'nombre_deporte', 'label' => 'Deporte', 'rules' => 'required|trim|max_length[100]'],
-            ['field' => 'genero',         'label' => 'Género',  'rules' => 'required|trim|max_length[20]'],
-        ]);
-
-        if ($this->form_validation->run() === FALSE) {
-            $this->session->set_flashdata('mensaje_error', validation_errors('<p>', '</p>') ?: 'El nombre del deporte es obligatorio.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-        $data['nombre_deporte'] = $this->security->xss_clean($this->input->post('nombre_deporte', TRUE));
-        $data['genero'] = $this->security->xss_clean($this->input->post('genero', TRUE));
+        $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
+        $data['genero'] = $this->input->post('genero', TRUE);
         $this->Deporte_model->guardar_deporte($data);
         redirect('Inscripciones/gestion_deportes');
     }
@@ -1162,6 +1269,179 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/formulario_editar_inscripcion', $data);
     }
 
+    /**
+     * Guardar modificaciones de una inscripción
+     */
+    public function guardar_modificacion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        if (empty($post['id_participante'])) {
+            $this->session->set_flashdata('error', 'ID de participante no válido.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $id_participante = $post['id_participante'];
+
+        // Estructura de datos actualizados
+        $data_persona = [
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), 
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // Traducción de rol
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+        ];
+
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE (para edición)
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_inscripcion' => isset($post['id_inscripcion'][$index]) ? $post['id_inscripcion'][$index] : null,
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecutar actualización
+        $resultado = $this->Participante_model->actualizar_completo(
+            $id_participante, 
+            $data_persona, 
+            $deportes_seleccionados
+        );
+
+        if ($resultado) {
+            $this->session->set_flashdata('success', 'Inscripción modificada correctamente.');
+        } else {
+            $this->session->set_flashdata('error', 'Error al modificar la inscripción. Intente nuevamente.');
+        }
+
+        redirect('Inscripciones/control_total');
+    }
+
+    /**
+     * Mostrar formulario para nueva inscripción (desde panel-inscripciones)
+     */
+    public function nueva_inscripcion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Deporte_model');
+        
+        // Obtener todos los deportes para el formulario
+        $data['deportes'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
+        // Cargar vista de nueva inscripción
+        $this->load->view('admin/formulario_nueva_inscripcion', $data);
+    }
+
+    /**
+     * Guardar nueva inscripción
+     */
+    public function guardar_nueva_inscripcion() {
+        // Verificar que sea staff/organizador
+        if (!$this->session->userdata('is_organizador')) {
+            $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
+            redirect('Inscripciones/control_total');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $post = $this->input->post();
+
+        // Estructura de datos nuevos
+        $data_persona = [
+            'dni'                 => trim($post['dni']),
+            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'email'               => strtolower(trim($post['email'])), 
+            'telefono'            => trim($post['telefono']),
+            'delegacion'          => trim($post['delegacion']),
+            'sexo'                => trim($post['sexo']),
+            'fecha_nacimiento'    => $post['fecha_nacimiento'], 
+            'grupo_sanguineo'     => trim($post['grupo_sanguineo']),
+            'obra_social'         => mb_strtoupper(trim($post['obra_social']), 'UTF-8'),
+            'tipo_empleado'       => trim($post['tipo_empleado']),
+            'dieta_especial'      => trim($post['dieta_especial']),
+            'hotel_alojamiento'   => mb_strtoupper(trim($post['hotel_alojamiento']), 'UTF-8'),
+            'contacto_emergencia' => mb_strtoupper(trim($post['contacto_emergencia']), 'UTF-8'),
+            
+            // Traducción de rol
+            'es_competidor'       => ($post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Solo puede ser delegado si es competidor y tildó el checkbox
+            'es_delegado'         => (isset($post['es_delegado']) && $post['rol_asistente'] === 'competidor') ? 1 : 0,
+            
+            // Fecha de inscripción actual
+            'fecha_inscripcion'   => date('Y-m-d H:i:s'),
+            
+            // Generar token QR único
+            'token_qr'            => bin2hex(random_bytes(16))
+        ];
+
+        // CONTROL Y CAPTURA DE DISCIPLINAS + PANEL UTE
+        $deportes_seleccionados = [];
+        
+        if ($post['rol_asistente'] === 'competidor' && isset($post['categoria_id'])) {
+            foreach ($post['categoria_id'] as $index => $cat_id) {
+                if (!empty($cat_id)) {
+                    $deportes_seleccionados[] = [
+                        'id_deporte'   => isset($post['deporte_id'][$index]) ? $post['deporte_id'][$index] : null,
+                        'id_categoria' => $cat_id,
+                        'tiene_ute'    => isset($post['tiene_ute'][$index]) ? (int)$post['tiene_ute'][$index] : 0,
+                        'necesita_ute' => isset($post['necesita_ute'][$index]) ? (int)$post['necesita_ute'][$index] : 0,
+                        'detalle_ute'  => isset($post['detalle_ute'][$index]) ? mb_strtoupper(trim($post['detalle_ute'][$index]), 'UTF-8') : ''
+                    ];
+                }
+            }
+        }
+
+        // Ejecutar inserción
+        $resultado = $this->Participante_model->insertar_completo(
+            $data_persona, 
+            $deportes_seleccionados
+        );
+
+        if ($resultado) {
+            $this->session->set_flashdata('success', 'Nueva inscripción guardada correctamente.');
+        } else {
+            $this->session->set_flashdata('error', 'Error al guardar la nueva inscripción. Intente nuevamente.');
+        }
+
+        redirect('Inscripciones/control_total');
+    }
+
     // =========================================================================
     // GESTION DE UTES / EQUIPOS
     // =========================================================================
@@ -1344,5 +1624,127 @@ class Inscripciones extends CI_Controller {
         $ute = $this->UTE_model->obtener_ute_con_integrantes($id_ute);
         
         echo json_encode($ute);
+    }
+    
+    // ==========================================
+    // VISTAS PARA DELEGADOS
+    // ==========================================
+    
+    /**
+     * Panel principal para delegados - muestra información de su delegación
+     */
+    public function panel_delegado() {
+        if (!$this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/login');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        // Obtener la delegación del usuario logueado
+        $user_nombre = $this->session->userdata('user_nombre');
+        
+        // Buscar todos los participantes de esa delegación (con es_competidor)
+        $data['participantes'] = $this->Participante_model->obtener_participantes_por_delegacion_completo($user_nombre);
+        $data['total_inscriptos'] = count($data['participantes']);
+        $data['delegacion'] = $user_nombre;
+        
+        $this->load->view('admin/panel_delegado', $data);
+    }
+    
+    /**
+     * Descarga la lista de inscriptos en formato CSV
+     */
+    public function descargar_csv_inscriptos() {
+        if (!$this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/login');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        // Obtener la delegación del usuario logueado
+        $delegacion = $this->session->userdata('user_nombre');
+        
+        // Obtener datos para el CSV
+        $datos = $this->Participante_model->obtener_participantes_para_csv($delegacion);
+        
+        // Nombre del archivo
+        $nombre_archivo = 'inscriptos_' . str_replace(' ', '_', strtolower($delegacion)) . '_' . date('Y-m-d') . '.csv';
+        
+        // Configurar headers para descarga
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
+        
+        // Crear el output
+        $output = fopen('php://output', 'w');
+        
+        // Agregar BOM para que Excel reconozca UTF-8 correctamente
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        
+        // Escribir encabezados con punto y coma como delimitador
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
+        
+        // Escribir datos con punto y coma como delimitador
+        foreach ($datos as $fila) {
+            fputcsv($output, [
+                $fila['dni'],
+                $fila['nombre_completo'],
+                $fila['sexo'],
+                $fila['fecha_nacimiento'],
+                $fila['edad'],
+                $fila['delegacion'],
+                $fila['deporte'],
+                $fila['categoria']
+            ], ';');
+        }
+        
+        fclose($output);
+        exit;
+    }
+
+    public function descargar_csv_todos_inscriptos() {
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login');
+        }
+        
+        $this->load->model('Participante_model');
+        
+        // Obtener la delegación del usuario logueado
+        $delegacion = $this->session->userdata('user_nombre');
+        
+        // Obtener datos para el CSV
+        $datos = $this->Participante_model->obtener_participantes_para_csv(NULL);
+        
+        // Nombre del archivo
+        $nombre_archivo = 'inscriptos_' . '_' . date('Y-m-d') . '.csv';
+        
+        // Configurar headers para descarga
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
+        
+        // Crear el output
+        $output = fopen('php://output', 'w');
+        
+        // Agregar BOM para que Excel reconozca UTF-8 correctamente
+        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+        
+        // Escribir encabezados con punto y coma como delimitador
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
+        
+        // Escribir datos con punto y coma como delimitador
+        foreach ($datos as $fila) {
+            fputcsv($output, [
+                $fila['dni'],
+                $fila['nombre_completo'],
+                $fila['sexo'],
+                $fila['fecha_nacimiento'],
+                $fila['edad'],
+                $fila['delegacion'],
+                $fila['deporte'],
+                $fila['categoria']
+            ], ';');
+        }
+        
+        fclose($output);
+        exit;
     }
 }

@@ -7,24 +7,23 @@
 
         <!-- Barra de acciones: el selector es solo para generar/borrar, NO para ver -->
         <div class="row g-2 align-items-end mb-3">
-            <div class="col-md-3">
-                <label class="form-label small fw-bold">Deporte</label>
-                <select id="fx_deporte" class="form-select">
-                    <option value="">— Seleccioná un deporte —</option>
-                    <?php foreach ($deportes_db as $dep): ?>
-                        <option value="<?= $dep['id_deporte'] ?>">
-                            <?= htmlspecialchars($dep['nombre_deporte']) ?>
+            <div class="col-md-5">
+                <label class="form-label small fw-bold">Categoría (para generar / borrar fixture)</label>
+                <select id="fx_categoria" class="form-select">
+                    <option value="">— Seleccioná una categoría —</option>
+                    <?php foreach ($categorias_fixture as $cat): ?>
+                        <option value="<?= $cat['id_categoria'] ?>"
+                                data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
+                                data-categoria="<?= htmlspecialchars($cat['nombre_categoria']) ?>"
+                                data-modalidad="<?= $cat['modalidad_competencia'] ?>"
+                                data-duracion="<?= $cat['tipo_duracion'] ?>">
+                            <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
+                            (<?= htmlspecialchars($cat['genero']) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-5">
-                <label class="form-label small fw-bold">Categoría (para generar / borrar fixture)</label>
-                <select id="fx_categoria" class="form-select" disabled>
-                    <option value="">— Elegí primero un deporte —</option>
-                </select>
-            </div>
-            <div class="col-md-4">
+            <div class="col-md-7">
                 <button id="fx_btn_generar" class="btn btn-primary" disabled>
                     <i class="bi bi-magic me-1"></i>Generar fixture automático
                 </button>
@@ -179,7 +178,6 @@
         </div>`);
     }
 
-    const selDeporte = document.getElementById('fx_deporte');
     const selCategoria = document.getElementById('fx_categoria');
     const btnGenerar = document.getElementById('fx_btn_generar');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
@@ -593,49 +591,6 @@
             }
         });
     });
-
-    /* ---------- Selector Deporte → carga las Categorías (para generar/borrar) ---------- */
-    function cargarCategoriasPorDeporte() {
-        // Reset del selector de categoría mientras se carga la lista.
-        selCategoria.innerHTML = '<option value="">— Elegí primero un deporte —</option>';
-        selCategoria.disabled = true;
-        btnGenerar.disabled = true;
-        btnBorrarTodo.disabled = true;
-        infoBox.classList.add('d-none');
-
-        const idDeporte = selDeporte.value;
-        if (!idDeporte) return;
-
-        selCategoria.innerHTML = '<option value="">Cargando categorías…</option>';
-
-        getJSON('ajax_categorias_por_deporte/' + encodeURIComponent(idDeporte)).then(res => {
-            if (!res.ok) {
-                selCategoria.innerHTML = '<option value="">— Error al cargar categorías —</option>';
-                mensaje(res.error || 'No se pudieron cargar las categorías.', 'danger');
-                return;
-            }
-            let html = '<option value="">— Seleccioná una categoría —</option>';
-            res.categorias.forEach(cat => {
-                html += `<option value="${esc(cat.id_categoria)}"
-                                data-deporte="${esc(cat.nombre_deporte)}"
-                                data-categoria="${esc(cat.nombre_categoria)}"
-                                data-modalidad="${esc(cat.modalidad_competencia)}"
-                                data-duracion="${esc(cat.tipo_duracion)}">` +
-                        `${esc(cat.nombre_deporte)} — ${esc(cat.nombre_categoria)} (${esc(cat.genero)})</option>`;
-            });
-            selCategoria.innerHTML = html;
-            selCategoria.disabled = !res.categorias.length;
-            if (!res.categorias.length) {
-                selCategoria.innerHTML = '<option value="">— Sin categorías para este deporte —</option>';
-                selCategoria.disabled = true;
-            }
-        }).catch(err => {
-            selCategoria.innerHTML = '<option value="">— Error al cargar categorías —</option>';
-            mensaje(err.message, 'danger');
-        });
-    }
-
-    selDeporte.addEventListener('change', cargarCategoriasPorDeporte);
 
     /* ---------- Acciones sobre la categoría del selector (solo generar/borrar) ---------- */
     selCategoria.addEventListener('change', () => {
