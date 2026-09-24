@@ -161,6 +161,22 @@
     </div>
 </div>
 
+<!-- MODAL: detalle de un resultado -->
+<div class="modal fade" id="modalDetalleResultado" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-card-list me-2"></i>Detalle del Resultado</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="rs_detalle_body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
@@ -174,7 +190,11 @@
     const filtroCategoria = document.getElementById('rs_filtro_categoria');
 
     let todosResultados = [];
+    // El modal de carga vive dentro del pane oculto de la pestaña: lo pasamos al body
+    // para que Bootstrap calcule bien el overlay y el scroll.
+    document.body.appendChild(document.getElementById('modalResultado'));
     let modalResultado = new bootstrap.Modal(document.getElementById('modalResultado'));
+    let modalDetalle = new bootstrap.Modal(document.getElementById('modalDetalleResultado'));
 
     function esc(s) {
         if (s === null || s === undefined) return '';
@@ -205,6 +225,135 @@
         if (!f) return '—';
         const p = f.split('-');
         return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : f;
+    }
+
+    /* ---------- Helpers de marcador / posiciones ---------- */
+    // El guardado clásico duplica en cada fila el par (goles eq1, goles eq2),
+    // por lo que no se puede confiar en "marcador_local" de una sola fila.
+    // Esta función normaliza el detalle y devuelve los dos equipos con sus
+    // tantos reales + el índice del ganador (-1 si hay empate).
+    function infoMarcador(det) {
+        const a = det[0] || {}, b = det[1] || {};
+        let s1, s2;
+        if (det.length > 1 &&
+            String(a.nombre_libre ?? '') === String(b.nombre_libre ?? '') &&
+            String(a.id_ute ?? '') === String(b.id_ute ?? '')) {
+            // Filas espejadas (ambas representan al Equipo 1): la segunda es el Equipo 2.
+            s1 = parseInt(a.marcador_local ?? 0, 10) || 0;
+            s2 = parseInt(a.marcador_visita ?? 0, 10) || 0;
+        } else {
+            // Guardado "correcto": una fila por equipo con su propio marcador.
+            s1 = parseInt(a.marcador_local ?? a.marcador_visita ?? 0, 10) || 0;
+            s2 = parseInt(b.marcador_local ?? b.marcador_visita ?? a.marcador_visita ?? 0, 10) || 0;
+        }
+        const gan = s1 === s2 ? -1 : (s1 > s2 ? 0 : 1);
+        return { e1: nombreDet(a, 'Equipo 1'), e2: nombreDet(b, 'Equipo 2'), s1: s1, s2: s2, gan: gan };
+    }
+
+    function nombreDet(d, fallback) {
+        return (d && (d.nombre_libre || d.nombre_ute)) || fallback || '?';
+    }
+
+    function medallaPos(pos) {
+        return MEDALLAS[pos - 1] || null;
+    }
+
+    /* ---------- Modal detalle ---------- */
+    // El panel vive dentro de un .tab-custom-pane con display:none cuando no
+    // está activo: Bootstrap calcularía mal el alto del modal. Lo movemos al
+    // <body> la primera vez que se abre (mismo patrón que los otros modales).
+    function asegurarModalEnBody() {
+        const el = document.getElementById('modalDetalleResultado');
+        if (el && el.parentElement !== document.body) {
+            document.body.appendChild(el);
+        }
+    }
+
+    function abrirDetalle(idResultado) {
+        const r = todosResultados.find(x => String(x.id_resultado) === String(idResultado));
+        if (!r) return;
+        asegurarModalEnBody();
+        const det = r.detalle || [];
+        let html = `
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+                <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'}">${esc(r.tipo_resultado)}</span>
+                <h5 class="mb-0 fw-bold">${esc(r.nombre_evento)}</h5>
+            </div>
+            <div class="row g-2 small mb-3">
+                <div class="col-sm-6"><i class="bi bi-trophy text-success me-1"></i><strong>Deporte:</strong> ${esc(r.nombre_deporte || '—')}</div>
+                <div class="col-sm-6"><i class="bi bi-layers text-success me-1"></i><strong>Categoría:</strong> ${esc(r.nombre_categoria || '—')}</div>
+                <div class="col-sm-6"><i class="bi bi-calendar3 text-success me-1"></i><strong>Fecha:</strong> ${fechaArma(r.fecha_resultado)}</div>
+                <div class="col-sm-6"><i class="bi bi-geo-alt text-success me-1"></i><strong>Lugar:</strong> ${esc(r.lugar || 'Sin lugar')}</div>
+                ${r.nombre_prueba ? `<div class="col-12"><i class="bi bi-journal-text text-success me-1"></i><strong>Prueba:</strong> ${esc(r.nombre_prueba)}</div>` : ''}
+            </div>`;
+
+        if (r.tipo_resultado === 'MARCADOR') {
+            const m = infoMarcador(det);
+            // Si hubo más de dos filas (parciales), mostrarlas como desglose.
+            let parciales = '';
+            if (det.length > 2) {
+                parciales = `
+                    <div class="mt-3 small text-muted">
+                        <i class="bi bi-list-ul me-1"></i><strong>Parciales cargados:</strong>
+                        ${det.map(d => `${esc(nombreDet(d, '?'))} (${(parseInt(d.marcador_local, 10) || 0)} : ${(parseInt(d.marcador_visita, 10) || 0)})`).join(' · ')}
+                    </div>`;
+            }
+            html += `
+                <div class="card border-0 bg-light shadow-none mb-3">
+                    <div class="card-body py-4">
+                        <div class="d-flex justify-content-between align-items-center text-center">
+                            <div class="flex-fill ${m.gan === 0 ? 'text-success' : ''}">
+                                <div class="fs-5 fw-bold text-truncate">${esc(m.e1)} ${m.gan === 0 ? '<i class="bi bi-trophy-fill"></i>' : ''}</div>
+                            </div>
+                            <div class="px-3">
+                                <span class="badge bg-dark fs-3 px-4 py-2">${m.s1} : ${m.s2}</span>
+                            </div>
+                            <div class="flex-fill ${m.gan === 1 ? 'text-success' : ''}">
+                                <div class="fs-5 fw-bold text-truncate">${m.gan === 1 ? '<i class="bi bi-trophy-fill"></i> ' : ''}${esc(m.e2)}</div>
+                            </div>
+                        </div>
+                        <div class="text-center mt-3">
+                            ${m.gan < 0
+                                ? '<span class="badge rounded-pill bg-secondary"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
+                                : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border fs-6">
+                                       <i class="bi bi-trophy-fill me-1"></i>Ganador: <strong>${esc(m.gan === 0 ? m.e1 : m.e2)}</strong>
+                                   </span>`}
+                        </div>
+                        ${parciales}
+                    </div>
+                </div>`;
+        } else {
+            const ordenados = [...det].sort((a, b) => (parseInt(a.posicion, 10) || 999) - (parseInt(b.posicion, 10) || 999));
+            html += `
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light small fw-bold">
+                            <tr><th style="width:80px">Posición</th><th>Participante</th><th style="width:140px">Tiempo</th></tr>
+                        </thead>
+                        <tbody>`;
+            if (!ordenados.length) {
+                html += '<tr><td colspan="3" class="text-center text-muted py-3">Sin datos de detalle.</td></tr>';
+            }
+            ordenados.forEach(d => {
+                const pos = parseInt(d.posicion, 10) || 0;
+                const med = medallaPos(pos);
+                html += `<tr class="${pos <= 3 ? 'table-warning-subtle' : ''}">
+                    <td class="fw-bold">${med ? med + ' ' : ''}${pos}º</td>
+                    <td>${esc(nombreDet(d, 'participante sin nombre'))}</td>
+                    <td class="font-monospace">${d.tiempo ? esc(d.tiempo) : '—'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table></div>';
+        }
+
+        if (r.observaciones) {
+            html += `<div class="alert alert-secondary small mt-3 mb-0">
+                        <i class="bi bi-chat-left-text me-1"></i><strong>Observaciones:</strong> ${esc(r.observaciones)}
+                     </div>`;
+        }
+
+        document.getElementById('rs_detalle_body').innerHTML = html;
+        modalDetalle.show();
     }
 
     /* ---------- Render: agrupa por Deporte → Categoría ---------- */
@@ -246,26 +395,44 @@
                     <span class="text-muted mx-1">›</span><span>${esc(partes[1])}</span>
                     <span class="small text-muted ms-2">(${cantidadEnGrupo} resultado/s)</span>
                 </div>
-                <div class="list-group list-group-flush">`;
+                <div class="list-group list-group-flush rs-grupo">`;
 
             grupos[clave].forEach(r => {
                 let cuerpo = '';
                 const det = r.detalle || [];
                 if (r.tipo_resultado === 'MARCADOR') {
-                    const d = det[0] || {};
-                    const e1 = det[0] ? (det[0].nombre_libre || 'Equipo 1') : '?';
-                    const e2 = det[1] ? (det[1].nombre_libre || 'Equipo 2') : '?';
+                    const m = infoMarcador(det);
+                    // Resaltar al ganador en la lista rápida + cartelito con el resultado.
+                    const cls1 = m.gan === 0 ? 'text-success' : (m.gan === 1 ? 'text-muted' : '');
+                    const cls2 = m.gan === 1 ? 'text-success' : (m.gan === 0 ? 'text-muted' : '');
+                    const cartel = m.gan < 0
+                        ? '<span class="badge rounded-pill bg-secondary ms-2"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
+                        : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border ms-2">
+                               <i class="bi bi-trophy-fill me-1"></i>Ganador: ${esc(m.gan === 0 ? m.e1 : m.e2)}
+                           </span>`;
                     cuerpo = `<div class="mt-1">
-                        <span class="fw-semibold">${esc(e1)}</span>
-                        <span class="badge bg-dark mx-2 fs-6">${(d.marcador_local ?? 0)} : ${(d.marcador_visita ?? 0)}</span>
-                        <span class="fw-semibold">${esc(e2)}</span>
+                        <span class="fw-semibold ${cls1}">${m.gan === 0 ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e1)}</span>
+                        <span class="badge bg-dark mx-2 fs-6">${m.s1} : ${m.s2}</span>
+                        <span class="fw-semibold ${cls2}">${m.gan === 1 ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e2)}</span>
+                        ${cartel}
                     </div>`;
                 } else {
-                    cuerpo = '<div class="mt-1 small">' + det.map(d => {
+                    // Solo los 3 primeros "a ojo"; el resto se ve en el detalle.
+                    const ordenados = [...det].sort((a, b) =>
+                        (parseInt(a.posicion, 10) || 999) - (parseInt(b.posicion, 10) || 999));
+                    const top = ordenados.slice(0, 3);
+                    const resto = ordenados.length - top.length;
+                    cuerpo = '<div class="d-flex flex-wrap gap-2 mt-1">' + top.map(d => {
                         const pos = parseInt(d.posicion, 10);
                         const medalla = MEDALLAS[pos - 1] || (pos + 'º');
-                        return `<span class="me-3">${medalla} <strong>${esc(d.nombre_libre)}</strong>${d.tiempo ? ' · ' + esc(d.tiempo) : ''}</span>`;
-                    }).join('') + '</div>';
+                        return `<span class="badge rounded-pill bg-light border rs-podio">
+                                    ${medalla} <strong>${esc(nombreDet(d, ''))}</strong>${d.tiempo ? ' · <span class="font-monospace">' + esc(d.tiempo) + '</span>' : ''}
+                                </span>`;
+                    }).join('') +
+                    (resto > 0
+                        ? `<span class="align-self-center small text-muted fst-italic">+ ${resto} puesto/s más <i class="bi bi-arrow-right-short"></i> Detalle</span>`
+                        : '') +
+                    '</div>';
                 }
 
                 html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -280,15 +447,46 @@
                         </div>
                         ${cuerpo}
                     </div>
-                    <button class="btn btn-sm btn-outline-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
-                        <i class="bi bi-x-lg"></i>
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
+                            <i class="bi bi-eye-fill me-1"></i>Detalle
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
                 </div>`;
             });
 
             html += '</div></div>';
         });
         lista.innerHTML = html;
+
+        lista.querySelectorAll('.rs-detalle').forEach(b => b.addEventListener('click', () => abrirDetalle(b.dataset.id)));
+
+        // Estética: en grupos con muchos resultados, mostrar solo los primeros 5 y plegar el resto.
+        lista.querySelectorAll('.rs-grupo').forEach(grupo => {
+            const items = [...grupo.querySelectorAll('.list-group-item')];
+            if (items.length <= 5) return;
+            const ocultos = items.slice(5);
+            ocultos.forEach(el => el.classList.add('d-none'));
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-link btn-sm w-100 text-decoration-none fw-semibold';
+            const actualizarTexto = () => {
+                const visibles = items.filter(el => !el.classList.contains('d-none')).length;
+                btn.innerHTML = visibles === items.length
+                    ? '<i class="bi bi-chevron-up me-1"></i>Mostrar menos'
+                    : `<i class="bi bi-chevron-down me-1"></i>Mostrar ${items.length - visibles} resultado/s más`;
+            };
+            btn.addEventListener('click', () => {
+                const colapsado = items[5].classList.contains('d-none');
+                ocultos.forEach(el => el.classList.toggle('d-none', !colapsado));
+                actualizarTexto();
+            });
+            actualizarTexto();
+            grupo.appendChild(btn);
+        });
 
         lista.querySelectorAll('.rs-borrar').forEach(b => b.addEventListener('click', () => {
             if (!confirm('¿Eliminar este resultado?')) return;
