@@ -296,7 +296,6 @@
                 <div class="col-sm-6"><i class="bi bi-trophy text-success me-1"></i><strong>Deporte:</strong> ${esc(r.nombre_deporte || '—')}</div>
                 <div class="col-sm-6"><i class="bi bi-layers text-success me-1"></i><strong>Categoría:</strong> ${esc(r.nombre_categoria || '—')}</div>
                 <div class="col-sm-6"><i class="bi bi-calendar3 text-success me-1"></i><strong>Fecha:</strong> ${fechaArma(r.fecha_resultado)}</div>
-                <div class="col-sm-6"><i class="bi bi-geo-alt text-success me-1"></i><strong>Lugar:</strong> ${esc(r.lugar || 'Sin lugar')}</div>
                 ${r.nombre_prueba ? `<div class="col-12"><i class="bi bi-journal-text text-success me-1"></i><strong>Prueba:</strong> ${esc(r.nombre_prueba)}</div>` : ''}
             </div>`;
 
@@ -455,7 +454,6 @@
                         ${r.nombre_prueba ? `<span class="small text-muted ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(r.nombre_prueba)}</span>` : ''}
                         <div class="small text-muted">
                             <i class="bi bi-clock me-1"></i>${fechaArma(r.fecha_resultado)}
-                            &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(r.lugar || 'Sin lugar')}
                             ${r.observaciones ? '&nbsp;<i class="bi bi-chat-left-text me-1"></i>' + esc(r.observaciones) : ''}
                         </div>
                         ${cuerpo}
