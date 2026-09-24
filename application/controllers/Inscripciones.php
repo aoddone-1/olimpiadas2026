@@ -1065,6 +1065,14 @@ class Inscripciones extends CI_Controller {
         try {
             if (!$this->_resultados_auth_json()) return;
 
+            // Deporte MASIVO_TIEMPO: si la categoría todavía no tiene jornada en
+            // el fixture, se crea automáticamente la JORNADA_UNICA. Sin esto, la
+            // pestaña Resultados no encuentra a qué jornada vincular los inscriptos
+            // y la lista de participantes quedaba vacía.
+            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
+                $this->Resultado_model->asegurar_jornada_masiva((int) $id_categoria);
+            }
+
             $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $id_categoria);
             $respuesta = array('ok' => true, 'competidores' => $competidores);
 
