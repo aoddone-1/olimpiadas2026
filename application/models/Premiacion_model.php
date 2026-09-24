@@ -249,8 +249,10 @@ class Premiacion_model extends CI_Model {
 
         $this->db->select('f.id_fixture, f.id_categoria, f.fase, f.estado, f.fecha_competencia, f.numero_fecha', FALSE);
         $fixtures_por_cat = array();
+        $fx_por_id = array();
         foreach ($this->_filas_seguras('fixtures') as $f) {
             $fixtures_por_cat[(int) $f['id_categoria']][] = $f;
+            $fx_por_id[(int) $f['id_fixture']] = $f;
         }
 
         // Premios ya registrados por categoría (tolera tabla inexistente).
@@ -258,6 +260,16 @@ class Premiacion_model extends CI_Model {
         foreach ($this->_filas_seguras('premiaciones') as $p) {
             $entregadas_por_cat[(int) $p['id_categoria']][] = $p;
         }
+
+        // Fecha del día en que se jugó cada partido/prueba: sale del FIXTURE
+        // (fecha_competencia), nunca de la fecha de carga del resultado.
+        $fecha_jugada = function ($r) use ($fx_por_id) {
+            if (!empty($r['id_fixture']) && isset($fx_por_id[(int) $r['id_fixture']])) {
+                $fc = $fx_por_id[(int) $r['id_fixture']]['fecha_competencia'];
+                if (!empty($fc)) return substr((string) $fc, 0, 10);
+            }
+            return null;
+        };
 
         $items = array();
         foreach ($categorias as $cat) {
@@ -291,6 +303,9 @@ class Premiacion_model extends CI_Model {
             }
 
             // ---------- ¿cerró la categoría? ----------
+            // La noche de entrega SIEMPRE es el día en que se jugó/hizo la
+            // competencia (fixtures.fecha_competencia), nunca la fecha en que
+            // se cargó el resultado.
             $cerrada = false;
             $motivo = '';
             $fecha_entrega = null;
@@ -298,23 +313,52 @@ class Premiacion_model extends CI_Model {
                 // Jornada única: cierra cuando hay resultado cargado.
                 $cerrada = true;
                 $motivo = 'Jornada cerrada con resultados cargados';
-                $fecha_entrega = $mejor['fecha_resultado'] ?: date('Y-m-d');
+                $fecha_entrega = $fecha_jugada($mejor);
+                if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
+                    $fecha_entrega = substr((string) $cat['dia_competencia'], 0, 10);
+                }
+                if (!$fecha_entrega && $mejor['fecha_resultado']) {
+                    $fecha_entrega = substr((string) $mejor['fecha_resultado'], 0, 10);
+                }
             } elseif ($cat['tipo_duracion'] === 'UNICO_DIA') {
                 $cerrada = isset($podio[1]);
-                $motivo = 'Deporte de un solo día: se premia esta misma noche';
-                $fecha_entrega = date('Y-m-d');
+                $motivo = 'Deporte de un solo día: se premia esa misma noche';
+                // Día de la final; si no está en el fixture, el día programado
+                // de la categoría.
+                $final_fx = null;
+                foreach ($fixtures as $f) {
+                    if ($f['fase'] === 'FINAL' && !empty($f['fecha_competencia'])) { $final_fx = $f; break; }
+                }
+                $fecha_entrega = $final_fx ? substr((string) $final_fx['fecha_competencia'], 0, 10) : null;
+                if (!$fecha_entrega) {
+                    $fecha_entrega = $fecha_jugada(array('id_fixture' => $podio[1]['id_resultado_ref'] ?? null));
+                }
+                if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
+                    $fecha_entrega = substr((string) $cat['dia_competencia'], 0, 10);
+                }
             } else {
-                // MULTIDIA: cierra el día de la definición (fecha de la FINAL).
-                $this->db->where('id_resultado', (int) ($podio[1]['id_resultado_ref'] ?? 0));
-                $f_res = $this->_fila_segura('resultados');
+                // MULTIDIA: cierra el día de la definición (fecha en que se
+                // jugó la FINAL según el fixture).
                 $final_fx = null;
                 foreach ($fixtures as $f) {
                     if ($f['fase'] === 'FINAL') { $final_fx = $f; break; }
                 }
-                $fecha_def = $f_res['fecha_resultado'] ?? ($final_fx['fecha_competencia'] ?? null);
+                $fecha_def = null;
+                if (!empty($final_fx['fecha_competencia'])) {
+                    $fecha_def = substr((string) $final_fx['fecha_competencia'], 0, 10);
+                }
+                if (!$fecha_def) {
+                    $fecha_def = $fecha_jugada(array('id_fixture' => $podio[1]['id_resultado_ref'] ?? null));
+                }
                 $cerrada = isset($podio[1]) && !empty($fecha_def);
                 $motivo = 'Multidía: cierra el día de la definición';
-                $fecha_entrega = $fecha_def ?: date('Y-m-d');
+                $fecha_entrega = $fecha_def;
+            }
+
+            if ($cerrada && !$fecha_entrega) {
+                // Sin fecha de competencia conocida no se puede asignar noche.
+                $cerrada = false;
+                $motivo = 'Sin fecha de competencia en el fixture';
             }
 
             $ya = isset($entregadas_por_cat[$id_cat]) ? $entregadas_por_cat[$id_cat] : array();
@@ -333,17 +377,40 @@ class Premiacion_model extends CI_Model {
     }
 
     /**
-     * Resumen para una noche (fecha): qué se premia ese día.
-     * Incluye las categorías cerradas cuya fecha de entrega es <= fecha
-     * (para que no se "pierdan" entregas de noches anteriores) y que
-     * todavía no fueron registradas completas.
+     * Resumen para una noche (fecha): qué se premió/compitió ESE día.
+     * Filtro estricto por fecha de competencia: solo categorías cerradas cuya
+     * noche de entrega es exactamente la fecha pedida.
      */
     public function obtener_resumen_noche($fecha) {
         $items = $this->obtener_estado_premiables();
         $out = array();
         foreach ($items as $it) {
             if (!$it['cerrada']) continue;
-            if ($it['fecha_entrega'] > $fecha) continue; // aún no llegó su noche
+            if ($it['fecha_entrega'] !== $fecha) continue; // solo el día que se compitió
+            $out[] = $it;
+        }
+        return $out;
+    }
+
+    /**
+     * Categorías de noches ANTERIORES a la fecha pedida que todavía no fueron
+     * premiadas completas (para que ninguna entrega quede en el olvido).
+     */
+    public function obtener_atrasos_hasta($fecha) {
+        $items = $this->obtener_estado_premiables();
+        $out = array();
+        foreach ($items as $it) {
+            if (!$it['cerrada']) continue;
+            if ($it['fecha_entrega'] >= $fecha) continue; // no es anterior
+            // si ya tiene todos los puestos registrados, no es un atraso
+            $puestos_esperados = array_keys($it['podio']);
+            $entregados = array();
+            foreach ($it['entregadas'] as $e) $entregados[(int) $e['puesto']] = $e;
+            $completa = !empty($puestos_esperados);
+            foreach ($puestos_esperados as $p) {
+                if (!isset($entregados[$p])) { $completa = false; break; }
+            }
+            if ($completa) continue;
             $out[] = $it;
         }
         return $out;

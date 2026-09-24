@@ -298,6 +298,7 @@
                     <span class="pm-cat">${esc(c.nombre_categoria)} (${esc(c.genero || '')})</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    ${item.atraso ? '<span class="badge rounded-pill bg-warning text-dark border pm-badge-origen"><i class="bi bi-exclamation-triangle-fill me-1"></i>Atraso</span>' : ''}
                     ${origenBadge}
                     <span class="badge rounded-pill bg-dark-subtle text-dark-emphasis border">
                         <i class="bi bi-moon-stars me-1"></i>${fechaArma(item.fecha_entrega)}
@@ -314,7 +315,11 @@
 
     function render(data) {
         itemsCache = (data.pendientes || []).concat(data.premiados || []);
-        const pend = data.pendientes || [];
+        // El filtro es por el DÍA en que se compitió: todo lo que aparece acá
+        // tiene fecha_entrega == fecha seleccionada (o es un atraso anterior).
+        const delDia = (data.pendientes || []).filter(it => !it.atraso);
+        const atrasos = (data.pendientes || []).filter(it => it.atraso);
+        const pend = delDia;
         const ent = data.premiados || [];
 
         document.getElementById('pm_hero_fecha').textContent = nombreLargo(data.fecha);
@@ -328,24 +333,30 @@
 
         const sub = document.getElementById('pm_hero_sub');
         if (pend.length) {
-            sub.textContent = pend.length + ' competencia(s) con podio listo para entregar y '
+            sub.textContent = pend.length + ' competencia(s) cerrada(s) ese día con podio listo y '
                 + ent.length + ' ya premiada(s).';
         } else if (ent.length) {
-            sub.textContent = 'Todo lo programado para esta noche ya fue premiado. ¡Impecable! 🎉';
+            sub.textContent = 'Todo lo que se compitió esa noche ya fue premiado. ¡Impecable! 🎉';
         } else {
-            sub.textContent = 'Todavía no hay competencias cerradas para premiar en esta fecha.';
+            sub.textContent = 'No hay competencias cerradas cuyo día de competencia sea esta fecha.';
         }
 
-        $pend.innerHTML = pend.length
+        $pend.innerHTML = (pend.length
             ? pend.map(it => cardPodio(it, false)).join('')
             : '<div class="alert alert-light border d-flex align-items-center gap-2 mb-0">' +
               '<i class="bi bi-inbox fs-4 text-muted"></i><span class="small text-muted">' +
-              'No hay podios pendientes para esta noche. Cuando cargues los resultados de una ' +
-              'competencia cerrada, aparecerá acá automáticamente.</span></div>';
+              'Ninguna competencia cerró ese día. Cuando cargues los resultados de una ' +
+              'competencia jugada en esta fecha, aparecerá acá automáticamente.</span></div>')
+            + (atrasos.length
+                ? '<div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 py-2 small">'
+                  + '<span><i class="bi bi-exclamation-triangle-fill me-1"></i>'
+                  + '<strong>' + atrasos.length + ' premiación(es) de noches anteriores todavía sin entregar.</strong></span></div>'
+                  + atrasos.map(it => cardPodio(it, false)).join('')
+                : '');
 
         $ent.innerHTML = ent.length
             ? ent.map(it => cardPodio(it, true)).join('')
-            : '<div class="small text-muted fst-italic">Aún no registraste ninguna premiación.</div>';
+            : '<div class="small text-muted fst-italic">Aún no registraste ninguna premiación para este día.</div>';
 
         document.querySelectorAll('.pm-abrir').forEach(b =>
             b.addEventListener('click', () => abrirModal(b.dataset.cat)));

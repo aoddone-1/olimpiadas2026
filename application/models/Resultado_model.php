@@ -232,6 +232,11 @@ class Resultado_model extends CI_Model {
             if ((int) $fx['id_categoria'] !== $id_cat) {
                 throw new Exception('El partido del fixture no pertenece a esa categoría.');
             }
+            // La fecha que vale es la del DÍA DE LA COMPETENCIA (fixture), no la
+            // de carga. Así el filtro de Premiación por día funciona siempre.
+            if (!empty($fx['fecha_competencia'])) {
+                $fecha = date('Y-m-d', strtotime($fx['fecha_competencia']));
+            }
         }
 
         // ---------- armar el detalle según el tipo ----------

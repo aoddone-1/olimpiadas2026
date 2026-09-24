@@ -1171,6 +1171,11 @@ class Inscripciones extends CI_Controller {
             $fecha = date('Y-m-d', $ts);
 
             $items = $this->Premiacion_model->obtener_resumen_noche($fecha);
+            // Entregas de noches anteriores que quedaron pendientes: se muestran
+            // aparte para que no "contaminen" el resumen del día.
+            foreach ($this->Premiacion_model->obtener_atrasos_hasta($fecha) as $it) {
+                $items[] = array_merge($it, array('atraso' => true));
+            }
             $premiados = array();   // categorías con todos sus puestos confirmados
             $pendientes = array();  // categorías listas para premiar (o parciales)
             foreach ($items as $it) {
@@ -1185,6 +1190,7 @@ class Inscripciones extends CI_Controller {
                     'fecha_entrega' => $it['fecha_entrega'],
                     'podio'         => $it['podio'],
                     'entregados'    => $entregados,
+                    'atraso'        => !empty($it['atraso']),
                 );
                 $puestos_esperados = array_keys($it['podio']);
                 $completa = !empty($puestos_esperados);
