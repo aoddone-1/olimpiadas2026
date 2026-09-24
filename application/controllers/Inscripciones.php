@@ -791,6 +791,20 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/control_total', $data);
     }
 
+    /**
+     * PREMIACIÓN - sección del menú principal (independiente de Control Total).
+     * Resumen diario de las entregas de premios de las competencias cerradas.
+     */
+    public function premiacion() {
+        // Misma seguridad que Control Total (solo superadmin)
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
+
+        $data['menu_activo'] = 'premiacion';
+        $this->load->view('admin/premiacion', $data);
+    }
+
     /* ============================================================
      *  FIXTURE (pestaña de Control Total) - endpoints AJAX
      * ============================================================ */
@@ -1117,7 +1131,7 @@ class Inscripciones extends CI_Controller {
     }
 
     /* ============================================================
-     *  PREMIACIÓN (pestaña de Control Total) - endpoints AJAX
+     *  PREMIACIÓN (sección del menú principal) - endpoints AJAX
      * ============================================================ */
 
     private function _premiacion_auth_json() {

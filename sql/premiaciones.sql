@@ -1,8 +1,8 @@
 -- ============================================================
--- PREMIACIONES (pestaña "Premiación" de Control Total)
+-- PREMIACIONES (sección "Premiación" del menú principal)
 -- Registro diario de las entregas de premios: cada fila es un
 -- puesto (1º/2º/3º) de una categoría cerrada con resultados.
--- Correr este script UNA VEZ antes de usar la pestaña.
+-- Correr este script UNA VEZ antes de usar la sección.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS `premiaciones` (
