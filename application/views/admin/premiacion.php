@@ -8,6 +8,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bundle.min.js"></script>
 </head>
 <body>
 
@@ -145,7 +148,8 @@
     </div>
 </div>
 
-<!-- MODAL: confirmar premiación -->
+<!-- MODAL: confirmar premiación (fuera del .container para que Bootstrap no
+     herede contextos con transform/overflow y quede centrado) -->
 <div class="modal fade" id="modalPremiacion" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">

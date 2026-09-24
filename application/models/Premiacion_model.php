@@ -368,6 +368,10 @@ class Premiacion_model extends CI_Model {
                 if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
                     $fecha_entrega = $this->_norm_fecha($cat['dia_competencia']);
                 }
+                if (!$fecha_entrega) {
+                    $cerrada = false;
+                    $motivo = 'Sin fecha de competencia: cargá el día de la jornada en el Fixture de esta categoría.';
+                }
             } elseif ($cat['tipo_duracion'] === 'UNICO_DIA') {
                 $cerrada = isset($podio[1]);
                 $motivo = 'Deporte de un solo día: se premia esa misma noche';
@@ -385,21 +389,35 @@ class Premiacion_model extends CI_Model {
                 if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
                     $fecha_entrega = $this->_norm_fecha($cat['dia_competencia']);
                 }
+                if (!$fecha_entrega) {
+                    $cerrada = false;
+                    $motivo = 'Sin fecha de competencia: cargá el día de los partidos en el Fixture de esta categoría.';
+                }
             } else {
-                // MULTIDIA: cierra el día de la definición (fecha en que se
-                // jugó la FINAL según el fixture).
-                $final_fx = null;
-                foreach ($fixtures as $f) {
-                    if ($f['fase'] === 'FINAL') { $final_fx = $f; break; }
+                // MULTIDIA: cierra el día de la definición. Se toma la fecha
+                // MÁS RECIENTE en que se jugó una instancia decisiva (FINAL o
+                // TERCER_PUESTO con resultado cargado): si la final y el
+                // tercer puesto se juegan en noches distintas, la premiación
+                // corresponde a la última noche. Si ninguna tiene fecha real,
+                // se usa la fecha programada de la FINAL del fixture.
+                $dias_def = array();
+                foreach (array('FINAL', 'TERCER_PUESTO') as $fase_def) {
+                    $r = $this->_resultado_por_fase($id_cat, $fase_def);
+                    if (!$r) continue;
+                    $fd = $this->_norm_fecha($r['fx_fecha'] ?? null)
+                        ?: $this->_norm_fecha($r['fecha_resultado'] ?? null);
+                    if ($fd) $dias_def[] = $fd;
                 }
-                $fecha_def = null;
-                if (!empty($final_fx['fecha_competencia'])) {
-                    $fecha_def = $this->_norm_fecha($final_fx['fecha_competencia']);
+                if (!$dias_def) {
+                    foreach ($fixtures as $f) {
+                        if ($f['fase'] === 'FINAL' && !empty($f['fecha_competencia'])) {
+                            $fd = $this->_norm_fecha($f['fecha_competencia']);
+                            if ($fd) $dias_def[] = $fd;
+                            break;
+                        }
+                    }
                 }
-                if (!$fecha_def) {
-                    $fecha_def = $podio[1]['fecha_jugada']
-                        ?: $this->_fecha_del_resultado_ref((int) ($podio[1]["id_resultado_ref"] ?? 0), $res_por_id, $fx_por_id);
-                }
+                $fecha_def = $dias_def ? max($dias_def) : null;
                 $cerrada = isset($podio[1]) && !empty($fecha_def);
                 $motivo = 'Multidía: cierra el día de la definición';
                 $fecha_entrega = $fecha_def;
@@ -407,10 +425,10 @@ class Premiacion_model extends CI_Model {
 
             if ($cerrada && !$fecha_entrega) {
                 // Sin fecha de competencia conocida no se puede asignar noche:
-                // se muestra igual (con aviso) para que nunca "desaparezca"
-                // un resultado cargado.
+                // se marca como no-cerrada con motivo claro (así el filtro por
+                // día no "muestra de más") y se avisa en pantalla.
                 $cerrada = false;
-                $motivo = 'Sin fecha de competencia en el fixture';
+                $motivo = 'Sin fecha de competencia: cargá el día de la FINAL en el Fixture de esta categoría.';
             }
 
             $ya = isset($entregadas_por_cat[$id_cat]) ? $entregadas_por_cat[$id_cat] : array();
@@ -464,6 +482,12 @@ class Premiacion_model extends CI_Model {
     /**
      * Categorías de noches ANTERIORES a la fecha pedida que todavía no fueron
      * premiadas completas (para que ninguna entrega quede en el olvido).
+     *
+     * IMPORTANTE: las competencias SIN fecha de competencia conocida (fixture
+     * sin día cargado) tampoco pueden mostrarse acá — si no, aparecerían como
+     * "atraso" en cualquier fecha elegida y el filtro daría la sensación de no
+     * funcionar. Se reportan aparte con obtener_sin_fecha() para mostrar un
+     * aviso claro en pantalla.
      */
     public function obtener_atrasos_hasta($fecha) {
         $items = $this->obtener_estado_premiables();
@@ -473,7 +497,7 @@ class Premiacion_model extends CI_Model {
         foreach ($items as $it) {
             if (!$it['cerrada']) continue;
             $fe = $this->_norm_fecha($it['fecha_entrega']);
-            if (!$fe || $fe >= $pedido) continue; // no es anterior
+            if (!$fe || $fe >= $pedido) continue; // no es anterior / sin fecha
             // si ya tiene todos los puestos registrados, no es un atraso
             $puestos_esperados = array_keys($it['podio']);
             $entregados = array();
@@ -484,6 +508,24 @@ class Premiacion_model extends CI_Model {
             }
             if ($completa) continue;
             $out[] = $it;
+        }
+        return $out;
+    }
+
+    /**
+     * Resultados/premios POTENCIALMENTE premiables pero cuya categoría NO tiene
+     * fecha de competencia en el fixture (no se puede asignar noche). Devuelve
+     * una lista simple para el aviso: categoria, motivo.
+     */
+    public function obtener_sin_fecha() {
+        $out = array();
+        foreach ($this->obtener_estado_premiables() as $it) {
+            if (!empty($it['cerrada'])) continue;
+            if (empty($it['motivo']) || strpos($it['motivo'], 'Sin fecha') === false) continue;
+            $out[] = array(
+                'categoria' => $it['categoria']['nombre_deporte'] . ' › ' . $it['categoria']['nombre_categoria'],
+                'motivo'    => $it['motivo'],
+            );
         }
         return $out;
     }

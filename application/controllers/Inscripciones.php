@@ -1176,6 +1176,9 @@ class Inscripciones extends CI_Controller {
             foreach ($this->Premiacion_model->obtener_atrasos_hasta($fecha) as $it) {
                 $items[] = array_merge($it, array('atraso' => true));
             }
+            // Categorías con resultados cargados pero sin fecha de competencia
+            // en el fixture: no pueden asignarse a ninguna noche (se avisan).
+            $sin_fecha = $this->Premiacion_model->obtener_sin_fecha();
             $premiados = array();   // categorías con todos sus puestos confirmados
             $pendientes = array();  // categorías listas para premiar (o parciales)
             foreach ($items as $it) {
@@ -1208,6 +1211,7 @@ class Inscripciones extends CI_Controller {
                     'fecha' => $fecha,
                     'pendientes' => $pendientes,
                     'premiados' => $premiados,
+                    'sin_fecha' => $sin_fecha,
                 )));
         } catch (Throwable $e) {
             log_message('error', '[Premiación] ' . $e->getMessage());
