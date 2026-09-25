@@ -268,6 +268,97 @@ class Fixture_model extends CI_Model {
         );
     }
 
+    /**
+     * Lista simple de los inscriptos de una categoría (para el botón "ver
+     * participantes" que aparece en cada bloque de categoría del fixture).
+     * Agrupa por persona: si compiten en equipo, se muestra el equipo.
+     */
+    public function inscriptos_de_categoria($id_categoria) {
+        $this->db->select('
+            i.id_inscripcion, i.id_ute, i.detalle_ute, i.tiene_ute,
+            p.dni, p.nombre_completo, p.sexo, p.fecha_nacimiento, p.delegacion
+        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', (int) $id_categoria);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $rows = $this->db->get()->result_array();
+
+        // Nombres de las UTEs de la categoría (clave: id_ute)
+        $nombres_ute = array();
+        foreach ($this->obtener_utes_por_categoria((int) $id_categoria) as $u) {
+            $nombres_ute[(int) $u['id_ute']] = $u['nombre_ute'];
+        }
+
+        // Integrantes reales por UTE (tabla participantes_utes), para saber
+        // quiénes forman cada equipo además de los que están inscriptos acá.
+        $por_ute = array();
+        if ($nombres_ute) {
+            $this->db->select('pu.id_ute, p.nombre_completo', FALSE);
+            $this->db->from('participantes_utes pu');
+            $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+            $this->db->where_in('pu.id_ute', array_keys($nombres_ute));
+            $this->db->order_by('p.nombre_completo', 'ASC');
+            foreach ($this->db->get()->result_array() as $r) {
+                $por_ute[(int) $r['id_ute']][] = $r['nombre_completo'];
+            }
+        }
+
+        $individuales = array();
+        $equipos = array();   // clave: nombre del equipo
+        foreach ($rows as $r) {
+            $persona = array(
+                'dni'         => $r['dni'],
+                'nombre'      => $r['nombre_completo'],
+                'sexo'        => $r['sexo'],
+                'fecha_nacimiento' => $r['fecha_nacimiento'],
+                'delegacion'  => $r['delegacion'],
+            );
+            $nombre_eq = null;
+            if (!empty($r['id_ute']) && isset($nombres_ute[(int) $r['id_ute']])) {
+                $nombre_eq = $nombres_ute[(int) $r['id_ute']];
+            } elseif (!empty($r['detalle_ute']) && trim($r['detalle_ute']) !== '') {
+                $nombre_eq = trim($r['detalle_ute']);
+            }
+
+            if ($nombre_eq !== null) {
+                $equipos[$nombre_eq]['personas'][] = $persona;
+            } else {
+                $individuales[] = $persona;
+            }
+        }
+
+        // Ordenar ambos grupos alfabéticamente
+        ksort($equipos, SORT_NATURAL | SORT_FLAG_CASE);
+        usort($individuales, function ($a, $b) {
+            return strcasecmp($a['nombre'], $b['nombre']);
+        });
+
+        // Armar la respuesta: equipos con sus integrantes confirmados + inscriptos
+        $out_equipos = array();
+        foreach ($equipos as $nombre => $data) {
+            $miembros = array();
+            foreach ($data['personas'] as $p) $miembros[] = $p;
+            // Si la UTE existe, agregar también los integrantes registrados que
+            // no figuran como inscriptos directos en esta categoría
+            $id_ute = array_search($nombre, $nombres_ute);
+            if ($id_ute !== false) {
+                $ya = array_column($miembros, 'nombre');
+                foreach (isset($por_ute[$id_ute]) ? $por_ute[$id_ute] : array() as $nom) {
+                    if (!in_array($nom, $ya, true)) {
+                        $miembros[] = array(
+                            'dni' => null, 'nombre' => $nom, 'sexo' => null,
+                            'fecha_nacimiento' => null, 'delegacion' => null,
+                        );
+                    }
+                }
+            }
+            $out_equipos[] = array('nombre' => $nombre, 'integrantes' => $miembros);
+        }
+
+        return array('equipos' => $out_equipos, 'individuales' => $individuales);
+    }
+
     /** Agrega a cada fila la lista de disciplinas (deporte — categoría) del participante. */
     private function _disciplinas_de_integrantes($filas) {
         $ids = array();
