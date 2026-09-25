@@ -273,6 +273,9 @@
         ? hoyISO() : INICIO_COMPETENCIA;
     let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
     let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
+    // Modal de detalle de participantes: instancia Bootstrap creada ACÁ
+    // (antes faltaba esta línea y el botón "Detalle" tiraba ReferenceError).
+    const modalDetalle = new bootstrap.Modal(document.getElementById('modalDetalle'));
 
     const MEDALLAS = ['🥇', '🥈', '🥉'];
 
