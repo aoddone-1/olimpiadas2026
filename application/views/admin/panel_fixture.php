@@ -6,7 +6,18 @@
                 <i class="bi bi-calendar3 me-2">
                 <span></i>Gestión de Fixture</span>
             </div>
+            <div class="d-flex gap-2 align-items-center">
+                <a id="fx_btn_csv" href="<?= base_url('Inscripciones/descargar_csv_fixture') ?>"
+                    class="btn btn-lg btn-success" title="Cuadro del fixture: columnas = días, filas = rangos horarios">
+                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>
+                </a>
+                <a id="fx_btn_csv_lista" href="<?= base_url('Inscripciones/descargar_csv_fixture?lista=1') ?>"
+                    class="btn btn-lg btn-secondary" title="Listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
+                    <i class="bi bi-list-ul me-1"></i>
+                </a>
+            </div>
         </div>
+        
         
         
     </div>
@@ -47,20 +58,14 @@
                     <button id="fx_btn_generar" class="btn btn-primary d-inline-flex align-items-center" disabled>
                         <i class="bi bi-magic me-2"></i>Generar fixture
                     </button>
-                    <button id="fx_btn_nuevo" class="btn btn-success d-inline-flex align-items-center">
-                        <i class="bi bi-plus-lg me-2"></i>Partido manual
+                    <button id="fx_btn_nuevo" class="btn  btn-lg  btn-primary d-inline-flex align-items-center">
+                        <i class="bi bi-plus-circle me-1"></i>
                     </button>
-                    <button id="fx_btn_borrar_todo" class="btn btn-outline-danger d-inline-flex align-items-center" disabled title="Borra el fixture de la categoría seleccionada">
-                        <i class="bi bi-trash me-2"></i>Borrar fixture
+                    <button id="fx_btn_borrar_todo" class="btn  btn-lg  btn-danger" disabled title="Borra el fixture de la categoría seleccionada">
+                        <i class="bi bi-trash me-1"></i>
                     </button>
-                    <a id="fx_btn_csv" href="<?= base_url('Inscripciones/descargar_csv_fixture') ?>"
-                       class="btn btn-outline-success d-inline-flex align-items-center" title="Cuadro del fixture: columnas = días, filas = rangos horarios">
-                        <i class="bi bi-filetype-csv me-2"></i>Descargar CSV (cuadro)
-                    </a>
-                    <a id="fx_btn_csv_lista" href="<?= base_url('Inscripciones/descargar_csv_fixture?lista=1') ?>"
-                       class="btn btn-outline-secondary d-inline-flex align-items-center" title="Listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
-                        <i class="bi bi-list-ul me-2"></i>CSV listado
-                    </a>
+                    
+                    
                 </div>
             </div>
         </div>
