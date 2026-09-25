@@ -980,19 +980,17 @@
             contenedorDias.appendChild(btn);
         });
 
-        // El botón de CSV (cuadro) sigue al día seleccionado: descarga el cuadro
-        // solo de ese día (?dia=YYYY-MM-DD). El de listado usa ?lista=1.
+        // Los botones de CSV descargan SIEMPRE todos los días (sin filtro):
+        // cuadro = columnas días / filas franjas; listado = una fila por partido.
         const btnCsv = document.getElementById('fx_btn_csv');
-        if (btnCsv && diaActual) {
-            btnCsv.href = BASE + '/descargar_csv_fixture?dia=' + diaActual;
-            btnCsv.title = 'Cuadro del fixture para el ' + fechaArma(diaActual) +
-                ' (columnas = días, filas = rangos horarios)';
+        if (btnCsv) {
+            btnCsv.href = BASE + '/descargar_csv_fixture';
+            btnCsv.title = 'Cuadro del fixture con TODOS los días (columnas = días, filas = rangos horarios)';
         }
         const btnCsvLista = document.getElementById('fx_btn_csv_lista');
-        if (btnCsvLista && diaActual) {
-            btnCsvLista.href = BASE + '/descargar_csv_fixture?dia=' + diaActual + '&lista=1';
-            btnCsvLista.title = 'Listado ordenado del fixture para el ' + fechaArma(diaActual) +
-                ' (Deporte → Categoría → Fecha → Hora)';
+        if (btnCsvLista) {
+            btnCsvLista.href = BASE + '/descargar_csv_fixture?lista=1';
+            btnCsvLista.title = 'Listado ordenado del fixture con TODOS los días (Deporte → Categoría → Fecha → Hora)';
         }
 
         // Resumen del día elegido
