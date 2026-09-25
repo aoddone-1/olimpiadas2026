@@ -452,9 +452,7 @@
                                 const medalla = MEDALLAS[i] || (i + 1) + 'º';
                                 return `<span class="me-2">${medalla} ${esc(nombresPorId[id] || ('UTE #' + id))}</span>`;
                             }).join('') + '</div>';
-                        } else {
-                            podioHtml = '<div class="mt-1 small fst-italic text-muted">Sin resultados cargados todavía.</div>';
-                        }
+                        } 
                     }
 
                     html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -466,19 +464,20 @@
                                 &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
                             </div>
                             ${esMasivo ? podioHtml : `<button type="button" class="btn btn-link p-0 mt-1 fx-detalle fw-semibold text-dark text-decoration-none" data-id="${f.id_fixture}" title="Ver participantes del cruce">
-                                ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + ' <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
+                                ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + '<br/> <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
                             </button>`}
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
-                            <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
-                                <i class="bi bi-list-ul"></i> Detalle
-                            </button>
+                            
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
                                     <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_2}" title="Gana: ${esc(f.ute_2_nombre)}">🏆 ${esc(f.ute_2_nombre).slice(0, 14)}</button>
                                 </div>` : ''}
+                            <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
+                                <i class="bi bi-search"></i>
+                            </button>
                             <button class="btn btn-sm btn-outline-secondary fx-editar" data-id="${f.id_fixture}" title="Editar">
                                 <i class="bi bi-pencil"></i>
                             </button>
