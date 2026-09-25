@@ -994,9 +994,13 @@ class Inscripciones extends CI_Controller {
     }
 
     /**
-     * Descarga un resumen ORDENADO del fixture cargado (todas las categorías)
-     * en formato CSV. Orden: Deporte → Categoría → Fecha → Hora → Jornada.
-     * Opcional: ?dia=YYYY-MM-DD para descargar solo un día de competencia.
+     * Descarga un resumen del fixture cargado (todas las categorías) en formato
+     * CSV TIPO CUADRO: cada COLUMNA es un día de competencia y cada FILA un
+     * rango horario (franjas de 1 hora). Cada celda muestra los partidos de ese
+     * día/franja como líneas "HH:MM–HH:MM · Deporte Cat · Local vs Visitante".
+     * Opciones de URL:
+     *   ?dia=YYYY-MM-DD   limita el cuadro a un solo día (columna única).
+     *   ?lista=1          descarga el listado tradicional (una fila por partido).
      */
     public function descargar_csv_fixture() {
         if (!$this->session->userdata('is_organizador')
@@ -1039,7 +1043,8 @@ class Inscripciones extends CI_Controller {
             ];
         });
 
-        $nombre_archivo = 'resumen_fixture_'
+        $es_lista = $this->input->get('lista') === '1';
+        $nombre_archivo = ($es_lista ? 'resumen_fixture_' : 'cuadro_fixture_')
             . ($dia !== '' ? str_replace('-', '', $dia) . '_' : '')
             . date('Y-m-d') . '.csv';
 
@@ -1051,29 +1056,122 @@ class Inscripciones extends CI_Controller {
         // BOM para que Excel reconozca UTF-8 correctamente
         fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-        fputcsv($output, [
-            'Deporte', 'Categoría', 'Día', 'Fecha', 'Hora inicio', 'Hora fin',
-            'Lugar', 'Fase', 'Jornada/Fecha N.º', 'Prueba',
-            'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Estado'
-        ], ';');
-
-        foreach ($datos as $fila) {
-            $fecha = (string) ($fila['fecha_competencia'] ?? '');
+        if ($es_lista) {
+            // ---------- Listado tradicional: una fila por partido ----------
             fputcsv($output, [
-                $fila['nombre_deporte'] ?? '',
-                trim(($fila['nombre_categoria'] ?? '') . ' ' . ($fila['genero_categoria'] ?? '')),
-                $fecha !== '' ? (new DateTime($fecha))->format('%A') : '',
-                $fecha !== '' ? date('d/m/Y', strtotime($fecha)) : '',
-                substr((string) ($fila['hora_inicio'] ?? ''), 0, 5),
-                substr((string) ($fila['hora_fin'] ?? ''), 0, 5),
-                $fila['lugar_nombre'] ?? '',
-                $fila['fase'] ?? '',
-                $fila['numero_fecha'] ?? '',
-                $fila['nombre_prueba'] ?? '',
-                $fila['ute_1_nombre'] ?? '',
-                $fila['ute_2_nombre'] ?? '',
-                $fila['estado'] ?? '',
+                'Deporte', 'Categoría', 'Día', 'Fecha', 'Hora inicio', 'Hora fin',
+                'Lugar', 'Fase', 'Jornada/Fecha N.º', 'Prueba',
+                'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Estado'
             ], ';');
+
+            foreach ($datos as $fila) {
+                $fecha = (string) ($fila['fecha_competencia'] ?? '');
+                fputcsv($output, [
+                    $fila['nombre_deporte'] ?? '',
+                    trim(($fila['nombre_categoria'] ?? '') . ' ' . ($fila['genero_categoria'] ?? '')),
+                    $fecha !== '' ? (new DateTime($fecha))->format('%A') : '',
+                    $fecha !== '' ? date('d/m/Y', strtotime($fecha)) : '',
+                    substr((string) ($fila['hora_inicio'] ?? ''), 0, 5),
+                    substr((string) ($fila['hora_fin'] ?? ''), 0, 5),
+                    $fila['lugar_nombre'] ?? '',
+                    $fila['fase'] ?? '',
+                    $fila['numero_fecha'] ?? '',
+                    $fila['nombre_prueba'] ?? '',
+                    $fila['ute_1_nombre'] ?? '',
+                    $fila['ute_2_nombre'] ?? '',
+                    $fila['estado'] ?? '',
+                ], ';');
+            }
+
+            fclose($output);
+            exit;
+        }
+
+        // ---------- CUADRO: columnas = días, filas = rangos horarios ----------
+
+        // 1) Días presentes (columnas), en orden cronológico
+        $dias = array();
+        foreach ($datos as $fila) {
+            $f = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
+            if ($f !== '') $dias[$f] = true;
+        }
+        $dias = array_keys($dias);
+        sort($dias);
+
+        // 2) Franjas horarias de 1 hora que cubran todos los partidos (filas).
+        //    Si ?franja=HH lo pide el usuario, se agrupan los horarios en bloques
+        //    de esa cantidad de horas (p. ej. franja=2 -> "08:00–10:00").
+        $ancho = (int) $this->input->get('franja');
+        if ($ancho < 1) $ancho = 1;
+        if ($ancho > 12) $ancho = 12;
+
+        $min_hora = NULL;
+        $max_hora = NULL;
+        foreach ($datos as $fila) {
+            $hi = (string) ($fila['hora_inicio'] ?? '');
+            $hf = (string) ($fila['hora_fin'] ?? '');
+            if ($hi === '') continue;
+            $h_ini = (int) substr($hi, 0, 2);
+            $h_fin = $hf !== '' ? (int) substr($hf, 0, 2) : $h_ini;
+            if ((int) substr($hf, 3, 2) > 0 || $h_fin === $h_ini) $h_fin++; // redondea a la siguiente hora
+            if ($min_hora === NULL || $h_ini < $min_hora) $min_hora = $h_ini;
+            if ($max_hora === NULL || $h_fin > $max_hora) $max_hora = $h_fin;
+        }
+        if ($min_hora === NULL) { $min_hora = 8; $max_hora = 9; } // sin datos: placeholder
+
+        // Alineo el inicio a un múltiplo del ancho de franja y extiendo el fin
+        $min_hora = intdiv($min_hora, $ancho) * $ancho;
+        $max_hora = intdiv($max_hora - $min_hora - 1, $ancho) * $ancho + $ancho + $min_hora;
+        $n_frajas = intdiv($max_hora - $min_hora, $ancho);
+
+        // 3) Distribuir cada partido en su celda [franja][día]
+        $celdas = array(); // idx_franja => dia => array de líneas
+        foreach ($datos as $fila) {
+            $fecha = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
+            if ($fecha === '') continue;
+
+            $hi = substr((string) ($fila['hora_inicio'] ?? ''), 0, 5);
+            $hf = substr((string) ($fila['hora_fin'] ?? ''), 0, 5);
+            $h_ini = (int) substr((string) ($fila['hora_inicio'] ?? '0'), 0, 2);
+            $idx = intdiv(max(0, $h_ini - $min_hora), $ancho);
+            if ($idx >= $n_frajas) $idx = $n_frajas - 1;
+
+            $equipos = trim((string) ($fila['ute_1_nombre'] ?? ''));
+            $v = trim((string) ($fila['ute_2_nombre'] ?? ''));
+            if ($equipos !== '' && $v !== '') {
+                $equipos .= ' vs ' . $v;
+            } elseif ($v !== '') {
+                $equipos = $v;
+            }
+            if ($equipos === '') $equipos = '(slot libre)';
+
+            $linea = $hi . ($hf !== '' && $hf !== '00:00' ? '–' . $hf : '')
+                . ' · ' . trim(($fila['nombre_deporte'] ?? '') . ' ' . ($fila['nombre_categoria'] ?? ''))
+                . ' · ' . $equipos;
+            if (!empty($fila['nombre_prueba'])) $linea .= ' — ' . $fila['nombre_prueba'];
+            if (!empty($fila['lugar_nombre'])) $linea .= ' @ ' . $fila['lugar_nombre'];
+
+            $celdas[$idx][$fecha][] = $linea;
+        }
+
+        // 4) Cabecera: Horario | Lun 03/11 | Mié 05/11 | ...
+        $cabecera = array('Horario');
+        $dias_abr = array('Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb');
+        foreach ($dias as $f) {
+            $ts = strtotime($f);
+            $cabecera[] = $dias_abr[(int) date('w', $ts)] . ' ' . date('d/m', $ts);
+        }
+        fputcsv($output, $cabecera, ';');
+
+        // 5) Una fila por franja horaria
+        for ($i = 0; $i < $n_frajas; $i++) {
+            $h_ini = $min_hora + $i * $ancho;
+            $h_fin = $h_ini + $ancho;
+            $fila_csv = array(sprintf('%02d:00–%02d:00', $h_ini % 24, $h_fin % 24));
+            foreach ($dias as $f) {
+                $fila_csv[] = isset($celdas[$i][$f]) ? implode("\n", $celdas[$i][$f]) : '';
+            }
+            fputcsv($output, $fila_csv, ';');
         }
 
         fclose($output);
