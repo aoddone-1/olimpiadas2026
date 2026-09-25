@@ -63,22 +63,11 @@
         <!-- Toast de mensajes -->
         <div id="fx_mensaje" class="alert d-none"></div>
 
-        <!-- Selector de DÍA de competencia: el listado se filtra por la fecha elegida -->
-        <div class="row g-2 align-items-end mb-3 border-top pt-3">
-            <div class="col-md-4">
-                <label for="fx_dia" class="form-label small fw-semibold mb-1"><i class="bi bi-calendar-day-fill text-danger me-1"></i>Día de competencia</label>
-                <input type="date" id="fx_dia" class="form-control">
-            </div>
-            <div class="col-md-8 d-flex flex-wrap align-items-center gap-2">
-                <button id="fx_btn_hoy" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center">
-                    <i class="bi bi-today me-1"></i>Hoy
-                </button>
-                <button id="fx_btn_prev" class="btn btn-outline-secondary btn-sm" title="Día anterior">
-                    <i class="bi bi-chevron-left"></i>
-                </button>
-                <button id="fx_btn_next" class="btn btn-outline-secondary btn-sm" title="Día siguiente">
-                    <i class="bi bi-chevron-right"></i>
-                </button>
+        <!-- Selector de DÍA de competencia: solo los días del calendario oficial -->
+        <div class="mb-3 border-top pt-3">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="small fw-semibold me-1"><i class="bi bi-calendar-day-fill text-danger me-1"></i>Día de competencia:</span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Días de competencia" id="fx_dias_btns"></div>
                 <span id="fx_dia_resumen" class="small text-muted ms-1"></span>
             </div>
         </div>
@@ -227,25 +216,42 @@
     const infoBox = document.getElementById('fx_info');
     const msgBox = document.getElementById('fx_mensaje');
     const lista = document.getElementById('fx_lista');
-    const inputDia = document.getElementById('fx_dia');
-    const diaResumen = document.getElementById('fx_dia_resumen');
+    const contenedorDias = document.getElementById('fx_dias_btns');
 
     let todosFixtures = [];   // fixture completo de TODAS las categorías
 
-    /* ---------- Fecha local (YYYY-MM-DD) sin depender del huso horario ---------- */
+    /* ---------- Fechas locales (YYYY-MM-DD) sin depender del huso horario ---------- */
+    function fechaISO(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
     function hoyISO() {
-        const d = new Date();
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        return fechaISO(new Date());
     }
 
-    function sumarDiasISO(fecha, dias) {
-        const p = fecha.split('-');
-        const d = new Date(+p[0], +p[1] - 1, +p[2] + dias);
-        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    /* ---------- Calendario oficial de la competencia: 02/11/2026 al 06/11/2026 ----------
+       El filtro de día solo habilita estos días. Si algún partido cargado tiene una
+       fecha fuera de este rango, su día se agrega automáticamente al selector para
+       que no quede invisible. */
+    const INICIO_COMPETENCIA = '2026-11-02';
+    const FIN_COMPETENCIA = '2026-11-06';
+
+    function diasCalendario() {
+        const dias = [];
+        const ini = INICIO_COMPETENCIA.split('-');
+        const fin = FIN_COMPETENCIA.split('-');
+        let d = new Date(+ini[0], +ini[1] - 1, +ini[2]);
+        const f = new Date(+fin[0], +fin[1] - 1, +fin[2]);
+        while (d <= f) {
+            dias.push(fechaISO(d));
+            d.setDate(d.getDate() + 1);
+        }
+        return dias;
     }
 
-    // Por defecto, el listado arranca mostrando el día de HOY
-    inputDia.value = hoyISO();
+    // Día seleccionado: HOY si cae dentro del calendario oficial; si no, el primer día
+    let diaActual = (hoyISO() >= INICIO_COMPETENCIA && hoyISO() <= FIN_COMPETENCIA)
+        ? hoyISO() : INICIO_COMPETENCIA;
     let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
     let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
 
@@ -308,26 +314,15 @@
     /* ---------- Render por DÍA: muestra solo lo que se juega en la fecha elegida,
                     agrupado por Deporte → Categoría → Jornada ---------- */
     function render() {
-        const dia = inputDia.value;
+        const dia = diaActual;
 
-        // Filtrar el fixture del día seleccionado (si no hay fecha elegida, mostrar todo)
+        // Filtrar el fixture del día seleccionado
         const fixturesDelDia = dia
             ? todosFixtures.filter(f => (f.fecha_competencia || '').slice(0, 10) === dia)
             : todosFixtures.slice();
 
-        // Resumen: "sábado 26/09/2026 — 12 partidos · 4 deportes" + total general
-        let resumen = '';
-        if (dia) {
-            const p = dia.split('-');
-            const nombreDia = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-AR', { weekday: 'long' });
-            const deportes = new Set(fixturesDelDia.map(f => f.nombre_deporte)).size;
-            resumen = `<i class="bi bi-calendar-check me-1"></i>${esc(nombreDia)} ${fechaArma(dia)} — ` +
-                `${fixturesDelDia.length} partido/s · ${deportes} deporte/s`;
-            if (todosFixtures.length) {
-                resumen += ` <span class="text-muted">(total cargado: ${todosFixtures.length})</span>`;
-            }
-        }
-        diaResumen.innerHTML = resumen;
+        // Botones de día + resumen: "sábado 26/09/2026 — 12 partidos · 4 deportes"
+        renderBotonesDias(fixturesDelDia);
 
         if (!todosFixtures.length) {
             lista.innerHTML = '<div class="text-center text-muted py-4">' +
@@ -340,7 +335,7 @@
             lista.innerHTML = '<div class="text-center text-muted py-4">' +
                 '<i class="bi bi-calendar-day fs-1 d-block mb-2"></i>' +
                 'No hay competencia programada para ' + (dia ? esc(fechaArma(dia)) : 'la fecha seleccionada') + '.' +
-                '<div class="small mt-1">Usá las flechas ‹ › para moverte entre días, o el botón "Hoy" para volver a la fecha actual.</div></div>';
+                '<div class="small mt-1">Elegí otro día arriba para ver lo que se juega.</div></div>';
             return;
         }
 
@@ -715,20 +710,61 @@
         });
     });
 
-    /* ---------- Navegación por DÍA de competencia ---------- */
-    inputDia.addEventListener('change', render);
-    document.getElementById('fx_btn_hoy').addEventListener('click', () => {
-        inputDia.value = hoyISO();
-        render();
-    });
-    document.getElementById('fx_btn_prev').addEventListener('click', () => {
-        if (inputDia.value) inputDia.value = sumarDiasISO(inputDia.value, -1);
-        render();
-    });
-    document.getElementById('fx_btn_next').addEventListener('click', () => {
-        if (inputDia.value) inputDia.value = sumarDiasISO(inputDia.value, 1);
-        render();
-    });
+    /* ---------- Selector de DÍA: botones solo para los días del calendario oficial ---------- */
+    function diasDisponibles() {
+        // Días del calendario oficial + cualquier día extra que tenga partidos cargados
+        const dias = new Set(diasCalendario());
+        todosFixtures.forEach(f => {
+            const d = (f.fecha_competencia || '').slice(0, 10);
+            if (d) dias.add(d);
+        });
+        return Array.from(dias).sort();
+    }
+
+    function renderBotonesDias(fixturesDelDia) {
+        const resumenEl = document.getElementById('fx_dia_resumen');
+        contenedorDias.innerHTML = '';
+
+        diasDisponibles().forEach(d => {
+            const p = d.split('-');
+            const fecha = new Date(+p[0], +p[1] - 1, +p[2]);
+            const nombreCorto = fecha.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
+            const cantidad = d === diaActual
+                ? fixturesDelDia.length
+                : todosFixtures.filter(f => (f.fecha_competencia || '').slice(0, 10) === d).length;
+            const esHoy = d === hoyISO();
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm ' + (d === diaActual ? 'btn-primary' : 'btn-outline-primary');
+            btn.innerHTML = esc(nombreCorto.charAt(0).toUpperCase() + nombreCorto.slice(1)) +
+                ' ' + p[2] + '/' + p[1] +
+                (esHoy ? ' <i class="bi bi-circle-fill" style="font-size:.4rem;" title="Hoy"></i>' : '') +
+                (cantidad ? ` <span class="badge ${d === diaActual ? 'bg-white text-primary' : 'bg-light text-muted border'} ms-1">${cantidad}</span>` : '');
+            btn.title = fechaArma(d) + (cantidad ? ` — ${cantidad} partido/s` : ' — sin partidos');
+            btn.addEventListener('click', () => {
+                if (diaActual !== d) {
+                    diaActual = d;
+                    render();
+                }
+            });
+            contenedorDias.appendChild(btn);
+        });
+
+        // Resumen del día elegido
+        let resumen = '';
+        if (diaActual) {
+            const p = diaActual.split('-');
+            const nombreDia = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-AR', { weekday: 'long' });
+            const deportes = new Set(fixturesDelDia.map(f => f.nombre_deporte)).size;
+            resumen = `<i class="bi bi-calendar-check me-1"></i>${esc(nombreDia)} ${fechaArma(diaActual)} — ` +
+                `${fixturesDelDia.length} partido/s · ${deportes} deporte/s`;
+            if (todosFixtures.length) {
+                resumen += ` <span class="text-muted">(total cargado: ${todosFixtures.length})</span>`;
+            }
+        }
+        resumenEl.innerHTML = resumen;
+    }
 
     /* ---------- Filtro Deporte → Categoría ---------- */
     // Al elegir un deporte, la lista de categorías se reduce a las de ese deporte.
