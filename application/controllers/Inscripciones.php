@@ -998,9 +998,10 @@ class Inscripciones extends CI_Controller {
      * CSV TIPO CUADRO: cada COLUMNA es un día de competencia y cada FILA un
      * rango horario (franjas de 1 hora). Cada celda muestra los partidos de ese
      * día/franja como líneas "HH:MM–HH:MM · Deporte Cat · Local vs Visitante".
+     * SIN filtros: ambos formatos (cuadro y listado) incluyen siempre TODOS los días.
      * Opciones de URL:
-     *   ?dia=YYYY-MM-DD   limita el cuadro a un solo día (columna única).
      *   ?lista=1          descarga el listado tradicional (una fila por partido).
+     *   ?franja=HH        ancho de las franjas horarias del cuadro (filas).
      */
     public function descargar_csv_fixture() {
         if (!$this->session->userdata('is_organizador')
@@ -1017,13 +1018,8 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // Filtro opcional por día (?dia=2026-11-03)
-        $dia = trim((string) $this->input->get('dia'));
-        if ($dia !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dia)) {
-            $datos = array_values(array_filter($datos, function ($f) use ($dia) {
-                return substr((string) $f['fecha_competencia'], 0, 10) === $dia;
-            }));
-        }
+        // SIN filtro por día: ambos CSV (cuadro y listado) siempre incluyen
+        // TODOS los días del fixture, ignore el parámetro ?dia= si viniera en la URL.
 
         // Orden garantizado del lado PHP (el modelo ya ordena por deporte/categoría/
         // fecha/hora, pero lo reforzamos acá para que el resumen siempre salga ordenado).
@@ -1045,7 +1041,6 @@ class Inscripciones extends CI_Controller {
 
         $es_lista = $this->input->get('lista') === '1';
         $nombre_archivo = ($es_lista ? 'resumen_fixture_' : 'cuadro_fixture_')
-            . ($dia !== '' ? str_replace('-', '', $dia) . '_' : '')
             . date('Y-m-d') . '.csv';
 
         header('Content-Type: text/csv; charset=utf-8');
@@ -1059,27 +1054,27 @@ class Inscripciones extends CI_Controller {
         if ($es_lista) {
             // ---------- Listado tradicional: una fila por partido ----------
             fputcsv($output, [
-                'Deporte', 'Categoría', 'Día', 'Fecha', 'Hora inicio', 'Hora fin',
-                'Lugar', 'Fase', 'Jornada/Fecha N.º', 'Prueba',
-                'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Estado'
+                'Deporte', 'Categoría', 'Condición', 'Hora inicio',
+                'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Lugar'
             ], ';');
 
             foreach ($datos as $fila) {
-                $fecha = (string) ($fila['fecha_competencia'] ?? '');
+                $cond = trim((string) ($fila['fecha_competencia'] ?? ''));
+                if ($cond !== '') $cond = date('d/m/Y', strtotime($cond));
+                $hora = substr((string) ($fila['hora_inicio'] ?? ''), 0, 5);
+                $hf = substr((string) ($fila['hora_fin'] ?? ''), 0, 5);
+                if ($hora !== '' && $hf !== '' && $hf !== '00:00') {
+                    $cond .= ' ' . $hora . 'hs';
+                }
+
                 fputcsv($output, [
                     $fila['nombre_deporte'] ?? '',
                     trim(($fila['nombre_categoria'] ?? '') . ' ' . ($fila['genero_categoria'] ?? '')),
-                    $fecha !== '' ? (new DateTime($fecha))->format('%A') : '',
-                    $fecha !== '' ? date('d/m/Y', strtotime($fecha)) : '',
-                    substr((string) ($fila['hora_inicio'] ?? ''), 0, 5),
-                    substr((string) ($fila['hora_fin'] ?? ''), 0, 5),
-                    $fila['lugar_nombre'] ?? '',
-                    $fila['fase'] ?? '',
-                    $fila['numero_fecha'] ?? '',
-                    $fila['nombre_prueba'] ?? '',
+                    $cond,
+                    $hora,
                     $fila['ute_1_nombre'] ?? '',
                     $fila['ute_2_nombre'] ?? '',
-                    $fila['estado'] ?? '',
+                    $fila['lugar_nombre'] ?? '',
                 ], ';');
             }
 
