@@ -54,8 +54,12 @@
                         <i class="bi bi-trash me-2"></i>Borrar fixture
                     </button>
                     <a id="fx_btn_csv" href="<?= base_url('Inscripciones/descargar_csv_fixture') ?>"
-                       class="btn btn-outline-success d-inline-flex align-items-center" title="Resumen ordenado de TODO el fixture cargado (Deporte → Categoría → Fecha → Hora)">
-                        <i class="bi bi-filetype-csv me-2"></i>Descargar CSV
+                       class="btn btn-outline-success d-inline-flex align-items-center" title="Cuadro del fixture: columnas = días, filas = rangos horarios">
+                        <i class="bi bi-filetype-csv me-2"></i>Descargar CSV (cuadro)
+                    </a>
+                    <a id="fx_btn_csv_lista" href="<?= base_url('Inscripciones/descargar_csv_fixture?lista=1') ?>"
+                       class="btn btn-outline-secondary d-inline-flex align-items-center" title="Listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
+                        <i class="bi bi-list-ul me-2"></i>CSV listado
                     </a>
                 </div>
             </div>
@@ -976,12 +980,18 @@
             contenedorDias.appendChild(btn);
         });
 
-        // El botón de CSV sigue al día seleccionado: descarga el resumen
-        // ordenado solo de ese día (?dia=YYYY-MM-DD).
+        // El botón de CSV (cuadro) sigue al día seleccionado: descarga el cuadro
+        // solo de ese día (?dia=YYYY-MM-DD). El de listado usa ?lista=1.
         const btnCsv = document.getElementById('fx_btn_csv');
         if (btnCsv && diaActual) {
             btnCsv.href = BASE + '/descargar_csv_fixture?dia=' + diaActual;
-            btnCsv.title = 'Resumen ordenado del fixture cargado para el ' + fechaArma(diaActual) +
+            btnCsv.title = 'Cuadro del fixture para el ' + fechaArma(diaActual) +
+                ' (columnas = días, filas = rangos horarios)';
+        }
+        const btnCsvLista = document.getElementById('fx_btn_csv_lista');
+        if (btnCsvLista && diaActual) {
+            btnCsvLista.href = BASE + '/descargar_csv_fixture?dia=' + diaActual + '&lista=1';
+            btnCsvLista.title = 'Listado ordenado del fixture para el ' + fechaArma(diaActual) +
                 ' (Deporte → Categoría → Fecha → Hora)';
         }
 
