@@ -25,7 +25,7 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (para generar / borrar fixture)</label>
+                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (solo para generar / borrar fixture — el listado se ve por día abajo)</label>
                 <select id="fx_categoria" class="form-select">
                     <option value="">— Seleccioná una categoría —</option>
                     <?php foreach ($categorias_fixture as $cat): ?>
@@ -63,7 +63,27 @@
         <!-- Toast de mensajes -->
         <div id="fx_mensaje" class="alert d-none"></div>
 
-        <!-- Listado GENERAL: se muestra todo lo cargado sin necesidad de filtrar -->
+        <!-- Selector de DÍA de competencia: el listado se filtra por la fecha elegida -->
+        <div class="row g-2 align-items-end mb-3 border-top pt-3">
+            <div class="col-md-4">
+                <label for="fx_dia" class="form-label small fw-semibold mb-1"><i class="bi bi-calendar-day-fill text-danger me-1"></i>Día de competencia</label>
+                <input type="date" id="fx_dia" class="form-control">
+            </div>
+            <div class="col-md-8 d-flex flex-wrap align-items-center gap-2">
+                <button id="fx_btn_hoy" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center">
+                    <i class="bi bi-today me-1"></i>Hoy
+                </button>
+                <button id="fx_btn_prev" class="btn btn-outline-secondary btn-sm" title="Día anterior">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <button id="fx_btn_next" class="btn btn-outline-secondary btn-sm" title="Día siguiente">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+                <span id="fx_dia_resumen" class="small text-muted ms-1"></span>
+            </div>
+        </div>
+
+        <!-- Listado del día seleccionado -->
         <div id="fx_lista"></div>
     </div>
 </div>
@@ -207,8 +227,25 @@
     const infoBox = document.getElementById('fx_info');
     const msgBox = document.getElementById('fx_mensaje');
     const lista = document.getElementById('fx_lista');
+    const inputDia = document.getElementById('fx_dia');
+    const diaResumen = document.getElementById('fx_dia_resumen');
 
     let todosFixtures = [];   // fixture completo de TODAS las categorías
+
+    /* ---------- Fecha local (YYYY-MM-DD) sin depender del huso horario ---------- */
+    function hoyISO() {
+        const d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    function sumarDiasISO(fecha, dias) {
+        const p = fecha.split('-');
+        const d = new Date(+p[0], +p[1] - 1, +p[2] + dias);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    // Por defecto, el listado arranca mostrando el día de HOY
+    inputDia.value = hoyISO();
     let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
     let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
 
@@ -268,8 +305,30 @@
         return p[2] + '/' + p[1] + '/' + p[0];
     }
 
-    /* ---------- Render GENERAL: agrupa por Deporte → Categoría → Jornada ---------- */
+    /* ---------- Render por DÍA: muestra solo lo que se juega en la fecha elegida,
+                    agrupado por Deporte → Categoría → Jornada ---------- */
     function render() {
+        const dia = inputDia.value;
+
+        // Filtrar el fixture del día seleccionado (si no hay fecha elegida, mostrar todo)
+        const fixturesDelDia = dia
+            ? todosFixtures.filter(f => (f.fecha_competencia || '').slice(0, 10) === dia)
+            : todosFixtures.slice();
+
+        // Resumen: "sábado 26/09/2026 — 12 partidos · 4 deportes" + total general
+        let resumen = '';
+        if (dia) {
+            const p = dia.split('-');
+            const nombreDia = new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('es-AR', { weekday: 'long' });
+            const deportes = new Set(fixturesDelDia.map(f => f.nombre_deporte)).size;
+            resumen = `<i class="bi bi-calendar-check me-1"></i>${esc(nombreDia)} ${fechaArma(dia)} — ` +
+                `${fixturesDelDia.length} partido/s · ${deportes} deporte/s`;
+            if (todosFixtures.length) {
+                resumen += ` <span class="text-muted">(total cargado: ${todosFixtures.length})</span>`;
+            }
+        }
+        diaResumen.innerHTML = resumen;
+
         if (!todosFixtures.length) {
             lista.innerHTML = '<div class="text-center text-muted py-4">' +
                 '<i class="bi bi-calendar-x fs-1 d-block mb-2"></i>' +
@@ -277,9 +336,17 @@
             return;
         }
 
+        if (!fixturesDelDia.length) {
+            lista.innerHTML = '<div class="text-center text-muted py-4">' +
+                '<i class="bi bi-calendar-day fs-1 d-block mb-2"></i>' +
+                'No hay competencia programada para ' + (dia ? esc(fechaArma(dia)) : 'la fecha seleccionada') + '.' +
+                '<div class="small mt-1">Usá las flechas ‹ › para moverte entre días, o el botón "Hoy" para volver a la fecha actual.</div></div>';
+            return;
+        }
+
         // Agrupar: clave "Deporte|||Categoría"
         const grupos = {};
-        todosFixtures.forEach(f => {
+        fixturesDelDia.forEach(f => {
             const clave = (f.nombre_deporte || '?') + '|||' + (f.nombre_categoria || '?');
             (grupos[clave] = grupos[clave] || []).push(f);
         });
@@ -408,7 +475,7 @@
         getJSON('ajax_fixture_todo')
             .then(res => {
                 if (!res.ok) {
-                    lista.innerHTML = '<div class=\"alert alert-danger py-2 small\">' +
+                    lista.innerHTML = '<div class="alert alert-danger py-2 small">' +
                         esc(res.error || 'Error al cargar el fixture.') +
                         (res.detalle ? '<hr><code class="small">' + esc(res.detalle).slice(0, 500) + '</code>' : '') +
                         '</div>';
@@ -612,6 +679,21 @@
                 mensaje(res.error, 'danger');
             }
         });
+    });
+
+    /* ---------- Navegación por DÍA de competencia ---------- */
+    inputDia.addEventListener('change', render);
+    document.getElementById('fx_btn_hoy').addEventListener('click', () => {
+        inputDia.value = hoyISO();
+        render();
+    });
+    document.getElementById('fx_btn_prev').addEventListener('click', () => {
+        if (inputDia.value) inputDia.value = sumarDiasISO(inputDia.value, -1);
+        render();
+    });
+    document.getElementById('fx_btn_next').addEventListener('click', () => {
+        if (inputDia.value) inputDia.value = sumarDiasISO(inputDia.value, 1);
+        render();
     });
 
     /* ---------- Filtro Deporte → Categoría ---------- */
