@@ -344,45 +344,69 @@
             return;
         }
 
-        // Agrupar: clave "Deporte|||Categoría"
-        const grupos = {};
+        // Agrupar en dos niveles: Deporte → Categoría
+        // (todas las categorías de un mismo deporte quedan juntas dentro de un
+        //  bloque del deporte, para no tener que scrollear un montón)
+        const deportes = {};
         fixturesDelDia.forEach(f => {
-            const clave = (f.nombre_deporte || '?') + '|||' + (f.nombre_categoria || '?');
-            (grupos[clave] = grupos[clave] || []).push(f);
+            const dep = f.nombre_deporte || '?';
+            const cat = f.nombre_categoria || '?';
+            if (!deportes[dep]) deportes[dep] = {};
+            (deportes[dep][cat] = deportes[dep][cat] || []).push(f);
         });
 
-        let html = '';
-        Object.keys(grupos).sort().forEach(clave => {
-            const partes = clave.split('|||');
-            const deporte = partes[0], categoria = partes[1];
-            const items = grupos[clave];
-            const primera = items[0];
-            const tipoTag = primera.modalidad_competencia === 'MASIVO_TIEMPO'
-                ? '<span class="badge bg-warning text-dark ms-2">Masivo / Un día</span>'
-                : (primera.tipo_duracion === 'UNICO_DIA'
-                    ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
-                    : '<span class="badge bg-primary ms-2">Multidía</span>');
+        // ¿Cuántos bloques de categoría hay abiertos? Si son muchos, arrancan
+        // cerrados para que la página sea navegable de un vistazo.
+        const totalCats = Object.values(deportes).reduce((n, cats) => n + Object.keys(cats).length, 0);
+        const colapsarPorDefecto = totalCats > 4;
 
-            html += `<div class="card mb-3 shadow-sm">
-                <div class="card-header bg-white py-2">
-                    <span class="fw-bold"><i class="bi bi-trophy me-1"></i>${esc(deporte)}</span>
-                    <span class="text-muted mx-1">›</span>
-                    <span>${esc(categoria)}</span>
-                    ${tipoTag}
-                    <span class="small text-muted ms-2">(${items.length} partido/s)</span>
+        let html = '';
+        Object.keys(deportes).sort().forEach(deporte => {
+            const cats = deportes[deporte];
+            const partidosDelDeporte = Object.values(cats).reduce((n, items) => n + items.length, 0);
+            const idDepBlock = 'fxdep_' + encodeURIComponent(deporte).replace(/%/g, '');
+
+            html += `<div class="card mb-4 border-primary-subtle shadow-sm">
+                <div class="card-header bg-primary bg-gradient py-2">
+                    <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 text-white fw-bold"
+                            type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="${colapsarPorDefecto ? 'false' : 'true'}">
+                        <i class="bi bi-chevron-down fx-chev"></i>
+                        <i class="bi bi-trophy-fill"></i>
+                        <span>${esc(deporte)}</span>
+                    </button>
+                    <span class="badge bg-white text-primary ms-2">${Object.keys(cats).length} categoría/s</span>
+                    <span class="small opacity-75 ms-1">(${partidosDelDeporte} partido/s)</span>
                 </div>
+                <div class="collapse${colapsarPorDefecto ? '' : ' show'}" id="${idDepBlock}">
                 <div class="card-body py-2">`;
 
-            // Subagrupar por jornada
-            const jornadas = {};
-            items.forEach(f => {
-                (jornadas[f.numero_fecha] = jornadas[f.numero_fecha] || []).push(f);
-            });
+            Object.keys(cats).sort().forEach(categoria => {
+                const items = cats[categoria];
+                const primera = items[0];
+                const tipoTag = primera.modalidad_competencia === 'MASIVO_TIEMPO'
+                    ? '<span class="badge bg-warning text-dark ms-2">Masivo / Un día</span>'
+                    : (primera.tipo_duracion === 'UNICO_DIA'
+                        ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
+                        : '<span class="badge bg-primary ms-2">Multidía</span>');
 
-            Object.keys(jornadas).sort((a, b) => a - b).forEach(num => {
-                html += `<h6 class="fw-bold mt-2 mb-1 small"><i class="bi bi-calendar-week me-1"></i>Jornada ${esc(num)}</h6>`;
-                html += '<div class="list-group mb-2">';
-                jornadas[num].forEach(f => {
+                html += `<div class="border rounded bg-light-subtle mb-3">
+                    <div class="px-2 py-1 border-bottom bg-white rounded-top">
+                        <span class="fw-semibold"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
+                        ${tipoTag}
+                        <span class="small text-muted ms-2">(${items.length} partido/s)</span>
+                    </div>
+                    <div class="p-2">`;
+
+                // Subagrupar por jornada
+                const jornadas = {};
+                items.forEach(f => {
+                    (jornadas[f.numero_fecha] = jornadas[f.numero_fecha] || []).push(f);
+                });
+
+                Object.keys(jornadas).sort((a, b) => a - b).forEach(num => {
+                    html += `<h6 class="fw-bold mt-1 mb-1 small"><i class="bi bi-calendar-week me-1"></i>Jornada ${esc(num)}</h6>`;
+                    html += '<div class="list-group mb-2">';
+                    jornadas[num].forEach(f => {
                     const t1 = f.ute_1_nombre ? esc(f.ute_1_nombre) : '<span class="fst-italic text-muted">Pendiente</span>';
                     const t2 = f.ute_2_nombre ? esc(f.ute_2_nombre) : '<span class="text-muted fst-italic">Pendiente</span>';
                     const esMasivo = f.fase === 'JORNADA_UNICA'
@@ -441,12 +465,22 @@
                         </div>
                     </div>`;
                 });
-                html += '</div>';
-            });
+                    html += '</div>';   // cierra list-group de la jornada
+                });                    // fin jornadas
 
-            html += '</div></div>';
+                html += '</div></div>'; // cierra p-2 y bloque de categoría
+            });                        // fin categorías
+
+            html += '</div></div></div>'; // cierra card-body, collapse y card del deporte
         });
         lista.innerHTML = html;
+
+        // Rotar la flechita del header del deporte al abrir/cerrar
+        lista.querySelectorAll('.collapse[id^="fxdep_"]').forEach(col => {
+            const chev = col.parentElement.querySelector('.fx-chev');
+            col.addEventListener('shown.bs.collapse', () => chev && chev.classList.replace('bi-chevron-right', 'bi-chevron-down'));
+            col.addEventListener('hidden.bs.collapse', () => chev && chev.classList.replace('bi-chevron-down', 'bi-chevron-right'));
+        });
 
         // Eventos de los botones
         lista.querySelectorAll('.fx-ganador').forEach(b => b.addEventListener('click', () => {
