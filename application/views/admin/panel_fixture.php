@@ -431,8 +431,6 @@
                     html += `<h6 class="fw-bold mt-1 mb-1 small"><i class="bi bi-calendar-week me-1"></i>Jornada ${esc(num)}</h6>`;
                     html += '<div class="list-group mb-2">';
                     jornadas[num].forEach(f => {
-                    const t1 = f.ute_1_nombre ? esc(f.ute_1_nombre) : '<span class="fst-italic text-muted">Pendiente</span>';
-                    const t2 = f.ute_2_nombre ? esc(f.ute_2_nombre) : '<span class="text-muted fst-italic">Pendiente</span>';
                     const esMasivo = f.fase === 'JORNADA_UNICA'
                                   || f.modalidad_competencia === 'MASIVO_TIEMPO';
                     const badge = BADGES[f.estado] || 'bg-secondary';
@@ -467,11 +465,9 @@
                                 <i class="bi bi-clock me-1"></i>${fechaArma(f.fecha_competencia)} ${esc((f.hora_inicio||'').slice(0,5))}–${esc((f.hora_fin||'').slice(0,5))}
                                 &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
                             </div>
-                            ${esMasivo ? podioHtml : `<div class="mt-1">
-                                <span class="fw-semibold">${t1}</span>
-                                <span class="text-muted mx-1">vs</span>
-                                <span class="fw-semibold">${t2}</span>
-                            </div>`}
+                            ${esMasivo ? podioHtml : `<button type="button" class="btn btn-link p-0 mt-1 fx-detalle fw-semibold text-dark text-decoration-none" data-id="${f.id_fixture}" title="Ver participantes del cruce">
+                                ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + ' <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
+                            </button>`}
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
@@ -548,19 +544,11 @@
         return edad >= 0 && edad < 120 ? edad : '';
     }
 
-    /** Fila compacta de una persona (DNI, nombre, sexo, edad, delegación, disciplinas). */
-    function filaPersona(per, conDisciplinas) {
-        const edad = edadDesde(per.fecha_nacimiento);
-        const chips = [];
-        if (per.sexo) chips.push(`<span class="badge bg-light text-dark border">${esc(per.sexo)}</span>`);
-        if (edad !== '') chips.push(`<span class="badge bg-light text-dark border">${edad} años</span>`);
-        if (per.delegacion) chips.push(`<span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>${esc(per.delegacion)}</span>`);
-        const disc = (conDisciplinas && per.disciplinas && per.disciplinas.length)
-            ? `<div class="small text-muted mt-1"><i class="bi bi-stars me-1"></i>${per.disciplinas.map(esc).join(' · ')}</div>` : '';
-        return `<div class="d-flex justify-content-between align-items-start gap-2 py-1 border-bottom${disc ? ' flex-column align-items-start' : ''}">
-                    <span><i class="bi bi-person-circle me-2 text-muted"></i><strong>${esc(per.nombre_completo || per.nombre || '—')}</strong>
-                        ${per.dni ? `<span class="small text-muted ms-1">(DNI ${esc(per.dni)})</span>` : ''}${disc}</span>
-                    <span class="d-inline-flex gap-2 align-items-center flex-wrap">${chips.join('')}</span>
+    /** Fila compacta de una persona: solo nombre y delegación (como pidió el admin). */
+    function filaPersona(per) {
+        return `<div class="d-flex justify-content-between align-items-center gap-2 py-1 border-bottom">
+                    <span><i class="bi bi-person-circle me-2 text-muted"></i><strong>${esc(per.nombre_completo || per.nombre || '—')}</strong></span>
+                    ${per.delegacion ? `<span class="small text-muted text-end"><i class="bi bi-geo-alt me-1"></i>${esc(per.delegacion)}</span>` : ''}
                 </div>`;
     }
 
@@ -584,7 +572,7 @@
                         <span class="small text-muted"><i class="bi bi-chevron-down fxd-chev"></i> ver integrantes</span>
                     </button>
                     <div class="collapse px-3 pb-2" id="${uid}">
-                        ${miembros.map(per => filaPersona(per, true)).join('')}
+                        ${miembros.map(per => filaPersona(per)).join('')}
                     </div>
                 </div>`;
     }
@@ -602,7 +590,7 @@
         return `<div class="border rounded p-2 mb-2 bg-white">
                     <span class="fw-semibold">${titulo}</span>
                     ${esDupla ? '' : `<span class="small text-muted ms-1">${personas[0].dni ? 'DNI ' + esc(personas[0].dni) : ''}</span>`}
-                    ${personas.map(per => !esDupla ? '' : filaPersona(per, true)).join('')}
+                    ${personas.map(per => !esDupla ? '' : filaPersona(per)).join('')}
                 </div>`;
     }
 
@@ -713,7 +701,7 @@
                 html += '<div class="border rounded bg-white p-2">' + indiv.map(per => filaPersona({
                     nombre_completo: per.nombre, dni: per.dni, sexo: per.sexo,
                     fecha_nacimiento: per.fecha_nacimiento, delegacion: per.delegacion
-                }, false)).join('') + '</div>';
+                })).join('') + '</div>';
             }
             body.innerHTML = html;
         }).catch(err => {
