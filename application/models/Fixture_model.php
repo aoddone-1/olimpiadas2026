@@ -79,6 +79,223 @@ class Fixture_model extends CI_Model {
         return $this->db->get('fixtures')->row_array();
     }
 
+    /** Un fixture con todos los datos contextuales (deporte/categoría/lugar/nombres). */
+    public function obtener_fixture_completo_por_id($id_fixture) {
+        $this->db->select('
+            f.*,
+            u1.nombre_ute as ute_1_nombre,
+            u2.nombre_ute as ute_2_nombre,
+            l.nombre as lugar_nombre,
+            c.nombre_categoria,
+            c.genero as genero_categoria,
+            d.nombre_deporte,
+            d.modalidad_competencia,
+            d.tipo_duracion
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        $this->db->where('f.id_fixture', (int) $id_fixture);
+        return $this->db->get()->row_array();
+    }
+
+    /* ============================================================
+     *  DETALLE DE PARTICIPANTES (modal de fixture)
+     * ============================================================ */
+
+    /**
+     * Integrantes de una UTE (equipo/dupla), resueltos por id_ute.
+     * Si la UTE no tiene integrantes registrados en participantes_utes,
+     * se hace un fallback a las inscripciones de la categoría que la
+     * mencionan en detalle_ute.
+     */
+    public function integrantes_de_ute($id_ute) {
+        $id_ute = (int) $id_ute;
+        if (!$id_ute) return array();
+
+        $this->db->select('
+            p.dni, p.nombre_completo, p.sexo, p.fecha_nacimiento,
+            p.delegacion, pu.id_participante
+        ', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+        $this->db->where('pu.id_ute', $id_ute);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $integrantes = $this->db->get()->result_array();
+
+        if ($integrantes) {
+            return $this->_disciplinas_de_integrantes($integrantes);
+        }
+
+        // Fallback: inscriptos cuya inscripción referencia la UTE por nombre
+        $this->db->select('nombre_ute, id_categoria');
+        $this->db->where('id_ute', $id_ute);
+        $ute = $this->db->get('utes')->row_array();
+        if (!$ute) return array();
+
+        $this->db->select('
+            p.dni, p.nombre_completo, p.sexo, p.fecha_nacimiento,
+            p.delegacion, i.id_participante
+        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $ute['id_categoria']);
+        $this->db->where('TRIM(UPPER(i.detalle_ute))', strtoupper(trim($ute['nombre_ute'])));
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $integrantes = $this->db->get()->result_array();
+
+        return $this->_disciplinas_de_integrantes($integrantes);
+    }
+
+    /** Datos de un competidor individual (slots negativos del fixture = -id_inscripcion). */
+    public function competidor_individual($id_inscripcion) {
+        $this->db->select(
+            'p.dni, p.nombre_completo, p.sexo, p.fecha_nacimiento,
+            p.delegacion, i.id_participante, i.id_categoria,
+            c.nombre_categoria, d.nombre_deporte', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->join('categorias c', 'c.id_categoria = i.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        $this->db->where('i.id_inscripcion', (int) $id_inscripcion);
+        $fila = $this->db->get()->row_array();
+        if (!$fila) return NULL;
+
+        $fila['disciplinas'] = array($fila['nombre_deporte'] . ' — ' . $fila['nombre_categoria']);
+        unset($fila['id_categoria'], $fila['nombre_categoria'], $fila['nombre_deporte']);
+        return $fila;
+    }
+
+    /** Inscriptos de una categoría SIN UTE asignada (compiten como individuales). */
+    public function individuales_de_categoria($id_categoria) {
+        $this->db->select('
+            p.dni, p.nombre_completo, p.sexo, p.fecha_nacimiento,
+            p.delegacion, i.id_participante
+        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', (int) $id_categoria);
+        $this->db->where('(i.tiene_ute IS NULL OR i.tiene_ute = 0)', NULL, FALSE);
+        $this->db->where("(i.detalle_ute IS NULL OR TRIM(i.detalle_ute) = '')", NULL, FALSE);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+        $rows = $this->db->get()->result_array();
+
+        return $this->_disciplinas_de_integrantes($rows);
+    }
+
+    /**
+     * Detalle de participantes de un partido/jornada para el modal del fixture:
+     *   - lado_1 y lado_2: con tipo (EQUIPO / INDIVIDUAL), datos y, si es equipo,
+     *     sus integrantes resueltos desde ya (para que el modal abra al instante).
+     *   - Si el deporte es MASIVO_TIEMPO y la jornada todavía no tiene slots,
+     *     se devuelve la lista completa de competidores de la categoría
+     *     (mismo criterio que usa el fixture al generarse: UTEs si existen,
+     *     inscriptos individuales si no).
+     */
+    public function detalle_participantes_del_partido($id_fixture) {
+        $fx = $this->obtener_fixture_completo_por_id($id_fixture);
+        if (!$fx) return NULL;
+
+        $es_masivo = ($fx['fase'] === 'JORNADA_UNICA'
+                      || $fx['modalidad_competencia'] === 'MASIVO_TIEMPO');
+
+        // Podio/orden de llegada guardado en fixtures.resultado (ids >0 UTE, <0 inscripción)
+        $podio = array();
+        if ($es_masivo && !empty($fx['resultado'])) {
+            $arr = json_decode($fx['resultado'], true);
+            if (is_array($arr)) {
+                foreach ($arr as $pos => $id) {
+                    $podio[] = array('posicion' => (int) $pos + 1, 'id' => (int) $id);
+                }
+            }
+        }
+
+        $respuesta = array(
+            'fixture'    => $fx,
+            'es_masivo'  => $es_masivo,
+            'podio'      => $podio,
+            'lado_1'   => $this->_responder_participante($fx['id_ute_1'], $fx['ute_1_nombre']),
+            'lado_2'   => $this->_responder_participante($fx['id_ute_2'], $fx['ute_2_nombre']),
+            'todos'      => array(),
+        );
+
+        // Deportes masivos sin slots asignados: mostrar TODOS los inscriptos de la categoría
+        if ($es_masivo && empty($fx['id_ute_1']) && empty($fx['id_ute_2'])) {
+            $this->load->model('Resultado_model');
+            $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $fx['id_categoria']);
+            foreach ($competidores as $c) {
+                $item = array(
+                    'tipo'       => $c['tipo'] === 'EQUIPO' ? 'EQUIPO' : 'INDIVIDUAL',
+                    'nombre'     => $c['nombre'],
+                    'dni'        => isset($c['dni']) ? $c['dni'] : null,
+                    'delegacion' => isset($c['delegacion']) ? $c['delegacion'] : null,
+                    'integrantes' => array(),
+                );
+                if ($item['tipo'] === 'EQUIPO') {
+                    $item['integrantes'] = $this->integrantes_de_ute((int) $c['id']);
+                }
+                $respuesta['todos'][] = $item;
+            }
+        }
+
+        return $respuesta;
+    }
+
+    /** Resuelve un slot de fixture (>0 UTE / <0 inscripción individual). */
+    private function _responder_participante($id_slot, $nombre_resuelto) {
+        $id_slot = (int) $id_slot;
+        if (!$id_slot) return NULL;
+
+        if ($id_slot > 0) {
+            return array(
+                'tipo'        => 'EQUIPO',
+                'nombre'      => $nombre_resuelto ?: ('UTE #' . $id_slot),
+                'integrantes' => $this->integrantes_de_ute($id_slot),
+            );
+        }
+
+        $individual = $this->competidor_individual(-$id_slot);
+        if ($individual) {
+            $individual['tipo'] = 'INDIVIDUAL';
+            return $individual;
+        }
+        return array(
+            'tipo'   => 'INDIVIDUAL',
+            'nombre' => $nombre_resuelto ?: ('Inscripto #' . (-$id_slot)),
+        );
+    }
+
+    /** Agrega a cada fila la lista de disciplinas (deporte — categoría) del participante. */
+    private function _disciplinas_de_integrantes($filas) {
+        $ids = array();
+        foreach ($filas as $f) {
+            if (!empty($f['id_participante'])) $ids[(int) $f['id_participante']] = true;
+        }
+        if (!$ids) return $filas;
+
+        $this->db->select('
+            i.id_participante, d.nombre_deporte, c.nombre_categoria
+        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('categorias c', 'c.id_categoria = i.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where_in('i.id_participante', array_keys($ids));
+        $disc = array();
+        foreach ($this->db->get()->result_array() as $r) {
+            $pid = (int) $r['id_participante'];
+            $disc[$pid][] = $r['nombre_deporte'] . ' — ' . $r['nombre_categoria'];
+        }
+        foreach ($filas as &$f) {
+            $pid = (int) $f['id_participante'];
+            $f['disciplinas'] = isset($disc[$pid]) ? array_values(array_unique($disc[$pid])) : array();
+        }
+        unset($f);
+        return $filas;
+    }
+
 
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function obtener_todo_el_fixture() {
