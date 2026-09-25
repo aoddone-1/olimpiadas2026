@@ -993,6 +993,93 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /**
+     * Descarga un resumen ORDENADO del fixture cargado (todas las categorías)
+     * en formato CSV. Orden: Deporte → Categoría → Fecha → Hora → Jornada.
+     * Opcional: ?dia=YYYY-MM-DD para descargar solo un día de competencia.
+     */
+    public function descargar_csv_fixture() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Fixture_model');
+
+        try {
+            $datos = $this->Fixture_model->obtener_todo_el_fixture();
+        } catch (Throwable $e) {
+            show_error('No se pudo obtener el fixture: ' . $e->getMessage(), 500);
+            return;
+        }
+
+        // Filtro opcional por día (?dia=2026-11-03)
+        $dia = trim((string) $this->input->get('dia'));
+        if ($dia !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dia)) {
+            $datos = array_values(array_filter($datos, function ($f) use ($dia) {
+                return substr((string) $f['fecha_competencia'], 0, 10) === $dia;
+            }));
+        }
+
+        // Orden garantizado del lado PHP (el modelo ya ordena por deporte/categoría/
+        // fecha/hora, pero lo reforzamos acá para que el resumen siempre salga ordenado).
+        usort($datos, function ($a, $b) {
+            return [
+                strtolower($a['nombre_deporte'] ?? ''),
+                strtolower($a['nombre_categoria'] ?? ''),
+                (string) ($a['fecha_competencia'] ?? ''),
+                (string) ($a['hora_inicio'] ?? ''),
+                (int) ($a['numero_fecha'] ?? 0)
+            ] <=> [
+                strtolower($b['nombre_deporte'] ?? ''),
+                strtolower($b['nombre_categoria'] ?? ''),
+                (string) ($b['fecha_competencia'] ?? ''),
+                (string) ($b['hora_inicio'] ?? ''),
+                (int) ($b['numero_fecha'] ?? 0)
+            ];
+        });
+
+        $nombre_archivo = 'resumen_fixture_'
+            . ($dia !== '' ? str_replace('-', '', $dia) . '_' : '')
+            . date('Y-m-d') . '.csv';
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
+
+        $output = fopen('php://output', 'w');
+
+        // BOM para que Excel reconozca UTF-8 correctamente
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+
+        fputcsv($output, [
+            'Deporte', 'Categoría', 'Día', 'Fecha', 'Hora inicio', 'Hora fin',
+            'Lugar', 'Fase', 'Jornada/Fecha N.º', 'Prueba',
+            'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Estado'
+        ], ';');
+
+        foreach ($datos as $fila) {
+            $fecha = (string) ($fila['fecha_competencia'] ?? '');
+            fputcsv($output, [
+                $fila['nombre_deporte'] ?? '',
+                trim(($fila['nombre_categoria'] ?? '') . ' ' . ($fila['genero_categoria'] ?? '')),
+                $fecha !== '' ? (new DateTime($fecha))->format('%A') : '',
+                $fecha !== '' ? date('d/m/Y', strtotime($fecha)) : '',
+                substr((string) ($fila['hora_inicio'] ?? ''), 0, 5),
+                substr((string) ($fila['hora_fin'] ?? ''), 0, 5),
+                $fila['lugar_nombre'] ?? '',
+                $fila['fase'] ?? '',
+                $fila['numero_fecha'] ?? '',
+                $fila['nombre_prueba'] ?? '',
+                $fila['ute_1_nombre'] ?? '',
+                $fila['ute_2_nombre'] ?? '',
+                $fila['estado'] ?? '',
+            ], ';');
+        }
+
+        fclose($output);
+        exit;
+    }
+
     /** Borrar todo el fixture de una categoría. */
     public function ajax_eliminar_fixture() {
         if (!$this->_fixture_auth_json()) return;
