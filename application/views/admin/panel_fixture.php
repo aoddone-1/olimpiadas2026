@@ -53,6 +53,10 @@
                     <button id="fx_btn_borrar_todo" class="btn btn-outline-danger d-inline-flex align-items-center" disabled title="Borra el fixture de la categoría seleccionada">
                         <i class="bi bi-trash me-2"></i>Borrar fixture
                     </button>
+                    <a id="fx_btn_csv" href="<?= base_url('Inscripciones/descargar_csv_fixture') ?>"
+                       class="btn btn-outline-success d-inline-flex align-items-center" title="Resumen ordenado de TODO el fixture cargado (Deporte → Categoría → Fecha → Hora)">
+                        <i class="bi bi-filetype-csv me-2"></i>Descargar CSV
+                    </a>
                 </div>
             </div>
         </div>
@@ -934,6 +938,18 @@
         const resumenEl = document.getElementById('fx_dia_resumen');
         contenedorDias.innerHTML = '';
 
+        // Botón "Todos" (vista general del fixture cargado)
+        const btnTodos = document.createElement('button');
+        btnTodos.type = 'button';
+        btnTodos.className = 'btn btn-sm ' + (diaActual ? 'btn-outline-primary' : 'btn-primary');
+        btnTodos.innerHTML = 'Todos <span class="badge ' + (diaActual ? 'bg-light text-muted border' : 'bg-white text-primary') + ' ms-1">' + todosFixtures.length + '</span>';
+        btnTodos.title = 'Ver todo el fixture cargado (sin filtro por día). El CSV de arriba descarga en ese caso TODO el fixture.';
+        btnTodos.addEventListener('click', () => {
+            diaActual = null;
+            render();
+        });
+        contenedorDias.appendChild(btnTodos);
+
         diasDisponibles().forEach(d => {
             const p = d.split('-');
             const fecha = new Date(+p[0], +p[1] - 1, +p[2]);
@@ -959,6 +975,15 @@
             });
             contenedorDias.appendChild(btn);
         });
+
+        // El botón de CSV sigue al día seleccionado: descarga el resumen
+        // ordenado solo de ese día (?dia=YYYY-MM-DD).
+        const btnCsv = document.getElementById('fx_btn_csv');
+        if (btnCsv && diaActual) {
+            btnCsv.href = BASE + '/descargar_csv_fixture?dia=' + diaActual;
+            btnCsv.title = 'Resumen ordenado del fixture cargado para el ' + fechaArma(diaActual) +
+                ' (Deporte → Categoría → Fecha → Hora)';
+        }
 
         // Resumen del día elegido
         let resumen = '';
