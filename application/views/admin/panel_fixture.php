@@ -176,6 +176,25 @@
     </div>
 </div>
 
+<!-- MODAL: detalle de participantes (partido o categoría) -->
+<div class="modal fade" id="modalDetalle" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <div>
+                    <h5 class="modal-title mb-0" id="fxx_titulo">Detalle</h5>
+                    <div class="small opacity-75" id="fxx_sub"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-2" id="fxx_body"></div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
@@ -383,12 +402,19 @@
                     : (primera.tipo_duracion === 'UNICO_DIA'
                         ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
                         : '<span class="badge bg-primary ms-2">Multidía</span>');
+                const idCat = primera.id_categoria;
 
                 html += `<div class="border rounded bg-light-subtle mb-3">
-                    <div class="px-2 py-1 border-bottom bg-white rounded-top">
-                        <span class="fw-semibold"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
-                        ${tipoTag}
-                        <span class="small text-muted ms-2">(${items.length} partido/s)</span>
+                    <div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
+                        <span>
+                            <span class="fw-semibold"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
+                            ${tipoTag}
+                            <span class="small text-muted ms-2">(${items.length} partido/s)</span>
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-primary fx-cat-participantes"
+                                data-cat="${idCat}" data-nombre="${esc(deporte + ' — ' + categoria)}" title="Ver todos los inscriptos de esta categoría">
+                            <i class="bi bi-person-lines-fill me-1"></i>Participantes
+                        </button>
                     </div>
                     <div class="p-2">`;
 
@@ -446,6 +472,9 @@
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
+                            <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
+                                <i class="bi bi-list-ul"></i> Detalle
+                            </button>
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
@@ -497,6 +526,196 @@
                 cargarTodo();
             });
         }));
+        lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
+        lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
+    }
+
+    /* ============================================================
+     *  MODAL DETALLE DE PARTICIPANTES (partido / categoría)
+     * ============================================================ */
+
+    function edadDesde(fechaNac) {
+        if (!fechaNac) return '';
+        const p = String(fechaNac).slice(0, 10).split('-');
+        if (p.length !== 3) return '';
+        const hoyRef = new Date();
+        let edad = hoyRef.getFullYear() - (+p[0]);
+        const mDiff = (hoyRef.getMonth() + 1) - (+p[1]);
+        if (mDiff < 0 || (mDiff === 0 && hoyRef.getDate() < (+p[2]))) edad--;
+        return edad >= 0 && edad < 120 ? edad : '';
+    }
+
+    /** Fila compacta de una persona (DNI, nombre, sexo, edad, delegación, disciplinas). */
+    function filaPersona(per, conDisciplinas) {
+        const edad = edadDesde(per.fecha_nacimiento);
+        const chips = [];
+        if (per.sexo) chips.push(`<span class="badge bg-light text-dark border">${esc(per.sexo)}</span>`);
+        if (edad !== '') chips.push(`<span class="badge bg-light text-dark border">${edad} años</span>`);
+        if (per.delegacion) chips.push(`<span class="small text-muted"><i class="bi bi-geo-alt me-1"></i>${esc(per.delegacion)}</span>`);
+        const disc = (conDisciplinas && per.disciplinas && per.disciplinas.length)
+            ? `<div class="small text-muted mt-1"><i class="bi bi-stars me-1"></i>${per.disciplinas.map(esc).join(' · ')}</div>` : '';
+        return `<div class="d-flex justify-content-between align-items-start gap-2 py-1 border-bottom${disc ? ' flex-column align-items-start' : ''}">
+                    <span><i class="bi bi-person-circle me-2 text-muted"></i><strong>${esc(per.nombre_completo || per.nombre || '—')}</strong>
+                        ${per.dni ? `<span class="small text-muted ms-1">(DNI ${esc(per.dni)})</span>` : ''}${disc}</span>
+                    <span class="d-inline-flex gap-2 align-items-center flex-wrap">${chips.join('')}</span>
+                </div>`;
+    }
+
+    /** Bloque EQUIPO colapsable: al tocarlo se despliega la lista de integrantes. */
+    function bloqueEquipo(lado, icono) {
+        if (!lado) return '';
+        const miembros = lado.integrantes || [];
+        const uid = 'fxx_' + Math.random().toString(36).slice(2, 9);
+        const sub = lado.delegacion ? esc(lado.delegacion) : (miembros.length + ' integrante/s');
+        if (!miembros.length) {
+            return `<div class="border rounded p-2 mb-2 bg-white">
+                        <span class="fw-semibold">${icono} ${esc(lado.nombre)}</span>
+                        <div class="small fst-italic text-muted mt-1">No tiene integrantes registrados todavía.</div>
+                    </div>`;
+        }
+        return `<div class="border rounded mb-2 bg-white">
+                    <button type="button" class="btn btn-link text-decoration-none d-flex justify-content-between align-items-center w-100 px-2 py-2 text-dark"
+                            data-bs-toggle="collapse" data-bs-target="#${uid}" aria-expanded="false">
+                        <span class="fw-semibold">${icono} ${esc(lado.nombre)}
+                            <span class="badge bg-secondary ms-2">${miembros.length}</span></span>
+                        <span class="small text-muted"><i class="bi bi-chevron-down fxd-chev"></i> ver integrantes</span>
+                    </button>
+                    <div class="collapse px-3 pb-2" id="${uid}">
+                        ${miembros.map(per => filaPersona(per, true)).join('')}
+                    </div>
+                </div>`;
+    }
+
+    /** Slot INDIVIDUAL o DUPLA (dos personas = pareja de dobles). */
+    function bloqueIndividual(lado, icono) {
+        if (!lado) return '';
+        // La model devuelve el objeto de la persona con tipo=INDIVIDUAL,
+        // o un array de personas cuando es una dupla agrupada en un slot.
+        const personas = Array.isArray(lado) ? lado : [lado];
+        const esDupla = personas.length > 1;
+        const titulo = esDupla
+            ? `${icono} Dupla: ${personas.map(p => esc(p.nombre_completo || p.nombre)).join(' + ')}`
+            : `${icono} ${esc(personas[0].nombre_completo || personas[0].nombre || 'Pendiente')}`;
+        return `<div class="border rounded p-2 mb-2 bg-white">
+                    <span class="fw-semibold">${titulo}</span>
+                    ${esDupla ? '' : `<span class="small text-muted ms-1">${personas[0].dni ? 'DNI ' + esc(personas[0].dni) : ''}</span>`}
+                    ${personas.map(per => !esDupla ? '' : filaPersona(per, true)).join('')}
+                </div>`;
+    }
+
+    function ladoVacio(txt) {
+        return `<div class="border rounded p-2 mb-2 bg-white-50 text-muted fst-italic small">${txt}</div>`;
+    }
+
+    /** Renderiza ambos lados del partido según lo que devolvió el server. */
+    function renderLados(det) {
+        const l1 = det.lado_1, l2 = det.lado_2;
+        let html = '';
+        const uno = !l1 ? ladoVacio('Lado 1 pendiente (se define por clasificación).')
+            : (l1.tipo === 'EQUIPO' ? bloqueEquipo(l1, '🛡️') : bloqueIndividual(l1, '👤'));
+        const dos = !l2 ? ladoVacio('Lado 2 pendiente (se define por clasificación).')
+            : (l2.tipo === 'EQUIPO' ? bloqueEquipo(l2, '🛡️') : bloqueIndividual(l2, '👤'));
+        html += uno + dos;
+        return html;
+    }
+
+    function abrirDetallePartido(idFixture) {
+        const body = document.getElementById('fxx_body');
+        document.getElementById('fxx_titulo').textContent = 'Cargando…';
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> Cargando detalle…</div>';
+        modalDetalle.show();
+
+        getJSON('ajax_fixture_detalle/' + idFixture).then(res => {
+            if (!res.ok) {
+                body.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(res.error || 'No se pudo cargar el detalle.')}${res.detalle ? '<hr><code class="small">' + esc(res.detalle).slice(0, 400) + '</code>' : ''}</div>`;
+                return;
+            }
+            const fx = res.fixture;
+            document.getElementById('fxx_titulo').innerHTML =
+                `<i class="bi bi-trophy-fill me-1"></i>${esc(fx.nombre_deporte)} — ${esc(fx.nombre_categoria)}`;
+            document.getElementById('fxx_sub').innerHTML =
+                `<span class="badge bg-info text-dark me-1">${esc((fx.fase || '').replace('_', ' '))}</span>` +
+                `<i class="bi bi-calendar3 me-1"></i>${fechaArma(fx.fecha_competencia)} ${esc((fx.hora_inicio || '').slice(0, 5))}` +
+                ` &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(fx.lugar_nombre || 'Sin lugar')}` +
+                ` &nbsp;<span class="badge ${BADGES[fx.estado] || 'bg-secondary'}">${esc((fx.estado || '').replace('_', ' '))}</span>`;
+
+            let html = '';
+            if (res.es_masivo) {
+                html += `<div class="alert alert-warning py-2 small"><i class="bi bi-flag me-1"></i>Deporte masivo: compiten todos juntos en esta jornada/largada.</div>`;
+                if ((res.todos || []).length) {
+                    html += `<h6 class="fw-bold mt-2"><i class="bi bi-person-lines-fill me-1"></i>Competidores inscriptos (${res.todos.length})</h6>`;
+                    html += res.todos.map(item =>
+                        item.tipo === 'EQUIPO' ? bloqueEquipo(item, '🛡️') : bloqueIndividual({ nombre_completo: item.nombre, dni: item.dni, delegacion: item.delegacion }, '👤')
+                    ).join('');
+                } else {
+                    html += ladoVacio('Todavía no hay competidores inscriptos en esta categoría.');
+                }
+                if ((res.podio || []).length) {
+                    html += `<h6 class="fw-bold mt-3"><i class="bi bi-bar-chart-steps me-1"></i>Orden de llegada cargado</h6>`;
+                    html += '<div class="small">' + res.podio.map(p => {
+                        const medalla = MEDALLAS[p.posicion - 1] || (p.posicion + 'º');
+                        return `<div class="py-1 border-bottom">${medalla} &nbsp; ${esc(nombreSlotDelPodio(fx, p.id))}</div>`;
+                    }).join('') + '</div>';
+                }
+            } else {
+                html += `<h6 class="fw-bold mb-2"><i class="bi bi-people-fill me-1"></i>Quiénes participan</h6>`;
+                html += renderLados(res);
+                if (!res.lado_1 && !res.lado_2) {
+                    html += ladoVacio('Este cruce todavía no tiene participantes definidos (espera clasificados de fases anteriores).');
+                }
+            }
+            body.innerHTML = html;
+        }).catch(err => {
+            body.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(err.message)}</div>`;
+        });
+    }
+
+    /** Nombre de un id del podio masivo (>0 UTE, <0 inscripción individual). */
+    function nombreSlotDelPodio(fx, idSlot) {
+        idSlot = parseInt(idSlot, 10);
+        if (idSlot > 0) {
+            if (fx.id_ute_1 == idSlot) return fx.ute_1_nombre;
+            if (fx.id_ute_2 == idSlot) return fx.ute_2_nombre;
+            return 'UTE #' + idSlot;
+        }
+        return 'Inscripto #' + (-idSlot);
+    }
+
+    /** Modal "Participantes" del bloque de categoría: todos los inscriptos. */
+    function abrirInscriptosCategoria(idCat, nombreCompleto) {
+        const body = document.getElementById('fxx_body');
+        document.getElementById('fxx_titulo').textContent = nombreCompleto || 'Participantes';
+        document.getElementById('fxx_sub').innerHTML = '<span class="text-muted">Todos los inscriptos en esta categoría</span>';
+        body.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-primary"></div> Cargando…</div>';
+        modalDetalle.show();
+
+        getJSON('ajax_inscriptos_categoria/' + idCat).then(res => {
+            if (!res.ok) {
+                body.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(res.error || 'No se pudo cargar la lista.')}</div>`;
+                return;
+            }
+            const equipos = res.equipos || [];
+            const indiv = res.individuales || [];
+            if (!equipos.length && !indiv.length) {
+                body.innerHTML = ladoVacio('No hay inscriptos en esta categoría todavía.');
+                return;
+            }
+            let html = '';
+            if (equipos.length) {
+                html += `<h6 class="fw-bold mb-2"><i class="bi bi-shield-fill me-1"></i>Equipos (${equipos.length})</h6>`;
+                html += equipos.map(eq => bloqueEquipo({ nombre: eq.nombre, integrantes: eq.integrantes }, '🛡️')).join('');
+            }
+            if (indiv.length) {
+                html += `<h6 class="fw-bold mt-3 mb-2"><i class="bi bi-person-badge-fill me-1"></i>Competidores individuales (${indiv.length})</h6>`;
+                html += '<div class="border rounded bg-white p-2">' + indiv.map(per => filaPersona({
+                    nombre_completo: per.nombre, dni: per.dni, sexo: per.sexo,
+                    fecha_nacimiento: per.fecha_nacimiento, delegacion: per.delegacion
+                }, false)).join('') + '</div>';
+            }
+            body.innerHTML = html;
+        }).catch(err => {
+            body.innerHTML = `<div class="alert alert-danger py-2 small mb-0">${esc(err.message)}</div>`;
+        });
     }
 
     /* ---------- Carga GENERAL (sin filtro de categoría) ---------- */

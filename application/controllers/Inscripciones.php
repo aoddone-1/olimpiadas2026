@@ -870,6 +870,44 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
     }
 
+    /** Detalle de participantes de un partido/jornada (modal "Detalle" del fixture). */
+    public function ajax_fixture_detalle($id_fixture) {
+        if (!$this->_fixture_auth_json()) return;
+
+        try {
+            $detalle = $this->Fixture_model->detalle_participantes_del_partido((int) $id_fixture);
+            if (!$detalle) {
+                $this->output
+                    ->set_content_type('application/json')
+                    ->set_output(json_encode(array('ok' => false, 'error' => 'El partido no existe.')));
+                return;
+            }
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('Error al obtener el detalle del partido.', $e->getMessage());
+            return;
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true) + $detalle));
+    }
+
+    /** Lista de inscriptos de una categoría (modal "Participantes" de la categoría). */
+    public function ajax_inscriptos_categoria($id_categoria) {
+        if (!$this->_fixture_auth_json()) return;
+
+        try {
+            $listado = $this->Fixture_model->inscriptos_de_categoria((int) $id_categoria);
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('Error al obtener los inscriptos de la categoría.', $e->getMessage());
+            return;
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true) + $listado));
+    }
+
     /** Genera automáticamente el fixture de una categoría. */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;
