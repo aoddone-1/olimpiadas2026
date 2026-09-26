@@ -19,7 +19,10 @@ class MYPDF extends TCPDF {
     public $orden_reporte = 'deporte';
 
     public function Header() {
-       
+        $this->Image('assets/img/header.jpg', 30, 15, 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
+        
+        
+        
     }
 
     public function Body() {
@@ -66,7 +69,7 @@ class MYPDF extends TCPDF {
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
-            return '<span style="color:#bdc3c7; font-style:italic;">(slot libre)</span>';
+            return NULL;
         };
 
         /** Días presentes en los datos */
@@ -164,8 +167,7 @@ class MYPDF extends TCPDF {
                         . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
                         . '</div>'
                         . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
-                        . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
-                        . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
+                        . $esc($rango_txt) .'</div>';
 
             if ($n_dias > $por_bloque) {
                 $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
@@ -235,23 +237,25 @@ class MYPDF extends TCPDF {
                     } else {
                         $cel = '';
                         foreach ($partidos as $idx_p => $p) {
-                            $dc = trim(($p['nombre_deporte'] ?? '') . ' ' . ($p['nombre_categoria'] ?? '') . ' ' . ($p['genero_categoria'] ?? ''));
-                            $sub_info = trim($fase_bonito($p['fase'] ?? '') . (!empty($p['numero_fecha']) ? ' · F' . (int) $p['numero_fecha'] : ''));
+                            $dc = trim(($p['nombre_deporte'] ?? '') . ' - Cat.' . ($p['nombre_categoria'] ?? '') );
+                            $sub_info = "Hora de Inicio: ".sprintf('%02d:00 hrs', $p['hora_inicio']);//trim($fase_bonito($p['fase'] ?? '') . (!empty($p['numero_fecha']) ? ' · F' . (int) $p['numero_fecha'] : ''));
                             
                             if ($idx_p > 0) {
                                 $cel .= '<hr style="border:none; border-top:1px dashed ' . $c_border . '; margin:4px 0;"/>';
                             }
                             
                             $cel .= '<div style="margin-bottom:2px;">'
-                                . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>'
-                                . '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
+                                . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>';
+                            if($equipos($p)!=null){
+                                $cel .= '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
+                            }
                             
                             if ($sub_info !== '') {
                                 $cel .= '<div style="font-size:6pt; color:' . $c_muted . '; font-style:italic;">' . $esc($sub_info) . '</div>';
                             }
                             
                             if (!empty($p['lugar_nombre'])) {
-                                $cel .= '<div style="font-size:6pt; color:' . $c_muted . ';"> ' . $esc($p['lugar_nombre']) . '</div>';
+                                $cel .= '<div style="font-size:6pt; color:' . $c_muted . ';"> Lugar: ' . $esc($p['lugar_nombre']) . '</div>';
                             }
                             
                             $cel .= '</div>';

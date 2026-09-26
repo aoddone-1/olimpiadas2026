@@ -89,18 +89,6 @@
                 <div class="btn-group btn-group-sm" role="group" aria-label="Días de competencia" id="fx_dias_btns"></div>
                 <span id="fx_dia_resumen" class="small text-muted ms-1"></span>
             </div>
-            <!-- Orden del listado: por deporte (Deporte → Categoría) o por horario (cronológico) -->
-            <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
-                <label for="fx_orden" class="small fw-semibold mb-0">
-                    <i class="bi bi-sort-down text-danger me-1"></i>Ordenar por:
-                </label>
-                <select id="fx_orden" class="form-select form-select-sm" style="max-width: 230px;"
-                    title="Cómo se agrupa el listado: por Deporte/Categoría, o cronológicamente por Fecha y Hora">
-                    <option value="deporte" selected>🏆 Deporte → Categoría</option>
-                    <option value="horario">🕐 Horario (Fecha → Hora)</option>
-                </select>
-                <span class="small text-muted">El listado de abajo se reordena al instante.</span>
-            </div>
         </div>
 
         <!-- Listado del día seleccionado -->
@@ -270,7 +258,6 @@
     const msgBox = document.getElementById('fx_mensaje');
     const lista = document.getElementById('fx_lista');
     const contenedorDias = document.getElementById('fx_dias_btns');
-    const selOrden = document.getElementById('fx_orden');   // 🕐 Ordenar por Deporte / Horario
 
     let todosFixtures = [];   // fixture completo de TODAS las categorías
 
@@ -396,15 +383,6 @@
             return;
         }
 
-        /* Orden elegido con el selector "Ordenar por":
-           'deporte' (por defecto) → bloques Deporte → Categoría.
-           'horario' → una sola lista cronológica Fecha → Hora. */
-        if (selOrden && selOrden.value === 'horario') {
-            lista.innerHTML = renderPorHorario(fixturesDelDia);
-            vincularEventosLista();
-            return;
-        }
-
         // Agrupar en dos niveles: Deporte → Categoría
         // (todas las categorías de un mismo deporte quedan juntas dentro de un
         //  bloque del deporte, para no tener que scrollear un montón)
@@ -495,7 +473,37 @@
                         } 
                     }
 
-                    html += filaPartido(f, esMasivo, podioHtml);
+                    html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div style="min-width:260px">
+                            <span class="badge bg-info text-dark me-1">${esc(f.fase.replace('_',' '))}</span>
+                            <strong>${esc(f.nombre_prueba)}</strong>
+                            <div class="small text-muted">
+                                <i class="bi bi-clock me-1"></i>${fechaArma(f.fecha_competencia)} ${esc((f.hora_inicio||'').slice(0,5))}–${esc((f.hora_fin||'').slice(0,5))}
+                                &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
+                            </div>
+                            ${esMasivo ? podioHtml : `<button type="button" class="btn btn-link p-0 mt-1 fx-detalle fw-semibold text-dark text-decoration-none" data-id="${f.id_fixture}" title="Ver participantes del cruce">
+                                ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + '<br/> <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
+                            </button>`}
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
+                            
+                            ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
+                                    <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_2}" title="Gana: ${esc(f.ute_2_nombre)}">🏆 ${esc(f.ute_2_nombre).slice(0, 14)}</button>
+                                </div>` : ''}
+                            <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary fx-editar" data-id="${f.id_fixture}" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>`;
                 });
                     html += '</div>';   // cierra list-group de la jornada
                 });                    // fin jornadas
@@ -514,11 +522,7 @@
             col.addEventListener('hidden.bs.collapse', () => chev && chev.classList.replace('bi-chevron-down', 'bi-chevron-right'));
         });
 
-        vincularEventosLista();
-    }
-
-    /** Eventos de los botones de cada fila de partido (comunes a ambos órdenes). */
-    function vincularEventosLista() {
+        // Eventos de los botones
         lista.querySelectorAll('.fx-ganador').forEach(b => b.addEventListener('click', () => {
             if (!confirm('¿Confirmás el ganador y que clasifica a la siguiente fase?')) return;
             post('ajax_resultado_partido', { id_fixture: b.dataset.id, id_ganador: b.dataset.ute })
@@ -540,100 +544,6 @@
         }));
         lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
-    }
-
-    /** Fila de un partido (template común al orden por deporte y por horario). */
-    function filaPartido(f, esMasivo, podioHtml) {
-        const badge = BADGES[f.estado] || 'bg-secondary';
-        podioHtml = podioHtml || '';
-        return `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div style="min-width:260px">
-                <span class="badge bg-info text-dark me-1">${esc(f.fase.replace('_',' '))}</span>
-                <strong>${esc(f.nombre_prueba)}</strong>
-                <div class="small text-muted">
-                    <i class="bi bi-clock me-1"></i>${fechaArma(f.fecha_competencia)} ${esc((f.hora_inicio||'').slice(0,5))}–${esc((f.hora_fin||'').slice(0,5))}
-                    &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
-                </div>
-                ${esMasivo ? podioHtml : `<button type="button" class="btn btn-link p-0 mt-1 fx-detalle fw-semibold text-dark text-decoration-none" data-id="${f.id_fixture}" title="Ver participantes del cruce">
-                    ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + '<br/> <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
-                </button>`}
-            </div>
-            <div class="d-flex align-items-center gap-2 flex-wrap">
-                <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
-
-                ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
-                        <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_2}" title="Gana: ${esc(f.ute_2_nombre)}">🏆 ${esc(f.ute_2_nombre).slice(0, 14)}</button>
-                    </div>` : ''}
-                <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
-                    <i class="bi bi-search"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-secondary fx-editar" data-id="${f.id_fixture}" title="Editar">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </div>
-        </div>`;
-    }
-
-    /** Orden POR HORARIO: una sola lista cronológica Fecha → Hora, con cabecera
-        por día y etiqueta "HH:MM · Deporte — Categoría" sobre cada partido. */
-    function renderPorHorario(fixtures) {
-        const clave = f => [
-            (f.fecha_competencia || ''), (f.hora_inicio || ''),
-            (f.nombre_deporte || '').toLowerCase(), (f.nombre_categoria || '').toLowerCase(),
-            String(f.numero_fecha || '')
-        ].join('\u0001');
-        const ordenados = fixtures.slice().sort((a, b) => clave(a) < clave(b) ? -1 : (clave(a) > clave(b) ? 1 : 0));
-
-        const porDia = {};
-        ordenados.forEach(f => {
-            const d = (f.fecha_competencia || '').slice(0, 10);
-            (porDia[d] = porDia[d] || []).push(f);
-        });
-
-        let html = '';
-        Object.keys(porDia).forEach(d => {
-            const items = porDia[d];
-            const nombreDia = d
-                ? new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10))
-                      .toLocaleDateString('es-AR', { weekday: 'long' })
-                : '';
-            html += `<div class="card mb-4 border-primary-subtle shadow-sm">
-                <div class="card-header bg-primary bg-gradient py-2 d-flex align-items-center gap-2 text-white fw-bold">
-                    <i class="bi bi-calendar-event"></i>
-                    <span>${d ? esc(nombreDia.charAt(0).toUpperCase() + nombreDia.slice(1)) + ' ' + esc(fechaArma(d)) : 'Sin fecha'}</span>
-                    <span class="badge bg-white text-primary ms-1">${items.length} partido/s</span>
-                </div>
-                <div class="card-body py-2"><div class="list-group">`;
-            items.forEach(f => {
-                const esMasivo = f.fase === 'JORNADA_UNICA' || f.modalidad_competencia === 'MASIVO_TIEMPO';
-                let podioHtml = '';
-                if (esMasivo && f.resultado) {
-                    let ordenGuardado = [];
-                    try { ordenGuardado = JSON.parse(f.resultado) || []; } catch (e) { ordenGuardado = []; }
-                    if (ordenGuardado.length) {
-                        const nombresPorId = {};
-                        (f.utes_categoria || []).forEach(u => { nombresPorId[u.id_ute] = u.nombre_ute; });
-                        if (f.id_ute_1) nombresPorId[f.id_ute_1] = f.ute_1_nombre;
-                        if (f.id_ute_2) nombresPorId[f.id_ute_2] = f.ute_2_nombre;
-                        podioHtml = '<div class="mt-1 small">' + ordenGuardado.slice(0, 5).map((id, i) => {
-                            const medalla = MEDALLAS[i] || (i + 1) + 'º';
-                            return `<span class="me-2">${medalla} ${esc(nombresPorId[id] || ('UTE #' + id))}</span>`;
-                        }).join('') + '</div>';
-                    }
-                }
-                html += `<div class="small text-muted mb-1 mt-2">
-                            <i class="bi bi-clock-fill me-1"></i>${esc((f.hora_inicio || '--:--').slice(0, 5))} ·
-                            <i class="bi bi-trophy-fill me-1"></i>${esc(f.nombre_deporte || '?')} — ${esc(f.nombre_categoria || '?')}
-                         </div>` + filaPartido(f, esMasivo, podioHtml);
-            });
-            html += '</div></div></div>';
-        });
-        return html;
     }
 
     /* ============================================================
@@ -1029,11 +939,6 @@
             }
         });
     });
-
-    /* ---------- Selector "Ordenar por": re-renderiza el listado al cambiar ---------- */
-    if (selOrden) {
-        selOrden.addEventListener('change', render);
-    }
 
     /* ---------- Selector de DÍA: botones solo para los días del calendario oficial ---------- */
     function diasDisponibles() {
