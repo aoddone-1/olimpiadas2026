@@ -112,13 +112,17 @@ class MYPDF extends TCPDF {
         $c_alt       = '#f8f9fa';
 
         if ($this->formato === 'lista') {
-            $html = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:10px 0;">'
-                . 'Fixture — Listado de partidos</div>'
-                . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:15px;">' 
-                . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)</div>';
+            $html = '<table cellpadding="0" cellspacing="0" border="0" style="width:100%; margin-bottom:12px;">'
+                . '<tr><td style="background-color:' . $c_primary . '; color:' . $c_white . '; font-size:14pt; font-weight:bold; text-align:center; padding:8px 6px; letter-spacing:1px;">'
+                . 'FIXTURE — LISTADO DE PARTIDOS</td></tr>'
+                . '<tr><td style="background-color:' . $c_light . '; color:' . $c_text . '; font-size:9pt; text-align:center; padding:5px 6px;">'
+                . $esc($rango_txt) . ' &nbsp;·&nbsp; <b>' . count($this->datos) . '</b> partido(s)'
+                . (!empty($this->dia_filtro) ? ' &nbsp;·&nbsp; Filtrado por día: <b>' . $esc(date('d/m/Y', strtotime($this->dia_filtro))) . '</b>' : '')
+                . '</td></tr></table>';
             
             if (!$this->datos) {
-                $html .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
+                $html .= '<div style="border:1px solid ' . $c_border . '; background-color:' . $c_alt . '; text-align:center; font-size:10pt; color:' . $c_muted . '; padding:24px;">'
+                    . '<b>No hay partidos cargados.</b><br/><span style="font-size:8pt;">Cargue el fixture desde el panel de administración para generar este reporte.</span></div>';
             } else {
                 $html .= '<table cellpadding="5" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:8pt; color:' . $c_text . ';">'
                     . '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
@@ -214,11 +218,12 @@ class MYPDF extends TCPDF {
                 }
                 
                 // Encabezado
-                $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
-                            . 'Fixture de Competencia — Cuadro General</div>'
-                            . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
-                            . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
-                            . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
+                $html_bloque = '<table cellpadding="0" cellspacing="0" border="0" style="width:100%; margin-bottom:10px;">'
+                    . '<tr><td style="background-color:' . $c_primary . '; color:' . $c_white . '; font-size:14pt; font-weight:bold; text-align:center; padding:8px 6px; letter-spacing:1px;">'
+                    . 'FIXTURE DE COMPETENCIA — CUADRO GENERAL</td></tr>'
+                    . '<tr><td style="background-color:' . $c_light . '; color:' . $c_text . '; font-size:9pt; text-align:center; padding:5px 6px;">'
+                    . $esc($rango_txt) . ' &nbsp;·&nbsp; <b>' . count($this->datos) . '</b> partido(s)'
+                    . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</td></tr></table>';
 
                 if ($n_dias > $por_bloque) {
                     $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
@@ -270,8 +275,8 @@ class MYPDF extends TCPDF {
                     $html_bloque .= '<tr style="background-color:' . $bg_franja . ';">';
                     
                     // Columna horario
-                    $html_bloque .= '<td style="background-color:' . $c_light . '; font-weight:bold; text-align:center; padding:6px 4px; border:1px solid ' . $c_border . '; font-size:9pt; color:' . $c_primary . ';">'
-                                . sprintf('%02d:00<br/>–<br/>%02d:00', $h_ini % 24, $h_fin % 24)
+                    $html_bloque .= '<td style="background-color:' . $c_primary . '; font-weight:bold; text-align:center; padding:6px 4px; border:1px solid ' . $c_border . '; font-size:8pt; color:' . $c_white . '; letter-spacing:0.5px;">'
+                                . sprintf('%02d:00 – %02d:00', $h_ini % 24, $h_fin % 24)
                                 . '</td>';
 
                     // Columnas de días
@@ -322,8 +327,16 @@ class MYPDF extends TCPDF {
     }
 
     public function Footer() {
-        // Se mantiene el pie de página original con paginación y fecha
-        
+        // Pie de página: separador, nombre del sitio a la izquierda y paginación a la derecha
+        $this->SetY(-16);
+        $this->SetDrawColor(30, 60, 114);
+        $this->SetLineWidth(0.4);
+        $this->Line($this->lMargin, $this->GetY(), $this->w - $this->rMargin, $this->GetY());
+
+        $this->SetFont('dejavusans', '', 7);
+        $this->SetTextColor(127, 140, 141);
+        $this->Cell(0, 8, NOMBRE_SITIO, 0, 0, 'L');
+        $this->Cell(0, 8, 'Página ' . $this->getAliasNumPage() . ' de ' . $this->getAliasNbPages(), 0, 0, 'R');
     }
 }
 
