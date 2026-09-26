@@ -70,6 +70,33 @@
                 </div>
             </div>
         </div>
+
+        <!-- Reporte de fixture de la delegación (mismo formato PDF que superadmin) -->
+        <div class="col-12 col-md-6 col-lg-5">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #dc3545;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">Reporte de Fixture</h6>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
+                        <?php if (!empty($deportes_delegacion)): ?>
+                            <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 220px;"
+                                title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el de tu delegación)">
+                                <option value="">🏆 Todos los deportes</option>
+                                <?php foreach ($deportes_delegacion as $dep): ?>
+                                    <option value="<?= $dep['id_deporte'] ?>">
+                                        <?= htmlspecialchars($dep['nombre_deporte']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        <?php endif; ?>
+                        <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture_delegado') ?>" target="_blank"
+                            class="btn btn-danger" title="PDF con el cuadro del fixture de TODOS los días de tu delegación (columnas = días, filas = rangos horarios)">
+                            <i class="bi bi-file-earmark-pdf me-1"></i>
+                            <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Lista de participantes -->
@@ -271,6 +298,40 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* ---------- Reporte de fixture de la delegación ---------- */
+(function () {
+    const btnPdf = document.getElementById('fx_btn_pdf');
+    const selDeporteReporte = document.getElementById('fx_deporte_reporte');
+    if (!btnPdf) return;
+
+    const URL_FIXTURE_DELEGADO = '<?= base_url('Inscripciones/descargar_pdf_fixture_delegado') ?>';
+
+    // Selector de deporte junto al botón: si se elige uno, el PDF sale
+    // FILTRADO solo con ese deporte (mismo formato que el de superadmin).
+    function actualizarBtnPdf() {
+        const idDep = selDeporteReporte ? selDeporteReporte.value : '';
+        const nombreDep = (idDep && selDeporteReporte)
+            ? selDeporteReporte.options[selDeporteReporte.selectedIndex].text.trim()
+            : '';
+        btnPdf.href = URL_FIXTURE_DELEGADO + (idDep ? '?deporte=' + encodeURIComponent(idDep) : '');
+        const txt = document.getElementById('fx_btn_pdf_txt');
+        if (txt) {
+            txt.textContent = idDep
+                ? 'Descargar fixture de ' + nombreDep
+                : 'Descargar reporte de fixture';
+        }
+        btnPdf.title = idDep
+            ? 'PDF con el cuadro del fixture SOLO de ' + nombreDep + ' (todos los días de tu delegación)'
+            : 'PDF con el cuadro del fixture de TODOS los deportes y TODOS los días de tu delegación';
+    }
+
+    if (selDeporteReporte) {
+        selDeporteReporte.addEventListener('change', actualizarBtnPdf);
+    }
+    actualizarBtnPdf();
+})();
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const buscador = document.getElementById('buscador');
