@@ -427,10 +427,6 @@
                             ${tipoTag}
                             <span class="small text-muted ms-2">(${items.length} partido/s)</span>
                         </span>
-                        <button type="button" class="btn btn-sm btn-outline-primary fx-cat-participantes"
-                                data-cat="${idCat}" data-nombre="${esc(deporte + ' — ' + categoria)}" title="Ver todos los inscriptos de esta categoría">
-                            <i class="bi bi-person-lines-fill me-1"></i>Participantes
-                        </button>
                     </div>
                     <div class="p-2">`;
 

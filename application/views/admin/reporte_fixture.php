@@ -16,19 +16,7 @@ class MYPDF extends TCPDF {
     public $titulo_encabezado = 'FIXTURE DE COMPETENCIA';
 
     public function Header() {
-        // Imagen del encabezado centrada en la parte superior
-        $this->Image('assets/img/header.jpg', ($this->w / 2) - 25, 7, 50, '', '', '', 'C', false, 300, '', false, false, 0, false, false, false);
-
-        // Título alineado al centro del área imprimible (misma anchura que las tablas)
-        $this->SetFont('dejavusans', 'B', 13);
-        $this->SetTextColor(74, 85, 104);
-        $this->SetY(20);
-        $this->Cell($this->w - $this->lMargin - $this->rMargin, 8, $this->titulo_encabezado, 0, 1, 'C');
-
-        // Línea divisoria suave al pie del encabezado
-        $this->SetDrawColor(212, 219, 228);
-        $this->SetLineWidth(0.3);
-        $this->Line($this->lMargin, 26, $this->w - $this->rMargin, 26);
+       
     }
 
     public function Body() {
@@ -75,7 +63,7 @@ class MYPDF extends TCPDF {
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
-            return '';
+            return '<span style="color:#bdc3c7; font-style:italic;">(slot libre)</span>';
         };
 
         /** Días presentes en los datos */
@@ -101,34 +89,29 @@ class MYPDF extends TCPDF {
             ? 'Desde ' . date('d/m/Y', strtotime($dias[0])) . ' hasta ' . date('d/m/Y', strtotime($dias[$n_dias - 1]))
             : 'Sin fechas cargadas';
         
-        $this->titulo_encabezado = NOMBRE_META;
+        $this->titulo_encabezado = 'FIXTURE DE COMPETENCIA — ' . NOMBRE_META;
 
-        // ====== COLORES (paleta suave) ======
-        $c_header     = '#64748b'; // gris pizarra medio: cabeceras th
-        $c_group      = '#526071'; // banda de agrupación (lista)
-        $c_accent    = '#8ea3b8'; // acento apagado (subtítulos de celda)
-        $c_band      = '#eef1f4'; // banda clara de título
-        $c_border    = '#cbd5e1'; // bordes suaves
-        $c_text      = '#4a5568'; // texto principal
-        $c_muted     = '#94a3b8'; // texto secundario
+        // ====== COLORES ======
+        $c_primary   = '#1e3a5f';
+        $c_secondary = '#3498db';
+        $c_light     = '#ecf0f1';
+        $c_border    = '#bdc3c7';
+        $c_text      = '#2c3e50';
+        $c_muted     = '#7f8c8d';
         $c_white     = '#ffffff';
-        $c_alt       = '#f7f9fb'; // zebra muy claro
+        $c_alt       = '#f8f9fa';
 
         if ($this->formato === 'lista') {
-            $html = '<table cellpadding="0" cellspacing="0" border="0" style="width:100%; margin-bottom:12px;">'
-                . '<tr><td style="background-color:' . $c_band . '; color:' . $c_text . '; font-size:12pt; font-weight:bold; text-align:center; padding:8px 6px; letter-spacing:1px;">'
-                . 'FIXTURE — LISTADO DE PARTIDOS</td></tr>'
-                . '<tr><td style="color:' . $c_muted . '; font-size:9pt; text-align:center; padding:4px 6px;">'
-                . $esc($rango_txt) . ' &nbsp;·&nbsp; <b>' . count($this->datos) . '</b> partido(s)'
-                . (!empty($this->dia_filtro) ? ' &nbsp;·&nbsp; Filtrado por día: <b>' . $esc(date('d/m/Y', strtotime($this->dia_filtro))) . '</b>' : '')
-                . '</td></tr></table>';
+            $html = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:10px 0;">'
+                . 'Fixture — Listado de partidos</div>'
+                . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:15px;">' 
+                . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)</div>';
             
             if (!$this->datos) {
-                $html .= '<div style="border:1px solid ' . $c_border . '; background-color:' . $c_alt . '; text-align:center; font-size:10pt; color:' . $c_muted . '; padding:24px;">'
-                    . '<b>No hay partidos cargados.</b><br/><span style="font-size:8pt;">Cargue el fixture desde el panel de administración para generar este reporte.</span></div>';
+                $html .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
             } else {
                 $html .= '<table cellpadding="5" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:8pt; color:' . $c_text . ';">'
-                    . '<thead><tr style="background-color:' . $c_header . '; color:' . $c_white . '; font-size:8pt;">'
+                    . '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
                     . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Deporte / Cat.</th>'
                     . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Fecha</th>'
                     . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Horario</th>'
@@ -141,7 +124,7 @@ class MYPDF extends TCPDF {
                 foreach ($this->datos as $i => $f) {
                     $grupo = ($f['nombre_deporte'] ?? '') . '|' . ($f['nombre_categoria'] ?? '');
                     if ($grupo !== $ult_grupo) {
-                        $html .= '<tr><td colspan="6" style="background-color:' . $c_group . '; color:' . $c_white . '; padding:4px; font-weight:bold; border:1px solid ' . $c_border . '; font-size:8pt;">' 
+                        $html .= '<tr><td colspan="6" style="background-color:' . $c_secondary . '; color:' . $c_white . '; padding:5px; font-weight:bold; border:1px solid ' . $c_border . ';">' 
                             . $esc($deporte_cat($f)) . '</td></tr>';
                         $ult_grupo = $grupo;
                     }
@@ -212,21 +195,20 @@ class MYPDF extends TCPDF {
             $dias_cortos    = array('DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB');
 
             // Anchos: horario 12%, cada día 17.6% (5 días = 88%)
-            $w_horario = 12;
+            $w_horario = 16.7;
             $w_col = (100 - $w_horario) / 5;
 
             foreach ($bloques as $bi => $bloque) {
                 if ($bi > 0) {
-                    $this->AddPage($orientacion, $this->pageFormat);
+                    $this->AddPage($orientacion, 'A4');
                 }
                 
                 // Encabezado
-                $html_bloque = '<table cellpadding="0" cellspacing="0" border="0" style="width:100%; margin-bottom:10px;">'
-                    . '<tr><td style="background-color:' . $c_band . '; color:' . $c_text . '; font-size:12pt; font-weight:bold; text-align:center; padding:8px 6px; letter-spacing:1px;">'
-                    . 'FIXTURE DE COMPETENCIA — CUADRO GENERAL</td></tr>'
-                    . '<tr><td style="color:' . $c_muted . '; font-size:9pt; text-align:center; padding:4px 6px;">'
-                    . $esc($rango_txt) . ' &nbsp;·&nbsp; <b>' . count($this->datos) . '</b> partido(s)'
-                    . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</td></tr></table>';
+                $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
+                            . 'Fixture de Competencia — Cuadro General</div>'
+                            . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
+                            . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
+                            . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
 
                 if ($n_dias > $por_bloque) {
                     $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
@@ -251,19 +233,19 @@ class MYPDF extends TCPDF {
                 
                 // Encabezado de días
                 $html_bloque .= '<thead>'
-                            . '<tr style="background-color:' . $c_header . '; color:' . $c_white . ';">'
-                            . '<th style="width:' . $w_horario . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; font-size:8pt; letter-spacing:0.5px;">HORARIO</th>';
+                            . '<tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
+                            . '<th style="width:' . $w_horario . '%; padding:8px 4px; text-align:center; border:1px solid ' . $c_border . '; font-size:9pt;">HORARIO</th>';
                 
                 foreach ($bloque as $f) {
                     if ($f === null) {
-                        $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; background-color:' . $c_band . ';"></th>';
+                        $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; background-color:' . $c_light . ';"></th>';
                     } else {
                         $ts = strtotime($f);
                         $nombre_dia = $dias_cortos[(int) date('w', $ts)];
                         $fecha_corta = date('d/m', $ts);
                         $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . ';">'
-                                    . '<div style="font-size:9pt; font-weight:bold; letter-spacing:0.5px;">' . $nombre_dia . '</div>'
-                                    . '<div style="font-size:7pt; color:' . $c_alt . ';">' . $fecha_corta . '</div>'
+                                    . '<div style="font-size:11pt; font-weight:bold; letter-spacing:1px;">' . $nombre_dia . '</div>'
+                                    . '<div style="font-size:8pt; opacity:0.9;">' . $fecha_corta . '</div>'
                                     . '</th>';
                     }
                 }
@@ -278,14 +260,14 @@ class MYPDF extends TCPDF {
                     $html_bloque .= '<tr style="background-color:' . $bg_franja . ';">';
                     
                     // Columna horario
-                    $html_bloque .= '<td style="background-color:' . $c_band . '; font-weight:bold; text-align:center; padding:5px 4px; border:1px solid ' . $c_border . '; border-right:2px solid ' . $c_header . '; font-size:8pt; color:' . $c_text . ';">'
-                                . sprintf('%02d:00 – %02d:00', $h_ini % 24, $h_fin % 24)
+                    $html_bloque .= '<td style="background-color:' . $c_light . '; font-weight:bold; text-align:center; padding:6px 4px; border:1px solid ' . $c_border . '; font-size:9pt; color:' . $c_primary . ';">'
+                                . sprintf('%02d:00<br/>–<br/>%02d:00', $h_ini % 24, $h_fin % 24)
                                 . '</td>';
 
                     // Columnas de días
                     foreach ($bloque as $f) {
                         if ($f === null) {
-                            $html_bloque .= '<td style="background-color:' . $c_band . '; border:1px solid ' . $c_border . ';">&nbsp;</td>';
+                            $html_bloque .= '<td style="background-color:' . $c_light . '; border:1px solid ' . $c_border . ';">&nbsp;</td>';
                             continue;
                         }
 
@@ -304,7 +286,7 @@ class MYPDF extends TCPDF {
                                 }
                                 
                                 $cel .= '<div style="margin-bottom:2px;">'
-                                    . '<div style="font-size:7pt; font-weight:bold; color:' . $c_accent . ';">' . $esc($dc) . '</div>'
+                                    . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>'
                                     . '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
                                 
                                 if ($sub_info !== '') {
@@ -402,7 +384,7 @@ $pdf->Body();
 // ---------------------------------------------------------
 
 // Close and output PDF document
-$pdf->Output($pdf->nombre_archivo, 'I');
+$pdf->Output($pdf->nombre_archivo, 'D');
 
 //============================================================+
 // END OF FILE
