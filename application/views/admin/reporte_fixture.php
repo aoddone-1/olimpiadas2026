@@ -15,6 +15,8 @@ class MYPDF extends TCPDF {
     public $ancho_franja = 1;
     public $nombre_archivo = 'Nombre_Archivo.pdf';
     public $titulo_encabezado = 'FIXTURE DE COMPETENCIA';
+    /** 'deporte' (Deporte → Categoría → Fecha → Hora) u 'horario' (Fecha → Hora → Deporte). */
+    public $orden_reporte = 'deporte';
 
     public function Header() {
        
