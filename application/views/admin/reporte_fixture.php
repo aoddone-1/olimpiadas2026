@@ -11,6 +11,7 @@ class MYPDF extends TCPDF {
     public $datos = [];
     public $formato = 'lista';
     public $dia_filtro = null;
+    public $deporte_filtro = null; // nombre del deporte si el reporte está filtrado (null = todos)
     public $ancho_franja = 1;
     public $nombre_archivo = 'Nombre_Archivo.pdf';
     public $titulo_encabezado = 'FIXTURE DE COMPETENCIA';
@@ -89,7 +90,8 @@ class MYPDF extends TCPDF {
             ? 'Desde ' . date('d/m/Y', strtotime($dias[0])) . ' hasta ' . date('d/m/Y', strtotime($dias[$n_dias - 1]))
             : 'Sin fechas cargadas';
         
-        $this->titulo_encabezado = 'FIXTURE DE COMPETENCIA — ' . NOMBRE_META;
+        $this->titulo_encabezado = 'FIXTURE DE COMPETENCIA — ' . NOMBRE_META
+            . ($this->deporte_filtro ? ' — ' . strtoupper((string) $this->deporte_filtro) : '');
 
         // ====== COLORES ======
         $c_primary   = '#1e3a5f';
@@ -156,7 +158,9 @@ class MYPDF extends TCPDF {
             
             // Encabezado
             $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
-                        . 'Fixture de Competencia — Cuadro General</div>'
+                        . 'Fixture de Competencia — Cuadro General'
+                        . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
+                        . '</div>'
                         . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
                         . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
                         . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
@@ -287,13 +291,14 @@ $pdf = new MYPDF('L', PDF_UNIT, 'LEGAL', true, 'UTF-8', false);
 $pdf->datos = $datos;
 $pdf->formato = $formato;
 $pdf->dia_filtro = $dia_filtro;
+$pdf->deporte_filtro = isset($deporte_filtro) ? $deporte_filtro : null;
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 
 // set document information
 $pdf->SetCreator(PDF_CREATOR);
 $pdf->SetAuthor(NOMBRE_SITIO);
-$pdf->SetTitle('Fixture ' . NOMBRE_META);
+$pdf->SetTitle('Fixture ' . NOMBRE_META . (isset($deporte_filtro) && $deporte_filtro ? ' — ' . $deporte_filtro : ''));
 $pdf->SetSubject('Fixture de competencia');
 $pdf->SetKeywords('TCPDF, PDF, OLIMPIADAS, VIVIENDAS');
 

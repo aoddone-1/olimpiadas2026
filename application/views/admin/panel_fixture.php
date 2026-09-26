@@ -7,9 +7,19 @@
                 <span></i>Gestión de Fixture</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 190px;"
+                    title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el general)">
+                    <option value="">🏆 Todos los deportes</option>
+                    <?php foreach ($deportes_fixture as $dep): ?>
+                        <option value="<?= $dep['id_deporte'] ?>">
+                            <?= htmlspecialchars($dep['nombre_deporte']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
                 <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
                     class="btn btn-lg btn-danger" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
                     <i class="bi bi-file-earmark-pdf me-1"></i>
+                    <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
                 </a>
             </div>
         </div>
@@ -994,6 +1004,31 @@
         if (btnPdfLista) {
             btnPdfLista.href = BASE + '/descargar_pdf_fixture?formato=lista';
             btnPdfLista.title = 'PDF con el listado ordenado del fixture de TODOS los días (Deporte → Categoría → Fecha → Hora)';
+        }
+
+        // Selector de deporte junto al botón de descarga: si se elige uno, el PDF
+        // sale FILTRADO solo con ese deporte (mismo formato que el general).
+        const selDeporteReporte = document.getElementById('fx_deporte_reporte');
+        function actualizarBtnPdf() {
+            if (!btnPdf || !selDeporteReporte) return;
+            const idDep = selDeporteReporte.value;
+            const nombreDep = idDep
+                ? selDeporteReporte.options[selDeporteReporte.selectedIndex].text.trim()
+                : '';
+            btnPdf.href = BASE + '/descargar_pdf_fixture' + (idDep ? '?deporte=' + encodeURIComponent(idDep) : '');
+            const txt = document.getElementById('fx_btn_pdf_txt');
+            if (txt) {
+                txt.textContent = idDep
+                    ? 'Descargar fixture de ' + nombreDep
+                    : 'Descargar reporte de fixture';
+            }
+            btnPdf.title = idDep
+                ? 'PDF con el cuadro del fixture SOLO de ' + nombreDep + ' (todos los días)'
+                : 'PDF con el cuadro del fixture de TODOS los deportes y TODOS los días';
+        }
+        if (selDeporteReporte) {
+            selDeporteReporte.addEventListener('change', actualizarBtnPdf);
+            actualizarBtnPdf();
         }
 
         // Resumen del día elegido

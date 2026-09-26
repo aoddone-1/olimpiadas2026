@@ -987,8 +987,31 @@ class Inscripciones extends CI_Controller {
 
         $this->load->model('Fixture_model');
 
+        $formato = $this->input->get('formato') === 'lista' ? 'lista' : 'cuadro';
+
+        // Deporte opcional elegido desde el panel (?deporte=ID). Si no viene o es
+        // inválido, se genera el reporte con TODOS los deportes (comportamiento previo).
+        $id_deporte_filtro = (int) $this->input->get('deporte');
+        if ($id_deporte_filtro <= 0) {
+            $id_deporte_filtro = NULL;
+        }
+
+        $this->load->model('Deporte_model');
+        $nombre_deporte_filtro = NULL;
+        if ($id_deporte_filtro !== NULL) {
+            foreach ($this->Deporte_model->obtener_todos_los_deportes() as $dep) {
+                if ((int) $dep['id_deporte'] === $id_deporte_filtro) {
+                    $nombre_deporte_filtro = $dep['nombre_deporte'];
+                    break;
+                }
+            }
+            if ($nombre_deporte_filtro === NULL) {
+                $id_deporte_filtro = NULL; // deporte inexistente: reporte general
+            }
+        }
+
         try {
-            $datos = $this->Fixture_model->obtener_todo_el_fixture();
+            $datos = $this->Fixture_model->obtener_todo_el_fixture($id_deporte_filtro);
         } catch (Throwable $e) {
             show_error('No se pudo obtener el fixture: ' . $e->getMessage(), 500);
             return;
@@ -1000,13 +1023,14 @@ class Inscripciones extends CI_Controller {
             $dia_filtro = '';
         }
 
-        $formato = $this->input->get('formato') === 'lista' ? 'lista' : 'cuadro';
-
         $ancho_franja = (int) $this->input->get('franja');
         if ($ancho_franja < 1) $ancho_franja = 1;
         if ($ancho_franja > 12) $ancho_franja = 12;
 
         $nombre_archivo = 'fixture_' . $formato
+            . ($nombre_deporte_filtro !== NULL
+                ? '_' . preg_replace('/[^a-zA-Z0-9]+/', '_', $nombre_deporte_filtro)
+                : '_todos')
             . ($dia_filtro !== '' ? '_' . $dia_filtro : '_todos')
             . '_' . date('Y-m-d') . '.pdf';
 
@@ -1017,6 +1041,7 @@ class Inscripciones extends CI_Controller {
             'dia_filtro'     => $dia_filtro !== '' ? $dia_filtro : NULL,
             'ancho_franja'   => $ancho_franja,
             'nombre_archivo' => $nombre_archivo,
+            'deporte_filtro' => $nombre_deporte_filtro,
         ));
         $this->load->view('admin/reporte_fixture');
     }
