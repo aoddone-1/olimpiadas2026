@@ -1173,6 +1173,58 @@ class Inscripciones extends CI_Controller {
         exit;
     }
 
+    /**
+     * Descarga el fixture cargado (todas las categorías) en formato PDF usando TCPDF.
+     * Reemplaza a la descarga CSV del fixture. El diseño vive en la plantilla
+     * application/views/admin/reporte_fixture.php.
+     * Opciones de URL (las mismas que usaba el CSV):
+     *   ?formato=lista    listado tradicional (una fila por partido). Por defecto: cuadro.
+     *   ?dia=AAAA-MM-DD   imprime solo ese día; sin parámetro se imprime TODO el fixture.
+     *   ?franja=HH        ancho en horas de las franjas horarias del cuadro (1-12).
+     */
+    public function descargar_pdf_fixture() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Fixture_model');
+
+        try {
+            $datos = $this->Fixture_model->obtener_todo_el_fixture();
+        } catch (Throwable $e) {
+            show_error('No se pudo obtener el fixture: ' . $e->getMessage(), 500);
+            return;
+        }
+
+        // Día opcional elegido desde el panel (si no viene, se imprimen TODOS los días)
+        $dia_filtro = trim((string) $this->input->get('dia'));
+        if ($dia_filtro !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dia_filtro)) {
+            $dia_filtro = '';
+        }
+
+        $formato = $this->input->get('formato') === 'lista' ? 'lista' : 'cuadro';
+
+        $ancho_franja = (int) $this->input->get('franja');
+        if ($ancho_franja < 1) $ancho_franja = 1;
+        if ($ancho_franja > 12) $ancho_franja = 12;
+
+        $nombre_archivo = 'fixture_' . $formato
+            . ($dia_filtro !== '' ? '_' . $dia_filtro : '_todos')
+            . '_' . date('Y-m-d') . '.pdf';
+
+        // La plantilla construye el PDF con TCPDF y lo emite con Output(..., 'D')
+        $this->load->vars(array(
+            'datos'          => $datos,
+            'formato'        => $formato,
+            'dia_filtro'     => $dia_filtro !== '' ? $dia_filtro : NULL,
+            'ancho_franja'   => $ancho_franja,
+            'nombre_archivo' => $nombre_archivo,
+        ));
+        $this->load->view('admin/reporte_fixture');
+        exit;
+    }
+
     /** Borrar todo el fixture de una categoría. */
     public function ajax_eliminar_fixture() {
         if (!$this->_fixture_auth_json()) return;

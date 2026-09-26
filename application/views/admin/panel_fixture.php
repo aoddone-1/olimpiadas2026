@@ -7,13 +7,13 @@
                 <span></i>Gestión de Fixture</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <a id="fx_btn_csv" href="<?= base_url('Inscripciones/descargar_csv_fixture') ?>"
-                    class="btn btn-lg btn-success" title="Cuadro del fixture: columnas = días, filas = rangos horarios">
-                    <i class="bi bi-file-earmark-spreadsheet me-1"></i>
+                <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
+                    class="btn btn-lg btn-danger" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
+                    <i class="bi bi-file-earmark-pdf me-1"></i> Fixture PDF (cuadro)
                 </a>
-                <a id="fx_btn_csv_lista" href="<?= base_url('Inscripciones/descargar_csv_fixture?lista=1') ?>"
-                    class="btn btn-lg btn-secondary" title="Listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
-                    <i class="bi bi-list-ul me-1"></i>
+                <a id="fx_btn_pdf_lista" href="<?= base_url('Inscripciones/descargar_pdf_fixture?formato=lista') ?>" target="_blank"
+                    class="btn btn-lg btn-secondary" title="PDF con listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
+                    <i class="bi bi-list-ul me-1"></i> Fixture PDF (listado)
                 </a>
             </div>
         </div>
@@ -985,17 +985,17 @@
             contenedorDias.appendChild(btn);
         });
 
-        // Los botones de CSV descargan SIEMPRE todos los días (sin filtro):
+        // Los botones de PDF descargan SIEMPRE todos los días (sin filtro):
         // cuadro = columnas días / filas franjas; listado = una fila por partido.
-        const btnCsv = document.getElementById('fx_btn_csv');
-        if (btnCsv) {
-            btnCsv.href = BASE + '/descargar_csv_fixture';
-            btnCsv.title = 'Cuadro del fixture con TODOS los días (columnas = días, filas = rangos horarios)';
+        const btnPdf = document.getElementById('fx_btn_pdf');
+        if (btnPdf) {
+            btnPdf.href = BASE + '/descargar_pdf_fixture';
+            btnPdf.title = 'PDF con el cuadro del fixture de TODOS los días (columnas = días, filas = rangos horarios)';
         }
-        const btnCsvLista = document.getElementById('fx_btn_csv_lista');
-        if (btnCsvLista) {
-            btnCsvLista.href = BASE + '/descargar_csv_fixture?lista=1';
-            btnCsvLista.title = 'Listado ordenado del fixture con TODOS los días (Deporte → Categoría → Fecha → Hora)';
+        const btnPdfLista = document.getElementById('fx_btn_pdf_lista');
+        if (btnPdfLista) {
+            btnPdfLista.href = BASE + '/descargar_pdf_fixture?formato=lista';
+            btnPdfLista.title = 'PDF con el listado ordenado del fixture de TODOS los días (Deporte → Categoría → Fecha → Hora)';
         }
 
         // Resumen del día elegido
