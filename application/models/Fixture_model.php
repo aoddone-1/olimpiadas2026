@@ -486,6 +486,193 @@ class Fixture_model extends CI_Model {
         return $fixtures;
     }
 
+    /**
+     * Fixture filtrado por delegación (reporte del delegado).
+     *
+     * Un partido entra al reporte cuando la delegación participa en él, ya sea:
+     *   - como integrante de una UTE (participantes_utes), o
+     *   - como competidor individual (inscripciones_deportivas con id_ute = -id_inscripcion), o
+     *   - como parte de la jornada masiva del partido (MASIVO_TIEMPO / JORNADA_UNICA),
+     *     donde los inscriptos de la categoría compiten aunque todavía no tengan slot.
+     *
+     * $id_deporte (opcional) limita además el reporte a un deporte; si el
+     * deporte elegido no tiene partidos de la delegación, el resultado es vacío.
+     */
+    public function obtener_fixture_por_delegacion($delegacion, $id_deporte = null) {
+        $delegacion = trim((string) $delegacion);
+        if ($delegacion === '') return array();
+
+        $this->db->select('
+            f.*,
+            l.nombre as lugar_nombre,
+            c.nombre_categoria,
+            c.genero as genero_categoria,
+            d.nombre_deporte,
+            d.modalidad_competencia,
+            d.tipo_duracion
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+
+        // Partido "propio" de la delegación por alguno de los tres caminos.
+        $cond_equipo = "EXISTS (
+            SELECT 1 FROM participantes_utes pu
+            INNER JOIN participantes p ON p.id_participante = pu.id_participante
+            WHERE pu.id_ute IN (f.id_ute_1, f.id_ute_2)
+              AND p.delegacion = " . $this->db->escape($delegacion) . ")";
+
+        $cond_individual = "EXISTS (
+            SELECT 1 FROM inscripciones_deportivas i
+            INNER JOIN participantes p ON p.id_participante = i.id_participante
+            WHERE i.id_categoria = f.id_categoria
+              AND (-i.id_inscripcion) IN (f.id_ute_1, f.id_ute_2)
+              AND p.delegacion = " . $this->db->escape($delegacion) . ")";
+
+        $cond_masivo = "(
+            (f.fase = 'JORNADA_UNICA' OR d.modalidad_competencia = 'MASIVO_TIEMPO')
+            AND EXISTS (
+                SELECT 1 FROM inscripciones_deportivas i
+                INNER JOIN participantes p ON p.id_participante = i.id_participante
+                WHERE i.id_categoria = f.id_categoria
+                  AND p.delegacion = " . $this->db->escape($delegacion) . ")
+        )";
+
+        $this->db->where('(' . $cond_equipo . ' OR ' . $cond_individual . ' OR ' . $cond_masivo . ')', NULL, FALSE);
+
+        if ($id_deporte !== null && (int) $id_deporte > 0) {
+            $this->db->where('d.id_deporte', (int) $id_deporte);
+        }
+
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.fecha_competencia, f.hora_inicio, f.numero_fecha', 'ASC');
+        $fixtures = $this->db->get()->result_array();
+
+        // Nombres de las UTEs enfrentadas + nombres de los competidores de la
+        // delegación que participan en cada lado (para resaltarlos en el PDF).
+        $nombres_utes = array();
+        $ids_ute = array();
+        foreach ($fixtures as $fx) {
+            if (!empty($fx['id_ute_1']) && (int) $fx['id_ute_1'] > 0) $ids_ute[] = (int) $fx['id_ute_1'];
+            if (!empty($fx['id_ute_2']) && (int) $fx['id_ute_2'] > 0) $ids_ute[] = (int) $fx['id_ute_2'];
+        }
+        $ids_ute = array_values(array_unique($ids_ute));
+        if ($ids_ute) {
+            $this->db->select('id_ute, nombre_ute', FALSE);
+            $this->db->where_in('id_ute', $ids_ute);
+            foreach ($this->db->get('utes')->result_array() as $u) {
+                $nombres_utes[(int) $u['id_ute']] = $u['nombre_ute'];
+            }
+        }
+
+        $comp_delegacion = $this->_competidores_de_delegacion($delegacion);
+
+        foreach ($fixtures as &$f) {
+            $lado1 = $this->_describir_lado_del_partido($f, 'id_ute_1', $nombres_utes, $comp_delegacion);
+            $lado2 = $this->_describir_lado_del_partido($f, 'id_ute_2', $nombres_utes, $comp_delegacion);
+
+            $f['ute_1_nombre'] = $lado1['nombre'];
+            $f['ute_2_nombre'] = $lado2['nombre'];
+            $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
+            $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
+        }
+        unset($f);
+
+        return $fixtures;
+    }
+
+    /** Competidores inscriptos de la delegación, agrupados por categoría. */
+    private function _competidores_de_delegacion($delegacion) {
+        $this->db->select('
+            i.id_inscripcion, i.id_categoria, i.id_ute, i.detalle_ute,
+            p.nombre_completo, p.dni
+        ', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('p.delegacion', $delegacion);
+        $rows = $this->db->get()->result_array();
+
+        $por_categoria = array();
+        foreach ($rows as $r) {
+            $id_cat = (int) $r['id_categoria'];
+            if (!isset($por_categoria[$id_cat])) $por_categoria[$id_cat] = array();
+            $por_categoria[$id_cat][] = array(
+                'id_inscripcion' => (int) $r['id_inscripcion'],
+                'id_ute'         => $r['id_ute'] !== NULL ? (int) $r['id_ute'] : NULL,
+                'detalle_ute'    => trim((string) $r['detalle_ute']),
+                'nombre'         => $r['nombre_completo'],
+                'dni'            => $r['dni'],
+            );
+        }
+        return $por_categoria;
+    }
+
+    /**
+     * Descripción de un lado del partido (UTE / individual / jornada masiva)
+     * mostrando únicamente los competidores de la delegación del delegado.
+     * Devuelve ['nombre' => string|null, 'es_delegacion' => bool].
+     */
+    private function _describir_lado_del_partido($f, $campo_ute, $nombres_utes, $comp_delegacion) {
+        $id_lado = isset($f[$campo_ute]) ? (int) $f[$campo_ute] : 0;
+        $id_cat  = isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0;
+        $lista   = isset($comp_delegacion[$id_cat]) ? $comp_delegacion[$id_cat] : array();
+
+        // Slot pendiente (ej. "Ganador Llave 1"): sin delegación posible.
+        if ($id_lado === 0) {
+            return array('nombre' => NULL, 'es_delegacion' => FALSE);
+        }
+
+        // Individual: el slot negativo es la inscripción de un competidor.
+        if ($id_lado < 0) {
+            foreach ($lista as $c) {
+                if ($c['id_inscripcion'] === -$id_lado) {
+                    return array('nombre' => $c['nombre'] . ' (' . $c['dni'] . ')', 'es_delegacion' => TRUE);
+                }
+            }
+            return array('nombre' => NULL, 'es_delegacion' => FALSE);
+        }
+
+        // UTE real: se listan solo los integrantes de esta delegación.
+        $propios = array();
+        foreach ($lista as $c) {
+            if ($c['id_ute'] === $id_lado) $propios[] = $c['nombre'];
+        }
+        // Fallback histórico: inscripciones sin id_ute que citan la UTE por nombre.
+        if (!$propios) {
+            $nombre_ute = isset($nombres_utes[$id_lado]) ? $nombres_utes[$id_lado] : '';
+            if ($nombre_ute !== '') {
+                foreach ($lista as $c) {
+                    if ($c['id_ute'] === NULL
+                        && strcasecmp($c['detalle_ute'], $nombre_ute) === 0) {
+                        $propios[] = $c['nombre'];
+                    }
+                }
+            }
+        }
+        if ($propios) {
+            sort($propios);
+            return array(
+                'nombre'        => (isset($nombres_utes[$id_lado]) ? $nombres_utes[$id_lado] : 'Equipo')
+                                   . ': ' . implode(', ', $propios),
+                'es_delegacion' => TRUE,
+            );
+        }
+
+        // Jornada masiva: compiten todos los inscriptos de la categoría,
+        // incluidos los de la delegación (aunque aún no tengan slot asignado).
+        $es_masivo = (($f['fase'] ?? '') === 'JORNADA_UNICA'
+                      || ($f['modalidad_competencia'] ?? '') === 'MASIVO_TIEMPO');
+        if ($es_masivo) {
+            if (!$lista) return array('nombre' => NULL, 'es_delegacion' => FALSE);
+            $nombres = array();
+            foreach ($lista as $c) $nombres[] = $c['nombre'] . ' (' . $c['dni'] . ')';
+            sort($nombres);
+            return array('nombre' => implode(', ', $nombres), 'es_delegacion' => TRUE);
+        }
+
+        return array('nombre' => NULL, 'es_delegacion' => FALSE);
+    }
+
     /** Nombres de inscripciones individuales usadas en fixtures (clave: id negativo). */
     private function _nombres_individuales_en_fixtures(&$fixtures) {
         $nombres = array();

@@ -15,6 +15,8 @@ class MYPDF extends TCPDF {
     public $ancho_franja = 1;
     public $nombre_archivo = 'Nombre_Archivo.pdf';
     public $titulo_encabezado = 'FIXTURE DE COMPETENCIA';
+    /** Delegación cuando el reporte lo descarga un delegado (null = reporte general). */
+    public $delegacion_filtro = null;
     /** 'deporte' (Deporte → Categoría → Fecha → Hora) u 'horario' (Fecha → Hora → Deporte). */
     public $orden_reporte = 'deporte';
 
@@ -66,6 +68,18 @@ class MYPDF extends TCPDF {
         $equipos = function ($f) {
             $e1 = trim((string) ($f['ute_1_nombre'] ?? ''));
             $e2 = trim((string) ($f['ute_2_nombre'] ?? ''));
+            // En el reporte de delegados se resalta en verde al competidor/equipo
+            // propio de la delegación (viene marcado desde Fixture_model).
+            if (!empty($f['delegacion_en_ute_1']) && $e1 !== '') {
+                $e1 = '<span style="color:#1e7e34; font-weight:bold;">' . htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') . '</span>';
+            } elseif ($e1 !== '') {
+                $e1 = htmlspecialchars($e1, ENT_QUOTES, 'UTF-8');
+            }
+            if (!empty($f['delegacion_en_ute_2']) && $e2 !== '') {
+                $e2 = '<span style="color:#1e7e34; font-weight:bold;">' . htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') . '</span>';
+            } elseif ($e2 !== '') {
+                $e2 = htmlspecialchars($e2, ENT_QUOTES, 'UTF-8');
+            }
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
@@ -96,6 +110,7 @@ class MYPDF extends TCPDF {
             : 'Sin fechas cargadas';
         
         $this->titulo_encabezado = 'FIXTURE DE COMPETENCIA — ' . NOMBRE_META
+            . ($this->delegacion_filtro ? ' — DELEGACIÓN ' . strtoupper((string) $this->delegacion_filtro) : '')
             . ($this->deporte_filtro ? ' — ' . strtoupper((string) $this->deporte_filtro) : '');
 
         // ====== COLORES ======
@@ -164,6 +179,7 @@ class MYPDF extends TCPDF {
             // Encabezado
             $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
                         . 'Fixture de Competencia — Cuadro General'
+                        . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
                         . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
                         . '</div>'
                         . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
@@ -298,13 +314,16 @@ $pdf->datos = $datos;
 $pdf->formato = $formato;
 $pdf->dia_filtro = $dia_filtro;
 $pdf->deporte_filtro = isset($deporte_filtro) ? $deporte_filtro : null;
+$pdf->delegacion_filtro = isset($delegacion_filtro) ? $delegacion_filtro : null;
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 
 // set document information
 $pdf->SetCreator(PDF_CREATOR);
 $pdf->SetAuthor(NOMBRE_SITIO);
-$pdf->SetTitle('Fixture ' . NOMBRE_META . (isset($deporte_filtro) && $deporte_filtro ? ' — ' . $deporte_filtro : ''));
+$pdf->SetTitle('Fixture ' . NOMBRE_META
+    . (isset($delegacion_filtro) && $delegacion_filtro ? ' — Delegación ' . $delegacion_filtro : '')
+    . (isset($deporte_filtro) && $deporte_filtro ? ' — ' . $deporte_filtro : ''));
 $pdf->SetSubject('Fixture de competencia');
 $pdf->SetKeywords('TCPDF, PDF, OLIMPIADAS, VIVIENDAS');
 

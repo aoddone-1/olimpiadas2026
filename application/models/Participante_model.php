@@ -280,6 +280,28 @@ class Participante_model extends CI_Model {
     }
     
     /**
+     * Deportes en los que la delegación tiene competidores inscriptos.
+     * Se usa para el filtro del reporte de fixture del delegado: el select
+     * solo muestra los deportes propios de su delegación.
+     */
+    public function obtener_deportes_de_delegacion($delegacion) {
+        if ($delegacion === NULL || trim((string) $delegacion) === '') {
+            return array();
+        }
+
+        $this->db->distinct();
+        $this->db->select('d.id_deporte, d.nombre_deporte', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->join('categorias c', 'c.id_categoria = i.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('p.delegacion', $delegacion);
+        $this->db->order_by('d.nombre_deporte', 'ASC');
+
+        return $this->db->get()->result_array();
+    }
+
+    /**
      * Obtiene todos los participantes de una delegación para exportar a CSV
      * Incluye: dni, nombre completo, sexo, fecha nacimiento, edad, delegacion, deporte, categoria
      */
