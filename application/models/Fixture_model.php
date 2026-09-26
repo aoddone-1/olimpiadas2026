@@ -410,8 +410,11 @@ class Fixture_model extends CI_Model {
     }
 
 
-    /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
-    public function obtener_todo_el_fixture() {
+    /**
+     * Devuelve TODO el fixture de todas las categorías (vista general sin filtros).
+     * Opcionalmente se puede filtrar por deporte pasando $id_deporte (> 0).
+     */
+    public function obtener_todo_el_fixture($id_deporte = null) {
         $this->db->select('
             f.*,
             u1.nombre_ute as ute_1_nombre,
@@ -429,6 +432,10 @@ class Fixture_model extends CI_Model {
         $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        // Filtro opcional por deporte (para el reporte de fixture filtrado).
+        if ($id_deporte !== null && (int) $id_deporte > 0) {
+            $this->db->where('d.id_deporte', (int) $id_deporte);
+        }
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
 
         $fixtures = $this->db->get()->result_array();
