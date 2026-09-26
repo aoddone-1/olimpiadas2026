@@ -601,7 +601,9 @@ class Inscripciones extends CI_Controller {
 
         // Datos para la pestaña de Fixture
         $this->load->model('Fixture_model');
-        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        // El select de categorías para generar fixture solo muestra las que
+        // todavía NO tienen fixture generado.
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
@@ -683,9 +685,17 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Categorías sin fixture: para que el select "Categoría" del panel solo
+        // muestre las que todavía no tienen fixture generado.
+        $categorias_sin_fixture = $this->Fixture_model->obtener_categorias_sin_fixture();
+
         $this->output
             ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
+            ->set_output(json_encode(array(
+                'ok' => true,
+                'fixtures' => $fixtures,
+                'categorias_sin_fixture' => $categorias_sin_fixture
+            )));
     }
 
     /** Detalle de participantes de un partido/jornada (modal "Detalle" del fixture). */

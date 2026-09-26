@@ -30,6 +30,28 @@ class Fixture_model extends CI_Model {
         return $this->db->get()->result_array();
     }
 
+    /** IDs de categorías que YA tienen fixture generado (al menos un partido). */
+    public function obtener_categorias_con_fixture() {
+        $this->db->distinct();
+        $this->db->select('id_categoria');
+        $this->db->where('id_categoria IS NOT NULL', NULL, FALSE);
+        return array_map('intval', array_column($this->db->get('fixtures')->result_array(), 'id_categoria'));
+    }
+
+    /** Categorías disponibles para generar fixture (las que aún NO tienen). */
+    public function obtener_categorias_sin_fixture() {
+        $con_fixture = $this->obtener_categorias_con_fixture();
+        $todas = $this->obtener_categorias_para_fixture();
+
+        if (!$con_fixture) {
+            return $todas;
+        }
+
+        return array_values(array_filter($todas, function ($c) use ($con_fixture) {
+            return !in_array((int) $c['id_categoria'], $con_fixture, TRUE);
+        }));
+    }
+
     /** Todas las UTEs de una categoría ordenadas alfabéticamente. */
     public function obtener_utes_por_categoria($id_categoria) {
         $this->db->where('id_categoria', $id_categoria);
