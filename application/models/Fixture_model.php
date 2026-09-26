@@ -82,7 +82,9 @@ class Fixture_model extends CI_Model {
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
         $this->db->where('f.id_categoria', $id_categoria);
-        $this->db->order_by('f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
+        // Orden por HORARIO: primero fecha, luego la hora de inicio (y la jornada
+        // como desempate) para que el fixture se lea cronológicamente.
+        $this->db->order_by('f.fecha_competencia, f.hora_inicio, f.numero_fecha, f.id_fixture', 'ASC');
         $fixtures = $this->db->get()->result_array();
 
         // Adjuntar las UTEs de la categoría (necesario para el modal de
@@ -412,9 +414,14 @@ class Fixture_model extends CI_Model {
 
     /**
      * Devuelve TODO el fixture de todas las categorías (vista general sin filtros).
-     * Opcionalmente se puede filtrar por deporte pasando $id_deporte (> 0).
+     * Opciones:
+     *  - $id_deporte (> 0): filtra por deporte.
+     *  - $orden ('horario' | 'deporte'): cómo se agrupa/ordena el listado.
+     *    'horario' ordena por Fecha → Hora → Deporte → Categoría (para ver el
+     *    día a día cronológicamente); 'deporte' (por defecto) mantiene el orden
+     *    Deporte → Categoría → Fecha → Hora.
      */
-    public function obtener_todo_el_fixture($id_deporte = null) {
+    public function obtener_todo_el_fixture($id_deporte = null, $orden = 'deporte') {
         $this->db->select('
             f.*,
             u1.nombre_ute as ute_1_nombre,
@@ -436,10 +443,30 @@ class Fixture_model extends CI_Model {
         if ($id_deporte !== null && (int) $id_deporte > 0) {
             $this->db->where('d.id_deporte', (int) $id_deporte);
         }
-        $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.numero_fecha, f.fecha_competencia, f.hora_inicio', 'ASC');
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.fecha_competencia, f.hora_inicio, f.numero_fecha', 'ASC');
 
         $fixtures = $this->db->get()->result_array();
         unset($f);
+
+        // Orden por HORARIO: se reordena cronológicamente (Fecha → Hora) y, si
+        // el usuario lo pide, se agrupa por deporte/categoría dentro de cada franja.
+        if ($orden === 'horario') {
+            usort($fixtures, function ($a, $b) {
+                return [
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    strtolower((string) ($a['nombre_deporte'] ?? '')),
+                    strtolower((string) ($a['nombre_categoria'] ?? '')),
+                    (int) ($a['numero_fecha'] ?? 0),
+                ] <=> [
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    strtolower((string) ($b['nombre_deporte'] ?? '')),
+                    strtolower((string) ($b['nombre_categoria'] ?? '')),
+                    (int) ($b['numero_fecha'] ?? 0),
+                ];
+            });
+        }
 
         // Resolver nombres de competidores individuales (ids negativos del podio
         // masivo y slots libres del fixture, p. ej. running donde corre cada uno).

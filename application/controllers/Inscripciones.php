@@ -676,10 +676,14 @@ class Inscripciones extends CI_Controller {
     public function ajax_fixture_todo() {
         if (!$this->_fixture_auth_json()) return;
 
+        // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
+        // defecto) u 'horario' (Fecha → Hora → Deporte → Categoría).
+        $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
+
         try {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
             // fixture, para que siempre se puedan cargar resultados.
-            $fixtures = $this->Fixture_model->obtener_todo_el_fixture();
+            $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
@@ -693,6 +697,7 @@ class Inscripciones extends CI_Controller {
             ->set_content_type('application/json')
             ->set_output(json_encode(array(
                 'ok' => true,
+                'orden' => $orden,
                 'fixtures' => $fixtures,
                 'categorias_sin_fixture' => $categorias_sin_fixture
             )));
@@ -849,9 +854,26 @@ class Inscripciones extends CI_Controller {
         // SIN filtro por día: ambos CSV (cuadro y listado) siempre incluyen
         // TODOS los días del fixture, ignore el parámetro ?dia= si viniera en la URL.
 
-        // Orden garantizado del lado PHP (el modelo ya ordena por deporte/categoría/
-        // fecha/hora, pero lo reforzamos acá para que el resumen siempre salga ordenado).
-        usort($datos, function ($a, $b) {
+        // Orden garantizado del lado PHP. Por defecto: Deporte → Categoría →
+        // Fecha → Hora. Con ?orden=horario se listan primero por día y horario
+        // (Fecha → Hora → Deporte → Categoría).
+        $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
+        usort($datos, function ($a, $b) use ($orden_reporte) {
+            if ($orden_reporte === 'horario') {
+                return [
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    strtolower($a['nombre_deporte'] ?? ''),
+                    strtolower($a['nombre_categoria'] ?? ''),
+                    (int) ($a['numero_fecha'] ?? 0)
+                ] <=> [
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    strtolower($b['nombre_deporte'] ?? ''),
+                    strtolower($b['nombre_categoria'] ?? ''),
+                    (int) ($b['numero_fecha'] ?? 0)
+                ];
+            }
             return [
                 strtolower($a['nombre_deporte'] ?? ''),
                 strtolower($a['nombre_categoria'] ?? ''),
@@ -1027,6 +1049,10 @@ class Inscripciones extends CI_Controller {
         if ($ancho_franja < 1) $ancho_franja = 1;
         if ($ancho_franja > 12) $ancho_franja = 12;
 
+        // Orden del listado: con ?orden=horario las filas salen por Fecha → Hora
+        // (en vez de Deporte → Categoría → Fecha → Hora).
+        $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
+
         $nombre_archivo = 'fixture_' . $formato
             . ($nombre_deporte_filtro !== NULL
                 ? '_' . preg_replace('/[^a-zA-Z0-9]+/', '_', $nombre_deporte_filtro)
@@ -1042,6 +1068,7 @@ class Inscripciones extends CI_Controller {
             'ancho_franja'   => $ancho_franja,
             'nombre_archivo' => $nombre_archivo,
             'deporte_filtro' => $nombre_deporte_filtro,
+            'orden_reporte'  => $orden_reporte,
         ));
         $this->load->view('admin/reporte_fixture');
     }
