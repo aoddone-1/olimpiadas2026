@@ -93,6 +93,18 @@
             </div>
             
             <div class="col-md-3">
+                <label for="filtroSexo" class="form-label small fw-semibold mb-1">
+                    <i class="bi bi-gender-ambiguous text-primary me-1"></i>Sexo
+                </label>
+                <select id="filtroSexo" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Femenino">Femenino</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
                 <button id="btnLimpiarFiltros" class="btn btn-outline-secondary btn-sm w-100">
                     <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
                 </button>
@@ -124,6 +136,12 @@
                                 <?php endif; ?>
                             </div>
                             <small class="text-muted">DNI: <?= htmlspecialchars($ins['dni'], ENT_QUOTES, 'UTF-8') ?></small>
+<?php $sexo_inscrito = trim($ins['sexo'] ?? ''); ?>
+<?php if($sexo_inscrito !== ''): ?>
+    <span class="badge js-badge-sexo ms-1 border <?php $sx = strtolower($sexo_inscrito); echo $sx === 'femenino' ? 'bg-danger-subtle text-danger' : ($sx === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary'); ?>" style="font-size:0.65rem;">
+        <i class="bi <?= $sx === 'femenino' ? 'bi-gender-female' : ($sx === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans') ?> me-1"></i><?= htmlspecialchars($sexo_inscrito, ENT_QUOTES, 'UTF-8') ?>
+    </span>
+<?php endif; ?>
                         </td>
                         
                         <td>
@@ -220,6 +238,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const filtroDelegacion = document.getElementById('filtroDelegacion');
     const filtroTipo = document.getElementById('filtroTipo');
     const filtroDeporte = document.getElementById('filtroDeporte');
+    const filtroSexo = document.getElementById('filtroSexo');
     const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
     const filasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
     const filaNoResultadosIns = document.getElementById('filaNoResultadosIns');
@@ -304,6 +323,7 @@ document.addEventListener('DOMContentLoaded', function () {
         const delegacionSeleccionada = filtroDelegacion.value.toLowerCase();
         const tipoSeleccionado = filtroTipo.value;
         const deporteSeleccionado = filtroDeporte.value.toLowerCase();
+        const sexoSeleccionado = filtroSexo ? filtroSexo.value.toLowerCase() : '';
 
         filasFiltradasIns = filasIns.filter(fila => {
             // Obtener datos de la fila
@@ -344,6 +364,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 coincide = false;
             }
 
+            // Filtro por sexo (badge en la columna Participante/DNI)
+            if (sexoSeleccionado) {
+                const badgeSexo = fila.querySelector('.js-badge-sexo');
+                const sexoFila = badgeSexo ? badgeSexo.textContent.trim().toLowerCase() : '';
+                if (sexoFila !== sexoSeleccionado) {
+                    coincide = false;
+                }
+            }
+
             return coincide;
         });
 
@@ -364,12 +393,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (filtroDeporte) {
         filtroDeporte.addEventListener('change', aplicarFiltros);
     }
+    if (filtroSexo) {
+        filtroSexo.addEventListener('change', aplicarFiltros);
+    }
     if (btnLimpiarFiltros) {
         btnLimpiarFiltros.addEventListener('click', function() {
             inputBuscarIns.value = '';
             filtroDelegacion.value = '';
             filtroTipo.value = '';
             filtroDeporte.value = '';
+            if (filtroSexo) filtroSexo.value = '';
             aplicarFiltros();
         });
     }
