@@ -135,6 +135,7 @@ class Deporte_model extends CI_Model {
             p.kit_entregado,
             p.es_competidor, 
             p.es_delegado,
+            p.sexo,
             GROUP_CONCAT(d.nombre_deporte SEPARATOR ', ') as deportes_nombres,
             GROUP_CONCAT(c.nombre_categoria SEPARATOR ', ') as categorias_nombres
         ", FALSE); // Ponemos FALSE para que CodeIgniter no rompa los alias del GROUP_CONCAT
