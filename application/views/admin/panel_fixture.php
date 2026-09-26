@@ -107,7 +107,10 @@
                         <label class="form-label small fw-bold">Deporte / Categoría *</label>
                         <select id="fx_modal_categoria" class="form-select" required>
                             <option value="">— Elegí una categoría —</option>
-                            <?php foreach ($categorias_fixture as $cat): ?>
+                            <?php
+                            // El modal de partido manual necesita TODAS las categorías
+                            // (no solo las sin fixture, como el selector de generar).
+                            foreach ($this->Fixture_model->obtener_categorias_para_fixture() as $cat): ?>
                                 <option value="<?= $cat['id_categoria'] ?>"
                                         data-modalidad="<?= $cat['modalidad_competencia'] ?>">
                                     <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
@@ -730,6 +733,9 @@
                 }
                 todosFixtures = res.fixtures || [];
 
+                // Actualizar el select de categorías: solo las que aún no tienen fixture
+                aplicarFiltroSinFixture(res);
+
                 // Fallback: si el server no adjuntó las UTEs de cada categoría
                 // (p. ej. BD vieja sin la columna resultado), las pedimos por
                 // categoría para que el botón "Cargar resultados" siempre aparezca.
@@ -1011,6 +1017,8 @@
 
     /* ---------- Filtro Deporte → Categoría ---------- */
     // Al elegir un deporte, la lista de categorías se reduce a las de ese deporte.
+    // Además, solo se muestran las categorías que AÚN NO tienen fixture generado
+    // (la lista llega del server en ajax_fixture_todo → categorias_sin_fixture).
     const todasLasCategorias = Array.from(selCategoria.options)
         .filter(o => o.value !== '')
         .map(o => ({
@@ -1019,6 +1027,42 @@
             html: o.innerHTML,
             dataset: Object.assign({}, o.dataset)
         }));
+
+    let categoriasDisponibles = null; // set de ids sin fixture (null = no filtrar aún)
+
+    function aplicarFiltroSinFixture(res) {
+        if (!res || !Array.isArray(res.categorias_sin_fixture)) return;
+
+        categoriasDisponibles = new Set(res.categorias_sin_fixture.map(c => String(c.id_categoria)));
+
+        // Reconstruir el catálogo dinámico con SOLO las categorías sin fixture
+        todasLasCategorias.length = 0;
+        res.categorias_sin_fixture.forEach(c => {
+            todasLasCategorias.push({
+                id: String(c.id_categoria),
+                idDeporte: String(c.id_deporte),
+                html: `${esc(c.nombre_deporte)} — ${esc(c.nombre_categoria)} (${esc(c.genero)})`,
+                dataset: {
+                    idDeporte: String(c.id_deporte),
+                    deporte: c.nombre_deporte,
+                    categoria: c.nombre_categoria,
+                    modalidad: c.modalidad_competencia,
+                    duracion: c.tipo_duracion
+                }
+            });
+        });
+
+        // Si la categoría seleccionada ya tiene fixture (p. ej. recién generada),
+        // se limpia la selección y se deshabilitan los botones.
+        if (selCategoria.value && !categoriasDisponibles.has(String(selCategoria.value))) {
+            selCategoria.value = '';
+            infoBox.classList.add('d-none');
+            btnGenerar.disabled = true;
+            btnBorrarTodo.disabled = true;
+        }
+
+        filtrarCategoriasPorDeporte();
+    }
 
     function filtrarCategoriasPorDeporte() {
         const dep = selDeporte.value;
