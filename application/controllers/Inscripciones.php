@@ -867,9 +867,7 @@ class Inscripciones extends CI_Controller {
             ];
         });
 
-        $es_lista = $this->input->get('lista') === '1';
-        $nombre_archivo = ($es_lista ? 'resumen_fixture_' : 'cuadro_fixture_')
-            . date('Y-m-d') . '.csv';
+        $nombre_archivo = 'cuadro_fixture_'. date('Y-m-d') . '.csv';
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
@@ -879,36 +877,7 @@ class Inscripciones extends CI_Controller {
         // BOM para que Excel reconozca UTF-8 correctamente
         fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-        if ($es_lista) {
-            // ---------- Listado tradicional: una fila por partido ----------
-            fputcsv($output, [
-                'Deporte', 'Categoría', 'Condición', 'Hora inicio',
-                'Equipo / Competidor 1', 'Equipo / Competidor 2', 'Lugar'
-            ], ';');
-
-            foreach ($datos as $fila) {
-                $cond = trim((string) ($fila['fecha_competencia'] ?? ''));
-                if ($cond !== '') $cond = date('d/m/Y', strtotime($cond));
-                $hora = substr((string) ($fila['hora_inicio'] ?? ''), 0, 5);
-                $hf = substr((string) ($fila['hora_fin'] ?? ''), 0, 5);
-                if ($hora !== '' && $hf !== '' && $hf !== '00:00') {
-                    $cond .= ' ' . $hora . 'hs';
-                }
-
-                fputcsv($output, [
-                    $fila['nombre_deporte'] ?? '',
-                    trim(($fila['nombre_categoria'] ?? '') . ' ' . ($fila['genero_categoria'] ?? '')),
-                    $cond,
-                    $hora,
-                    $fila['ute_1_nombre'] ?? '',
-                    $fila['ute_2_nombre'] ?? '',
-                    $fila['lugar_nombre'] ?? '',
-                ], ';');
-            }
-
-            fclose($output);
-            exit;
-        }
+        
 
         // ---------- CUADRO: columnas = días, filas = rangos horarios ----------
 

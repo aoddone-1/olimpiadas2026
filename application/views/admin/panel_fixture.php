@@ -9,11 +9,7 @@
             <div class="d-flex gap-2 align-items-center">
                 <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
                     class="btn btn-lg btn-danger" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
-                    <i class="bi bi-file-earmark-pdf me-1"></i> Fixture PDF (cuadro)
-                </a>
-                <a id="fx_btn_pdf_lista" href="<?= base_url('Inscripciones/descargar_pdf_fixture?formato=lista') ?>" target="_blank"
-                    class="btn btn-lg btn-secondary" title="PDF con listado tradicional: una fila por partido (Deporte → Categoría → Fecha → Hora)">
-                    <i class="bi bi-list-ul me-1"></i> Fixture PDF (listado)
+                    <i class="bi bi-file-earmark-pdf me-1"></i>
                 </a>
             </div>
         </div>

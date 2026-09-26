@@ -101,213 +101,163 @@ class MYPDF extends TCPDF {
         $c_white     = '#ffffff';
         $c_alt       = '#f8f9fa';
 
-        if ($this->formato === 'lista') {
-            $html = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:10px 0;">'
-                . 'Fixture — Listado de partidos</div>'
-                . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:15px;">' 
-                . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)</div>';
-            
-            if (!$this->datos) {
-                $html .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
-            } else {
-                $html .= '<table cellpadding="5" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:8pt; color:' . $c_text . ';">'
-                    . '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Deporte / Cat.</th>'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Fecha</th>'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Horario</th>'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Competidor 1</th>'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Competidor 2</th>'
-                    . '<th style="padding:6px; text-align:center; border:1px solid ' . $c_border . ';">Lugar</th>'
-                    . '</tr></thead><tbody>';
-                
-                $ult_grupo = null;
-                foreach ($this->datos as $i => $f) {
-                    $grupo = ($f['nombre_deporte'] ?? '') . '|' . ($f['nombre_categoria'] ?? '');
-                    if ($grupo !== $ult_grupo) {
-                        $html .= '<tr><td colspan="6" style="background-color:' . $c_secondary . '; color:' . $c_white . '; padding:5px; font-weight:bold; border:1px solid ' . $c_border . ';">' 
-                            . $esc($deporte_cat($f)) . '</td></tr>';
-                        $ult_grupo = $grupo;
-                    }
-                    $fecha = trim((string) ($f['fecha_competencia'] ?? ''));
-                    if ($fecha !== '') $fecha = date('d/m/Y', strtotime($fecha));
-                    $sub = trim($fase_bonito($f['fase'] ?? '')
-                        . (!empty($f['numero_fecha']) ? ' · Fecha ' . (int) $f['numero_fecha'] : '')
-                        . (!empty($f['nombre_prueba']) ? ' · ' . $f['nombre_prueba'] : ''));
-                    
-                    $bg = ($i % 2) ? $c_alt : $c_white;
-                    $html .= '<tr style="background-color:' . $bg . ';">'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . ';"><b>' . $esc(trim(($f['nombre_deporte'] ?? '') . ' ' . ($f['nombre_categoria'] ?? ''))) . '</b></td>'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . '; text-align:center;">' . $esc($fecha) . '</td>'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . '; text-align:center; font-weight:bold;">' . $esc($horario($f)) . '</td>'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . ';">' . $esc($f['ute_1_nombre'] ?? '') 
-                            . ($sub !== '' ? '<br/><span style="font-size:6pt; color:' . $c_muted . ';">' . $esc($sub) . '</span>' : '') . '</td>'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . ';">' . $esc($f['ute_2_nombre'] ?? '') . '</td>'
-                        . '<td style="padding:4px; border:1px solid ' . $c_border . '; color:' . $c_muted . '; font-size:7pt;">' . $esc($f['lugar_nombre'] ?? '') . '</td>'
-                        . '</tr>';
-                }
-                $html .= '</tbody></table>';
-            }
-            $this->writeHTML($html, true, false, true, false, '');
+        // ====== FORMATO CUADRO - EXACTAMENTE 5 DÍAS ======
+        $ancho = max(1, (int) $this->ancho_franja);
+        $min_hora = null;
+        $max_hora = null;
+        foreach ($this->datos as $fila) {
+            $hi = (string) ($fila['hora_inicio'] ?? '');
+            $hf = (string) ($fila['hora_fin'] ?? '');
+            if ($hi === '') continue;
+            $h_ini = (int) substr($hi, 0, 2);
+            $h_fin = $hf !== '' ? (int) substr($hf, 0, 2) : $h_ini;
+            if ((int) substr($hf, 3, 2) > 0 || $h_fin === $h_ini) $h_fin++;
+            if ($min_hora === null || $h_ini < $min_hora) $min_hora = $h_ini;
+            if ($max_hora === null || $h_fin > $max_hora) $max_hora = $h_fin;
+        }
+        if ($min_hora === null) { $min_hora = 8; $max_hora = 9; }
+        
+        $min_hora = intdiv($min_hora, $ancho) * $ancho;
+        $max_hora = intdiv($max_hora - $min_hora - 1, $ancho) * $ancho + $ancho + $min_hora;
+        $n_frajas = intdiv($max_hora - $min_hora, $ancho);
 
-        } else {
-            // ====== FORMATO CUADRO - EXACTAMENTE 5 DÍAS ======
-            $ancho = max(1, (int) $this->ancho_franja);
-            $min_hora = null;
-            $max_hora = null;
-            foreach ($this->datos as $fila) {
-                $hi = (string) ($fila['hora_inicio'] ?? '');
-                $hf = (string) ($fila['hora_fin'] ?? '');
-                if ($hi === '') continue;
-                $h_ini = (int) substr($hi, 0, 2);
-                $h_fin = $hf !== '' ? (int) substr($hf, 0, 2) : $h_ini;
-                if ((int) substr($hf, 3, 2) > 0 || $h_fin === $h_ini) $h_fin++;
-                if ($min_hora === null || $h_ini < $min_hora) $min_hora = $h_ini;
-                if ($max_hora === null || $h_fin > $max_hora) $max_hora = $h_fin;
-            }
-            if ($min_hora === null) { $min_hora = 8; $max_hora = 9; }
-            
-            $min_hora = intdiv($min_hora, $ancho) * $ancho;
-            $max_hora = intdiv($max_hora - $min_hora - 1, $ancho) * $ancho + $ancho + $min_hora;
-            $n_frajas = intdiv($max_hora - $min_hora, $ancho);
+        // Distribuir partidos
+        $celdas = array();
+        foreach ($this->datos as $fila) {
+            $fecha = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
+            if ($fecha === '') continue;
+            $h_ini = (int) substr((string) ($fila['hora_inicio'] ?? '0'), 0, 2);
+            $idx = intdiv(max(0, $h_ini - $min_hora), $ancho);
+            if ($idx >= $n_frajas) $idx = $n_frajas - 1;
+            $celdas[$idx][$fecha][] = $fila;
+        }
 
-            // Distribuir partidos
-            $celdas = array();
-            foreach ($this->datos as $fila) {
-                $fecha = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
-                if ($fecha === '') continue;
-                $h_ini = (int) substr((string) ($fila['hora_inicio'] ?? '0'), 0, 2);
-                $idx = intdiv(max(0, $h_ini - $min_hora), $ancho);
-                if ($idx >= $n_frajas) $idx = $n_frajas - 1;
-                $celdas[$idx][$fecha][] = $fila;
+        // ====== FORZAR 5 DÍAS POR PÁGINA ======
+        $por_bloque = 5;
+        $bloques = array();
+        for ($b = 0; $b < $n_dias; $b += $por_bloque) {
+            $bloques[] = array_slice($dias, $b, $por_bloque);
+        }
+        if (!$bloques) $bloques = array(array());
+        
+        $orientacion = 'L'; // Siempre horizontal para 5 días
+        
+        $dias_completos = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
+        $dias_cortos    = array('DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB');
+
+        // Anchos: horario 12%, cada día 17.6% (5 días = 88%)
+        $w_horario = 16.7;
+        $w_col = (100 - $w_horario) / 5;
+
+        foreach ($bloques as $bi => $bloque) {
+            if ($bi > 0) {
+                $this->AddPage($orientacion, 'A4');
+            }
+            
+            // Encabezado
+            $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
+                        . 'Fixture de Competencia — Cuadro General</div>'
+                        . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
+                        . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
+                        . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
+
+            if ($n_dias > $por_bloque) {
+                $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
+                            . 'Página ' . ($bi + 1) . ' de ' . count($bloques) 
+                            . ' &nbsp;·&nbsp; Días ' . ($bi * $por_bloque + 1) . '–' 
+                            . ($bi * $por_bloque + count($bloque)) . ' de ' . $n_dias . '</div>';
             }
 
-            // ====== FORZAR 5 DÍAS POR PÁGINA ======
-            $por_bloque = 5;
-            $bloques = array();
-            for ($b = 0; $b < $n_dias; $b += $por_bloque) {
-                $bloques[] = array_slice($dias, $b, $por_bloque);
+            if (!$bloque) {
+                $html_bloque .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
+                $this->writeHTML($html_bloque, true, false, true, false, '');
+                continue;
             }
-            if (!$bloques) $bloques = array(array());
+
+            // Completar con columnas vacías si hay menos de 5 días
+            while (count($bloque) < 5) {
+                $bloque[] = null;
+            }
+
+            // Tabla principal
+            $html_bloque .= '<table cellpadding="3" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:7pt; color:' . $c_text . ';">';
             
-            $orientacion = 'L'; // Siempre horizontal para 5 días
+            // Encabezado de días
+            $html_bloque .= '<thead>'
+                        . '<tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
+                        . '<th style="width:' . $w_horario . '%; padding:8px 4px; text-align:center; border:1px solid ' . $c_border . '; font-size:9pt;">HORARIO</th>';
             
-            $dias_completos = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
-            $dias_cortos    = array('DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB');
-
-            // Anchos: horario 12%, cada día 17.6% (5 días = 88%)
-            $w_horario = 16.7;
-            $w_col = (100 - $w_horario) / 5;
-
-            foreach ($bloques as $bi => $bloque) {
-                if ($bi > 0) {
-                    $this->AddPage($orientacion, 'A4');
+            foreach ($bloque as $f) {
+                if ($f === null) {
+                    $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; background-color:' . $c_light . ';"></th>';
+                } else {
+                    $ts = strtotime($f);
+                    $nombre_dia = $dias_cortos[(int) date('w', $ts)];
+                    $fecha_corta = date('d/m', $ts);
+                    $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . ';">'
+                                . '<div style="font-size:11pt; font-weight:bold; letter-spacing:1px;">' . $nombre_dia . '</div>'
+                                . '<div style="font-size:8pt; opacity:0.9;">' . $fecha_corta . '</div>'
+                                . '</th>';
                 }
+            }
+            $html_bloque .= '</tr></thead><tbody>';
+
+            // Filas de franjas horarias
+            for ($i = 0; $i < $n_frajas; $i++) {
+                $h_ini = $min_hora + $i * $ancho;
+                $h_fin = $h_ini + $ancho;
+                $bg_franja = ($i % 2) ? $c_white : $c_alt;
                 
-                // Encabezado
-                $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
-                            . 'Fixture de Competencia — Cuadro General</div>'
-                            . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
-                            . $esc($rango_txt) . ' &nbsp;·&nbsp; ' . count($this->datos) . ' partido(s)'
-                            . ' &nbsp;·&nbsp; Franjas de ' . $ancho . ' h</div>';
-
-                if ($n_dias > $por_bloque) {
-                    $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
-                                . 'Página ' . ($bi + 1) . ' de ' . count($bloques) 
-                                . ' &nbsp;·&nbsp; Días ' . ($bi * $por_bloque + 1) . '–' 
-                                . ($bi * $por_bloque + count($bloque)) . ' de ' . $n_dias . '</div>';
-                }
-
-                if (!$bloque) {
-                    $html_bloque .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
-                    $this->writeHTML($html_bloque, true, false, true, false, '');
-                    continue;
-                }
-
-                // Completar con columnas vacías si hay menos de 5 días
-                while (count($bloque) < 5) {
-                    $bloque[] = null;
-                }
-
-                // Tabla principal
-                $html_bloque .= '<table cellpadding="3" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:7pt; color:' . $c_text . ';">';
+                $html_bloque .= '<tr style="background-color:' . $bg_franja . ';">';
                 
-                // Encabezado de días
-                $html_bloque .= '<thead>'
-                            . '<tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
-                            . '<th style="width:' . $w_horario . '%; padding:8px 4px; text-align:center; border:1px solid ' . $c_border . '; font-size:9pt;">HORARIO</th>';
-                
+                // Columna horario
+                $html_bloque .= '<td style="background-color:' . $c_light . '; font-weight:bold; text-align:center; padding:6px 4px; border:1px solid ' . $c_border . '; font-size:9pt; color:' . $c_primary . ';">'
+                            . sprintf('%02d:00<br/>–<br/>%02d:00', $h_ini % 24, $h_fin % 24)
+                            . '</td>';
+
+                // Columnas de días
                 foreach ($bloque as $f) {
                     if ($f === null) {
-                        $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; background-color:' . $c_light . ';"></th>';
+                        $html_bloque .= '<td style="background-color:' . $c_light . '; border:1px solid ' . $c_border . ';">&nbsp;</td>';
+                        continue;
+                    }
+
+                    $partidos = isset($celdas[$i][$f]) ? $celdas[$i][$f] : array();
+                    
+                    if (empty($partidos)) {
+                        $html_bloque .= '<td style="background-color:' . $c_white . '; border:1px solid ' . $c_border . '; color:' . $c_muted . '; text-align:center; font-style:italic; font-size:6pt;">—</td>';
                     } else {
-                        $ts = strtotime($f);
-                        $nombre_dia = $dias_cortos[(int) date('w', $ts)];
-                        $fecha_corta = date('d/m', $ts);
-                        $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . ';">'
-                                    . '<div style="font-size:11pt; font-weight:bold; letter-spacing:1px;">' . $nombre_dia . '</div>'
-                                    . '<div style="font-size:8pt; opacity:0.9;">' . $fecha_corta . '</div>'
-                                    . '</th>';
-                    }
-                }
-                $html_bloque .= '</tr></thead><tbody>';
-
-                // Filas de franjas horarias
-                for ($i = 0; $i < $n_frajas; $i++) {
-                    $h_ini = $min_hora + $i * $ancho;
-                    $h_fin = $h_ini + $ancho;
-                    $bg_franja = ($i % 2) ? $c_white : $c_alt;
-                    
-                    $html_bloque .= '<tr style="background-color:' . $bg_franja . ';">';
-                    
-                    // Columna horario
-                    $html_bloque .= '<td style="background-color:' . $c_light . '; font-weight:bold; text-align:center; padding:6px 4px; border:1px solid ' . $c_border . '; font-size:9pt; color:' . $c_primary . ';">'
-                                . sprintf('%02d:00<br/>–<br/>%02d:00', $h_ini % 24, $h_fin % 24)
-                                . '</td>';
-
-                    // Columnas de días
-                    foreach ($bloque as $f) {
-                        if ($f === null) {
-                            $html_bloque .= '<td style="background-color:' . $c_light . '; border:1px solid ' . $c_border . ';">&nbsp;</td>';
-                            continue;
-                        }
-
-                        $partidos = isset($celdas[$i][$f]) ? $celdas[$i][$f] : array();
-                        
-                        if (empty($partidos)) {
-                            $html_bloque .= '<td style="background-color:' . $c_white . '; border:1px solid ' . $c_border . '; color:' . $c_muted . '; text-align:center; font-style:italic; font-size:6pt;">—</td>';
-                        } else {
-                            $cel = '';
-                            foreach ($partidos as $idx_p => $p) {
-                                $dc = trim(($p['nombre_deporte'] ?? '') . ' ' . ($p['nombre_categoria'] ?? '') . ' ' . ($p['genero_categoria'] ?? ''));
-                                $sub_info = trim($fase_bonito($p['fase'] ?? '') . (!empty($p['numero_fecha']) ? ' · F' . (int) $p['numero_fecha'] : ''));
-                                
-                                if ($idx_p > 0) {
-                                    $cel .= '<hr style="border:none; border-top:1px dashed ' . $c_border . '; margin:4px 0;"/>';
-                                }
-                                
-                                $cel .= '<div style="margin-bottom:2px;">'
-                                    . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>'
-                                    . '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
-                                
-                                if ($sub_info !== '') {
-                                    $cel .= '<div style="font-size:6pt; color:' . $c_muted . '; font-style:italic;">' . $esc($sub_info) . '</div>';
-                                }
-                                
-                                if (!empty($p['lugar_nombre'])) {
-                                    $cel .= '<div style="font-size:6pt; color:' . $c_muted . ';"> ' . $esc($p['lugar_nombre']) . '</div>';
-                                }
-                                
-                                $cel .= '</div>';
+                        $cel = '';
+                        foreach ($partidos as $idx_p => $p) {
+                            $dc = trim(($p['nombre_deporte'] ?? '') . ' ' . ($p['nombre_categoria'] ?? '') . ' ' . ($p['genero_categoria'] ?? ''));
+                            $sub_info = trim($fase_bonito($p['fase'] ?? '') . (!empty($p['numero_fecha']) ? ' · F' . (int) $p['numero_fecha'] : ''));
+                            
+                            if ($idx_p > 0) {
+                                $cel .= '<hr style="border:none; border-top:1px dashed ' . $c_border . '; margin:4px 0;"/>';
                             }
-                            $html_bloque .= '<td style="padding:3px; border:1px solid ' . $c_border . '; vertical-align:top;">' . $cel . '</td>';
+                            
+                            $cel .= '<div style="margin-bottom:2px;">'
+                                . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>'
+                                . '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
+                            
+                            if ($sub_info !== '') {
+                                $cel .= '<div style="font-size:6pt; color:' . $c_muted . '; font-style:italic;">' . $esc($sub_info) . '</div>';
+                            }
+                            
+                            if (!empty($p['lugar_nombre'])) {
+                                $cel .= '<div style="font-size:6pt; color:' . $c_muted . ';"> ' . $esc($p['lugar_nombre']) . '</div>';
+                            }
+                            
+                            $cel .= '</div>';
                         }
+                        $html_bloque .= '<td style="padding:3px; border:1px solid ' . $c_border . '; vertical-align:top;">' . $cel . '</td>';
                     }
-                    $html_bloque .= '</tr>';
                 }
-                $html_bloque .= '</tbody></table>';
-                
-                $this->writeHTML($html_bloque, true, false, true, false, '');
+                $html_bloque .= '</tr>';
             }
+            $html_bloque .= '</tbody></table>';
+            
+            $this->writeHTML($html_bloque, true, false, true, false, '');
         }
     }
 
@@ -384,7 +334,7 @@ $pdf->Body();
 // ---------------------------------------------------------
 
 // Close and output PDF document
-$pdf->Output($pdf->nombre_archivo, 'D');
+$pdf->Output($pdf->nombre_archivo, 'I');
 
 //============================================================+
 // END OF FILE
