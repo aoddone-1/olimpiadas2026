@@ -157,23 +157,38 @@ class Premiacion_model extends CI_Model {
         if ($final) {
             $m = $this->_parsear_marcador($final['detalle']);
             if ($m) {
-                if ($m['eqA']['tantos'] !== $m['eqB']['tantos']) {
-                    $ganador  = $m['eqA']['tantos'] > $m['eqB']['tantos'] ? $m['eqA'] : $m['eqB'];
-                    $perdedor = $ganador === $m['eqA'] ? $m['eqB'] : $m['eqA'];
+                // ¿Hubo desempate registrado? (penales, prórroga, puntos de
+                // oro...). Si no hay ganador explícito, lo buscamos por nombre
+                // en el detalle por si el equipo fue cargado "libre" sin UTE.
+                $des = $this->_resolver_desempate($final, $m);
+                if ($m['eqA']['tantos'] !== $m['eqB']['tantos'] || $des) {
+                    if ($des) {
+                        $ganador  = $des['eq_ganador'];
+                        $perdedor = $des['eq_perdedor'];
+                        $sufijo = ' · 🏅 ganó ' . $ganador['nombre'] . ' en ' . $this->_nombre_metodo_desempate($des['metodo']);
+                    } else {
+                        $ganador  = $m['eqA']['tantos'] > $m['eqB']['tantos'] ? $m['eqA'] : $m['eqB'];
+                        $perdedor = $ganador === $m['eqA'] ? $m['eqB'] : $m['eqA'];
+                        $sufijo = '';
+                    }
+                    $marca = 'Final: ' . $this->_texto_marca($m) . $sufijo;
                     $out[1] = array('id' => $ganador['id'], 'nombre' => $ganador['nombre'],
-                                    'extra' => 'Final: ' . $this->_texto_marca($m),
+                                    'extra' => $marca,
+                                    'desempate' => $des ? $this->_nombre_metodo_desempate($des['metodo']) : null,
                                     'id_resultado_ref' => (int) $final['id_resultado'],
                                     // día en que se jugó la final (fixture) y
                                     // partido del fixture al que pertenece
                                     'fecha_jugada' => $this->_norm_fecha($final['fx_fecha'] ?? null),
                                     'id_fixture' => !empty($final['fx_id']) ? (int) $final['fx_id'] : (!empty($final['id_fixture']) ? (int) $final['id_fixture'] : null));
                     $out[2] = array('id' => $perdedor['id'], 'nombre' => $perdedor['nombre'],
-                                    'extra' => 'Final: ' . $this->_texto_marca($m),
+                                    'extra' => $marca,
+                                    'desempate' => $des ? $this->_nombre_metodo_desempate($des['metodo']) : null,
                                     'id_resultado_ref' => (int) $final['id_resultado'],
                                     'fecha_jugada' => $this->_norm_fecha($final['fx_fecha'] ?? null),
                                     'id_fixture' => !empty($final['fx_id']) ? (int) $final['fx_id'] : (!empty($final['id_fixture']) ? (int) $final['id_fixture'] : null));
                 } else {
-                    // Final en empate: no hay podio definido todavía.
+                    // Final en empate SIN desempate registrado: no hay podio
+                    // definido todavía (falta cargar cómo se quebró el empate).
                     return array();
                 }
             }
@@ -182,15 +197,68 @@ class Premiacion_model extends CI_Model {
         $tp = $this->_resultado_por_fase($id_categoria, 'TERCER_PUESTO');
         if ($tp) {
             $m = $this->_parsear_marcador($tp['detalle']);
-            if ($m && $m['eqA']['tantos'] !== $m['eqB']['tantos']) {
-                $ganador = $m['eqA']['tantos'] > $m['eqB']['tantos'] ? $m['eqA'] : $m['eqB'];
-                $out[3] = array('id' => $ganador['id'], 'nombre' => $ganador['nombre'],
-                                'extra' => 'Tercer puesto: ' . $this->_texto_marca($m),
-                                'id_resultado_ref' => (int) $tp['id_resultado']);
+            if ($m) {
+                $des = $this->_resolver_desempate($tp, $m);
+                if ($m['eqA']['tantos'] !== $m['eqB']['tantos'] || $des) {
+                    if ($des) {
+                        $ganador = $des['eq_ganador'];
+                        $sufijo = ' · 🏅 ganó ' . $ganador['nombre'] . ' en ' . $this->_nombre_metodo_desempate($des['metodo']);
+                    } else {
+                        $ganador = $m['eqA']['tantos'] > $m['eqB']['tantos'] ? $m['eqA'] : $m['eqB'];
+                        $sufijo = '';
+                    }
+                    $out[3] = array('id' => $ganador['id'], 'nombre' => $ganador['nombre'],
+                                    'extra' => 'Tercer puesto: ' . $this->_texto_marca($m) . $sufijo,
+                                    'desempate' => $des ? $this->_nombre_metodo_desempate($des['metodo']) : null,
+                                    'id_resultado_ref' => (int) $tp['id_resultado']);
+                }
             }
         }
 
         return $out;
+    }
+
+    /**
+     * Resuelve el desempate registrado en la cabecera de un resultado MARCADOR
+     * con marcador empatado. Devuelve el método + los equipos ordenados
+     * (ganador/perdedor) o null si no hay desempate utilizable. Tolera bases
+     * donde las columnas de desempate aún no existen.
+     */
+    private function _resolver_desempate($resultado, $m) {
+        if (empty($resultado['hubo_desempate'])) return null;
+        $metodo = trim((string) ($resultado['desempate_metodo'] ?? ''));
+        if ($metodo === '') return null;
+        $id_gan = isset($resultado['id_ute_ganador']) ? (int) $resultado['id_ute_ganador'] : 0;
+        $nombre_gan = trim((string) ($resultado['nombre_ganador_desempate'] ?? ''));
+
+        $ganador = null;
+        $perdedor = null;
+        foreach (array('eqA', 'eqB') as $k) {
+            $otro = $k === 'eqA' ? 'eqB' : 'eqA';
+            if (($id_gan && $m[$k]['id'] === $id_gan)
+                || ($nombre_gan !== '' && strcasecmp($m[$k]['nombre'], $nombre_gan) === 0)) {
+                $ganador = $m[$k];
+                $perdedor = $m[$otro];
+                break;
+            }
+        }
+        if (!$ganador || !$perdedor) return null;
+        return array('metodo' => $metodo, 'eq_ganador' => $ganador, 'eq_perdedor' => $perdedor);
+    }
+
+    /** Nombre legible del método de desempate (PENALES -> Penales). */
+    private function _nombre_metodo_desempate($metodo) {
+        $mapa = array(
+            'PENALES'          => 'penales',
+            'PRORROGA'         => 'prórroga',
+            'PUNTOS_DE_ORO'    => 'puntos de oro',
+            'MUERTE_SUBITA'    => 'muerte súbita',
+            'LANZAMIENTO_TIRLIBRE' => 'lanzamiento tirlibre',
+            'OTRO'             => 'desempate',
+        );
+        $metodo = strtoupper(trim((string) $metodo));
+        if (isset($mapa[$metodo])) return $mapa[$metodo];
+        return strtolower(str_replace('_', ' ', $metodo));
     }
 
     private function _texto_marca($m) {
@@ -202,6 +270,11 @@ class Premiacion_model extends CI_Model {
         // Se traen también id_fixture y fecha_competencia del fixture: son las
         // que definen la NOCHE de entrega (el día en que se jugó).
         $this->db->select('r.*, f.fase AS fx_fase, f.id_fixture AS fx_id, f.fecha_competencia AS fx_fecha', FALSE);
+        if ($this->_columna_resultado_existe('id_ute_ganador')) {
+            // Nombre del ganador del desempate para el texto del podio.
+            $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+            $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
+        }
         $this->db->from('resultados r');
         $this->db->join('fixtures f', 'f.id_fixture = r.id_fixture', 'inner');
         $this->db->where('r.id_categoria', (int) $id_categoria);
@@ -213,7 +286,39 @@ class Premiacion_model extends CI_Model {
         if (!$row) return null;
         $row['detalle'] = $this->_detalle_de_resultados(array((int) $row['id_resultado']))
             [(int) $row['id_resultado']] ?? array();
+        if (!empty($row['id_ute_ganador']) && empty($row['nombre_ganador_desempate'])) {
+            // El ganador puede ser un equipo cargado "libre" (sin UTE):
+            // recuperar su nombre desde el detalle para mostrarlo igual.
+            foreach ($row['detalle'] as $d) {
+                if (!empty($d['id_ute']) && (int) $d['id_ute'] === (int) $row['id_ute_ganador']) {
+                    $row['nombre_ganador_desempate'] = trim((string) $d['nombre_libre']);
+                    break;
+                }
+            }
+        }
         return count($row['detalle']) >= 2 ? $row : null;
+    }
+
+    /** ¿Existe una columna en `resultados`? (tolera bases sin el ALTER). */
+    private function _columna_resultado_existe($columna) {
+        static $cache = array();
+        $key = strtolower((string) $columna);
+        if (!isset($cache[$key])) {
+            try {
+                $q = $this->db->query(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = 'resultados'
+                       AND COLUMN_NAME = ?",
+                    array($columna)
+                );
+                $cache[$key] = (bool) ($q && $q->num_rows() > 0);
+            } catch (Throwable $e) {
+                log_message('error', '[Premiación] no se pudo verificar columna resultados.' . $columna . ': ' . $e->getMessage());
+                $cache[$key] = false;
+            }
+        }
+        return $cache[$key];
     }
 
     /** Detalle agrupado por id_resultado (una sola consulta). */

@@ -263,6 +263,7 @@
                         <div class="pm-disco">${MEDALLAS[pos]}</div>
                         <div class="pm-puesto-label">${LABELS[pos]}</div>
                         <div class="pm-nombre">${esc(nombre)}</div>
+                        ${p && p.desempate ? `<div class="pm-extra text-warning fw-bold"><i class="bi bi-trophy-fill"></i> ganó en ${esc(p.desempate)}</div>` : ''}
                         ${p && p.extra ? `<div class="pm-extra">${esc(p.extra)}</div>` : ''}
                         ${reg ? '<div class="pm-extra text-success fw-bold"><i class="bi bi-check2-all"></i> entregado</div>' : ''}
                     </div>`;
@@ -413,6 +414,17 @@
             const dato = (it.podio || {})[p];
             inp.value = reg ? reg.nombre : (dato ? dato.nombre : '');
         });
+        // Aviso si algún puesto se definió por desempate (ej: final 50-50 en penales).
+        const infoBox = document.getElementById('pm_modal_info');
+        const conDes = [1, 2, 3].map(p => (it.podio || {})[p]).filter(p => p && p.desempate);
+        if (conDes.length) {
+            infoBox.innerHTML +=
+                '<div class="alert alert-warning py-2 px-3 mt-2 mb-0 small">' +
+                '<i class="bi bi-trophy-fill me-1"></i><strong>Hubo desempate:</strong> ' +
+                esc(conDes[0].nombre) + ' definió en ' + esc(conDes[0].desempate) +
+                '. El podio ya carga al ganador del desempate.' +
+                '</div>';
+        }
         document.getElementById('pm_modal_fecha').value = $fecha.value || it.fecha_entrega || HOY;
         document.getElementById('pm_modal_obs').value = (regs[1] && regs[1].observaciones) || '';
         modalPrem.show();
