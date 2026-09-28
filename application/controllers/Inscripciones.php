@@ -601,9 +601,14 @@ class Inscripciones extends CI_Controller {
 
         // Datos para la pestaña de Fixture
         $this->load->model('Fixture_model');
-        // El select de categorías para generar fixture solo muestra las que
-        // todavía NO tienen fixture generado.
-        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
+        // El select de categorías para GENERAR FIXTURE solo muestra las que
+        // todavía NO tienen fixture generado (por eso se calcula aparte).
+        $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
+        // Para los filtros y el modal de CARGA DE RESULTADOS hacen falta TODAS
+        // las categorías: si se usara la lista "sin fixture", al apretar
+        // "Cargar resultado" sólo aparecerían los deportes/categorías que aún
+        // no tienen fixture generado.
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 

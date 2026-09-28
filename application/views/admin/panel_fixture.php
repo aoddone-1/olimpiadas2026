@@ -45,7 +45,10 @@
                 <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (solo para generar / borrar fixture — el listado se ve por día abajo)</label>
                 <select id="fx_categoria" class="form-select">
                     <option value="">— Seleccioná una categoría —</option>
-                    <?php foreach ($categorias_fixture as $cat): ?>
+                    <?php
+                    // Para GENERAR fixture solo muestran las categorías que aún
+                    // NO tienen fixture generado.
+                    foreach ($categorias_sin_fixture as $cat): ?>
                         <option value="<?= $cat['id_categoria'] ?>"
                                 data-id-deporte="<?= $cat['id_deporte'] ?>"
                                 data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
@@ -116,7 +119,9 @@
                             <?php
                             // El modal de partido manual necesita TODAS las categorías
                             // (no solo las sin fixture, como el selector de generar).
-                            foreach ($this->Fixture_model->obtener_categorias_para_fixture() as $cat): ?>
+                            // Se usa la variable que ya envía el controlador para no
+                            // repetir la consulta.
+                            foreach ($categorias_fixture as $cat): ?>
                                 <option value="<?= $cat['id_categoria'] ?>"
                                         data-modalidad="<?= $cat['modalidad_competencia'] ?>">
                                     <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
