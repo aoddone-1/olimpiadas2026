@@ -640,7 +640,13 @@ class Resultado_model extends CI_Model {
 
     /** Todos los resultados con su deporte/categoría (para la pestaña). */
     public function obtener_todos_los_resultados() {
+        $con_desempate = $this->_existe_columna_desempate();
         $this->db->select('r.*, c.nombre_categoria, d.nombre_deporte, f.nombre_prueba', FALSE);
+        if ($con_desempate) {
+            // Nombre del ganador del desempate (si tiene UTE) para el modal detalle.
+            $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+            $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
+        }
         $this->db->from('resultados r');
         $this->db->join('categorias c', 'c.id_categoria = r.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
@@ -667,6 +673,21 @@ class Resultado_model extends CI_Model {
                 $det = $this->_reparar_marcador_espejado((int) $r['id_resultado'], $det);
             }
             $r['detalle'] = $det;
+            if (!$con_desempate) {
+                $r['hubo_desempate']    = 0;
+                $r['desempate_metodo']  = null;
+                $r['id_ute_ganador']    = null;
+                $r['nombre_ganador_desempate'] = null;
+            } elseif (empty($r['nombre_ganador_desempate']) && !empty($r['id_ute_ganador'])) {
+                // El ganador puede ser un equipo cargado "libre" (sin UTE):
+                // recuperar su nombre desde el detalle para mostrarlo igual.
+                foreach ($det as $d) {
+                    if (!empty($d['id_ute']) && (int) $d['id_ute'] === (int) $r['id_ute_ganador']) {
+                        $r['nombre_ganador_desempate'] = $d['nombre_libre'];
+                        break;
+                    }
+                }
+            }
         }
         unset($r);
         return $rows;

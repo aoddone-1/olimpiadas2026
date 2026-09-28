@@ -346,6 +346,33 @@
         return MEDALLAS[pos - 1] || null;
     }
 
+    /* ---------- Desempate (empates con método aplicado) ---------- */
+    // Un resultado MARCADOR puede tener empate resuelto por penales/prórroga/…
+    // (columnas hubo_desempate / desempate_metodo / id_ute_ganador). Esto
+    // devuelve los datos para mostrarlos, o null si no hubo desempate.
+    const METODOS_DESEMPATE_DETALLE = {
+        PENALES: 'Penales', PRORROGA: 'Prórroga', PUNTOS_DE_ORO: 'Puntos de oro',
+        MUERTE_SUBITA: 'Muerte súbita', LANZAMIENTO_TIRLIBRE: 'Lanzamiento/Tirlibre', OTRO: 'Otro'
+    };
+    function infoDesempate(r, m) {
+        if (!r || !(parseInt(r.hubo_desempate, 10) === 1)) return null;
+        // Resolver el nombre del ganador: JOIN de utes → fallback al detalle.
+        let nombre = r.nombre_ganador_desempate || '';
+        if (!nombre && r.id_ute_ganador != null) {
+            const fila = (r.detalle || []).find(d => String(d.id_ute) === String(r.id_ute_ganador));
+            if (fila) nombre = fila.nombre_libre || fila.nombre_ute || '';
+        }
+        // Si aún no lo encontramos (ej: llegó solo por nombre), buscar por nombre en el marcador.
+        if (!nombre && m) {
+            if (m.gan === -1 && r.desempate_ganador_nombre) nombre = r.desempate_ganador_nombre;
+        }
+        return {
+            metodo: r.desempate_metodo || '',
+            metodoTxt: METODOS_DESEMPATE_DETALLE[r.desempate_metodo] || 'desempate',
+            ganador: nombre || '(sin nombre)',
+        };
+    }
+
     /* ---------- Modal detalle ---------- */
     // El panel vive dentro de un .tab-custom-pane con display:none cuando no
     // está activo: Bootstrap calcularía mal el alto del modal. Lo movemos al
@@ -376,6 +403,7 @@
 
         if (r.tipo_resultado === 'MARCADOR') {
             const m = infoMarcador(det);
+            const desp = infoDesempate(r, m);
             // Si hubo más de dos filas (parciales), mostrarlas como desglose.
             let parciales = '';
             if (det.length > 2) {
@@ -385,26 +413,37 @@
                         ${det.map(d => `${esc(nombreDet(d, '?'))} (${(parseInt(d.marcador_local, 10) || 0)} : ${(parseInt(d.marcador_visita, 10) || 0)})`).join(' · ')}
                     </div>`;
             }
+            // Trofeo: en empate con desempate, el ganador del desempate es el que avanza.
             html += `
                 <div class="card border-0 bg-light shadow-none mb-3">
                     <div class="card-body py-4">
                         <div class="d-flex justify-content-between align-items-center text-center">
-                            <div class="flex-fill ${m.gan === 0 ? 'text-success' : ''}">
-                                <div class="fs-5 fw-bold text-truncate">${esc(m.e1)} ${m.gan === 0 ? '<i class="bi bi-trophy-fill"></i>' : ''}</div>
+                            <div class="flex-fill ${(desp ? (desp.ganador === m.e1 ? 'text-success' : 'text-muted') : m.gan === 0 ? 'text-success' : '')}">
+                                <div class="fs-5 fw-bold text-truncate">${esc(m.e1)} ${(desp ? desp.ganador === m.e1 : m.gan === 0) ? '<i class="bi bi-trophy-fill"></i>' : ''}</div>
                             </div>
                             <div class="px-3">
                                 <span class="badge bg-dark fs-3 px-4 py-2">${m.s1} : ${m.s2}</span>
                             </div>
-                            <div class="flex-fill ${m.gan === 1 ? 'text-success' : ''}">
-                                <div class="fs-5 fw-bold text-truncate">${m.gan === 1 ? '<i class="bi bi-trophy-fill"></i> ' : ''}${esc(m.e2)}</div>
+                            <div class="flex-fill ${(desp ? (desp.ganador === m.e2 ? 'text-success' : 'text-muted') : m.gan === 1 ? 'text-success' : '')}">
+                                <div class="fs-5 fw-bold text-truncate">${(desp ? desp.ganador === m.e2 : m.gan === 1) ? '<i class="bi bi-trophy-fill"></i> ' : ''}${esc(m.e2)}</div>
                             </div>
                         </div>
                         <div class="text-center mt-3">
-                            ${m.gan < 0
-                                ? '<span class="badge rounded-pill bg-secondary"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
-                                : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border fs-6">
-                                       <i class="bi bi-trophy-fill me-1"></i>Ganador: <strong>${esc(m.gan === 0 ? m.e1 : m.e2)}</strong>
-                                   </span>`}
+                            ${desp
+                                ? `<span class="badge rounded-pill bg-warning-subtle text-dark border fs-6">
+                                       <i class="bi bi-dash-lg me-1"></i>Empate &nbsp;<i class="bi bi-arrow-right-short"></i>&nbsp;
+                                       <i class="bi bi-crosshair me-1"></i>${esc(desp.metodoTxt)} —
+                                       Ganador: <strong>${esc(desp.ganador)}</strong> 🏅
+                                   </span>
+                                   <div class="small text-muted mt-2">
+                                       El marcador ${m.s1}-${m.s2} corresponde al tiempo regular;
+                                       el empate se resolvió por <strong>${esc(desp.metodoTxt.toLowerCase())}</strong>.
+                                   </div>`
+                                : (m.gan < 0
+                                    ? '<span class="badge rounded-pill bg-secondary"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
+                                    : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border fs-6">
+                                           <i class="bi bi-trophy-fill me-1"></i>Ganador: <strong>${esc(m.gan === 0 ? m.e1 : m.e2)}</strong>
+                                       </span>`)}
                         </div>
                         ${parciales}
                     </div>
@@ -489,18 +528,27 @@
                 const det = r.detalle || [];
                 if (r.tipo_resultado === 'MARCADOR') {
                     const m = infoMarcador(det);
+                    const desp = infoDesempate(r, m);
                     // Resaltar al ganador en la lista rápida + cartelito con el resultado.
-                    const cls1 = m.gan === 0 ? 'text-success' : (m.gan === 1 ? 'text-muted' : '');
-                    const cls2 = m.gan === 1 ? 'text-success' : (m.gan === 0 ? 'text-muted' : '');
-                    const cartel = m.gan < 0
-                        ? '<span class="badge rounded-pill bg-secondary ms-2"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
-                        : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border ms-2">
-                               <i class="bi bi-trophy-fill me-1"></i>Ganador: ${esc(m.gan === 0 ? m.e1 : m.e2)}
-                           </span>`;
+                    // Con desempate: gana el del desempate; el otro queda atenuado.
+                    const cls1 = desp ? (desp.ganador === m.e1 ? 'text-success' : 'text-muted')
+                                      : (m.gan === 0 ? 'text-success' : (m.gan === 1 ? 'text-muted' : ''));
+                    const cls2 = desp ? (desp.ganador === m.e2 ? 'text-success' : 'text-muted')
+                                      : (m.gan === 1 ? 'text-success' : (m.gan === 0 ? 'text-muted' : ''));
+                    const cartel = desp
+                        ? `<span class="badge rounded-pill bg-warning-subtle text-dark border ms-2">
+                               <i class="bi bi-dash-lg me-1"></i>Empate · ${esc(desp.metodoTxt)} —
+                               avanza <strong>${esc(desp.ganador)}</strong> 🏅
+                           </span>`
+                        : (m.gan < 0
+                            ? '<span class="badge rounded-pill bg-secondary ms-2"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
+                            : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border ms-2">
+                                   <i class="bi bi-trophy-fill me-1"></i>Ganador: ${esc(m.gan === 0 ? m.e1 : m.e2)}
+                               </span>`);
                     cuerpo = `<div class="mt-1">
-                        <span class="fw-semibold ${cls1}">${m.gan === 0 ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e1)}</span>
+                        <span class="fw-semibold ${cls1}">${(desp ? desp.ganador === m.e1 : m.gan === 0) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e1)}</span>
                         <span class="badge bg-dark mx-2 fs-6">${m.s1} : ${m.s2}</span>
-                        <span class="fw-semibold ${cls2}">${m.gan === 1 ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e2)}</span>
+                        <span class="fw-semibold ${cls2}">${(desp ? desp.ganador === m.e2 : m.gan === 1) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e2)}</span>
                         ${cartel}
                     </div>`;
                 } else {
