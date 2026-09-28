@@ -617,6 +617,34 @@
         mostrarBloqueSegunTipo();
     }
 
+    /* ---------- Cascada del modal: Deporte -> Categoría -> Jornada ---------- */
+    // Al elegir deporte, habilitar el select de categorías mostrando solo las
+    // de ese deporte (las opciones llevan data-deporte).
+    function filtrarCategoriasDelModal() {
+        const deporte = selDeporteModal.value;
+        Array.from(selCatModal.options).forEach(opt => {
+            const dep = opt.getAttribute('data-deporte');
+            if (dep === null) return; // opción placeholder
+            opt.hidden = !(deporte === '' || dep === deporte);
+        });
+        // Si la categoría seleccionada ya no pertenece al deporte elegido, limpiarla.
+        const sel = selCatModal.selectedOptions[0];
+        if (!sel || sel.hidden) {
+            selCatModal.value = '';
+        }
+        selCatModal.disabled = (deporte === '');
+    }
+
+    selDeporteModal.addEventListener('change', function () {
+        filtrarCategoriasDelModal();
+        // Reset de lo que depende de la categoría.
+        selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
+        fixturesDelModal = [];
+        datalistUtes.innerHTML = '';
+        limpiarPlanillaTiempos();
+        hintModalidad.innerHTML = '';
+    });
+
     selCatModal.addEventListener('change', function () {
         const opt = this.selectedOptions[0];
         aplicarModalidad(opt ? opt.dataset.modalidad : '');
@@ -629,6 +657,7 @@
     function cargarFixturesDelModal(idCategoria) {
         fixturesDelModal = [];
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
+        selFixture.disabled = true;
         if (!idCategoria) return;
         fetch(BASE + '/ajax_fixtures_por_categoria/' + idCategoria)
             .then(r => r.json())
@@ -642,6 +671,8 @@
                         (equipos ? ' · ' + esc(equipos) : '') +
                         (fFx ? ' · 📅' + fFx : '') + ` (${esc(f.estado)})</option>`);
                 });
+                // Habilitar la jornada recién cuando hay categoría elegida.
+                selFixture.disabled = false;
             });
     }
 
@@ -774,11 +805,17 @@
 
     document.getElementById('rs_btn_nuevo').addEventListener('click', () => {
         document.getElementById('form_resultado').reset();
+        selDeporteModal.value = '';
         selCatModal.value = '';
         selTipo.value = 'MARCADOR';
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
         datalistUtes.innerHTML = '';
         tbodyTiempos.innerHTML = '';
+        hintModalidad.innerHTML = '';
+        // Estado inicial de la cascada: categoría y jornada bloqueadas hasta
+        // elegir deporte/categoría.
+        filtrarCategoriasDelModal();
+        selFixture.disabled = true;
         mostrarBloqueSegunTipo();
         modalResultado.show();
     });
