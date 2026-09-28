@@ -53,18 +53,48 @@ class Resultado_model extends CI_Model {
         return $existe;
     }
 
-    /** ¿Existen las columnas de desempate en resultados? (ver sql/desempate.sql). */
+    /**
+     * ¿Existen las columnas de desempate en resultados? (ver sql/desempate.sql).
+     * Se resuelve UNA sola vez por request y se cachea en archivo: con la
+     * caché vieja (columnas ya creadas) el guardado no rompe, y si faltan
+     * todavía el modelo avisa en el log que hay que correr el ALTER.
+     */
     private function _existe_columna_desempate() {
         static $existe = null;
-        if ($existe === null) {
-            try {
-                $cols = $this->db->field_names('resultados');
-                $existe = is_array($cols)
-                    && in_array('desempate_metodo', $cols, true)
-                    && in_array('id_ute_ganador', $cols, true);
-            } catch (Throwable $e) {
-                $existe = false;
+        if ($existe !== null) return $existe;
+
+        // Caché en archivo: evita re-consultar INFORMATION_SCHEMA en cada
+        // request y deja constancia visible si las columnas faltan.
+        $cache = sys_get_temp_dir() . '/rs_cols_desempate_' . md5($this->db->database) . '.flag';
+        if (is_file($cache) && file_get_contents($cache) === '1') {
+            $existe = true;
+            return $existe;
+        }
+
+        try {
+            // field_names() a veces falla o devuelve datos incompletos según
+            // driver/caché de CI; consultamos INFORMATION_SCHEMA directamente.
+            $q = $this->db->query(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'resultados'
+                   AND COLUMN_NAME IN ('hubo_desempate','desempate_metodo','id_ute_ganador')",
+                array($this->db->database)
+            );
+            $cols = array();
+            foreach ($q->result_array() as $r) {
+                $cols[] = array_values($r)[0];
             }
+            $existe = count($cols) === 3;
+        } catch (Throwable $e) {
+            $existe = false;
+        }
+
+        if ($existe) {
+            @file_put_contents($cache, '1');
+        } else {
+            log_message('error', '[Resultados] Faltan las columnas de desempate en la tabla resultados. '
+                . 'Ejecutá sql/desempate.sql (ALTER TABLE resultados ADD hubo_desempate, '
+                . 'desempate_metodo, id_ute_ganador) para poder guardar empates con desempate.');
         }
         return $existe;
     }
@@ -361,6 +391,9 @@ class Resultado_model extends CI_Model {
         $desempate_metodo = trim(isset($datos['desempate_metodo']) ? $datos['desempate_metodo'] : '');
         $id_ganador_desempate = isset($datos['id_ute_ganador_desempate'])
             ? (int) $datos['id_ute_ganador_desempate'] : 0;
+        // Alternativa cuando el ganador se eligió por nombre (equipo sin UTE):
+        // se resuelve contra los equipos del partido.
+        $ganador_nombre_desempate = trim(isset($datos['ganador_desempate_nombre']) ? $datos['ganador_desempate_nombre'] : '');
 
         $hubo_empate = false;
         if ($tipo === 'MARCADOR') {
@@ -372,7 +405,9 @@ class Resultado_model extends CI_Model {
         if (!$hubo_empate) { // si cambió el marcador, no tiene sentido guardar desempate
             $desempate_metodo = '';
             $id_ganador_desempate = 0;
+            $ganador_nombre_desempate = '';
         }
+        $nombre_ganador_desempate = '';
         if ($desempate_metodo !== '') {
             $metodos_validos = array(
                 'PENALES', 'PRORROGA', 'PUNTOS_DE_ORO',
@@ -381,15 +416,32 @@ class Resultado_model extends CI_Model {
             if (!in_array($desempate_metodo, $metodos_validos, true)) {
                 throw new Exception('Método de desempate inválido.');
             }
-            if (!$id_ganador_desempate) {
-                throw new Exception('Con desempate aplicado, elegí qué equipo ganó el desempate.');
-            }
+            // Validar que el ganador sea uno de los equipos del partido. Si
+            // llegó por nombre (equipo cargado sin UTE), se resuelve al ídice.
             $utes_partido = array();
             foreach (array($detalle[0], $detalle[1]) as $d) {
                 if (!empty($d['id_ute'])) $utes_partido[] = (int) $d['id_ute'];
             }
-            if (!in_array($id_ganador_desempate, $utes_partido, true)) {
+            if (!$id_ganador_desempate && $ganador_nombre_desempate !== '') {
+                foreach (array($detalle[0], $detalle[1]) as $d) {
+                    if (mb_strtolower(trim($d['nombre_libre'] ?? '')) === mb_strtolower($ganador_nombre_desempate)) {
+                        $id_ganador_desempate = !empty($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                        $nombre_ganador_desempate = trim($d['nombre_libre'] ?? '');
+                        break;
+                    }
+                }
+            }
+            if (!$id_ganador_desempate && !$nombre_ganador_desempate) {
+                throw new Exception('Con desempate aplicado, elegí qué equipo ganó el desempate.');
+            }
+            if ($id_ganador_desempate && !in_array($id_ganador_desempate, $utes_partido, true)) {
                 throw new Exception('El ganador del desempate debe ser uno de los equipos del partido.');
+            }
+            if (!$nombre_ganador_desempate) {
+                $this->db->select('nombre_ute');
+                $this->db->where('id_ute', $id_ganador_desempate);
+                $u = $this->db->get('utes')->row_array();
+                $nombre_ganador_desempate = $u ? $u['nombre_ute'] : '';
             }
         }
 
@@ -404,12 +456,20 @@ class Resultado_model extends CI_Model {
             'observaciones'   => trim(isset($datos['observaciones']) ? $datos['observaciones'] : '') ?: null,
             'creado_por'      => $id_usuario ? (int) $id_usuario : null,
         );
-        // Columnas del desempate: solo si existen (sql/desempate.sql). Así el
-        // guardado no rompe en bases donde todavía no se corrió el ALTER.
+        // Columnas del desempate: solo si existen (sql/desempate.sql).
+        // IMPORTANTE: si se pidió desempate y las columnas NO existen, se
+        // corta con error en vez de guardar "de a escondidas" un resultado
+        // sin el desempate (era la causa de ver hubo_desempate=0 / NULL).
+        $hay_desempate = ($desempate_metodo !== '');
+        if ($hay_desempate && !$this->_existe_columna_desempate()) {
+            throw new Exception('La base de datos todavía no tiene las columnas de desempate '
+                . '(hubo_desempate, desempate_metodo, id_ute_ganador) en la tabla resultados. '
+                . 'Ejecutá el script sql/desempate.sql y volvé a guardar.');
+        }
         if ($this->_existe_columna_desempate()) {
-            $payload['desempate_metodo']   = $desempate_metodo !== '' ? $desempate_metodo : null;
-            $payload['id_ute_ganador']     = $desempate_metodo !== '' ? $id_ganador_desempate : null;
-            $payload['hubo_desempate']     = $desempate_metodo !== '' ? 1 : 0;
+            $payload['desempate_metodo']   = $hay_desempate ? $desempate_metodo : null;
+            $payload['id_ute_ganador']     = $hay_desempate ? $id_ganador_desempate : null;
+            $payload['hubo_desempate']     = $hay_desempate ? 1 : 0;
         }
         $this->db->insert('resultados', $payload);
         $id_resultado = $this->db->insert_id();
@@ -439,6 +499,9 @@ class Resultado_model extends CI_Model {
             // Empate CON desempate en fase eliminatoria: hacer avanzar al
             // ganador del desempate usando la misma lógica de clasificación
             // del panel Fixture (siguiente instancia / tercer puesto).
+            // Si el ganador quedó sin id_ute (equipo libre), igualmente se
+            // registró el desempate en la cabecera; solo puede avanzar en la
+            // llave si tiene UTE.
             if ($desempate_metodo !== '' && $id_ganador_desempate) {
                 $this->load->model('Fixture_model');
                 $fx = $this->db->where('id_fixture', $id_fixture)->get('fixtures')->row_array();
@@ -453,8 +516,10 @@ class Resultado_model extends CI_Model {
             'id_resultado'       => $id_resultado,
             'fixture_inferido'   => $inferido,
             'hubo_empate'        => $hubo_empate,
+            'hubo_desempate'     => ($desempate_metodo !== ''),
             'desempate_metodo'   => $desempate_metodo,
             'ganador_desempate'  => $id_ganador_desempate ?: null,
+            'ganador_nombre'     => $nombre_ganador_desempate,
             'clasifico'          => $clasifico,
         );
     }

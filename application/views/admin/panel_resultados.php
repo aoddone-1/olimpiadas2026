@@ -964,10 +964,38 @@
         if (!datos.id_categoria) { mensaje('Elegí el deporte/categoría.', 'warning'); return; }
         if (!datos.nombre_evento) { mensaje('Poné un nombre al partido/prueba.', 'warning'); return; }
 
+        // DESEMPATE: se envían SOLO si el checkbox está tildado y el marcador
+        // sigue empatado. Si no, se fuerzan vacíos para que el backend no
+        // interprete datos residuales del form (y limpie cualquier desempate
+        // anterior en caso de edición).
+        const g1v = parseInt(document.getElementById('rs_g1').value, 10);
+        const g2v = parseInt(document.getElementById('rs_g2').value, 10);
+        const empatadoAhora = selTipo.value === 'MARCADOR' && !isNaN(g1v) && !isNaN(g2v) && g1v === g2v;
+        if (chkDesempate.checked && empatadoAhora) {
+            if (!selMetodo.value) { mensaje('Elegí el método de desempate.', 'warning'); return; }
+            if (selGanadorDesp.selectedIndex <= 0) { mensaje('Elegí qué equipo ganó el desempate.', 'warning'); return; }
+            datos['desempate_metodo'] = selMetodo.value;
+            // El select tiene el id_ute como value; si el equipo es "sin UTE"
+            // (value vacío), se manda el nombre para que el backend lo resuelva.
+            datos['id_ute_ganador_desempate'] = selGanadorDesp.value;
+            if (!datos['id_ute_ganador_desempate']) {
+                const optTxt = (selGanadorDesp.selectedOptions[0] || {}).text || '';
+                datos['ganador_desempate_nombre'] = optTxt.replace(/\s\*\s*$/, '');
+            }
+        } else {
+            datos['desempate_metodo'] = '';
+            datos['id_ute_ganador_desempate'] = '';
+        }
+
         post('ajax_guardar_resultado', datos).then(res => {
             if (res.ok) {
                 modalResultado.hide();
-                mensaje(res.mensaje, 'success');
+                let msg = res.mensaje;
+                if (res.hubo_desempate) {
+                    msg += ' Empate resuelto por ' + (METODOS_DESEMPATE[res.desempate_metodo] || 'desempate') + '.';
+                    if (res.clasifico) msg += ' ' + esc(res.ganador_nombre || 'El ganador') + ' clasificó a la siguiente fase.';
+                }
+                mensaje(msg, 'success');
                 cargarTodo();
             } else {
                 mensaje(res.error || 'No se pudo guardar el resultado.', 'danger');

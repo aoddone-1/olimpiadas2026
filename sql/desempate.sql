@@ -23,3 +23,16 @@ ALTER TABLE `resultados`
   ADD KEY `fk_res_ganador_desempate` (`id_ute_ganador`),
   ADD CONSTRAINT `fk_res_ganador_desempate` FOREIGN KEY (`id_ute_ganador`)
       REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- ============================================================
+-- VERIFICACIÓN: correr esto después del ALTER. Debe devolver las
+-- TRES filas; si devuelve menos, el ALTER no se aplicó (por ej.
+-- por error de permisos o por correrlo sobre otra base) y el
+-- panel de Resultados va a rechazar guardar empates con desempate
+-- hasta que las columnas existan.
+-- ============================================================
+SELECT COLUMN_NAME, COLUMN_TYPE, COLUMN_DEFAULT
+  FROM INFORMATION_SCHEMA.COLUMNS
+ WHERE TABLE_SCHEMA = DATABASE()
+   AND TABLE_NAME = 'resultados'
+   AND COLUMN_NAME IN ('hubo_desempate', 'desempate_metodo', 'id_ute_ganador');

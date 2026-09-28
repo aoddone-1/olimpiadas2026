@@ -1202,6 +1202,10 @@ class Inscripciones extends CI_Controller {
                     'ok' => true,
                     'id_resultado' => $res['id_resultado'],
                     'fixture_inferido' => !empty($res['fixture_inferido']),
+                    'hubo_desempate' => !empty($res['hubo_desempate']),
+                    'desempate_metodo' => isset($res['desempate_metodo']) ? $res['desempate_metodo'] : '',
+                    'ganador_nombre' => isset($res['ganador_nombre']) ? $res['ganador_nombre'] : '',
+                    'clasifico' => !empty($res['clasifico']),
                     'mensaje' => !empty($res['fixture_inferido'])
                         ? 'Resultado guardado y vinculado automáticamente al partido del fixture.'
                         : 'Resultado guardado.'
