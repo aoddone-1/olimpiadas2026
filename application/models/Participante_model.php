@@ -303,11 +303,16 @@ class Participante_model extends CI_Model {
         }
 
         $this->db->select('r.*', FALSE);
+        // Fecha/hora del fixture asociado (para mostrar "cuándo se jugó" en el pase).
+        $this->db->select('f.fecha_competencia AS fixture_fecha, f.hora_inicio AS fixture_hora', FALSE);
         if ($con_desempate) {
             $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
             $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
         }
         $this->db->from('resultados r');
+        if ($this->_tabla_existe_silenciosa('fixtures')) {
+            $this->db->join('fixtures f', 'f.id_fixture = r.id_fixture', 'left');
+        }
         $this->db->where('r.id_categoria', $id_categoria);
         $this->db->order_by('r.fecha_resultado', 'DESC');
         $this->db->order_by('r.id_resultado', 'DESC');

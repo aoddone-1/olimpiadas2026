@@ -224,7 +224,90 @@
                                     $resultados = !empty($dep['resultados']) ? $dep['resultados'] : array();
                                 ?>
 
-                                <?php if(!empty($proximos)): ?>
+                                <?php if(!empty($resultados)): ?>
+                                    <!-- RESULTADOS YA CARGADOS: se omiten sede/horarios, solo día y hora de cuando se jugó -->
+                                    <div class="mt-2 ps-3 border-start border-success">
+                                        <small class="fw-bold text-success text-uppercase" style="letter-spacing:.5px;font-size:.68rem;">
+                                            <i class="bi bi-check2-circle me-1"></i>Resultados
+                                        </small>
+                                        <?php foreach($resultados as $res): ?>
+                                            <?php
+                                                $det = !empty($res['detalle']) ? $res['detalle'] : array();
+                                                $es_marcador = ($res['tipo_resultado'] === 'MARCADOR');
+                                            ?>
+                                            <div class="resultado-item">
+                                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                                                    <span class="badge-resultado"><i class="bi bi-trophy-fill me-1"></i>Resultado</span>
+                                                    <?php if(!empty($res['fecha_resultado'])): ?>
+                                                        <span class="text-muted small">
+                                                            <i class="bi bi-calendar3 me-1"></i><?= date('d/m/Y', strtotime($res['fecha_resultado'])) ?>
+                                                            <?php if(!empty($res['fixture_hora'])): ?>
+                                                                &nbsp;<i class="bi bi-clock me-1"></i><?= date('H:i', strtotime($res['fixture_hora'])) ?> hs
+                                                            <?php endif; ?>
+                                                        </span>
+                                                    <?php elseif(!empty($res['fixture_fecha'])): ?>
+                                                        <span class="text-muted small">
+                                                            <i class="bi bi-calendar3 me-1"></i><?= date('d/m/Y', strtotime($res['fixture_fecha'])) ?>
+                                                            <?php if(!empty($res['fixture_hora'])): ?>
+                                                                &nbsp;<i class="bi bi-clock me-1"></i><?= date('H:i', strtotime($res['fixture_hora'])) ?> hs
+                                                            <?php endif; ?>
+                                                        </span>
+                                                    <?php endif; ?>
+                                                </div>
+                                                <div class="fw-semibold mt-1 small text-dark">
+                                                    <i class="bi bi-flag-fill me-1 text-primary"></i><?= htmlspecialchars($res['nombre_evento']) ?>
+                                                </div>
+
+                                                <?php if($es_marcador && count($det) >= 2): ?>
+                                                    <?php
+                                                        $eq1 = $det[0]['nombre_libre'] ?: 'Equipo 1';
+                                                        $eq2 = $det[1]['nombre_libre'] ?: 'Equipo 2';
+                                                        $g1 = (int) $det[0]['marcador_local'];
+                                                        $g2 = (int) $det[0]['marcador_visita'];
+                                                        $ganador_res = !empty($res['id_ute_ganador']) ? (int) $res['id_ute_ganador'] : 0;
+                                                        $nombre_gan_res = !empty($res['nombre_ganador_desempate']) ? $res['nombre_ganador_desempate'] : '';
+                                                        // Resaltar al ganador (por marcador o por desempate)
+                                                        $gana1 = $g1 > $g2 || ($g1 === $g2 && $nombre_gan_res !== '' && strtoupper(trim($nombre_gan_res)) === strtoupper(trim($eq1)));
+                                                        $gana2 = $g2 > $g1 || ($g1 === $g2 && $nombre_gan_res !== '' && strtoupper(trim($nombre_gan_res)) === strtoupper(trim($eq2)));
+                                                    ?>
+                                                    <div class="mt-1 d-flex align-items-center flex-wrap gap-2">
+                                                        <span class="<?= $gana1 ? 'fw-bold text-success' : 'text-muted' ?>"><?= htmlspecialchars($eq1) ?></span>
+                                                        <span class="marcador-box"><?= $g1 ?> - <?= $g2 ?></span>
+                                                        <span class="<?= $gana2 ? 'fw-bold text-success' : 'text-muted' ?>"><?= htmlspecialchars($eq2) ?></span>
+                                                    </div>
+                                                    <?php if(!empty($res['hubo_desempate']) && !empty($res['desempate_metodo'])): ?>
+                                                        <div class="desempate-box">
+                                                            🏅 Empate en tiempo regular —
+                                                            <strong><?= htmlspecialchars($nombre_gan_res ?: 'Definido') ?></strong>
+                                                            ganó en <strong><?= isset($metodos_txt[$res['desempate_metodo']]) ? $metodos_txt[$res['desempate_metodo']] : htmlspecialchars($res['desempate_metodo']) ?></strong>
+                                                        </div>
+                                                    <?php elseif($g1 === $g2): ?>
+                                                        <div class="small text-muted fst-italic mt-1">Empate</div>
+                                                    <?php endif; ?>
+                                                <?php elseif($es_marcador && count($det) == 1): ?>
+                                                    <div class="mt-1">
+                                                        <span class="marcador-box"><?= (int) $det[0]['marcador_local'] ?> - <?= (int) $det[0]['marcador_visita'] ?></span>
+                                                    </div>
+                                                <?php else: ?>
+                                                    <!-- TIEMPO: posiciones -->
+                                                    <ul class="list-unstyled mt-1 mb-0">
+                                                        <?php foreach(array_slice($det, 0, 5) as $d): ?>
+                                                            <li class="small">
+                                                                <strong><?= $d['posicion'] !== null ? $d['posicion'] . 'º' : '–' ?></strong>
+                                                                <?= htmlspecialchars($d['nombre_libre'] ?: 'Competidor') ?>
+                                                                <?php if(!empty($d['tiempo'])): ?><span class="text-muted">· <?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
+                                                            </li>
+                                                        <?php endforeach; ?>
+                                                    </ul>
+                                                <?php endif; ?>
+
+                                                <?php if(!empty($res['observaciones'])): ?>
+                                                    <div class="small text-muted mt-1"><i class="bi bi-chat-left-text me-1"></i><?= htmlspecialchars($res['observaciones']) ?></div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php elseif(!empty($proximos)): ?>
                                     <!-- PRÓXIMAS COMPETENCIAS (fecha y hora del FIXTURE) -->
                                     <div class="mt-2 ps-3 border-start">
                                         <small class="fw-bold text-primary text-uppercase" style="letter-spacing:.5px;font-size:.68rem;">
@@ -286,77 +369,6 @@
                                 <?php else: ?>
                                     <div class="mt-2 ps-3 border-start">
                                         <small class="text-muted fst-italic"><i class="bi bi-info-circle me-1"></i>Horarios y sedes a confirmar</small>
-                                    </div>
-                                <?php endif; ?>
-
-                                <?php if(!empty($resultados)): ?>
-                                    <!-- RESULTADOS YA CARGADOS -->
-                                    <div class="mt-2 ps-3 border-start border-success">
-                                        <small class="fw-bold text-success text-uppercase" style="letter-spacing:.5px;font-size:.68rem;">
-                                            <i class="bi bi-check2-circle me-1"></i>Resultados
-                                        </small>
-                                        <?php foreach($resultados as $res): ?>
-                                            <?php
-                                                $det = !empty($res['detalle']) ? $res['detalle'] : array();
-                                                $es_marcador = ($res['tipo_resultado'] === 'MARCADOR');
-                                            ?>
-                                            <div class="resultado-item">
-                                                <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
-                                                    <span class="badge-resultado"><i class="bi bi-trophy-fill me-1"></i>Resultado</span>
-                                                    <span class="text-muted small"><?= !empty($res['fecha_resultado']) ? date('d/m/Y', strtotime($res['fecha_resultado'])) : '' ?></span>
-                                                </div>
-                                                <div class="fw-semibold mt-1 small text-dark">
-                                                    <i class="bi bi-flag-fill me-1 text-primary"></i><?= htmlspecialchars($res['nombre_evento']) ?>
-                                                </div>
-
-                                                <?php if($es_marcador && count($det) >= 2): ?>
-                                                    <?php
-                                                        $eq1 = $det[0]['nombre_libre'] ?: 'Equipo 1';
-                                                        $eq2 = $det[1]['nombre_libre'] ?: 'Equipo 2';
-                                                        $g1 = (int) $det[0]['marcador_local'];
-                                                        $g2 = (int) $det[0]['marcador_visita'];
-                                                        $ganador_res = !empty($res['id_ute_ganador']) ? (int) $res['id_ute_ganador'] : 0;
-                                                        $nombre_gan_res = !empty($res['nombre_ganador_desempate']) ? $res['nombre_ganador_desempate'] : '';
-                                                        // Resaltar al ganador (por marcador o por desempate)
-                                                        $gana1 = $g1 > $g2 || ($g1 === $g2 && $nombre_gan_res !== '' && strtoupper(trim($nombre_gan_res)) === strtoupper(trim($eq1)));
-                                                        $gana2 = $g2 > $g1 || ($g1 === $g2 && $nombre_gan_res !== '' && strtoupper(trim($nombre_gan_res)) === strtoupper(trim($eq2)));
-                                                    ?>
-                                                    <div class="mt-1 d-flex align-items-center flex-wrap gap-2">
-                                                        <span class="<?= $gana1 ? 'fw-bold text-success' : 'text-muted' ?>"><?= htmlspecialchars($eq1) ?></span>
-                                                        <span class="marcador-box"><?= $g1 ?> - <?= $g2 ?></span>
-                                                        <span class="<?= $gana2 ? 'fw-bold text-success' : 'text-muted' ?>"><?= htmlspecialchars($eq2) ?></span>
-                                                    </div>
-                                                    <?php if(!empty($res['hubo_desempate']) && !empty($res['desempate_metodo'])): ?>
-                                                        <div class="desempate-box">
-                                                            🏅 Empate en tiempo regular —
-                                                            <strong><?= htmlspecialchars($nombre_gan_res ?: 'Definido') ?></strong>
-                                                            ganó en <strong><?= isset($metodos_txt[$res['desempate_metodo']]) ? $metodos_txt[$res['desempate_metodo']] : htmlspecialchars($res['desempate_metodo']) ?></strong>
-                                                        </div>
-                                                    <?php elseif($g1 === $g2): ?>
-                                                        <div class="small text-muted fst-italic mt-1">Empate</div>
-                                                    <?php endif; ?>
-                                                <?php elseif($es_marcador && count($det) == 1): ?>
-                                                    <div class="mt-1">
-                                                        <span class="marcador-box"><?= (int) $det[0]['marcador_local'] ?> - <?= (int) $det[0]['marcador_visita'] ?></span>
-                                                    </div>
-                                                <?php else: ?>
-                                                    <!-- TIEMPO: posiciones -->
-                                                    <ul class="list-unstyled mt-1 mb-0">
-                                                        <?php foreach(array_slice($det, 0, 5) as $d): ?>
-                                                            <li class="small">
-                                                                <strong><?= $d['posicion'] !== null ? $d['posicion'] . 'º' : '–' ?></strong>
-                                                                <?= htmlspecialchars($d['nombre_libre'] ?: 'Competidor') ?>
-                                                                <?php if(!empty($d['tiempo'])): ?><span class="text-muted">· <?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
-                                                            </li>
-                                                        <?php endforeach; ?>
-                                                    </ul>
-                                                <?php endif; ?>
-
-                                                <?php if(!empty($res['observaciones'])): ?>
-                                                    <div class="small text-muted mt-1"><i class="bi bi-chat-left-text me-1"></i><?= htmlspecialchars($res['observaciones']) ?></div>
-                                                <?php endif; ?>
-                                            </div>
-                                        <?php endforeach; ?>
                                     </div>
                                 <?php endif; ?>
                             </li>
