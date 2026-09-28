@@ -556,7 +556,26 @@ class Resultado_model extends CI_Model {
         return $det;
     }
 
-    /** Partidos/jornadas del fixture de una categoría (para vincular el resultado). */
+    /**
+     * Categorías que YA tienen fixture generado (al menos un partido/jornada),
+     * con los datos del deporte necesarios para la cascada
+     * Deporte -> Categoría -> Jornada del modal de carga de resultados.
+     * Así el panel solo ofrece deportes/categorías con fixture cargado.
+     */
+    public function obtener_categorias_con_fixture() {
+        $this->db->select('
+            c.id_categoria, c.nombre_categoria, c.genero,
+            d.id_deporte, d.nombre_deporte, d.modalidad_competencia
+        ', FALSE);
+        $this->db->distinct();
+        $this->db->from('fixtures f');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('f.id_categoria IS NOT NULL', NULL, FALSE);
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
     public function obtener_fixtures_por_categoria($id_categoria) {
         // Se resuelven también los nombres de los equipos (UTE 1 y UTE 2) para
         // que la pestaña Resultados pueda autocompletar el formulario entero

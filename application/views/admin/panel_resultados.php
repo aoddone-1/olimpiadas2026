@@ -25,12 +25,13 @@
                     <select id="rs_filtro_deporte" class="form-select form-select-sm" style="min-width:180px">
                         <option value="">Todos los Deportes</option>
                         <?php
+                        // Solo deportes que YA tienen fixture generado.
                         $deportesVistos = [];
-                        foreach ($categorias_fixture as$cat):
-                            if (!in_array($cat['nombre_deporte'],$deportesVistos)):
-                                $deportesVistos[] =$cat['nombre_deporte'];
+                        foreach ($categorias_con_fixture as $cat):
+                            if (!in_array($cat['id_deporte'], $deportesVistos)):
+                                $deportesVistos[] = $cat['id_deporte'];
                         ?>
-                            <option value="<?= htmlspecialchars($cat['nombre_deporte']) ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
+                            <option value="<?= (int) $cat['id_deporte'] ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
                         <?php endif; endforeach; ?>
                     </select>
                 </div>
@@ -38,9 +39,9 @@
                     <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-success me-1"></i>Categoría</label>
                     <select id="rs_filtro_categoria" class="form-select form-select-sm" style="min-width:230px">
                         <option value="" data-deporte="">Todas las Categorías</option>
-                        <?php foreach ($categorias_fixture as$cat): ?>
+                        <?php foreach ($categorias_con_fixture as $cat): ?>
                             <option value="<?= (int) $cat['id_categoria'] ?>"
-                                    data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>">
+                                    data-deporte="<?= (int) $cat['id_deporte'] ?>">
                                 <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
                             </option>
                         <?php endforeach; ?>
@@ -73,28 +74,45 @@
             </div>
             <div class="modal-body">
                 <form id="form_resultado">
+                    <!-- Cascada: Deporte (solo con fixture) -> Categoria -> Jornada -->
                     <div class="row g-2">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-bold">Deporte / Categoría *</label>
-                            <select id="rs_modal_categoria" name="id_categoria" class="form-select" required>
-                                <option value="">— Elegí una categoría —</option>
-                                <?php foreach ($categorias_fixture as$cat): ?>
-                                    <option value="<?= $cat['id_categoria'] ?>"
-                                            data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
-                                            data-modalidad="<?= $cat['modalidad_competencia'] ?>">
-                                        <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Deporte *</label>
+                            <select id="rs_modal_deporte" class="form-select">
+                                <option value="">— Elegí un deporte —</option>
+                                <?php
+                                $deportesVistosModal = [];
+                                foreach ($categorias_con_fixture as $cat):
+                                    if (!in_array($cat['id_deporte'], $deportesVistosModal)):
+                                        $deportesVistosModal[] = $cat['id_deporte'];
+                                ?>
+                                    <option value="<?= (int) $cat['id_deporte'] ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
+                                <?php endif; endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Categoría *</label>
+                            <select id="rs_modal_categoria" name="id_categoria" class="form-select" required disabled>
+                                <option value="">— Elegí primero un deporte —</option>
+                                <?php foreach ($categorias_con_fixture as $cat): ?>
+                                    <option value="<?= (int) $cat['id_categoria'] ?>"
+                                            data-deporte="<?= (int) $cat['id_deporte'] ?>"
+                                            data-modalidad="<?= htmlspecialchars($cat['modalidad_competencia']) ?>">
+                                        <?= htmlspecialchars($cat['nombre_categoria']) ?>
                                         (<?= htmlspecialchars($cat['genero']) ?>)
                                     </option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <label class="form-label small fw-bold">Partido / Jornada *</label>
-                            <select id="rs_modal_fixture" name="id_fixture" required class="form-select">
+                            <select id="rs_modal_fixture" name="id_fixture" required class="form-select" disabled>
                                 <option value="">— Sin vincular —</option>
                             </select>
                             <div class="form-text small" id="rs_modal_modalidad_hint"></div>
                         </div>
+                    </div>
+                    <div class="row g-2 mt-0">
                         <!-- El tipo de resultado NO se elige: lo define la modalidad
                              del deporte (ENFRENTAMIENTO = marcador, MASIVO_TIEMPO = posiciones/tiempos) -->
                         <input type="hidden" id="rs_modal_tipo" name="tipo_resultado" value="MARCADOR">
@@ -563,6 +581,7 @@
     });
 
     /* ---------- Modal: cargar resultado ---------- */
+    const selDeporteModal = document.getElementById('rs_modal_deporte');
     const selCatModal = document.getElementById('rs_modal_categoria');
     const selTipo = document.getElementById('rs_modal_tipo');
     const selFixture = document.getElementById('rs_modal_fixture');
