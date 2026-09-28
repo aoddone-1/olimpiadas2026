@@ -53,6 +53,22 @@ class Resultado_model extends CI_Model {
         return $existe;
     }
 
+    /** ¿Existen las columnas de desempate en resultados? (ver sql/desempate.sql). */
+    private function _existe_columna_desempate() {
+        static $existe = null;
+        if ($existe === null) {
+            try {
+                $cols = $this->db->field_names('resultados');
+                $existe = is_array($cols)
+                    && in_array('desempate_metodo', $cols, true)
+                    && in_array('id_ute_ganador', $cols, true);
+            } catch (Throwable $e) {
+                $existe = false;
+            }
+        }
+        return $existe;
+    }
+
     /**
      * Asegura que la categoría masiva tenga al menos una jornada (fila JORNADA_UNICA
      * en fixtures). Sin esto, los deportes MASIVO_TIEMPO nunca muestran participantes
@@ -336,6 +352,47 @@ class Resultado_model extends CI_Model {
             unset($d); // Romper referencia
         }
 
+        // ---------- EMPATE: ¿hubo desempate? -------------------------------
+        // Un marcador igualado (ej: 0-0) NO siempre es empate definitivo: en
+        // fases de eliminación puede haberse resuelto por penales u otro
+        // método. El desempate se guarda en la cabecera (desempate_metodo +
+        // id_ute_ganador) y SOLO avanza al ganador si el partido pertenece a
+        // una fase eliminatoria; en fase de grupos el empate queda tal cual.
+        $desempate_metodo = trim(isset($datos['desempate_metodo']) ? $datos['desempate_metodo'] : '');
+        $id_ganador_desempate = isset($datos['id_ute_ganador_desempate'])
+            ? (int) $datos['id_ute_ganador_desempate'] : 0;
+
+        $hubo_empate = false;
+        if ($tipo === 'MARCADOR') {
+            $hubo_empate = ((int) $datos['goles_1'] === (int) $datos['goles_2']);
+            // Sin fixture vinculado no hay a quién "hacer clasificar": el
+            // desempate se guarda igual, pero la próxima vez que carguen el
+            // partido desde el panel Fixture deberán elegir al ganador ahí.
+        }
+        if (!$hubo_empate) { // si cambió el marcador, no tiene sentido guardar desempate
+            $desempate_metodo = '';
+            $id_ganador_desempate = 0;
+        }
+        if ($desempate_metodo !== '') {
+            $metodos_validos = array(
+                'PENALES', 'PRORROGA', 'PUNTOS_DE_ORO',
+                'MUERTE_SUBITA', 'LANZAMIENTO_TIRLIBRE', 'OTRO',
+            );
+            if (!in_array($desempate_metodo, $metodos_validos, true)) {
+                throw new Exception('Método de desempate inválido.');
+            }
+            if (!$id_ganador_desempate) {
+                throw new Exception('Con desempate aplicado, elegí qué equipo ganó el desempate.');
+            }
+            $utes_partido = array();
+            foreach (array($detalle[0], $detalle[1]) as $d) {
+                if (!empty($d['id_ute'])) $utes_partido[] = (int) $d['id_ute'];
+            }
+            if (!in_array($id_ganador_desempate, $utes_partido, true)) {
+                throw new Exception('El ganador del desempate debe ser uno de los equipos del partido.');
+            }
+        }
+
         // ---------- insertar cabecera + detalle ----------
         $payload = array(
             'id_categoria'    => $id_cat,
@@ -347,6 +404,13 @@ class Resultado_model extends CI_Model {
             'observaciones'   => trim(isset($datos['observaciones']) ? $datos['observaciones'] : '') ?: null,
             'creado_por'      => $id_usuario ? (int) $id_usuario : null,
         );
+        // Columnas del desempate: solo si existen (sql/desempate.sql). Así el
+        // guardado no rompe en bases donde todavía no se corrió el ALTER.
+        if ($this->_existe_columna_desempate()) {
+            $payload['desempate_metodo']   = $desempate_metodo !== '' ? $desempate_metodo : null;
+            $payload['id_ute_ganador']     = $desempate_metodo !== '' ? $id_ganador_desempate : null;
+            $payload['hubo_desempate']     = $desempate_metodo !== '' ? 1 : 0;
+        }
         $this->db->insert('resultados', $payload);
         $id_resultado = $this->db->insert_id();
         if (!$id_resultado) throw new Exception('No se pudo guardar el resultado.');
@@ -367,12 +431,32 @@ class Resultado_model extends CI_Model {
         // Si el resultado se vinculó (a mano o inferido) a un partido del
         // fixture, lo marcamos como FINALIZADO para que Fixture y Resultados
         // queden sincronizados.
+        $clasifico = null;
         if ($id_fixture) {
             $this->db->where('id_fixture', $id_fixture);
             $this->db->update('fixtures', array('estado' => 'FINALIZADO'));
+
+            // Empate CON desempate en fase eliminatoria: hacer avanzar al
+            // ganador del desempate usando la misma lógica de clasificación
+            // del panel Fixture (siguiente instancia / tercer puesto).
+            if ($desempate_metodo !== '' && $id_ganador_desempate) {
+                $this->load->model('Fixture_model');
+                $fx = $this->db->where('id_fixture', $id_fixture)->get('fixtures')->row_array();
+                if ($fx && !in_array($fx['fase'], array('GRUPO', 'JORNADA_UNICA'), true)) {
+                    $this->Fixture_model->registrar_resultado($id_fixture, $id_ganador_desempate);
+                    $clasifico = $id_ganador_desempate;
+                }
+            }
         }
 
-        return array('id_resultado' => $id_resultado, 'fixture_inferido' => $inferido);
+        return array(
+            'id_resultado'       => $id_resultado,
+            'fixture_inferido'   => $inferido,
+            'hubo_empate'        => $hubo_empate,
+            'desempate_metodo'   => $desempate_metodo,
+            'ganador_desempate'  => $id_ganador_desempate ?: null,
+            'clasifico'          => $clasifico,
+        );
     }
 
     /**

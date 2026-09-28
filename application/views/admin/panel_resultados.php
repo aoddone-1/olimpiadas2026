@@ -153,6 +153,47 @@
                                 <input type="hidden" name="id_ute_2" id="rs_idute2">
                             </div>
                         </div>
+
+                        <!-- DESEMPATE: aparece solo cuando el marcador queda igualado.
+                             El empate NO se fuerza a "arreglar": si en esta fase el
+                             empate es válido (ej: fase de grupos), se deja tal cual. -->
+                        <div id="rs_bloque_desempate" class="alert alert-warning mt-3 mb-0 py-2 d-none">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                <span class="fw-bold small"><i class="bi bi-question-circle me-1"></i>Marcador empatado.</span>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="rs_chk_desempate">
+                                    <label class="form-check-label small fw-semibold" for="rs_chk_desempate">
+                                        Hubo desempate (penales, prórroga, puntos de oro…)
+                                    </label>
+                                </div>
+                            </div>
+                            <div id="rs_desempate_detalle" class="row g-2 mt-1 d-none">
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold mb-1">Método de desempate</label>
+                                    <select id="rs_desempate_metodo" name="desempate_metodo" class="form-select form-select-sm">
+                                        <option value="">— Elegí el método —</option>
+                                        <option value="PENALES">Penales / Tiros desde el punto penal</option>
+                                        <option value="PRORROGA">Prórroga / Tiempo extra</option>
+                                        <option value="PUNTOS_DE_ORO">Puntos de oro</option>
+                                        <option value="MUERTE_SUBITA">Muerte súbita</option>
+                                        <option value="LANZAMIENTO_TIRLIBRE">Lanzamiento / Tirlibre</option>
+                                        <option value="OTRO">Otro (indicar en observaciones)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5">
+                                    <label class="form-label small fw-bold mb-1">Ganador del desempate</label>
+                                    <select id="rs_desempate_ganador" name="id_ute_ganador_desempate" class="form-select form-select-sm">
+                                        <option value="">— Elegí el ganador —</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <div class="small text-muted" id="rs_desempate_hint">
+                                        Si el partido está vinculado a una llave eliminatoria,
+                                        el ganador clasificará automáticamente a la siguiente fase.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <datalist id="rs_lista_utes"></datalist>
@@ -601,7 +642,87 @@
         const t = selTipo.value;
         bloqueMarcador.classList.toggle('d-none', t !== 'MARCADOR');
         bloqueTiempo.classList.toggle('d-none', t !== 'TIEMPO');
+        if (t !== 'MARCADOR') resetearDesempate();
     }
+
+    /* ---------- DESEMPATE en el modal ----------
+       Cuando goles_1 == goles_2 aparece el bloque: el empate puede quedar así
+       (fase de grupos) o resolverse por penales/prórroga/etc. eligiendo al
+       ganador, que clasificará a la siguiente fase si el partido es eliminatorio. */
+    const bloqueDesempate   = document.getElementById('rs_bloque_desempate');
+    const detalleDesempate  = document.getElementById('rs_desempate_detalle');
+    const chkDesempate      = document.getElementById('rs_chk_desempate');
+    const selMetodo         = document.getElementById('rs_desempate_metodo');
+    const selGanadorDesp    = document.getElementById('rs_desempate_ganador');
+    const hintDesempate     = document.getElementById('rs_desempate_hint');
+    let fixtureActualModal  = null; // jornada del fixture seleccionada (o null)
+
+    function nombresEquiposDelModal() {
+        return [
+            { id: document.getElementById('rs_idute1').value, nombre: document.getElementById('rs_eq1').value.trim() },
+            { id: document.getElementById('rs_idute2').value, nombre: document.getElementById('rs_eq2').value.trim() }
+        ];
+    }
+
+    function repoblarGanadorDesempate() {
+        const prev = selGanadorDesp.value;
+        selGanadorDesp.innerHTML = '<option value="">— Elegí el ganador —</option>';
+        nombresEquiposDelModal().forEach(e => {
+            if (!e.nombre && !e.id) return;
+            selGanadorDesp.insertAdjacentHTML('beforeend',
+                `<option value="${esc(String(e.id || ''))}">${esc(e.nombre || '(equipo sin nombre)')}${e.id ? '' : ' *'}</option>`);
+        });
+        if (prev) selGanadorDesp.value = prev;
+    }
+
+    function actualizarHintDesempate() {
+        const f = fixtureActualModal;
+        if (!f) {
+            hintDesempate.innerHTML = 'El resultado se está cargando <strong>sin vincular al fixture</strong>: ' +
+                'se guarda el desempate y el ganador, pero la clasificación hay que confirmarla desde el panel Fixture.';
+            return;
+        }
+        if (f.fase === 'GRUPO' || f.fase === 'JORNADA_UNICA') {
+            hintDesempate.innerHTML = `Este partido es de <strong>${esc(f.fase.replace('_', ' '))}</strong>: ` +
+                'el ganador del desempate NO avanza de fase (se registra solo como dato).';
+        } else {
+            hintDesempate.innerHTML = `Al guardar, <strong>${esc((selGanadorDesp.selectedOptions[0] || {}).text || 'el ganador')}</strong> ` +
+                `clasificará automáticamente desde <strong>${esc(f.fase.replace('_', ' '))}</strong> a la siguiente instancia.`;
+        }
+    }
+
+    function evaluarEmpateEnModal() {
+        if (selTipo.value !== 'MARCADOR') { bloqueDesempate.classList.add('d-none'); return; }
+        const g1 = document.getElementById('rs_g1').value;
+        const g2 = document.getElementById('rs_g2').value;
+        const empatado = g1 !== '' && g2 !== '' && parseInt(g1, 10) === parseInt(g2, 10);
+        bloqueDesempate.classList.toggle('d-none', !empatado);
+        if (!empatado) resetearDesempate();
+        else repoblarGanadorDesempate();
+    }
+
+    function resetearDesempate() {
+        chkDesempate.checked = false;
+        selMetodo.value = '';
+        selGanadorDesp.innerHTML = '<option value="">— Elegí el ganador —</option>';
+        detalleDesempate.classList.add('d-none');
+        bloqueDesempate.classList.add('d-none');
+    }
+
+    chkDesempate.addEventListener('change', () => {
+        detalleDesempate.classList.toggle('d-none', !chkDesempate.checked);
+        if (chkDesempate.checked) { repoblarGanadorDesempate(); actualizarHintDesempate(); }
+    });
+    selMetodo.addEventListener('change', actualizarHintDesempate);
+    selGanadorDesp.addEventListener('change', actualizarHintDesempate);
+    ['rs_g1', 'rs_g2'].forEach(id => {
+        document.getElementById(id).addEventListener('input', evaluarEmpateEnModal);
+    });
+    [['rs_eq1', 'rs_idute1'], ['rs_eq2', 'rs_idute2']].forEach(([inp, hid]) => {
+        [inp, hid].forEach(id => document.getElementById(id).addEventListener('change', () => {
+            if (!bloqueDesempate.classList.contains('d-none')) repoblarGanadorDesempate();
+        }));
+    });
 
     function aplicarModalidad(modalidad) {
         modalidadActual = modalidad || '';
@@ -783,6 +904,13 @@
         competidoresDisponibles = [];
         alertSinParticipantes.classList.add('d-none');
     }
+
+    // El empate solo tiene sentido en deportes de enfrentamiento: si el
+    // marcador se empata con penales u otro desempate, se informa al guardar.
+    const METODOS_DESEMPATE = {
+        PENALES: 'penales', PRORROGA: 'prórroga', PUNTOS_DE_ORO: 'puntos de oro',
+        MUERTE_SUBITA: 'muerte súbita', LANZAMIENTO_TIRLIBRE: 'lanzamiento/tirlibre', OTRO: 'otro'
+    };
 
     function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
