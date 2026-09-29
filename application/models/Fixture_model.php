@@ -852,19 +852,32 @@ class Fixture_model extends CI_Model {
 
         // Partidos todos-contra-todos de la categoría (con resultado FINALIZADO
         // o con marcador cargado: se toman todos y se filtran por detalle).
-        $this->db->select('f.id_fixture', FALSE);
+        $this->db->select('f.id_fixture, f.id_ute_1, f.id_ute_2', FALSE);
         $this->db->where('f.id_categoria', $id_categoria);
         $this->db->where('f.fase', 'JORNADA_UNICA');
         $partidos = $this->db->get('fixtures')->result_array();
         if (!$partidos) return array();
         $ids_fx = array_map('intval', array_column($partidos, 'id_fixture'));
+        // Slots del fixture por partido: orden "canónico" del marcador
+        // (equipo 1 vs equipo 2), para interpretar los tantos aunque el
+        // resultado venga espejado o cargado a mano sin vínculo al fixture.
+        $slots_por_fx = array();
+        foreach ($partidos as $p) {
+            $s1 = isset($p['id_ute_1']) ? (int) $p['id_ute_1'] : 0;
+            $s2 = isset($p['id_ute_2']) ? (int) $p['id_ute_2'] : 0;
+            if ($s1 > 0 && $s2 > 0) $slots_por_fx[(int) $p['id_fixture']] = array($s1, $s2);
+        }
 
         // Marcadores: cada resultado MARCADOR tiene dos filas en el detalle,
         // una por equipo, cada una con SUS tantos (local) y los del rival.
         $por_fixture = array();
+        $ids_vinculados = array(); // resultados ya casados con un partido del fixture
+        // Orden por id_resultado ASC: así el que se cargó último (el que queda
+        // en end($listas)) es el que manda si un mismo partido se cargó dos veces.
         $this->db->select('r.id_resultado, r.id_fixture', FALSE);
         $this->db->where_in('r.id_fixture', $ids_fx);
         $this->db->where('r.tipo_resultado', 'MARCADOR');
+        $this->db->order_by('r.id_resultado', 'ASC');
         $res = $this->db->get('resultados')->result_array();
         if ($res) {
             $this->db->select('d.id_resultado, d.id_ute, d.nombre_libre, d.marcador_local, d.marcador_visita', FALSE);
@@ -875,9 +888,60 @@ class Fixture_model extends CI_Model {
                 $detalles[(int) $d['id_resultado']][] = $d;
             }
             foreach ($res as $r) {
-                $det = isset($detalles[(int) $r['id_resultado']]) ? $detalles[(int) $r['id_resultado']] : array();
+                $rid = (int) $r['id_resultado'];
+                $det = isset($detalles[$rid]) ? $detalles[$rid] : array();
                 if (count($det) < 2) continue;
-                $por_fixture[(int) $r['id_fixture']][] = $det;
+                $fid = (int) $r['id_fixture'];
+                if ($fid > 0) {
+                    $por_fixture[$fid][] = $det;
+                    $ids_vinculados[$rid] = true;
+                }
+            }
+        }
+
+        // Marcadores cargados a mano SIN vínculo al fixture (o con un id de
+        // partido que ya no existe): se resuelven por la dupla de equipos y se
+        // casan con el partido todos-contra-todos correspondiente. Así la tabla
+        // nunca "pierde" goles por haberlos tipeado sin elegir el partido.
+        $esta_en_lista = function ($lista, $dupla) {
+            return in_array($dupla[0], $lista, true) && in_array($dupla[1], $lista, true);
+        };
+        $duplas_usadas = array();
+        foreach ($por_fixture as $fx_id => $_) {
+            if (!isset($slots_por_fx[$fx_id])) continue;
+            $duplas_usadas[implode('-', $slots_por_fx[$fx_id])] = true;
+        }
+        $this->db->select('r.id_resultado', FALSE);
+        $this->db->where('r.id_categoria', $id_categoria);
+        $this->db->where('r.tipo_resultado', 'MARCADOR');
+        $this->db->order_by('r.id_resultado', 'ASC');
+        $sueltos = $this->db->get('resultados')->result_array();
+        if ($sueltos) {
+            $this->db->select('d.id_resultado, d.id_ute, d.nombre_libre, d.marcador_local, d.marcador_visita', FALSE);
+            $this->db->where_in('d.id_resultado', array_column($sueltos, 'id_resultado'));
+            $detalles_s = array();
+            foreach ($this->db->get('resultado_detalle')->result_array() as $d) {
+                $detalles_s[(int) $d['id_resultado']][] = $d;
+            }
+            foreach ($sueltos as $r) {
+                $rid = (int) $r['id_resultado'];
+                if (isset($ids_vinculados[$rid])) continue; // ya cuenta por su fixture
+                $det = isset($detalles_s[$rid]) ? $detalles_s[$rid] : array();
+                if (count($det) < 2) continue;
+                $ida = !empty($det[0]['id_ute']) ? (int) $det[0]['id_ute'] : 0;
+                $idb = !empty($det[1]['id_ute']) ? (int) $det[1]['id_ute'] : 0;
+                if (!$ida || !$idb || $ida === $idb) continue;
+                if (!isset($equipos[$ida]) || !isset($equipos[$idb])) continue;
+                $dupla = array(min($ida, $idb), max($ida, $idb));
+                $clave = implode('-', $dupla);
+                if (isset($duplas_usadas[$clave])) continue; // ya cuenta con su partido
+                $destino = null;
+                foreach ($slots_por_fx as $fid => $slots) {
+                    if ($esta_en_lista($slots, $dupla)) { $destino = (int) $fid; break; }
+                }
+                if ($destino === null) continue;
+                $duplas_usadas[$clave] = true;
+                $por_fixture[$destino][] = $det;
             }
         }
 
@@ -903,6 +967,15 @@ class Fixture_model extends CI_Model {
                 $idb = $this->_buscar_equipo_por_nombre($equipos, trim((string) $lb['nombre_libre']));
             }
             if (!$ida || !$idb || $ida === $idb || !isset($equipos[$ida]) || !isset($equipos[$idb])) continue;
+
+            // El fixture dice qué equipo es el "local" del marcador: si las
+            // filas del detalle vienen al revés, se intercambian los tantos.
+            if (isset($slots_por_fx[$fx_id])) {
+                list($s1, $s2) = $slots_por_fx[$fx_id];
+                if ($ida === $s2 && $idb === $s1) {
+                    $tmp = $ga; $ga = $gb; $gb = $tmp;
+                }
+            }
 
             $equipos[$ida]['pj']++; $equipos[$idb]['pj']++;
             $equipos[$ida]['tf'] += $ga; $equipos[$ida]['tc'] += $gb;
@@ -937,6 +1010,83 @@ class Fixture_model extends CI_Model {
         unset($fila);
 
         return $tabla;
+    }
+
+    /**
+     * Estado del torneo "todos contra todos" de una categoría: sirve para que
+     * Premiación sepa si ya se jugaron TODOS los cruces (podio definido) o si
+     * todavía faltan partidos.
+     *
+     * @return array|null  null si la categoría NO es round robin; sino:
+     *   total_partidos, jugados, completo (bool), equipos (cant. UTEs),
+     *   esperado (N*(N-1)/2), fecha_ultima (última fecha jugada 'Y-m-d'|null)
+     */
+    public function estado_round_robin($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+
+        $this->db->select('f.id_fixture, f.estado, f.fecha_competencia', FALSE);
+        $this->db->where('f.id_categoria', $id_categoria);
+        $this->db->where('f.fase', 'JORNADA_UNICA');
+        $partidos = $this->db->get('fixtures')->result_array();
+        if (!$partidos) return null;
+
+        // Que sea realmente un cruce de equipos (deporte masivo usa la misma
+        // fase JORNADA_UNICA pero con modalidad MASIVO_TIEMPO).
+        $this->db->select('d.modalidad_competencia', FALSE);
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('c.id_categoria', $id_categoria);
+        $mod = $this->db->get()->row_array();
+        if (!empty($mod['modalidad_competencia']) && $mod['modalidad_competencia'] === 'MASIVO_TIEMPO') {
+            return null;
+        }
+
+        $ids_fx = array_map('intval', array_column($partidos, 'id_fixture'));
+        $fechas = array();          // id_fixture => fecha_competencia (del fixture)
+        $jugados_ids = array();     // id_fixture => true (tiene marcador cargado)
+        $fecha_ultima = null;
+        if ($ids_fx) {
+            $this->db->select('r.id_fixture', FALSE);
+            $this->db->distinct();
+            $this->db->where_in('r.id_fixture', $ids_fx);
+            $this->db->where('r.tipo_resultado', 'MARCADOR');
+            foreach ($this->db->get('resultados')->result_array() as $r) {
+                $fid = (int) $r['id_fixture'];
+                if ($fid > 0) $jugados_ids[$fid] = true;
+            }
+            foreach ($partidos as $p) {
+                $fid = (int) $p['id_fixture'];
+                if (!isset($jugados_ids[$fid])) continue; // solo las fechas jugadas
+                $fc = $this->_norm_fecha_rr($p['fecha_competencia'] ?? null);
+                if (!$fc) continue;
+                $fechas[$fid] = $fc;
+                if ($fecha_ultima === null || $fc > $fecha_ultima) $fecha_ultima = $fc;
+            }
+        }
+
+        $n = count($this->obtener_utes_por_categoria($id_categoria));
+        return array(
+            'total_partidos' => count($partidos),
+            'jugados'        => count($jugados_ids),
+            'completo'       => count($jugados_ids) > 0 && count($jugados_ids) >= count($partidos),
+            'equipos'        => $n,
+            'esperado'       => $n >= 2 ? (int) ($n * ($n - 1) / 2) : 0,
+            'fecha_ultima'   => $fecha_ultima,
+            // Los que aún no se jugaron (para avisar "faltan cruces" en Premiación).
+            'pendientes'     => array_values(array_diff($ids_fx, array_keys($jugados_ids))),
+        );
+    }
+
+    /** Normaliza fechas a 'Y-m-d' (tolera 'd/m/Y' y datetime). */
+    private function _norm_fecha_rr($f) {
+        $f = trim((string) $f);
+        if ($f === '') return null;
+        if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $f, $m)) return $m[1] . '-' . $m[2] . '-' . $m[3];
+        if (preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})#', $f, $m)) {
+            return $m[3] . '-' . str_pad($m[2], 2, '0', STR_PAD_LEFT) . '-' . str_pad($m[1], 2, '0', STR_PAD_LEFT);
+        }
+        $ts = strtotime($f);
+        return $ts ? date('Y-m-d', $ts) : null;
     }
 
     /** Busca un equipo de la tabla por nombre (para resultados "libres" sin UTE). */
