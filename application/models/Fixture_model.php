@@ -1024,9 +1024,11 @@ class Fixture_model extends CI_Model {
     public function estado_round_robin($id_categoria) {
         $id_categoria = (int) $id_categoria;
 
-        $this->db->select('f.id_fixture, f.estado, f.fecha_competencia', FALSE);
+        $this->db->select('f.id_fixture, f.fase, f.estado, f.fecha_competencia', FALSE);
         $this->db->where('f.id_categoria', $id_categoria);
-        $this->db->where('f.fase', 'JORNADA_UNICA');
+        // Se toman TODOS los partidos de la categoría: si fue armada a mano con
+        // cada cruce marcado como "FINAL", igual es un todos-contra-todos (se
+        // valida abajo con es_todos_contra_todos) y la tabla debe contarlos.
         $partidos = $this->db->get('fixtures')->result_array();
         if (!$partidos) return null;
 
@@ -1039,6 +1041,17 @@ class Fixture_model extends CI_Model {
         $mod = $this->db->get()->row_array();
         if (!empty($mod['modalidad_competencia']) && $mod['modalidad_competencia'] === 'MASIVO_TIEMPO') {
             return null;
+        }
+
+        // Que sea un todos-contra-todos de verdad: si todavía hay una FINAL con
+        // su SEMIFINAL (copa estilo llave), no es fecha única.
+        $fases = array_unique(array_column($partidos, 'fase'));
+        $solo_rr = $this->es_todos_contra_todos($id_categoria);
+        if (!$solo_rr) {
+            // Fixture automático: todos los cruces ya están en JORNADA_UNICA.
+            $tiene_ju = in_array('JORNADA_UNICA', $fases, true);
+            $otras = array_diff($fases, array('JORNADA_UNICA'));
+            if (!$tiene_ju || $otras) return null;
         }
 
         $ids_fx = array_map('intval', array_column($partidos, 'id_fixture'));
@@ -1075,6 +1088,108 @@ class Fixture_model extends CI_Model {
             // Los que aún no se jugaron (para avisar "faltan cruces" en Premiación).
             'pendientes'     => array_values(array_diff($ids_fx, array_keys($jugados_ids))),
         );
+    }
+
+    /**
+     * ¿La categoría es un torneo "todos contra todos"? (aunque haya sido armado
+     * a MANO con todos los partidos marcados como FINAL).
+     *
+     * Se cumple cuando:
+     *  - hay al menos 2 partidos cargados en la categoría;
+     *  - TODOS los partidos son cruces entre equipos ya definidos;
+     *  - ningún par de equipos se repite (no hay revanchas);
+     *  - la cantidad de partidos coincide con N*(N-1)/2, o bien con M*(M-1)/2
+     *    donde M es la cantidad de equipos que efectivamente juegan (permite
+     *    crear el fixture de 4 equipos sin cargar el partido que falta).
+     * En una copa real esto NUNCA se cumple: hay SEMIFINALES, revanchas de la
+     * misma llave o partidos con cruce pendiente.
+     */
+    public function es_todos_contra_todos($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+        if (!$id_categoria) return false;
+
+        $this->db->select('id_fixture, id_ute_1, id_ute_2', FALSE);
+        $this->db->where('id_categoria', $id_categoria);
+        $partidos = $this->db->get('fixtures')->result_array();
+        if (count($partidos) < 2) return false;
+
+        $pares = array();
+        $equipos = array();
+        foreach ($partidos as $p) {
+            $e1 = !empty($p['id_ute_1']) ? (int) $p['id_ute_1'] : 0;
+            $e2 = !empty($p['id_ute_2']) ? (int) $p['id_ute_2'] : 0;
+            if (!$e1 || !$e2 || $e1 === $e2) return false; // cruce pendiente / inválido
+            $clave = min($e1, $e2) . '-' . max($e1, $e2);
+            if (isset($pares[$clave])) return false;       // revancha => no es RR puro
+            $pares[$clave] = true;
+            $equipos[$e1] = true;
+            $equipos[$e2] = true;
+        }
+
+        $m = count($equipos);                 // equipos que efectivamente juegan
+        $n = count($this->obtener_utes_por_categoria($id_categoria)); // inscriptos
+        $esperado_m = (int) ($m * ($m - 1) / 2);
+        $esperado_n = $n >= 2 ? (int) ($n * ($n - 1) / 2) : 0;
+
+        return count($partidos) === $esperado_m || count($partidos) === $esperado_n;
+    }
+
+    /**
+     * Convierte el fixture de una categoría "todos contra todos" a fase
+     * JORNADA_UNICA (fecha única), numerando las jornadas para que cada equipo
+     * juegue a lo sumo una vez por fecha. Devuelve la cantidad de partidos
+     * reconvertidos (0 si ya estaba todo bien).
+     *
+     * Sirve para los fixtures armados a mano con todos los cruces como "FINAL":
+     * así el sistema deja de interpretarlos como copa y el podio sale de la
+     * tabla de posiciones. NO toca los resultados ya cargados.
+     */
+    public function convertir_a_fecha_unica($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+        if (!$id_categoria) return 0;
+
+        $this->db->select('id_fixture, id_ute_1, id_ute_2, numero_fecha', FALSE);
+        $this->db->where('id_categoria', $id_categoria);
+        $this->db->order_by('numero_fecha, id_fixture', 'ASC');
+        $partidos = $this->db->get('fixtures')->result_array();
+
+        $usar_jornadas = true;
+        foreach ($partidos as $p) {
+            if (!empty($p['numero_fecha'])) { $usar_jornadas = false; break; }
+        }
+
+        $cambios = 0;
+        $ocupados = array(); // jornada => ids de equipos que ya juegan ese día
+        foreach ($partidos as $p) {
+            $jornada = (int) $p['numero_fecha'];
+            if ($usar_jornadas) {
+                $e1 = !empty($p['id_ute_1']) ? (int) $p['id_ute_1'] : 0;
+                $e2 = !empty($p['id_ute_2']) ? (int) $p['id_ute_2'] : 0;
+                $jornada = 0;
+                for ($j = 1; $j <= 30; $j++) {
+                    $ok = true;
+                    foreach (array($e1, $e2) as $e) {
+                        if ($e && isset($ocupados[$j][$e])) { $ok = false; break; }
+                    }
+                    if ($ok) {
+                        $jornada = $j;
+                        foreach (array($e1, $e2) as $e) {
+                            if ($e) $ocupados[$j][$e] = true;
+                        }
+                        break;
+                    }
+                }
+                if (!$jornada) $jornada = 1;
+            }
+
+            $update = array('fase' => 'JORNADA_UNICA');
+            if ($jornada) $update['numero_fecha'] = $jornada;
+            $this->db->where('id_fixture', (int) $p['id_fixture']);
+            $this->db->update('fixtures', $update);
+            $cambios++;
+        }
+
+        return $cambios;
     }
 
     /** Normaliza fechas a 'Y-m-d' (tolera 'd/m/Y' y datetime). */
