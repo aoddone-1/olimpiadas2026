@@ -13,23 +13,13 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *  - TIEMPO (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del resultado.
  *  - MARCADOR (ENFRENTAMIENTO): el podio es el del TORNEO COMPLETO, no del
  *    último partido:
- *      a) Copa (eliminatoria): 1º = ganador de la FINAL, 2º = perdedor de la
- *         FINAL, 3º = ganador del partido por el TERCER_PUESTO (si existe; si
- *         no, queda "por definir").
- *      b) Todos contra todos (pocos equipos, fase JORNADA_UNICA): NO hay final.
- *         El podio sale de la TABLA DE POSICIONES (puntos > diferencia de
- *         tantos > tantos a favor) y se premia recién cuando se jugaron TODOS
- *         los cruces. Se detecta además si el fixture se armó mal (todos los
- *         partidos marcados como FINAL) y se corrige solo.
+ *      1º = ganador de la FINAL
+ *      2º = perdedor de la FINAL
+ *      3º = ganador del partido por el TERCER_PUESTO (si existe; si no, queda
+ *           "por definir").
  * La entrega queda registrada en la tabla `premiaciones` (ver sql/premiaciones.sql).
  */
 class Premiacion_model extends CI_Model {
-
-    /** Categorías resueltas como "todos contra todos" en la última pasada. */
-    private $rr_resuelto = array();
-
-    /** Categorías que quedaron cerradas "por fecha" aunque falten cruces. */
-    private $rr_forzada = array();
 
     /** ¿Existe la tabla de premiaciones? (aviso amigable si falta el SQL). */
     public function tablas_existentes() {

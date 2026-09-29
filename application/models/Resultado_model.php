@@ -488,24 +488,14 @@ class Resultado_model extends CI_Model {
         }
         $this->db->insert_batch('resultado_detalle', $filas);
 
-        // ---------- Fixture: estado FINALIZADO + clasificación ----------
-        // En un torneo TODOS CONTRA TODOS (pocos equipos, se juega una vez con
-        // cada rival) NO HAY clasificación por eliminatoria: solo se marca el
-        // partido como jugado. El podio sale de la tabla de posiciones
-        // (3 puntos por victoria, 1 por empate, 0 por derrota).
+        // Si el resultado se vinculó (a mano o inferido) a un partido del
+        // fixture, lo marcamos como FINALIZADO para que Fixture y Resultados
+        // queden sincronizados.
         $clasifico = null;
         if ($id_fixture) {
             $this->db->where('id_fixture', $id_fixture);
             $this->db->update('fixtures', array('estado' => 'FINALIZADO'));
-        }
-        if ($tipo === 'MARCADOR') {
-            $this->load->model('Fixture_model');
-            $es_rr = $this->Fixture_model->es_todos_contra_todos($id_cat);
-        } else {
-            $es_rr = false;
-        }
 
-        if ($id_fixture && !$es_rr) {
             // Empate CON desempate en fase eliminatoria: hacer avanzar al
             // ganador del desempate usando la misma lógica de clasificación
             // del panel Fixture (siguiente instancia / tercer puesto).
@@ -513,6 +503,7 @@ class Resultado_model extends CI_Model {
             // registró el desempate en la cabecera; solo puede avanzar en la
             // llave si tiene UTE.
             if ($desempate_metodo !== '' && $id_ganador_desempate) {
+                $this->load->model('Fixture_model');
                 $fx = $this->db->where('id_fixture', $id_fixture)->get('fixtures')->row_array();
                 if ($fx && !in_array($fx['fase'], array('GRUPO', 'JORNADA_UNICA'), true)) {
                     $this->Fixture_model->registrar_resultado($id_fixture, $id_ganador_desempate);
@@ -530,7 +521,6 @@ class Resultado_model extends CI_Model {
             'ganador_desempate'  => $id_ganador_desempate ?: null,
             'ganador_nombre'     => $nombre_ganador_desempate,
             'clasifico'          => $clasifico,
-            'todos_contra_todos' => $es_rr,
         );
     }
 
