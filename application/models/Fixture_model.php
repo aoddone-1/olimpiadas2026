@@ -6,10 +6,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Gestión del calendario/fixture de competencias:
  *  - Deportes MASIVO_TIEMPO (running, ciclismo, pesca...): una sola jornada.
  *  - Deportes ENFRENTAMIENTO + categorías MULTIDIA: bracket de eliminatoria directa.
+ *  - ENFRENTAMIENTO con pocos equipos: TODOS CONTRA TODOS (round robin). El
+ *    fixture se genera con fase JORNADA_UNICA y el podio sale de la tabla de
+ *    posiciones (puntos / diferencia de tantos), NO de una final estilo copa.
  */
 class Fixture_model extends CI_Model {
 
     const FASE_ORDEN = ['GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'TERCER_PUESTO', 'FINAL'];
+
+    /** Cantidad máxima de equipos para jugar "todos contra todos" en vez de copa. */
+    const MAX_ROUND_ROBIN = 5;
 
     /* ============================================================
      *  CONSULTAS BÁSICAS
@@ -223,8 +229,12 @@ class Fixture_model extends CI_Model {
         $fx = $this->obtener_fixture_completo_por_id($id_fixture);
         if (!$fx) return NULL;
 
-        $es_masivo = ($fx['fase'] === 'JORNADA_UNICA'
-                      || $fx['modalidad_competencia'] === 'MASIVO_TIEMPO');
+        // JORNADA_UNICA + deporte de enfrentamiento = partido de "todos contra
+        // todos": se gestiona con marcador, no como largada masiva.
+        $es_rr = ($fx['fase'] === 'JORNADA_UNICA'
+                  && $fx['modalidad_competencia'] !== 'MASIVO_TIEMPO');
+        $es_masivo = (!$es_rr && ($fx['fase'] === 'JORNADA_UNICA'
+                      || $fx['modalidad_competencia'] === 'MASIVO_TIEMPO'));
 
         // Podio/orden de llegada guardado en fixtures.resultado (ids >0 UTE, <0 inscripción)
         $podio = array();
@@ -713,7 +723,10 @@ class Fixture_model extends CI_Model {
     /**
      * Genera el fixture de una categoría según el tipo de deporte:
      *  - MASIVO_TIEMPO o tipo_torneo JORNADA_UNICA -> 1 solo registro JORNADA_UNICA.
-     *  - ENFRENTAMIENTO -> bracket de ELIMINACION_DIRECTA con cruces aleatorios.
+     *  - ENFRENTAMIENTO con pocos equipos (<= MAX_ROUND_ROBIN) -> TODOS CONTRA
+     *    TODOS: todos juegan entre sí y el podio surge de la tabla de posiciones.
+     *  - ENFRENTAMIENTO con más equipos -> bracket de ELIMINACION_DIRECTA con
+     *    cruces aleatorios.
      * Devuelve la cantidad de partidos generados.
      */
     public function generar_fixture_para_categoria($id_categoria) {
@@ -740,7 +753,200 @@ class Fixture_model extends CI_Model {
             return $this->_generar_jornada_unica($categoria);
         }
 
+        // Pocos equipos -> todos contra todos (round robin), sin fase final.
+        $cant_equipos = count($this->obtener_utes_por_categoria((int) $id_categoria));
+        if ($cant_equipos >= 2 && $cant_equipos <= self::MAX_ROUND_ROBIN) {
+            return $this->_generar_round_robin($categoria);
+        }
+
         return $this->_generar_eliminatoria($categoria);
+    }
+
+    /**
+     * Todos contra todos: cada equipo juega una vez contra cada otro.
+     * Se reparte en jornadas (algoritmo round-robin "círculo"): con N equipos,
+     * N-1 jornadas si N es par, N jornadas si N es impar (uno queda libre por
+     * fecha). Los cruces se sortean; las fechas/horas se escalonan desde los
+     * datos de la categoría. Cada partido usa la fase JORNADA_UNICA para que
+     * NO clasifique por eliminatoria: el podio lo define la tabla de posiciones.
+     */
+    private function _generar_round_robin($categoria) {
+        $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
+        $ids = array_column($utes, 'id_ute');
+        $n = count($ids);
+
+        if ($n < 2) {
+            throw new Exception('Se necesitan al menos 2 UTEs/equipos para generar un fixture de enfrentamiento.');
+        }
+
+        shuffle($ids);
+
+        // Rotación clásica: se fija el primer elemento y el resto rota.
+        $fijo = $ids[0];
+        $resto = array_slice($ids, 1);
+        $vueltas = $n % 2 === 0 ? $n - 1 : $n;
+
+        $lugar = $categoria['id_lugar'] ?: $this->_primer_lugar();
+        if (!$lugar) {
+            throw new Exception('No hay lugares cargados. Creá al menos un lugar antes de generar el fixture.');
+        }
+        $fecha_base = $categoria['dia_competencia'] ?: date('Y-m-d');
+        $hora_base  = $categoria['hora_competencia'] ?: '09:00:00';
+
+        $generados = 0;
+        for ($vuelta = 0; $vueltas > 0 && $vuelta < $vueltas; $vuelta++) {
+            $fila = array_merge(array($fijo), $resto);
+            if ($n % 2 === 1) {
+                $fila[] = null; // equipo libre en la última vuelta
+            }
+            $mitad = (int) (count($fila) / 2);
+            for ($i = 0; $i < $mitad; $i++) {
+                $e1 = $fila[$i];
+                $e2 = $fila[count($fila) - 1 - $i];
+                if ($e1 === null || $e2 === null) continue;
+
+                $datos = array(
+                    'id_categoria'      => $categoria['id_categoria'],
+                    'id_lugar'          => $lugar,
+                    'id_ute_1'          => $e1,
+                    'id_ute_2'          => $e2,
+                    'nombre_prueba'     => 'TODOS VS TODOS — Fecha ' . ($vuelta + 1) . ' · Partido ' . ($i + 1),
+                    'fase'              => 'JORNADA_UNICA',
+                    'numero_fecha'      => $vuelta + 1,
+                    'fecha_competencia' => date('Y-m-d', strtotime($fecha_base . ' +' . $vuelta . ' days')),
+                    'hora_inicio'       => $this->_sumar_horas($hora_base, $i),
+                    'hora_fin'          => $this->_sumar_horas($hora_base, $i + 1),
+                    'estado'            => 'PROGRAMADO',
+                );
+                $this->db->insert('fixtures', $datos);
+                $generados++;
+            }
+
+            // Rotar el "resto" una posición (sentido horario).
+            array_unshift($resto, array_pop($resto));
+        }
+
+        return $generados;
+    }
+
+    /**
+     * Tabla de posiciones de una categoría jugada "todos contra todos".
+     * Lee los marcadores de resultados/resultado_detalle de los partidos
+     * JORNADA_UNICA de la categoría y ordena por:
+     *   puntos (3/1/0) > diferencia de tantos > tantos a favor > nombre.
+     * Devuelve una fila por equipo aunque todavía no haya jugado ninguno.
+     */
+    public function tabla_posiciones_rr($id_categoria) {
+        $id_categoria = (int) $id_categoria;
+
+        $equipos = array();
+        foreach ($this->obtener_utes_por_categoria($id_categoria) as $u) {
+            $equipos[(int) $u['id_ute']] = array(
+                'id'     => (int) $u['id_ute'],
+                'nombre' => $u['nombre_ute'],
+                'pj' => 0, 'pg' => 0, 'pe' => 0, 'pp' => 0,
+                'tf' => 0, 'tc' => 0, 'dg' => 0, 'puntos' => 0,
+            );
+        }
+        if (!$equipos) return array();
+
+        // Partidos todos-contra-todos de la categoría (con resultado FINALIZADO
+        // o con marcador cargado: se toman todos y se filtran por detalle).
+        $this->db->select('f.id_fixture', FALSE);
+        $this->db->where('f.id_categoria', $id_categoria);
+        $this->db->where('f.fase', 'JORNADA_UNICA');
+        $partidos = $this->db->get('fixtures')->result_array();
+        if (!$partidos) return array();
+        $ids_fx = array_map('intval', array_column($partidos, 'id_fixture'));
+
+        // Marcadores: cada resultado MARCADOR tiene dos filas en el detalle,
+        // una por equipo, cada una con SUS tantos (local) y los del rival.
+        $por_fixture = array();
+        $this->db->select('r.id_resultado, r.id_fixture', FALSE);
+        $this->db->where_in('r.id_fixture', $ids_fx);
+        $this->db->where('r.tipo_resultado', 'MARCADOR');
+        $res = $this->db->get('resultados')->result_array();
+        if ($res) {
+            $this->db->select('d.id_resultado, d.id_ute, d.nombre_libre, d.marcador_local, d.marcador_visita', FALSE);
+            $this->db->where_in('d.id_resultado', array_column($res, 'id_resultado'));
+            $filas_detalle = $this->db->get('resultado_detalle')->result_array();
+            $detalles = array();
+            foreach ($filas_detalle as $d) {
+                $detalles[(int) $d['id_resultado']][] = $d;
+            }
+            foreach ($res as $r) {
+                $det = isset($detalles[(int) $r['id_resultado']]) ? $detalles[(int) $r['id_resultado']] : array();
+                if (count($det) < 2) continue;
+                $por_fixture[(int) $r['id_fixture']][] = $det;
+            }
+        }
+
+        foreach ($por_fixture as $fx_id => $listas) {
+            // Si se cargó más de una vez el mismo partido, vale la última.
+            $det = end($listas);
+            $la = $det[0]; $lb = $det[1];
+            $ida = $la['id_ute'] !== null ? (int) $la['id_ute'] : 0;
+            $idb = $lb['id_ute'] !== null ? (int) $lb['id_ute'] : 0;
+            $ga = (int) $la['marcador_local'];
+            $gb = (int) $lb['marcador_local'];
+
+            // Datos espejados (patrón viejo): ambas filas con los mismos números.
+            if ($ga === (int) $lb['marcador_local'] && (int) $la['marcador_visita'] === (int) $lb['marcador_visita']) {
+                $gb = (int) $la['marcador_visita'];
+            }
+
+            // Equipos cargados "libres" (sin id_ute): se resuelven por nombre.
+            if (!$ida && !isset($equipos[$ida])) {
+                $ida = $this->_buscar_equipo_por_nombre($equipos, trim((string) $la['nombre_libre']));
+            }
+            if (!$idb && !isset($equipos[$idb])) {
+                $idb = $this->_buscar_equipo_por_nombre($equipos, trim((string) $lb['nombre_libre']));
+            }
+            if (!$ida || !$idb || $ida === $idb || !isset($equipos[$ida]) || !isset($equipos[$idb])) continue;
+
+            $equipos[$ida]['pj']++; $equipos[$idb]['pj']++;
+            $equipos[$ida]['tf'] += $ga; $equipos[$ida]['tc'] += $gb;
+            $equipos[$idb]['tf'] += $gb; $equipos[$idb]['tc'] += $ga;
+            if ($ga > $gb) {
+                $equipos[$ida]['pg']++; $equipos[$idb]['pp']++;
+                $equipos[$ida]['puntos'] += 3;
+            } elseif ($ga < $gb) {
+                $equipos[$idb]['pg']++; $equipos[$ida]['pp']++;
+                $equipos[$idb]['puntos'] += 3;
+            } else {
+                $equipos[$ida]['pe']++; $equipos[$idb]['pe']++;
+                $equipos[$ida]['puntos']++; $equipos[$idb]['puntos']++;
+            }
+        }
+
+        foreach ($equipos as &$e) {
+            $e['dg'] = $e['tf'] - $e['tc'];
+        }
+        unset($e);
+
+        $tabla = array_values($equipos);
+        usort($tabla, function ($a, $b) {
+            if ($a['puntos'] !== $b['puntos']) return $b['puntos'] <=> $a['puntos'];
+            if ($a['dg'] !== $b['dg']) return $b['dg'] <=> $a['dg'];
+            if ($a['tf'] !== $b['tf']) return $b['tf'] <=> $a['tf'];
+            return strcasecmp($a['nombre'], $b['nombre']);
+        });
+        foreach ($tabla as $i => &$fila) {
+            $fila['posicion'] = $i + 1;
+        }
+        unset($fila);
+
+        return $tabla;
+    }
+
+    /** Busca un equipo de la tabla por nombre (para resultados "libres" sin UTE). */
+    private function _buscar_equipo_por_nombre($equipos, $nombre) {
+        $nombre = trim(preg_replace('/\s+/', ' ', (string) $nombre));
+        if ($nombre === '') return 0;
+        foreach ($equipos as $id => $e) {
+            if (strcasecmp($e['nombre'], $nombre) === 0) return (int) $id;
+        }
+        return 0;
     }
 
     /**
@@ -1247,15 +1453,23 @@ class Fixture_model extends CI_Model {
         }
 
         // Detectar deporte masivo: por fase JORNADA_UNICA o por el deporte
-        // asociado a la categoría (modalidad MASIVO_TIEMPO).
-        $es_masivo = ($partido['fase'] === 'JORNADA_UNICA');
-        if (!$es_masivo) {
-            $this->db->select('d.modalidad_competencia');
-            $this->db->from('categorias c');
-            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
-            $this->db->where('c.id_categoria', (int) $partido['id_categoria']);
-            $cat = $this->db->get()->row_array();
+        // asociado a la categoría (modalidad MASIVO_TIEMPO). OJO: un partido
+        // JORNADA_UNICA de un deporte de ENFRENTAMIENTO es un cruce de "todos
+        // contra todos" (se carga con marcador), no una largada masiva.
+        $this->db->select('d.modalidad_competencia');
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('c.id_categoria', (int) $partido['id_categoria']);
+        $cat = $this->db->get()->row_array();
+        $es_masivo = ($partido['fase'] === 'JORNADA_UNICA')
+                  && (!$cat || $cat['modalidad_competencia'] !== 'ENFRENTAMIENTO');
+        if (!$es_masivo && $partido['fase'] !== 'JORNADA_UNICA') {
             $es_masivo = $cat && $cat['modalidad_competencia'] === 'MASIVO_TIEMPO';
+        }
+        if ($partido['fase'] === 'JORNADA_UNICA' && $cat
+            && $cat['modalidad_competencia'] === 'ENFRENTAMIENTO') {
+            throw new Exception('Este partido es de "todos contra todos": cargá el marcador '
+                . '(tantos de cada equipo) desde la pestaña Resultados, no el orden de llegada.');
         }
 
         // Validar que los competidores existan y pertenezcan a la categoría.
