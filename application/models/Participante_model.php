@@ -231,12 +231,16 @@ class Participante_model extends CI_Model {
             $ts = strtotime($f['fecha_competencia'] . ' ' . $f['hora_inicio']);
             if ($ts !== false && $ts < $ahora - 6 * 3600) continue;
 
-            $masivo = ($f['fase'] === 'JORNADA_UNICA' || $f['modalidad_competencia'] === 'MASIVO_TIEMPO');
+            // JORNADA_UNICA + deporte de enfrentamiento = cruce "todos contra
+            // todos": solo compete si está en alguno de los dos slots.
+            $rr = ($f['fase'] === 'JORNADA_UNICA' && $f['modalidad_competencia'] !== 'MASIVO_TIEMPO');
+            $masivo = !$rr && ($f['fase'] === 'JORNADA_UNICA' || $f['modalidad_competencia'] === 'MASIVO_TIEMPO');
             if (!$this->_fixture_es_del_participante($f, $id_participante, $id_ute, $detalle_ute, $masivo)) {
                 continue;
             }
 
             $f['es_masivo'] = $masivo;
+            $f['es_round_robin'] = $rr;
             $out[] = $f;
             if (count($out) >= 5) break;
         }
