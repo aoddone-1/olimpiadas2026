@@ -548,8 +548,7 @@ class Fixture_model extends CI_Model {
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria, f.fecha_competencia, f.hora_inicio, f.numero_fecha', 'ASC');
         $fixtures = $this->db->get()->result_array();
 
-        // Nombres de las UTEs enfrentadas + nombres de los competidores de la
-        // delegación que participan en cada lado (para resaltarlos en el PDF).
+        // Nombre de las UTEs enfrentadas (siempre se muestra el equipo rival).
         $nombres_utes = array();
         $ids_ute = array();
         foreach ($fixtures as $fx) {
@@ -567,6 +566,20 @@ class Fixture_model extends CI_Model {
 
         $comp_delegacion = $this->_competidores_de_delegacion($delegacion);
 
+        // Integrantes propios de cada UTE de la delegación (clave: id_ute), para
+        // que el delegado vea los nombres de sus jugadores en cada partido.
+        $utes_propias = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0 && !isset($utes_propias[$idl])) {
+                    $l = $this->_describir_lado_del_partido($fx, $campo, $nombres_utes, $comp_delegacion);
+                    if (!empty($l['es_delegacion'])) $utes_propias[$idl] = true;
+                }
+            }
+        }
+        $integrantes_ute = $this->_integrantes_de_utes(array_keys($utes_propias));
+
         foreach ($fixtures as &$f) {
             $lado1 = $this->_describir_lado_del_partido($f, 'id_ute_1', $nombres_utes, $comp_delegacion);
             $lado2 = $this->_describir_lado_del_partido($f, 'id_ute_2', $nombres_utes, $comp_delegacion);
@@ -575,10 +588,95 @@ class Fixture_model extends CI_Model {
             $f['ute_2_nombre'] = $lado2['nombre'];
             $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
             $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
+
+            // Rivales: si del otro lado hay una UTE de otra delegación, se envía
+            // su nombre para poder mostrar "Equipo A vs Equipo B" en el reporte.
+            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+            $f['rival_ute_1_nombre'] = (!$lado1['es_delegacion'] && $idl1 > 0 && isset($nombres_utes[$idl1]))
+                ? $nombres_utes[$idl1] : NULL;
+            $f['rival_ute_2_nombre'] = (!$lado2['es_delegacion'] && $idl2 > 0 && isset($nombres_utes[$idl2]))
+                ? $nombres_utes[$idl2] : NULL;
+
+            // Integrantes de la delegación que juegan ese partido por cada lado.
+            $jug1 = ($lado1['es_delegacion'] && isset($integrantes_ute[$idl1])) ? $integrantes_ute[$idl1] : array();
+            $jug2 = ($lado2['es_delegacion'] && isset($integrantes_ute[$idl2])) ? $integrantes_ute[$idl2] : array();
+            $f['jugadores_ute_1'] = $this->_fusionar_nombres_con_inscriptos(
+                $jug1, $this->_inscriptos_de_ute_en_categoria($idl1, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
+            );
+            $f['jugadores_ute_2'] = $this->_fusionar_nombres_con_inscriptos(
+                $jug2, $this->_inscriptos_de_ute_en_categoria($idl2, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
+            );
         }
         unset($f);
 
         return $fixtures;
+    }
+
+    /** Nombres completos de los integrantes registrados de varias UTEs (clave: id_ute). */
+    private function _integrantes_de_utes($ids_ute) {
+        $ids_ute = array_values(array_unique(array_filter(array_map('intval', (array) $ids_ute))));
+        if (!$ids_ute) return array();
+
+        $this->db->select('pu.id_ute, p.nombre_completo', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+        $this->db->where_in('pu.id_ute', $ids_ute);
+        $this->db->order_by('p.nombre_completo', 'ASC');
+
+        $por_ute = array();
+        foreach ($this->db->get()->result_array() as $r) {
+            $por_ute[(int) $r['id_ute']][] = $r['nombre_completo'];
+        }
+        return $por_ute;
+    }
+
+    /**
+     * Inscriptos de la delegación vinculados a una UTE de la categoría, aun
+     * cuando todavía no estén dados de alta en participantes_utes (se los
+     * reconoce por inscripcion.id_ute o por el nombre guardado en detalle_ute).
+     */
+    private function _inscriptos_de_ute_en_categoria($id_ute, $id_categoria, $delegacion) {
+        $id_ute = (int) $id_ute;
+        $id_categoria = (int) $id_categoria;
+        if ($id_ute <= 0 || $id_categoria <= 0) return array();
+
+        $this->db->select('nombre_ute', FALSE);
+        $this->db->where('id_ute', $id_ute);
+        $ute = $this->db->get('utes')->row_array();
+        if (!$ute) return array();
+        $nombre_ute = strtoupper(trim((string) $ute['nombre_ute']));
+
+        $this->db->select('p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $id_categoria);
+        $this->db->where('p.delegacion', $delegacion);
+        $this->db->group_start();
+        $this->db->where('i.id_ute', $id_ute);
+        if ($nombre_ute !== '') {
+            $this->db->or_where('TRIM(UPPER(i.detalle_ute))', $nombre_ute);
+        }
+        $this->db->group_end();
+        $this->db->order_by('p.nombre_completo', 'ASC');
+
+        return array_column($this->db->get()->result_array(), 'nombre_completo');
+    }
+
+    /** Une dos listas de nombres sin repetir personas (comparación flexible). */
+    private function _fusionar_nombres_con_inscriptos($principales, $adicionales) {
+        $fuera = array();
+        $out = array();
+        foreach (array_merge((array) $principales, (array) $adicionales) as $n) {
+            $n = trim((string) $n);
+            if ($n === '') continue;
+            $clave = preg_replace('/\s+/', ' ', mb_strtoupper($n, 'UTF-8'));
+            if (isset($fuera[$clave])) continue;
+            $fuera[$clave] = true;
+            $out[] = $n;
+        }
+        sort($out, SORT_NATURAL | SORT_FLAG_CASE);
+        return $out;
     }
 
     /** Competidores inscriptos de la delegación, agrupados por categoría. */
