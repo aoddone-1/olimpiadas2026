@@ -98,8 +98,30 @@ class MYPDF extends TCPDF {
             return $html;
         };
 
-        $equipos = function ($f) use ($lado_html) {
-            // Flag del modo delegado: lo define el controlador al emitir el PDF.
+        /** Texto plano de un lado (para variantes sin HTML, p. ej. celdas del CSV). */
+        $lado_texto = function ($nombre, $es_delegacion, $jugadores, $es_delegado) {
+            $nombre = trim((string) $nombre);
+            if ($es_delegado && $es_delegacion) {
+                $lista = array();
+                foreach ((array) $jugadores as $j) {
+                    $j = trim((string) $j);
+                    if ($j !== '') $lista[] = $j;
+                }
+                if ($lista) return implode(', ', $lista);
+                return $nombre;
+            }
+            return $nombre;
+        };
+
+        /**
+         * Devuelve [texto_lado1, texto_lado2] ya resueltos según el modo en que
+         * se descargó el reporte. Compartida por la variante HTML ($equipos) y
+         * por la de texto plano ($equipos_texto).
+         */
+        $lados_crudos = function ($f) use ($lado_texto) {
+            // Flag del modo delegado: lo define el controlador al emitir el PDF
+            // (modo_delegado), o lo trae cada fila desde Fixture_model cuando el
+            // fixture se obtuvo filtrado por delegación.
             $es_delegado = $this->modo_delegado
                 || !empty($f['es_reporte_delegado'])
                 || !empty($f['delegacion_en_ute_1'])
@@ -109,23 +131,62 @@ class MYPDF extends TCPDF {
 
             // Lado 1
             if ($es_delegado && $l1) {
-                $e1 = $lado_html($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE);
+                $t1 = $lado_texto($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE);
             } else {
-                $nom1 = $es_delegado ? ($f['rival_ute_1_nombre'] ?? ($f['ute_1_nombre'] ?? '')) : ($f['ute_1_nombre'] ?? '');
-                $e1 = $lado_html($nom1, FALSE, array(), $es_delegado);
+                $nom1 = $es_delegado ? (($f['rival_ute_1_nombre'] ?? '') !== ''
+                            ? $f['rival_ute_1_nombre'] : ($f['ute_1_nombre'] ?? ''))
+                        : ($f['ute_1_nombre'] ?? '');
+                $t1 = $lado_texto($nom1, FALSE, array(), $es_delegado);
             }
 
             // Lado 2
             if ($es_delegado && $l2) {
-                $e2 = $lado_html($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE);
+                $t2 = $lado_texto($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE);
             } else {
-                $nom2 = $es_delegado ? ($f['rival_ute_2_nombre'] ?? ($f['ute_2_nombre'] ?? '')) : ($f['ute_2_nombre'] ?? '');
-                $e2 = $lado_html($nom2, FALSE, array(), $es_delegado);
+                $nom2 = $es_delegado ? (($f['rival_ute_2_nombre'] ?? '') !== ''
+                            ? $f['rival_ute_2_nombre'] : ($f['ute_2_nombre'] ?? ''))
+                        : ($f['ute_2_nombre'] ?? '');
+                $t2 = $lado_texto($nom2, FALSE, array(), $es_delegado);
+            }
+
+            return array(trim((string) $t1), trim((string) $t2));
+        };
+
+        /** Enfrentamiento en HTML: "Equipo A vs Equipo B" o, en modo delegado,
+         *  "Juan Pérez, Ana Gómez vs Equipo B". */
+        $equipos = function ($f) use ($lado_html, $lados_crudos) {
+            list($t1, $t2) = $lados_crudos($f);
+
+            $es_delegado = $this->modo_delegado
+                || !empty($f['es_reporte_delegado'])
+                || !empty($f['delegacion_en_ute_1'])
+                || !empty($f['delegacion_en_ute_2']);
+
+            // Reconstruir el HTML con formato (verde/negrita para el lado propio).
+            $e1 = $e2 = '';
+            if ($t1 !== '') {
+                $e1 = (!empty($f['delegacion_en_ute_1']) && $es_delegado)
+                    ? $lado_html($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE)
+                    : htmlspecialchars($t1, ENT_QUOTES, 'UTF-8');
+            }
+            if ($t2 !== '') {
+                $e2 = (!empty($f['delegacion_en_ute_2']) && $es_delegado)
+                    ? $lado_html($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE)
+                    : htmlspecialchars($t2, ENT_QUOTES, 'UTF-8');
             }
 
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
+            return NULL;
+        };
+
+        /** Variante en texto plano (sin HTML) del enfrentamiento. */
+        $equipos_texto = function ($f) use ($lados_crudos) {
+            list($t1, $t2) = $lados_crudos($f);
+            if ($t1 !== '' && $t2 !== '') return $t1 . ' vs ' . $t2;
+            if ($t2 !== '') return $t2;
+            if ($t1 !== '') return $t1;
             return NULL;
         };
 
@@ -305,8 +366,16 @@ class MYPDF extends TCPDF {
                             
                             $cel .= '<div style="margin-bottom:2px;">'
                                 . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>';
-                            if($equipos($p)!=null){
-                                $cel .= '<div style="font-size:7pt; margin:2px 0;">' . $equipos($p) . '</div>';
+                            // Enfrentamiento. En modo delegado muestra los PARTICIPANTES
+                            // del equipo propio (sin el nombre del equipo) vs el equipo rival.
+                            $vs_html = $equipos($p);
+                            if ($vs_html === NULL || trim((string) $vs_html) === '') {
+                                $vs_texto = $equipos_texto($p);
+                                $vs_html = ($vs_texto !== NULL && trim((string) $vs_texto) !== '')
+                                    ? $esc($vs_texto) : NULL;
+                            }
+                            if ($vs_html != null) {
+                                $cel .= '<div style="font-size:7pt; margin:2px 0;">' . $vs_html . '</div>';
                             }
                             
                             if ($sub_info !== '') {

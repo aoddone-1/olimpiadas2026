@@ -596,11 +596,16 @@ class Fixture_model extends CI_Model {
             // Lado propio: se envía el nombre CRUDO de la UTE (sin el prefijo
             // "Equipo: ...") porque el reporte del delegado muestra únicamente
             // los participantes. El lado rival conserva el nombre del equipo.
+            // Si el partido es individual o de jornada masiva ($lado['nombre']
+            // ya trae los nombres resueltos y no hay UTE real), se conserva ese
+            // nombre para que el reporte nunca quede vacío.
             $f['ute_1_nombre'] = $this->_nombre_lado_reporte(
-                $lado1, $idl1 > 0 && $lado1['es_delegacion'] ? (isset($nombres_utes[$idl1]) ? $nombres_utes[$idl1] : NULL) : $lado1['nombre']
+                $lado1, $idl1 > 0 && $lado1['es_delegacion'] && isset($nombres_utes[$idl1])
+                    ? $nombres_utes[$idl1] : $lado1['nombre']
             );
             $f['ute_2_nombre'] = $this->_nombre_lado_reporte(
-                $lado2, $idl2 > 0 && $lado2['es_delegacion'] ? (isset($nombres_utes[$idl2]) ? $nombres_utes[$idl2] : NULL) : $lado2['nombre']
+                $lado2, $idl2 > 0 && $lado2['es_delegacion'] && isset($nombres_utes[$idl2])
+                    ? $nombres_utes[$idl2] : $lado2['nombre']
             );
             $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
             $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
