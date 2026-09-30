@@ -19,6 +19,8 @@ class MYPDF extends TCPDF {
     public $delegacion_filtro = null;
     /** 'deporte' (Deporte → Categoría → Fecha → Hora) u 'horario' (Fecha → Hora → Deporte). */
     public $orden_reporte = 'deporte';
+    /** Flag del controlador: TRUE cuando el reporte lo descarga un delegado. */
+    public $modo_delegado = FALSE;
 
     public function Header() {
         $this->Image('assets/img/header.jpg', 30, 15, 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
@@ -67,15 +69,16 @@ class MYPDF extends TCPDF {
 
         /**
          * Lado del enfrentamiento como texto HTML.
-         *   - Reporte general (superadmin/admin): muestra el nombre del EQUIPO.
-         *   - Reporte del delegado: cuando el lado es un equipo de la delegación,
-         *     muestra los PARTICIPANTES que lo integran (no el nombre del equipo);
-         *     si el lado es un equipo rival, mantiene el nombre del equipo.
+         *   - Reporte general (superadmin/admin): muestra siempre el EQUIPO.
+         *   - Reporte del delegado (flag $es_delegado, puesto por el controlador):
+         *       · lado propio  → solo los PARTICIPANTES ("Juan Pérez, Ana Gómez"),
+         *                         sin el prefijo con el nombre del equipo;
+         *       · lado rival   → el nombre del equipo rival.
          */
-        $lado_html = function ($nombre, $es_delegacion, $jugadores) {
+        $lado_html = function ($nombre, $es_delegacion, $jugadores, $es_delegado) {
             $nombre = trim((string) $nombre);
             $html = '';
-            if ($es_delegacion) {
+            if ($es_delegado && $es_delegacion) {
                 // Participantes del equipo propio (viene desde Fixture_model).
                 $lista = array();
                 foreach ((array) $jugadores as $j) {
@@ -89,23 +92,37 @@ class MYPDF extends TCPDF {
                         . htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') . '</span>';
                 }
             } elseif ($nombre !== '') {
-                // Equipo rival / slot pendiente: se muestra el nombre del equipo.
+                // Equipo rival / reporte general / slot pendiente: nombre del equipo.
                 $html = htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8');
             }
             return $html;
         };
 
         $equipos = function ($f) use ($lado_html) {
-            $es_delegado = isset($f['delegacion_en_ute_1']) || isset($f['delegacion_en_ute_2']);
-            if ($es_delegado) {
-                // Reporte del delegado: participantes de los equipos que se enfrentan.
-                $e1 = $lado_html($f['ute_1_nombre'] ?? '', !empty($f['delegacion_en_ute_1']), $f['jugadores_ute_1'] ?? array());
-                $e2 = $lado_html($f['ute_2_nombre'] ?? '', !empty($f['delegacion_en_ute_2']), $f['jugadores_ute_2'] ?? array());
+            // Flag del modo delegado: lo define el controlador al emitir el PDF.
+            $es_delegado = $this->modo_delegado
+                || !empty($f['es_reporte_delegado'])
+                || !empty($f['delegacion_en_ute_1'])
+                || !empty($f['delegacion_en_ute_2']);
+            $l1 = !empty($f['delegacion_en_ute_1']);
+            $l2 = !empty($f['delegacion_en_ute_2']);
+
+            // Lado 1
+            if ($es_delegado && $l1) {
+                $e1 = $lado_html($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE);
             } else {
-                // Reporte general: nombres de los equipos que se enfrentan.
-                $e1 = $lado_html($f['ute_1_nombre'] ?? '', FALSE, array());
-                $e2 = $lado_html($f['ute_2_nombre'] ?? '', FALSE, array());
+                $nom1 = $es_delegado ? ($f['rival_ute_1_nombre'] ?? ($f['ute_1_nombre'] ?? '')) : ($f['ute_1_nombre'] ?? '');
+                $e1 = $lado_html($nom1, FALSE, array(), $es_delegado);
             }
+
+            // Lado 2
+            if ($es_delegado && $l2) {
+                $e2 = $lado_html($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE);
+            } else {
+                $nom2 = $es_delegado ? ($f['rival_ute_2_nombre'] ?? ($f['ute_2_nombre'] ?? '')) : ($f['ute_2_nombre'] ?? '');
+                $e2 = $lado_html($nom2, FALSE, array(), $es_delegado);
+            }
+
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
@@ -341,6 +358,7 @@ $pdf->formato = $formato;
 $pdf->dia_filtro = $dia_filtro;
 $pdf->deporte_filtro = isset($deporte_filtro) ? $deporte_filtro : null;
 $pdf->delegacion_filtro = isset($delegacion_filtro) ? $delegacion_filtro : null;
+$pdf->modo_delegado = !empty($modo_delegado);
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 
