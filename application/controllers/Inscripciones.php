@@ -1136,6 +1136,9 @@ class Inscripciones extends CI_Controller {
             'deporte_filtro'    => $nombre_deporte_filtro,
             'orden_reporte'     => $orden_reporte,
             'delegacion_filtro' => $delegacion,
+            // Flag del modo delegado: la vista lista los PARTICIPANTES de los
+            // equipos propios (en vez del nombre del equipo) solo si es TRUE.
+            'modo_delegado'     => ($delegacion !== NULL),
         ));
         $this->load->view('admin/reporte_fixture');
     }

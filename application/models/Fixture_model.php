@@ -504,6 +504,8 @@ class Fixture_model extends CI_Model {
 
         $this->db->select('
             f.*,
+            u1.nombre_ute as rival_ute_1_nombre,
+            u2.nombre_ute as rival_ute_2_nombre,
             l.nombre as lugar_nombre,
             c.nombre_categoria,
             c.genero as genero_categoria,
@@ -512,6 +514,10 @@ class Fixture_model extends CI_Model {
             d.tipo_duracion
         ', FALSE);
         $this->db->from('fixtures f');
+        // Nombres crudos de las UTEs enfrentadas: se conservan en el reporte del
+        // delegado SOLO para el lado rival (el lado propio muestra participantes).
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
         $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
@@ -584,19 +590,31 @@ class Fixture_model extends CI_Model {
             $lado1 = $this->_describir_lado_del_partido($f, 'id_ute_1', $nombres_utes, $comp_delegacion);
             $lado2 = $this->_describir_lado_del_partido($f, 'id_ute_2', $nombres_utes, $comp_delegacion);
 
-            $f['ute_1_nombre'] = $lado1['nombre'];
-            $f['ute_2_nombre'] = $lado2['nombre'];
+            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+
+            // Lado propio: se envía el nombre CRUDO de la UTE (sin el prefijo
+            // "Equipo: ...") porque el reporte del delegado muestra únicamente
+            // los participantes. El lado rival conserva el nombre del equipo.
+            $f['ute_1_nombre'] = $this->_nombre_lado_reporte(
+                $lado1, $idl1 > 0 && $lado1['es_delegacion'] ? (isset($nombres_utes[$idl1]) ? $nombres_utes[$idl1] : NULL) : $lado1['nombre']
+            );
+            $f['ute_2_nombre'] = $this->_nombre_lado_reporte(
+                $lado2, $idl2 > 0 && $lado2['es_delegacion'] ? (isset($nombres_utes[$idl2]) ? $nombres_utes[$idl2] : NULL) : $lado2['nombre']
+            );
             $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
             $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
 
             // Rivales: si del otro lado hay una UTE de otra delegación, se envía
             // su nombre para poder mostrar "Equipo A vs Equipo B" en el reporte.
-            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
-            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
             $f['rival_ute_1_nombre'] = (!$lado1['es_delegacion'] && $idl1 > 0 && isset($nombres_utes[$idl1]))
                 ? $nombres_utes[$idl1] : NULL;
             $f['rival_ute_2_nombre'] = (!$lado2['es_delegacion'] && $idl2 > 0 && isset($nombres_utes[$idl2]))
                 ? $nombres_utes[$idl2] : NULL;
+
+            // Flag del modo delegado: la vista (reporte_fixture) lo usa para
+            // decidir si cada lado muestra participantes o el nombre del equipo.
+            $f['es_reporte_delegado'] = TRUE;
 
             // Integrantes de la delegación que juegan ese partido por cada lado.
             $jug1 = ($lado1['es_delegacion'] && isset($integrantes_ute[$idl1])) ? $integrantes_ute[$idl1] : array();
@@ -611,6 +629,19 @@ class Fixture_model extends CI_Model {
         unset($f);
 
         return $fixtures;
+    }
+
+    /**
+     * Nombre del lado del partido para el reporte del delegado:
+     *   - equipo propio  → nombre crudo de la UTE, SIN el prefijo "Equipo: J1, J2"
+     *     (los participantes se listan aparte en jugadores_ute_X);
+     *   - individual / jornada masiva → se conservan los nombres ya resueltos.
+     */
+    private function _nombre_lado_reporte($lado, $nombre_crudo) {
+        if (!empty($lado['es_delegacion']) && $nombre_crudo !== NULL && $nombre_crudo !== '') {
+            return $nombre_crudo;
+        }
+        return $lado['nombre'];
     }
 
     /** Nombres completos de los integrantes registrados de varias UTEs (clave: id_ute). */
