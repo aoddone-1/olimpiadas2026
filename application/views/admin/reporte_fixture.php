@@ -65,20 +65,46 @@ class MYPDF extends TCPDF {
             return $hi . (($hf !== '' && $hf !== '00:00') ? ' – ' . $hf : '');
         };
 
-        $equipos = function ($f) {
-            $e1 = trim((string) ($f['ute_1_nombre'] ?? ''));
-            $e2 = trim((string) ($f['ute_2_nombre'] ?? ''));
-            // En el reporte de delegados se resalta en verde al competidor/equipo
-            // propio de la delegación (viene marcado desde Fixture_model).
-            if (!empty($f['delegacion_en_ute_1']) && $e1 !== '') {
-                $e1 = '<span style="color:#1e7e34; font-weight:bold;">' . htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') . '</span>';
-            } elseif ($e1 !== '') {
-                $e1 = htmlspecialchars($e1, ENT_QUOTES, 'UTF-8');
+        /**
+         * Lado del enfrentamiento como texto HTML.
+         *   - Reporte general (superadmin/admin): muestra el nombre del EQUIPO.
+         *   - Reporte del delegado: cuando el lado es un equipo de la delegación,
+         *     muestra los PARTICIPANTES que lo integran (no el nombre del equipo);
+         *     si el lado es un equipo rival, mantiene el nombre del equipo.
+         */
+        $lado_html = function ($nombre, $es_delegacion, $jugadores) {
+            $nombre = trim((string) $nombre);
+            $html = '';
+            if ($es_delegacion) {
+                // Participantes del equipo propio (viene desde Fixture_model).
+                $lista = array();
+                foreach ((array) $jugadores as $j) {
+                    $j = trim((string) $j);
+                    if ($j !== '') $lista[] = htmlspecialchars($j, ENT_QUOTES, 'UTF-8');
+                }
+                if ($lista) {
+                    $html = '<span style="color:#1e7e34; font-weight:bold;">' . implode(', ', $lista) . '</span>';
+                } elseif ($nombre !== '') {
+                    $html = '<span style="color:#1e7e34; font-weight:bold;">'
+                        . htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') . '</span>';
+                }
+            } elseif ($nombre !== '') {
+                // Equipo rival / slot pendiente: se muestra el nombre del equipo.
+                $html = htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8');
             }
-            if (!empty($f['delegacion_en_ute_2']) && $e2 !== '') {
-                $e2 = '<span style="color:#1e7e34; font-weight:bold;">' . htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') . '</span>';
-            } elseif ($e2 !== '') {
-                $e2 = htmlspecialchars($e2, ENT_QUOTES, 'UTF-8');
+            return $html;
+        };
+
+        $equipos = function ($f) use ($lado_html) {
+            $es_delegado = isset($f['delegacion_en_ute_1']) || isset($f['delegacion_en_ute_2']);
+            if ($es_delegado) {
+                // Reporte del delegado: participantes de los equipos que se enfrentan.
+                $e1 = $lado_html($f['ute_1_nombre'] ?? '', !empty($f['delegacion_en_ute_1']), $f['jugadores_ute_1'] ?? array());
+                $e2 = $lado_html($f['ute_2_nombre'] ?? '', !empty($f['delegacion_en_ute_2']), $f['jugadores_ute_2'] ?? array());
+            } else {
+                // Reporte general: nombres de los equipos que se enfrentan.
+                $e1 = $lado_html($f['ute_1_nombre'] ?? '', FALSE, array());
+                $e2 = $lado_html($f['ute_2_nombre'] ?? '', FALSE, array());
             }
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
             if ($e2 !== '') return $e2;
