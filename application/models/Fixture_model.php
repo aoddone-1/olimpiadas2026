@@ -630,6 +630,18 @@ class Fixture_model extends CI_Model {
             $f['jugadores_ute_2'] = $this->_fusionar_nombres_con_inscriptos(
                 $jug2, $this->_inscriptos_de_ute_en_categoria($idl2, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
             );
+
+            // Safety net: si el lado es propio pero quedó sin lista de jugadores
+            // (p. ej. inscriptos reconocidos solo por detalle_ute), se extraen
+            // los nombres del texto "NombreEquipo: J1, J2" que devolvió
+            // _describir_lado_del_partido, para que el reporte SIEMPRE muestre
+            // participantes y nunca el nombre del equipo suelto.
+            if ($lado1['es_delegacion'] && !$f['jugadores_ute_1']) {
+                $f['jugadores_ute_1'] = $this->_participantes_desde_texto_lado($lado1['nombre']);
+            }
+            if ($lado2['es_delegacion'] && !$f['jugadores_ute_2']) {
+                $f['jugadores_ute_2'] = $this->_participantes_desde_texto_lado($lado2['nombre']);
+            }
         }
         unset($f);
 
@@ -647,6 +659,22 @@ class Fixture_model extends CI_Model {
             return $nombre_crudo;
         }
         return $lado['nombre'];
+    }
+
+    /**
+     * Extrae la lista de participantes del texto que arma
+     * _describir_lado_del_partido para un lado propio:
+     *   "NombreEquipo: Juan Pérez, Ana Gómez"  →  ["Juan Pérez", "Ana Gómez"]
+     * Se usa como respaldo cuando jugadores_ute_X quedó vacío, para que el
+     * reporte del delegado nunca imprima el nombre del equipo suelto.
+     */
+    private function _participantes_desde_texto_lado($texto) {
+        $texto = trim((string) $texto);
+        if ($texto === '') return array();
+        $pos = strpos($texto, ': ');
+        if ($pos === FALSE) return array();
+        $lista = preg_split('/\s*,\s*/', substr($texto, $pos + 2), -1, PREG_SPLIT_NO_EMPTY);
+        return $this->_fusionar_nombres_con_inscriptos(array(), (array) $lista);
     }
 
     /** Nombres completos de los integrantes registrados de varias UTEs (clave: id_ute). */
