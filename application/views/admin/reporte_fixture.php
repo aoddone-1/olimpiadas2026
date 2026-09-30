@@ -68,111 +68,100 @@ class MYPDF extends TCPDF {
         };
 
         /**
-         * Lado del enfrentamiento como texto HTML.
+         * RESOLUCIÓN DE CADA LADO DEL ENFRENTAMIENTO (ver $lado_celda_html /
+         * $lado_celda_texto más abajo):
          *   - Reporte general (superadmin/admin): muestra siempre el EQUIPO.
-         *   - Reporte del delegado (flag $es_delegado, puesto por el controlador):
-         *       · lado propio  → solo los PARTICIPANTES ("Juan Pérez, Ana Gómez"),
+         *   - Reporte del delegado (flag modo_delegado puesto por el
+         *     controlador, o es_reporte_delegado en cada fila de
+         *     Fixture_model):
+         *       · lado propio  → solo los PARTICIPANTES ("pepe, maria, juan"),
          *                         sin el prefijo con el nombre del equipo;
          *       · lado rival   → el nombre del equipo rival.
          */
-        $lado_html = function ($nombre, $es_delegacion, $jugadores, $es_delegado) {
-            $nombre = trim((string) $nombre);
-            $html = '';
-            if ($es_delegado && $es_delegacion) {
-                // Participantes del equipo propio (viene desde Fixture_model).
-                $lista = array();
-                foreach ((array) $jugadores as $j) {
-                    $j = trim((string) $j);
-                    if ($j !== '') $lista[] = htmlspecialchars($j, ENT_QUOTES, 'UTF-8');
-                }
-                if ($lista) {
-                    $html = '<span style="color:#1e7e34; font-weight:bold;">' . implode(', ', $lista) . '</span>';
-                } elseif ($nombre !== '') {
-                    $html = '<span style="color:#1e7e34; font-weight:bold;">'
-                        . htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8') . '</span>';
-                }
-            } elseif ($nombre !== '') {
-                // Equipo rival / reporte general / slot pendiente: nombre del equipo.
-                $html = htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8');
-            }
-            return $html;
-        };
 
-        /** Texto plano de un lado (para variantes sin HTML, p. ej. celdas del CSV). */
-        $lado_texto = function ($nombre, $es_delegacion, $jugadores, $es_delegado) {
-            $nombre = trim((string) $nombre);
-            if ($es_delegado && $es_delegacion) {
-                $lista = array();
-                foreach ((array) $jugadores as $j) {
-                    $j = trim((string) $j);
-                    if ($j !== '') $lista[] = $j;
-                }
-                if ($lista) return implode(', ', $lista);
-                return $nombre;
+        /**
+         * Lista de participantes de un lado propio ya SIN el prefijo del nombre
+         * del equipo. Si la lista de jugadores viene vacía (caso deportes
+         * individuales), se usa el nombre del lado quitándole el prefijo
+         * "Equipo: J1, J2" que arma Fixture_model, para no imprimir nunca el
+         * nombre del equipo.
+         */
+        $participantes_lado = function ($nombre_lado, $jugadores) {
+            $lista = array();
+            foreach ((array) $jugadores as $j) {
+                $j = trim((string) $j);
+                if ($j !== '') $lista[] = $j;
             }
-            return $nombre;
+            if ($lista) return $lista;
+            // Sin lista: quitar el prefijo "Equipo: ..." del nombre del slot.
+            $nombre = preg_replace('/^Equipo:\s*.+?(\s+\d{1,2}:\d{2})?$/u', '$1', trim((string) $nombre_lado));
+            $nombre = trim((string) $nombre);
+            return $nombre !== '' ? array($nombre) : array();
         };
 
         /**
-         * Devuelve [texto_lado1, texto_lado2] ya resueltos según el modo en que
-         * se descargó el reporte. Compartida por la variante HTML ($equipos) y
-         * por la de texto plano ($equipos_texto).
+         * Nombre del equipo rival (lado NO propio) en modo delegado. Se toma el
+         * nombre crudo de la UTE (ute_X_nombre / rival_ute_X_nombre); si no hay
+         * UTE real (slot pendiente) se usa el nombre resuelto por el modelo.
          */
-        $lados_crudos = function ($f) use ($lado_texto) {
-            // Flag del modo delegado: lo define el controlador al emitir el PDF
-            // (modo_delegado), o lo trae cada fila desde Fixture_model cuando el
-            // fixture se obtuvo filtrado por delegación.
-            $es_delegado = $this->modo_delegado
-                || !empty($f['es_reporte_delegado'])
-                || !empty($f['delegacion_en_ute_1'])
-                || !empty($f['delegacion_en_ute_2']);
-            $l1 = !empty($f['delegacion_en_ute_1']);
-            $l2 = !empty($f['delegacion_en_ute_2']);
+        $rival_nombre = function ($f, $nombre_lado, $rival_nombre) {
+            $n = trim((string) $rival_nombre);
+            if ($n === '') $n = trim((string) $nombre_lado);
+            return $n;
+        };
 
-            // Lado 1
-            if ($es_delegado && $l1) {
-                $t1 = $lado_texto($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE);
-            } else {
-                $nom1 = $es_delegado ? (($f['rival_ute_1_nombre'] ?? '') !== ''
-                            ? $f['rival_ute_1_nombre'] : ($f['ute_1_nombre'] ?? ''))
-                        : ($f['ute_1_nombre'] ?? '');
-                $t1 = $lado_texto($nom1, FALSE, array(), $es_delegado);
+        /** Lado del enfrentamiento en HTML según el modo del reporte. */
+        $lado_celda_html = function ($f, $lado) use ($participantes_lado, $rival_nombre) {
+            $es_propio = !empty($f['delegacion_en_ute_' . $lado]);
+            if ($es_propio) {
+                $lista = $participantes_lado(
+                    $f['ute_' . $lado . '_nombre'] ?? '',
+                    $f['jugadores_ute_' . $lado] ?? array()
+                );
+                if (!$lista) return '';
+                return '<span style="color:#1e7e34; font-weight:bold;">'
+                    . implode(', ', array_map(function ($n) {
+                        return htmlspecialchars($n, ENT_QUOTES, 'UTF-8');
+                    }, $lista)) . '</span>';
             }
+            $nom = $rival_nombre(
+                $f,
+                $f['ute_' . $lado . '_nombre'] ?? '',
+                $f['rival_ute_' . $lado . '_nombre'] ?? ''
+            );
+            return $nom !== '' ? htmlspecialchars($nom, ENT_QUOTES, 'UTF-8') : '';
+        };
 
-            // Lado 2
-            if ($es_delegado && $l2) {
-                $t2 = $lado_texto($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE);
-            } else {
-                $nom2 = $es_delegado ? (($f['rival_ute_2_nombre'] ?? '') !== ''
-                            ? $f['rival_ute_2_nombre'] : ($f['ute_2_nombre'] ?? ''))
-                        : ($f['ute_2_nombre'] ?? '');
-                $t2 = $lado_texto($nom2, FALSE, array(), $es_delegado);
+        /** Lado del enfrentamiento en texto plano según el modo del reporte. */
+        $lado_celda_texto = function ($f, $lado) use ($participantes_lado, $rival_nombre) {
+            $es_propio = !empty($f['delegacion_en_ute_' . $lado]);
+            if ($es_propio) {
+                $lista = $participantes_lado(
+                    $f['ute_' . $lado . '_nombre'] ?? '',
+                    $f['jugadores_ute_' . $lado] ?? array()
+                );
+                return implode(', ', $lista);
             }
-
-            return array(trim((string) $t1), trim((string) $t2));
+            return $rival_nombre(
+                $f,
+                $f['ute_' . $lado . '_nombre'] ?? '',
+                $f['rival_ute_' . $lado . '_nombre'] ?? ''
+            );
         };
 
         /** Enfrentamiento en HTML: "Equipo A vs Equipo B" o, en modo delegado,
-         *  "Juan Pérez, Ana Gómez vs Equipo B". */
-        $equipos = function ($f) use ($lado_html, $lados_crudos) {
-            list($t1, $t2) = $lados_crudos($f);
+         *  "pepe, maria, juan vs walter, marta, carlos". */
+        $equipos = function ($f) use ($lado_celda_html) {
+            $es_delegado = $this->modo_delegado || !empty($f['es_reporte_delegado']);
 
-            $es_delegado = $this->modo_delegado
-                || !empty($f['es_reporte_delegado'])
-                || !empty($f['delegacion_en_ute_1'])
-                || !empty($f['delegacion_en_ute_2']);
-
-            // Reconstruir el HTML con formato (verde/negrita para el lado propio).
-            $e1 = $e2 = '';
-            if ($t1 !== '') {
-                $e1 = (!empty($f['delegacion_en_ute_1']) && $es_delegado)
-                    ? $lado_html($f['ute_1_nombre'] ?? '', TRUE, $f['jugadores_ute_1'] ?? array(), TRUE)
-                    : htmlspecialchars($t1, ENT_QUOTES, 'UTF-8');
-            }
-            if ($t2 !== '') {
-                $e2 = (!empty($f['delegacion_en_ute_2']) && $es_delegado)
-                    ? $lado_html($f['ute_2_nombre'] ?? '', TRUE, $f['jugadores_ute_2'] ?? array(), TRUE)
-                    : htmlspecialchars($t2, ENT_QUOTES, 'UTF-8');
+            if ($es_delegado) {
+                $e1 = $lado_celda_html($f, 1);
+                $e2 = $lado_celda_html($f, 2);
+            } else {
+                $e1 = trim((string) ($f['ute_1_nombre'] ?? ''));
+                $e1 = $e1 !== '' ? htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') : '';
+                $e2 = trim((string) ($f['ute_2_nombre'] ?? ''));
+                $e2 = $e2 !== '' ? htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') : '';
             }
 
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
@@ -182,8 +171,15 @@ class MYPDF extends TCPDF {
         };
 
         /** Variante en texto plano (sin HTML) del enfrentamiento. */
-        $equipos_texto = function ($f) use ($lados_crudos) {
-            list($t1, $t2) = $lados_crudos($f);
+        $equipos_texto = function ($f) use ($lado_celda_texto) {
+            $es_delegado = $this->modo_delegado || !empty($f['es_reporte_delegado']);
+            if ($es_delegado) {
+                $t1 = $lado_celda_texto($f, 1);
+                $t2 = $lado_celda_texto($f, 2);
+            } else {
+                $t1 = trim((string) ($f['ute_1_nombre'] ?? ''));
+                $t2 = trim((string) ($f['ute_2_nombre'] ?? ''));
+            }
             if ($t1 !== '' && $t2 !== '') return $t1 . ' vs ' . $t2;
             if ($t2 !== '') return $t2;
             if ($t1 !== '') return $t1;
