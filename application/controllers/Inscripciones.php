@@ -691,6 +691,39 @@ class Inscripciones extends CI_Controller {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
             // fixture, para que siempre se puedan cargar resultados.
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
+
+            // Marcadores ya cargados (fase de grupos y eliminatoria): se
+            // adjuntan a cada fixture como marcador_1 / marcador_2 para que
+            // el panel muestre el resultado (ej: "2 - 1") en la tarjeta del
+            // partido, igual que una tabla de Mundial.
+            $marcadores = array();
+            if ($this->db->table_exists('resultados') && $this->db->table_exists('resultado_detalle')) {
+                $this->db->select('r.id_fixture, r.id_ute_ganador, rd.id_ute, rd.marcador_local, rd.marcador_visita')
+                         ->from('resultados r')
+                         ->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'inner')
+                         ->where('r.tipo_resultado', 'MARCADOR')
+                         ->where('r.id_fixture IS NOT NULL', null, false)
+                         ->where('rd.marcador_local IS NOT NULL', null, false);
+                foreach ($this->db->get()->result_array() as $d) {
+                    $id_fx  = (int) $d['id_fixture'];
+                    $id_ute = $d['id_ute'] === null ? null : (int) $d['id_ute'];
+                    if ($id_ute === null || $id_ute <= 0) continue; // solo equipos reales
+                    // Cada fila guarda SU lado: local = goles propios, visita = del rival.
+                    $marcadores[$id_fx][$id_ute] = array(
+                        (int) $d['marcador_local'],
+                        (int) $d['marcador_visita'],
+                    );
+                }
+            }
+            foreach ($fixtures as &$fxrow) {
+                $g1 = isset($marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_1']])
+                    ? $marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_1']][0] : null;
+                $g2 = isset($marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_2']])
+                    ? $marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_2']][0] : null;
+                $fxrow['marcador_1'] = $g1;
+                $fxrow['marcador_2'] = $g2;
+            }
+            unset($fxrow);
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;

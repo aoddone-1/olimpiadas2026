@@ -206,8 +206,12 @@ class Fixture_model extends CI_Model {
             }
 
             $total_partidos = count($lista);
+            // Nombre real del grupo: coincide con la letra que usó el generador
+            // (numero_fecha 1 = Grupo A, 2 = Grupo B, ...).
+            $letra_grupo = chr(64 + (int) $fecha);
             $grupos[] = array(
-                'nombre'    => 'FECHA ' . $fecha,
+                'nombre'    => 'GRUPO ' . $letra_grupo,
+                'letra'     => $letra_grupo,
                 'fecha'     => (int) $fecha,
                 'jugado'    => $jugados,
                 'total'     => $total_partidos,
@@ -1276,7 +1280,7 @@ class Fixture_model extends CI_Model {
      *  - ENFRENTAMIENTO -> bracket de ELIMINACION_DIRECTA con cruces aleatorios.
      * Devuelve la cantidad de partidos generados.
      */
-    public function generar_fixture_para_categoria($id_categoria) {
+    public function generar_fixture_para_categoria($id_categoria, $equipos_por_grupo = 4) {
         $this->db->select('c.*, d.modalidad_competencia, d.tipo_duracion');
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
@@ -1300,7 +1304,7 @@ class Fixture_model extends CI_Model {
             return $this->_generar_jornada_unica($categoria);
         }
 
-        return $this->_generar_eliminatoria($categoria);
+        return $this->_generar_eliminatoria($categoria, $equipos_por_grupo);
     }
 
     /**
@@ -1386,7 +1390,7 @@ class Fixture_model extends CI_Model {
         return 1;
     }
 
-    private function _generar_eliminatoria($categoria) {
+    private function _generar_eliminatoria($categoria, $equipos_por_grupo = 4) {
         $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
         $cant = count($utes);
 
@@ -1400,13 +1404,18 @@ class Fixture_model extends CI_Model {
         // Eliminatoria con fase de grupos estilo Mundial:
         // FECHA 1 = GRUPO A, FECHA 2 = GRUPO B, ... Cada grupo juega todos
         // contra todos y los 2 primeros avanzan a la eliminatoria cruzada.
-        $cant_grupos = max(1, (int) ceil($cant / 4));
-        $tam_grupo  = (int) ceil($cant / $cant_grupos);
-        if ($tam_grupo < 3) {
-            $cant_grupos = max(1, (int) floor($cant / 3));
-            $tam_grupo   = (int) ceil($cant / $cant_grupos);
+        // El admin elige cuántos equipos por grupo (3..6); con pocos equipos
+        // se achica la cantidad de grupos para que todos tengan al menos 3.
+        $tam_grupo = max(2, min(6, (int) $equipos_por_grupo));
+        $cant_grupos = max(1, (int) ceil($cant / $tam_grupo));
+        // Si el reparto deja grupos de 1 equipo, se recalcula con grupos más chicos.
+        while ($cant_grupos > 1 && (int) floor($cant / $cant_grupos) < 2) {
+            $cant_grupos--;
         }
+        $tam_grupo = (int) ceil($cant / $cant_grupos);
         $tam_grupo = min(6, max(2, $tam_grupo));
+        // Recalcular cantidad de grupos con el tamaño final.
+        $cant_grupos = max(1, (int) ceil($cant / $tam_grupo));
 
         $grupos = array();
         for ($g = 0; $g < $cant_grupos; $g++) {

@@ -63,7 +63,14 @@
             </div>
             <div class="col-md-5">
                 <label class="form-label small fw-bold">Acciones</label>
-                <div class="d-flex flex-wrap gap-2">
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <select id="fx_equipos_por_grupo" class="form-select form-select-sm" style="max-width: 165px;"
+                            title="En deportes de enfrentamiento se genera fase de grupos estilo Mundial (todos contra todos; pasan los 2 primeros a la eliminatoria cruzada)">
+                        <option value="3">3 x grupo</option>
+                        <option value="4" selected>4 x grupo</option>
+                        <option value="5">5 x grupo</option>
+                        <option value="6">6 x grupo</option>
+                    </select>
                     <button id="fx_btn_generar" class="btn btn-primary d-inline-flex align-items-center" disabled>
                         <i class="bi bi-magic me-2"></i>Generar fixture
                     </button>
@@ -222,6 +229,74 @@
     </div>
 </div>
 
+<!-- MODAL: tabla de posiciones (formato Mundial) -->
+<div class="modal fade" id="modalTablas" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success bg-gradient text-white py-2">
+                <div>
+                    <h5 class="modal-title mb-0"><i class="bi bi-table me-2"></i>Tabla de posiciones — Fase de Grupos</h5>
+                    <div class="small opacity-75" id="fxt_sub"></div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-2" id="fxt_body"></div>
+            <div class="modal-footer py-2">
+                <span class="small text-muted me-auto">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Gana = 3 pts · Empate = 1 pt · Pasan los <strong>2 primeros</strong> de cada grupo a la eliminatoria cruzada (1° A vs 2° B, etc.)
+                </span>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: cargar marcador de partido de fase de grupos -->
+<div class="modal fade" id="modalMarcador" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-2">
+                <h5 class="modal-title mb-0"><i class="bi bi-pencil-square me-2"></i>Marcador — <span id="fxg_titulo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="fxg_id_fixture">
+                <div class="alert alert-info small py-2 mb-3">
+                    <i class="bi bi-globe-americas me-1"></i><strong>Fase de Grupos:</strong>
+                    gana <strong>3 puntos</strong>, empata <strong>1 punto</strong>. Cuando el grupo se completa,
+                    el <strong>1° y el 2° clasifican automáticamente</strong> a la eliminatoria cruzada.
+                </div>
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
+                    <div class="text-center flex-fill">
+                        <div class="fw-semibold mb-1 text-truncate" id="fxg_eq1" title="">—</div>
+                        <input type="number" id="fxg_goles1" class="form-control form-control-lg text-center fw-bold mx-auto" style="max-width:90px" min="0" max="99" value="0">
+                    </div>
+                    <div class="fs-3 fw-bold text-muted">vs</div>
+                    <div class="text-center flex-fill">
+                        <div class="fw-semibold mb-1 text-truncate" id="fxg_eq2" title="">—</div>
+                        <input type="number" id="fxg_goles2" class="form-control form-control-lg text-center fw-bold mx-auto" style="max-width:90px" min="0" max="99" value="0">
+                    </div>
+                </div>
+                <details class="mb-2">
+                    <summary class="small fw-semibold text-muted"><i class="bi bi-card-image me-1"></i>Tarjetas (desempate por Fair Play — opcional)</summary>
+                    <div class="row g-2 mt-1 small">
+                        <div class="col-3"><label class="form-label mb-0">🟨 Eq.1</label><input type="number" id="fxg_am1" class="form-control form-control-sm" min="0" value="0"></div>
+                        <div class="col-3"><label class="form-label mb-0">🟥 Eq.1</label><input type="number" id="fxg_rj1" class="form-control form-control-sm" min="0" value="0"></div>
+                        <div class="col-3"><label class="form-label mb-0">🟨 Eq.2</label><input type="number" id="fxg_am2" class="form-control form-control-sm" min="0" value="0"></div>
+                        <div class="col-3"><label class="form-label mb-0">🟥 Eq.2</label><input type="number" id="fxg_rj2" class="form-control form-control-sm" min="0" value="0"></div>
+                    </div>
+                </details>
+                <div id="fxg_msg" class="small d-none"></div>
+            </div>
+            <div class="modal-footer py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="fxg_guardar" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Guardar marcador</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
@@ -310,6 +385,25 @@
         PROGRAMADO: 'bg-secondary', EN_CURSO: 'bg-warning text-dark',
         FINALIZADO: 'bg-success', SUSPENDIDO: 'bg-danger'
     };
+
+    /* ---------- Fases estilo Mundial: etiqueta bonita + color del badge ---------- */
+    function faseEsGrupo(fase) {
+        return fase === 'GRUPO' || /^GRUPO_[A-H]$/.test(String(fase || ''));
+    }
+    function faseLabel(fase) {
+        fase = String(fase || '').replace(/_/g, ' ');
+        if (fase === 'TERCER PUESTO') return '3er Puesto';
+        if (fase === 'JORNADA UNICA') return 'Jornada Única';
+        if (/^GRUPO [A-H]$/.test(fase)) return fase; // GRUPO A, GRUPO B...
+        return fase;
+    }
+    function faseBadge(fase) {
+        if (faseEsGrupo(fase)) return 'bg-primary';
+        if (fase === 'FINAL') return 'bg-danger';
+        if (fase === 'SEMIFINAL') return 'bg-warning text-dark';
+        if (fase === 'JORNADA_UNICA') return 'bg-warning text-dark';
+        return 'bg-info text-dark';
+    }
 
     function esc(s) {
         if (s === null || s === undefined) return '';
