@@ -93,8 +93,11 @@ class MYPDF extends TCPDF {
          *     ("Losa Tenis vs Los Pumas").
          *   - Reporte del DELEGADO (flag modo_delegado que pone el controlador
          *     al descargar desde su sesión): en los deportes de ENFRENTAMIENTO
-         *     DE EQUIPOS muestra los NOMBRES DE LOS INTEGRANTES de cada lado
-         *     ("pepe, maria, juan vs nora, martina") — ver _integrantes_lado().
+         *     DE EQUIPOS muestra "EQUIPO (jugador 1, jugador 2)" de cada lado,
+         *     para que el delegado vea SIEMPRE los equipos y además los
+         *     INTEGRANTES de cada uno ("Losa Tenis (pepe, maria, juan) vs
+         *     Los Pumas (nora, martina)"). Si un equipo no tiene integrantes
+         *     cargados, se imprime solo su nombre (nunca queda vacío).
          *     En los deportes individuales / jornada masiva el modelo ya trae
          *     resueltos los nombres de los competidores en ute_X_nombre, así
          *     que se imprime tal cual.
@@ -119,29 +122,49 @@ class MYPDF extends TCPDF {
             if ($lista) return $lista;
             $nombre = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
             if ($nombre === '') return array();
-            $despejado = preg_replace('/^[^:]+:\s*/u', '', $nombre);
-            $despejado = trim((string) $despejado);
+            // Solo hay lista si el texto trae la forma "Nombre: J1, J2"; si no,
+            // el nombre es el del EQUIPO y no debe tratarse como participante.
+            if (strpos($nombre, ': ') === FALSE) return array();
+            $despejado = trim((string) preg_replace('/^[^:]+:\s*/u', '', $nombre));
             if ($despejado === '') return array();
             return array_values(array_filter(array_map('trim', explode(',', $despejado)), function ($x) {
                 return $x !== '';
             }));
         };
 
+        /** Nombre del EQUIPO del lado $lado (sin el prefijo ": integrantes"
+         *  que a veces arma el modelo). */
+        $equipo_lado = function ($f, $lado) {
+            $nombre = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
+            if (strpos($nombre, ': ') !== FALSE) {
+                $pos = strpos($nombre, ': ');
+                $eq = trim(substr($nombre, 0, $pos));
+                if ($eq !== '') return $eq;
+            }
+            return $nombre;
+        };
+
         /** Texto del lado $lado según el tipo de deporte:
-         *  - equipos de enfrentamiento → integrantes (cortos o completos);
+         *  - equipos de enfrentamiento → "Equipo (integrantes...)";
          *  - resto (individual / masivo) → lo que resuelve el modelo. */
-        $integrantes_lado = function ($f, $lado) use ($_integrantes_raw) {
+        $integrantes_lado = function ($f, $lado) use ($_integrantes_raw, $equipo_lado) {
             $modalidad = strtoupper(trim((string) ($f['modalidad_competencia'] ?? '')));
             $es_equipo = $modalidad === 'ENFRENTAMIENTO';
             if ($es_equipo) {
+                $equipo = $equipo_lado($f, $lado);
                 $crudos = $_integrantes_raw($f, $lado);
                 if ($crudos) {
                     $out = array();
                     foreach ($crudos as $j) {
                         $out[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
                     }
-                    return implode(', ', $out);
+                    $lista_txt = implode(', ', $out);
+                    // El nombre del equipo SIEMPRE va delante: el delegado tiene
+                    // que ver qué equipo enfrenta a cuál, y debajo sus integrantes.
+                    return $equipo !== '' ? $equipo . ' (' . $lista_txt . ')' : $lista_txt;
                 }
+                // Sin integrantes cargados: se muestra el nombre del equipo.
+                return $equipo;
             }
             return trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
         };

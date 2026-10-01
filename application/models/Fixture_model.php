@@ -582,8 +582,8 @@ class Fixture_model extends CI_Model {
 
         $this->db->select('
             f.*,
-            u1.nombre_ute as rival_ute_1_nombre,
-            u2.nombre_ute as rival_ute_2_nombre,
+            u1.nombre_ute as ute_1_nombre_crudo,
+            u2.nombre_ute as ute_2_nombre_crudo,
             l.nombre as lugar_nombre,
             c.nombre_categoria,
             c.genero as genero_categoria,
@@ -592,8 +592,8 @@ class Fixture_model extends CI_Model {
             d.tipo_duracion
         ', FALSE);
         $this->db->from('fixtures f');
-        // Nombres crudos de las UTEs enfrentadas: se conservan en el reporte del
-        // delegado SOLO para el lado rival (el lado propio muestra participantes).
+        // Nombres crudos de las UTEs enfrentadas (alias ute_X_nombre_crudo):
+        // sirven como respaldo si la tabla `utes` no devolviera el nombre.
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
         $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
         $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
@@ -650,19 +650,9 @@ class Fixture_model extends CI_Model {
 
         $comp_delegacion = $this->_competidores_de_delegacion($delegacion);
 
-        // Integrantes propios de cada UTE de la delegación (clave: id_ute), para
-        // que el delegado vea los nombres de sus jugadores en cada partido.
-        $utes_propias = array();
-        foreach ($fixtures as $fx) {
-            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
-                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
-                if ($idl > 0 && !isset($utes_propias[$idl])) {
-                    $l = $this->_describir_lado_del_partido($fx, $campo, $nombres_utes, $comp_delegacion);
-                    if (!empty($l['es_delegacion'])) $utes_propias[$idl] = true;
-                }
-            }
-        }
-        $integrantes_ute = $this->_integrantes_de_utes(array_keys($utes_propias));
+        // Integrantes de TODAS las UTEs que juegan (propias y rivales), para que
+        // el delegado vea los nombres de los equipos ENFRENTADOS por ambos lados.
+        $integrantes_ute = $this->_integrantes_de_utes($ids_ute);
 
         foreach ($fixtures as &$f) {
             $lado1 = $this->_describir_lado_del_partido($f, 'id_ute_1', $nombres_utes, $comp_delegacion);
@@ -671,55 +661,30 @@ class Fixture_model extends CI_Model {
             $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
             $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
 
-            // Lado propio: se envía el nombre CRUDO de la UTE (sin el prefijo
-            // "Equipo: ...") porque el reporte del delegado muestra únicamente
-            // los participantes. El lado rival conserva el nombre del equipo.
-            // Si el partido es individual o de jornada masiva ($lado['nombre']
-            // ya trae los nombres resueltos y no hay UTE real), se conserva ese
-            // nombre para que el reporte nunca quede vacío.
-            $f['ute_1_nombre'] = $this->_nombre_lado_reporte(
-                $lado1, $idl1 > 0 && $lado1['es_delegacion'] && isset($nombres_utes[$idl1])
-                    ? $nombres_utes[$idl1] : $lado1['nombre']
-            );
-            $f['ute_2_nombre'] = $this->_nombre_lado_reporte(
-                $lado2, $idl2 > 0 && $lado2['es_delegacion'] && isset($nombres_utes[$idl2])
-                    ? $nombres_utes[$idl2] : $lado2['nombre']
-            );
-            $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
-            $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
+            // NOMBRE DEL EQUIPO de cada lado: siempre el de la tabla `utes`; si
+            // no está, se usa el alias crudo de la consulta o el texto ya
+            // resuelto por _describir_lado_del_partido (individuales / masivos).
+            // Así EL REPORTE DEL DELEGADO NUNCA QUEDA SIN LOS EQUIPOS.
+            $eq1 = $this->_nombre_equipo_reporte($idl1, $nombres_utes, $f, 1, $lado1);
+            $eq2 = $this->_nombre_equipo_reporte($idl2, $nombres_utes, $f, 2, $lado2);
 
-            // Rivales: si del otro lado hay una UTE de otra delegación, se envía
-            // su nombre para poder mostrar "Equipo A vs Equipo B" en el reporte.
-            $f['rival_ute_1_nombre'] = (!$lado1['es_delegacion'] && $idl1 > 0 && isset($nombres_utes[$idl1]))
-                ? $nombres_utes[$idl1] : NULL;
-            $f['rival_ute_2_nombre'] = (!$lado2['es_delegacion'] && $idl2 > 0 && isset($nombres_utes[$idl2]))
-                ? $nombres_utes[$idl2] : NULL;
+            // Integrantes de CADA lado (propios y rivales): lista registrada en
+            // participantes_utes + inscriptos de la categoría que mencionan al
+            // equipo (histórico sin id_ute) + despeje del texto "Equipo: J1, J2".
+            $f['jugadores_ute_1'] = $this->_integrantes_del_lado_reporte(
+                $idl1, $integrantes_ute, $f, $lado1, $delegacion);
+            $f['jugadores_ute_2'] = $this->_integrantes_del_lado_reporte(
+                $idl2, $integrantes_ute, $f, $lado2, $delegacion);
 
-            // Flag del modo delegado: la vista (reporte_fixture) lo usa para
-            // decidir si cada lado muestra participantes o el nombre del equipo.
+            // El modelo SIEMPRE deja los nombres crudos en ute_X_nombre: la vista
+            // decide (según quién descarga) si imprime el equipo o sus integrantes.
+            $f['ute_1_nombre'] = $eq1;
+            $f['ute_2_nombre'] = $eq2;
+
+            // Banderas informativas (la vista hoy decide solo por modo_delegado).
+            $f['delegacion_en_ute_1'] = !empty($lado1['es_delegacion']);
+            $f['delegacion_en_ute_2'] = !empty($lado2['es_delegacion']);
             $f['es_reporte_delegado'] = TRUE;
-
-            // Integrantes de la delegación que juegan ese partido por cada lado.
-            $jug1 = ($lado1['es_delegacion'] && isset($integrantes_ute[$idl1])) ? $integrantes_ute[$idl1] : array();
-            $jug2 = ($lado2['es_delegacion'] && isset($integrantes_ute[$idl2])) ? $integrantes_ute[$idl2] : array();
-            $f['jugadores_ute_1'] = $this->_fusionar_nombres_con_inscriptos(
-                $jug1, $this->_inscriptos_de_ute_en_categoria($idl1, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
-            );
-            $f['jugadores_ute_2'] = $this->_fusionar_nombres_con_inscriptos(
-                $jug2, $this->_inscriptos_de_ute_en_categoria($idl2, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
-            );
-
-            // Safety net: si el lado es propio pero quedó sin lista de jugadores
-            // (p. ej. inscriptos reconocidos solo por detalle_ute), se extraen
-            // los nombres del texto "NombreEquipo: J1, J2" que devolvió
-            // _describir_lado_del_partido, para que el reporte SIEMPRE muestre
-            // participantes y nunca el nombre del equipo suelto.
-            if ($lado1['es_delegacion'] && !$f['jugadores_ute_1']) {
-                $f['jugadores_ute_1'] = $this->_participantes_desde_texto_lado($lado1['nombre']);
-            }
-            if ($lado2['es_delegacion'] && !$f['jugadores_ute_2']) {
-                $f['jugadores_ute_2'] = $this->_participantes_desde_texto_lado($lado2['nombre']);
-            }
         }
         unset($f);
 
@@ -727,16 +692,77 @@ class Fixture_model extends CI_Model {
     }
 
     /**
-     * Nombre del lado del partido para el reporte del delegado:
-     *   - equipo propio  → nombre crudo de la UTE, SIN el prefijo "Equipo: J1, J2"
-     *     (los participantes se listan aparte en jugadores_ute_X);
-     *   - individual / jornada masiva → se conservan los nombres ya resueltos.
+     * NOMBRE DEL EQUIPO de un lado para el reporte del delegado. Se toma siempre
+     * el nombre registrado en la tabla `utes`; si no está se usa el alias crudo
+     * de la consulta (ute_X_nombre_crudo) y, solo para slots individuales o de
+     * jornada masiva (sin UTE real), el texto que ya resolvió
+     * _describir_lado_del_partido. Garantiza que el reporte nunca quede sin el
+     * nombre de los equipos enfrentados.
      */
-    private function _nombre_lado_reporte($lado, $nombre_crudo) {
-        if (!empty($lado['es_delegacion']) && $nombre_crudo !== NULL && $nombre_crudo !== '') {
-            return $nombre_crudo;
+    private function _nombre_equipo_reporte($id_lado, $nombres_utes, $f, $lado, $lado_info) {
+        if ($id_lado > 0) {
+            if (isset($nombres_utes[$id_lado]) && trim((string) $nombres_utes[$id_lado]) !== '') {
+                return trim((string) $nombres_utes[$id_lado]);
+            }
+            $crudo = trim((string) ($f['ute_' . $lado . '_nombre_crudo'] ?? ''));
+            if ($crudo !== '') return $crudo;
         }
-        return $lado['nombre'];
+        // Slot negativo (individual) o pendiente: se conserva lo resuelto por el
+        // modelo ("Juan Pérez (12.345)", "Ganador Llave 1", lista del masivo...).
+        return trim((string) ($lado_info['nombre'] ?? ''));
+    }
+
+    /**
+     * Integrantes de UN lado del enfrentamiento para el reporte del delegado
+     * (se listan los de AMBOS equipos: los propios y los del rival). Se combinan,
+     * sin repetir:
+     *   1. los dados de alta en participantes_utes para esa UTE;
+     *   2. los inscriptos de la categoría que reconocen al equipo por id_ute o
+     *      por detalle_ute (inscripciones históricas);
+     *   3. si nada de lo anterior funcionó, la lista del texto
+     *      "NombreEquipo: J1, J2" que arma _describir_lado_del_partido.
+     * El paso 3 solo aporta datos cuando el lado es PROPIO de la delegación
+     * (para el rival ese texto trae únicamente el nombre del equipo).
+     * Devuelve array de nombres (vacío si el lado es un slot pendiente).
+     */
+    private function _integrantes_del_lado_reporte($id_lado, $integrantes_ute, $f, $lado_info, $delegacion) {
+        if ($id_lado <= 0) {
+            // Individual / jornada masiva: si el lado es propio, el texto ya trae
+            // los nombres resueltos ("Juan Pérez (12.345), ..."); si es el rival,
+            // queda vacío y la vista imprime su nombre de competidor/equipo.
+            if (empty($lado_info['es_delegacion'])) return array();
+            return $this->_participantes_desde_lista($lado_info['nombre'] ?? '');
+        }
+
+        $registrados = isset($integrantes_ute[$id_lado]) ? $integrantes_ute[$id_lado] : array();
+        $id_categoria = isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0;
+        // Inscriptos reconocidos por id_ute o detalle_ute. Para el lado propio se
+        // filtra además por delegación (solo sus jugadores); para el rival se toma
+        // cualquier inscripto vinculado a esa UTE en la categoría.
+        $por_inscripcion = !empty($lado_info['es_delegacion'])
+            ? $this->_inscriptos_de_ute_en_categoria($id_lado, $id_categoria, $delegacion)
+            : $this->_inscriptos_de_ute_por_categoria($id_lado, $id_categoria);
+
+        $desde_texto = array();
+        if (!$registrados && !$por_inscripcion && !empty($lado_info['es_delegacion'])) {
+            $desde_texto = $this->_participantes_desde_texto_lado($lado_info['nombre'] ?? '');
+        }
+
+        return $this->_fusionar_nombres_con_inscriptos(
+            $this->_fusionar_nombres_con_inscriptos($registrados, $por_inscripcion),
+            $desde_texto
+        );
+    }
+
+    /** Lista de nombres a partir de un texto ya resuelto (con o sin prefijo
+     *  "Equipo: "). Si el texto no tiene lista separada por comas, se devuelve
+     *  como un único elemento (p. ej. "Juan Pérez (12.345)"). */
+    private function _participantes_desde_lista($texto) {
+        $texto = trim((string) $texto);
+        if ($texto === '') return array();
+        $lista = $this->_participantes_desde_texto_lado($texto);
+        if ($lista) return $lista;
+        return $this->_fusionar_nombres_con_inscriptos(array(), array($texto));
     }
 
     /**
@@ -744,14 +770,16 @@ class Fixture_model extends CI_Model {
      * _describir_lado_del_partido para un lado propio:
      *   "NombreEquipo: Juan Pérez, Ana Gómez"  →  ["Juan Pérez", "Ana Gómez"]
      * Se usa como respaldo cuando jugadores_ute_X quedó vacío, para que el
-     * reporte del delegado nunca imprima el nombre del equipo suelto.
+     * reporte del delegado SIEMPRE muestre los integrantes de sus equipos.
      */
     private function _participantes_desde_texto_lado($texto) {
         $texto = trim((string) $texto);
         if ($texto === '') return array();
         $pos = strpos($texto, ': ');
         if ($pos === FALSE) return array();
-        $lista = preg_split('/\s*,\s*/', substr($texto, $pos + 2), -1, PREG_SPLIT_NO_EMPTY);
+        $cola = trim(substr($texto, $pos + 2));
+        if ($cola === '' || $cola === ',') return array();
+        $lista = preg_split('/\s*,\s*/', $cola, -1, PREG_SPLIT_NO_EMPTY);
         return $this->_fusionar_nombres_con_inscriptos(array(), (array) $lista);
     }
 
