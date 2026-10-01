@@ -1117,11 +1117,11 @@ class Inscripciones extends CI_Controller {
         // (en vez de Deporte → Categoría → Fecha → Hora).
         $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
-        // Nombres de los participantes en los enfrentamientos (solo visibles en
-        // el reporte del delegado): por defecto CORTOS, con iniciales
-        // ("María P. G."); con ?nombres=completos se imprimen completos
-        // ("Maria Paula Gomez").
-        $nombres_completos = $this->input->get('nombres') === 'completos';
+        // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
+        // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),
+        // para que el delegado vea bien quiénes juegan; con ?nombres=cortos se
+        // abrevian con iniciales ("María P. G.").
+        $nombres_completos = $this->input->get('nombres') !== 'cortos';
 
         $nombre_archivo = 'fixture_' . $formato
             . ($nombre_deporte_filtro !== NULL
@@ -1142,11 +1142,11 @@ class Inscripciones extends CI_Controller {
             'deporte_filtro'    => $nombre_deporte_filtro,
             'orden_reporte'     => $orden_reporte,
             'delegacion_filtro' => $delegacion,
-            // En el reporte del delegado, nombres cortos por defecto (iniciales).
-            // El reporte general (superadmin) solo muestra el nombre del equipo.
+            // Nombres de los integrantes: completos por defecto (el reporte
+            // general del superadmin igual solo imprime el nombre del equipo).
             'nombres_completos' => $nombres_completos,
-            // Flag del modo delegado: la vista lista los PARTICIPANTES de los
-            // equipos propios (en vez del nombre del equipo) solo si es TRUE.
+            // Flag del modo delegado: la vista lista los INTEGRANTES de los
+            // equipos (en vez del nombre del equipo) solo si es TRUE.
             'modo_delegado'     => ($delegacion !== NULL),
         ));
         $this->load->view('admin/reporte_fixture');
