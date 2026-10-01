@@ -1117,10 +1117,11 @@ class Inscripciones extends CI_Controller {
         // (en vez de Deporte → Categoría → Fecha → Hora).
         $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
-        // Nombres de los participantes en los enfrentamientos: por defecto
-        // COMPLETOS ("Maria Paula Gomez"); con ?nombres=cortos se imprimen con
-        // iniciales ("María P. G.") para achicar las celdas del cuadro.
-        $nombres_completos = $this->input->get('nombres') !== 'cortos';
+        // Nombres de los participantes en los enfrentamientos (solo visibles en
+        // el reporte del delegado): por defecto CORTOS, con iniciales
+        // ("María P. G."); con ?nombres=completos se imprimen completos
+        // ("Maria Paula Gomez").
+        $nombres_completos = $this->input->get('nombres') === 'completos';
 
         $nombre_archivo = 'fixture_' . $formato
             . ($nombre_deporte_filtro !== NULL
@@ -1141,7 +1142,8 @@ class Inscripciones extends CI_Controller {
             'deporte_filtro'    => $nombre_deporte_filtro,
             'orden_reporte'     => $orden_reporte,
             'delegacion_filtro' => $delegacion,
-            // Nombres cortos por defecto en los enfrentamientos con participantes.
+            // En el reporte del delegado, nombres cortos por defecto (iniciales).
+            // El reporte general (superadmin) solo muestra el nombre del equipo.
             'nombres_completos' => $nombres_completos,
             // Flag del modo delegado: la vista lista los PARTICIPANTES de los
             // equipos propios (en vez del nombre del equipo) solo si es TRUE.

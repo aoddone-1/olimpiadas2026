@@ -21,37 +21,10 @@ class MYPDF extends TCPDF {
     public $orden_reporte = 'deporte';
     /** Flag del controlador: TRUE cuando el reporte lo descarga un delegado. */
     public $modo_delegado = FALSE;
-    /** Con ?nombres=cortos se imprimen iniciales ("María P. G."); por defecto
-     *  el reporte muestra los NOMBRES COMPLETOS de los participantes. */
-    public $nombres_completos = TRUE;
-
-    /**
-     * Lista de participantes de un lado del partido para el reporte GENERAL
-     * (superadmin/admin), ya formateada. Devuelve NULL cuando el lado no tiene
-     * una lista real de integrantes (slot pendiente, competidor individual o
-     * jornada masiva): en esos casos el reporte sigue mostrando el nombre del
-     * equipo/lado resuelto por Fixture_model.
-     *
-     * @param array  $f        fila del fixture (jugadores_ute_1 / _2).
-     * @param int    $lado     1 o 2.
-     * @param bool   $texto    TRUE = texto plano; FALSE = HTML escapado.
-     * @return string|null
-     */
-    public function _lista_participantes($f, $lado, $texto = FALSE) {
-        $lista = array();
-        foreach ((array) ($f['jugadores_ute_' . $lado] ?? array()) as $j) {
-            $j = trim((string) $j);
-            if ($j === '') continue;
-            $lista[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
-        }
-        if (!$lista) return NULL;
-        $sep = ', ';
-        return $texto
-            ? implode($sep, $lista)
-            : implode($sep, array_map(function ($n) {
-                return htmlspecialchars($n, ENT_QUOTES, 'UTF-8');
-            }, $lista));
-    }
+    /** Con ?nombres=completos se imprimen los nombres completos de los
+     *  participantes ("María Paula Gómez"); por defecto (y con
+     *  ?nombres=cortos) se imprimen iniciales ("María P. G."). */
+    public $nombres_completos = FALSE;
 
     /** Nombre corto (pila + iniciales): "María Paula Gómez" → "María P. G.". */
     public static function _nombre_corto($n) {
@@ -196,8 +169,10 @@ class MYPDF extends TCPDF {
             );
         };
 
-        /** Enfrentamiento en HTML: "Equipo A vs Equipo B"; cuando se conocen los
-         *  integrantes de ambos bandos, "maría, paula, juliana vs nora, martina, guille". */
+        /** Enfrentamiento en HTML: el reporte GENERAL (superadmin/admin) siempre
+         *  muestra el EQUIPO ("Equipo A vs Equipo B"). El reporte del DELEGADO
+         *  muestra los PARTICIPANTES del lado propio ("pepe, maria, juan") y el
+         *  nombre del equipo rival. */
         $equipos = function ($f) use ($lado_celda_html) {
             $es_delegado = $this->modo_delegado || !empty($f['es_reporte_delegado']);
 
@@ -205,22 +180,11 @@ class MYPDF extends TCPDF {
                 $e1 = $lado_celda_html($f, 1);
                 $e2 = $lado_celda_html($f, 2);
             } else {
-                // Reporte general (superadmin/admin): si el partido enfrenta dos
-                // equipos con integrantes cargados, se muestran los nombres de
-                // los participantes en vez del nombre del equipo. Si alguno de
-                // los dos lados no tiene lista (slot pendiente, individual,
-                // jornada masiva), se conserva el nombre del equipo/lado.
-                $j1 = $this->_lista_participantes($f, 1);
-                $j2 = $this->_lista_participantes($f, 2);
-                if ($j1 !== NULL && $j2 !== NULL) {
-                    $e1 = '<span style="color:#1e7e34; font-weight:bold;">' . $j1 . '</span>';
-                    $e2 = '<span style="color:#1e7e34; font-weight:bold;">' . $j2 . '</span>';
-                } else {
-                    $e1 = trim((string) ($f['ute_1_nombre'] ?? ''));
-                    $e1 = $e1 !== '' ? htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') : '';
-                    $e2 = trim((string) ($f['ute_2_nombre'] ?? ''));
-                    $e2 = $e2 !== '' ? htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') : '';
-                }
+                // Reporte general (superadmin/admin): solo el nombre del equipo.
+                $e1 = trim((string) ($f['ute_1_nombre'] ?? ''));
+                $e1 = $e1 !== '' ? htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') : '';
+                $e2 = trim((string) ($f['ute_2_nombre'] ?? ''));
+                $e2 = $e2 !== '' ? htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') : '';
             }
 
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
@@ -236,15 +200,9 @@ class MYPDF extends TCPDF {
                 $t1 = $lado_celda_texto($f, 1);
                 $t2 = $lado_celda_texto($f, 2);
             } else {
-                $p1 = $this->_lista_participantes($f, 1, TRUE);
-                $p2 = $this->_lista_participantes($f, 2, TRUE);
-                if ($p1 !== NULL && $p2 !== NULL) {
-                    $t1 = $p1;
-                    $t2 = $p2;
-                } else {
-                    $t1 = trim((string) ($f['ute_1_nombre'] ?? ''));
-                    $t2 = trim((string) ($f['ute_2_nombre'] ?? ''));
-                }
+                // Reporte general (superadmin/admin): solo el nombre del equipo.
+                $t1 = trim((string) ($f['ute_1_nombre'] ?? ''));
+                $t2 = trim((string) ($f['ute_2_nombre'] ?? ''));
             }
             if ($t1 !== '' && $t2 !== '') return $t1 . ' vs ' . $t2;
             if ($t2 !== '') return $t2;
