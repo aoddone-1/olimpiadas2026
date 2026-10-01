@@ -691,39 +691,6 @@ class Inscripciones extends CI_Controller {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
             // fixture, para que siempre se puedan cargar resultados.
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
-
-            // Marcadores ya cargados (fase de grupos y eliminatoria): se
-            // adjuntan a cada fixture como marcador_1 / marcador_2 para que
-            // el panel muestre el resultado (ej: "2 - 1") en la tarjeta del
-            // partido, igual que una tabla de Mundial.
-            $marcadores = array();
-            if ($this->db->table_exists('resultados') && $this->db->table_exists('resultado_detalle')) {
-                $this->db->select('r.id_fixture, r.id_ute_ganador, rd.id_ute, rd.marcador_local, rd.marcador_visita')
-                         ->from('resultados r')
-                         ->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'inner')
-                         ->where('r.tipo_resultado', 'MARCADOR')
-                         ->where('r.id_fixture IS NOT NULL', null, false)
-                         ->where('rd.marcador_local IS NOT NULL', null, false);
-                foreach ($this->db->get()->result_array() as $d) {
-                    $id_fx  = (int) $d['id_fixture'];
-                    $id_ute = $d['id_ute'] === null ? null : (int) $d['id_ute'];
-                    if ($id_ute === null || $id_ute <= 0) continue; // solo equipos reales
-                    // Cada fila guarda SU lado: local = goles propios, visita = del rival.
-                    $marcadores[$id_fx][$id_ute] = array(
-                        (int) $d['marcador_local'],
-                        (int) $d['marcador_visita'],
-                    );
-                }
-            }
-            foreach ($fixtures as &$fxrow) {
-                $g1 = isset($marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_1']])
-                    ? $marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_1']][0] : null;
-                $g2 = isset($marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_2']])
-                    ? $marcadores[$fxrow['id_fixture']][(int) $fxrow['id_ute_2']][0] : null;
-                $fxrow['marcador_1'] = $g1;
-                $fxrow['marcador_2'] = $g2;
-            }
-            unset($fxrow);
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
@@ -781,131 +748,18 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true) + $listado));
     }
 
-    /* ============================================================
-     *  TABLA DE POSICIONES / GRUPOS (formato Mundial)
-     * ============================================================ */
-
-    /** Tablas de posiciones de todos los grupos de una categoría. */
-    public function ajax_tabla_posiciones($id_categoria) {
-        if (!$this->_fixture_auth_json()) return;
-
-        try {
-            $grupos = $this->Fixture_model->tablas_de_posiciones((int) $id_categoria);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array(
-                    'ok' => true,
-                    'grupos' => $grupos,
-                    'hay_grupos' => !empty($grupos),
-                )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudo calcular la tabla de posiciones.', $e->getMessage());
-        }
-    }
-
-    /** Registrar marcador de un partido de fase de grupos (3 pts / 1 pts). */
-    public function ajax_resultado_grupo() {
-        try {
-            if (!$this->_fixture_auth_json()) return;
-
-            $id_fixture = (int) $this->input->post('id_fixture');
-            $goles_1 = $this->input->post('goles_1');
-            $goles_2 = $this->input->post('goles_2');
-
-            if ($goles_1 === null || $goles_1 === '' || $goles_2 === null || $goles_2 === ''
-                || !ctype_digit((string) $goles_1) || !ctype_digit((string) $goles_2)) {
-                $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                    'ok' => false, 'error' => 'Ingresá los goles de ambos equipos (números enteros).'
-                )));
-                return;
-            }
-
-            $this->load->model('Resultado_model');
-            $partido = $this->Fixture_model->obtener_fixture_por_id($id_fixture);
-            if (!$partido) throw new Exception('El partido no existe.');
-
-            $categoria = null;
-            $this->db->select('c.nombre_categoria, d.nombre_deporte');
-            $this->db->from('categorias c');
-            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
-            $this->db->where('c.id_categoria', (int) $partido['id_categoria']);
-            $categoria = $this->db->get()->row_array();
-
-            $datos = array(
-                'id_categoria'    => $partido['id_categoria'],
-                'id_fixture'      => $id_fixture,
-                'nombre_evento'   => ($categoria ? $categoria['nombre_deporte'] . ' — ' . $categoria['nombre_categoria'] . ' · ' : '')
-                                     . $partido['nombre_prueba'],
-                'tipo_resultado'  => 'MARCADOR',
-                'equipo_1'        => $partido['ute_1_nombre'] ?? '',
-                'equipo_2'        => $partido['ute_2_nombre'] ?? '',
-                'id_ute_1'        => $partido['id_ute_1'],
-                'id_ute_2'        => $partido['id_ute_2'],
-                'goles_1'         => (int) $goles_1,
-                'goles_2'         => (int) $goles_2,
-                'lugar'           => $this->input->post('lugar'),
-                'observaciones'   => 'Cargado desde el panel Fixture (fase de grupos).',
-            );
-
-            // Tarjetas para el desempate por fair play (opcionales).
-            foreach (array('amarillas_1', 'amarillas_2', 'rojas_1', 'rojas_2') as $k) {
-                $v = $this->input->post($k);
-                if ($v !== null && $v !== '' && ctype_digit((string) $v)) {
-                    $datos[$k] = (int) $v;
-                }
-            }
-
-            $res = $this->Resultado_model->guardar_resultado($datos, (int) $this->session->userdata('id_usuario'));
-
-            // El resultado de grupo NO hace avanzar al ganador directo: la
-            // clasificación se consolida cuando el grupo queda completo
-            // (Fixture_model::_clasificar_desde_tabla). Se dispara acá para
-            // que, si este fue el último partido del grupo, 1° y 2° ocupen
-            // sus llaves de eliminatoria automáticamente.
-            $this->Fixture_model->consolidar_grupo_del_partido($id_fixture);
-
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => 'Marcador registrado en la tabla de posiciones.',
-                'empate' => $res['hubo_empate'] ?? false,
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudo guardar el marcador del partido de grupo.', $e->getMessage());
-        }
-    }
-
-    /** Genera automáticamente el fixture de una categoría (formato Mundial). */
+    /** Genera automáticamente el fixture de una categoría. */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;
 
         $id_categoria = (int) $this->input->post('id_categoria');
-        $equipos_por_grupo = (int) $this->input->post('equipos_por_grupo');
         try {
-            $res = $this->Fixture_model->generar_fixture_para_categoria(
-                $id_categoria,
-                $equipos_por_grupo > 0 ? $equipos_por_grupo : 4
-            );
-
-            // El generador Mundial devuelve un resumen; los viejos devuelven int.
-            if (is_array($res)) {
-                $mensaje = $res['mensaje'];
-                $detalle = array(
-                    'partidos'        => $res['partidos'],
-                    'cantidad_grupos' => $res['cantidad_grupos'],
-                    'grupos'          => $res['grupos'],
-                    'clasificados'    => $res['clasificados'],
-                );
-            } else {
-                $mensaje = "Fixture generado: {$res} partido(s)/jornada(s).";
-                $detalle = array('partidos' => (int) $res);
-            }
-
+            $cantidad = $this->Fixture_model->generar_fixture_para_categoria($id_categoria);
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array(
                     'ok' => true,
-                    'mensaje' => $mensaje,
-                    'detalle' => $detalle,
+                    'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
                 )));
         } catch (Throwable $e) {
             $this->output
