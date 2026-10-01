@@ -9,7 +9,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Fixture_model extends CI_Model {
 
-    const FASE_ORDEN = ['GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'TERCER_PUESTO', 'FINAL'];
+    // Orden clásico de un torneo "estilo Mundial": fase de grupos primero y luego
+    // la eliminatoria (8avos -> 4tos -> semis -> final). Las fases GRUPO_A..GRUPO_H
+    // se insertan dinámicamente en _fases_validas() / FASES_GRUPO().
+    const FASE_ORDEN = ['GRUPO', '16AVOS', '8AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'TERCER_PUESTO', 'FINAL'];
+
+    /** Fases de grupo tipo Mundial: GRUPO_A ... GRUPO_H. */
+    const FASES_GRUPO = ['GRUPO_A', 'GRUPO_B', 'GRUPO_C', 'GRUPO_D',
+                         'GRUPO_E', 'GRUPO_F', 'GRUPO_G', 'GRUPO_H'];
+
+    /** Puntos FIFA: 3 por victoria, 1 por empate, 0 por derrota. */
+    const PUNTOS_VICTORIA = 3;
+    const PUNTOS_EMPATE   = 1;
 
     /* ============================================================
      *  CONSULTAS BÁSICAS
