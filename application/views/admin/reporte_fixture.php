@@ -158,10 +158,10 @@ class MYPDF extends TCPDF {
                     foreach ($crudos as $j) {
                         $out[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
                     }
-                    $lista_txt = implode(', ', $out);
+                    $lista_txt = implode(' - ', $out);
                     // El nombre del equipo SIEMPRE va delante: el delegado tiene
                     // que ver qué equipo enfrenta a cuál, y debajo sus integrantes.
-                    return $equipo !== '' ? $equipo . ' (' . $lista_txt . ')' : $lista_txt;
+                    return $equipo !== '' ? '' . $lista_txt . '' : $lista_txt;
                 }
                 // Sin integrantes cargados: se muestra el nombre del equipo.
                 return $equipo;
@@ -178,7 +178,7 @@ class MYPDF extends TCPDF {
             $e1 = $e1 !== '' ? htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') : '';
             $e2 = $e2 !== '' ? htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') : '';
 
-            if ($e1 !== '' && $e2 !== '') return $e1 . ' <span style="color:#95a5a6;">vs</span> ' . $e2;
+            if ($e1 !== '' && $e2 !== '') return $e1 . ' <br/><span style="color:#95a5a6;">vs</span> <br/>' . $e2;
             if ($e2 !== '') return $e2;
             if ($e1 !== '') return $e1;
             return NULL;

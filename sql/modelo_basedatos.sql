@@ -25,27 +25,6 @@ CREATE TABLE `deportes` (
   PRIMARY KEY (`id_deporte`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=latin1;
 
-CREATE TABLE `encuestas_deportes` (
-  `id_respuesta` int NOT NULL,
-  `id_deporte` int NOT NULL,
-  PRIMARY KEY (`id_respuesta`,`id_deporte`),
-  KEY `id_respuesta` (`id_respuesta`),
-  KEY `id_deporte` (`id_deporte`),
-  CONSTRAINT `encuestas_deportes_ibfk_1` FOREIGN KEY (`id_respuesta`) REFERENCES `encuestas_respuestas` (`id_respuesta`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `encuestas_deportes_ibfk_2` FOREIGN KEY (`id_deporte`) REFERENCES `deportes` (`id_deporte`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-CREATE TABLE `encuestas_respuestas` (
-  `id_respuesta` int NOT NULL AUTO_INCREMENT,
-  `dni` varchar(20) COLLATE utf8mb4_general_ci NOT NULL,
-  `delegacion` varchar(100) COLLATE utf8mb4_general_ci NOT NULL,
-  `sexo` varchar(50) COLLATE utf8mb4_general_ci NOT NULL,
-  `fecha_nacimiento` date NOT NULL,
-  `creado_el` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_respuesta`),
-  UNIQUE KEY `dni_UNIQUE` (`dni`)
-) ENGINE=InnoDB AUTO_INCREMENT=311 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 CREATE TABLE `fixtures` (
   `id_fixture` int NOT NULL AUTO_INCREMENT,
   `id_categoria` int NOT NULL,
@@ -70,7 +49,7 @@ CREATE TABLE `fixtures` (
   CONSTRAINT `fk_fixture_lugar` FOREIGN KEY (`id_lugar`) REFERENCES `lugares` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE,
   CONSTRAINT `fk_fixture_ute1` FOREIGN KEY (`id_ute_1`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_fixture_ute2` FOREIGN KEY (`id_ute_2`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=298 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=425 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `inscripciones_deportivas` (
   `id_inscripcion` int NOT NULL AUTO_INCREMENT,
@@ -89,7 +68,7 @@ CREATE TABLE `inscripciones_deportivas` (
   CONSTRAINT `fk_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE,
   CONSTRAINT `fk_participante` FOREIGN KEY (`id_participante`) REFERENCES `participantes` (`id_participante`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_ute` FOREIGN KEY (`id_ute`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=1225 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=1311 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `lugares` (
   `id` int NOT NULL AUTO_INCREMENT,
@@ -97,6 +76,16 @@ CREATE TABLE `lugares` (
   `direccion` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=15 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `participantes_utes` (
+  `id_ute` int NOT NULL,
+  `id_participante` int NOT NULL,
+  `fecha_asociacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_ute`,`id_participante`),
+  KEY `fk_pu_participante` (`id_participante`),
+  CONSTRAINT `fk_pu_participante` FOREIGN KEY (`id_participante`) REFERENCES `participantes` (`id_participante`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_pu_ute` FOREIGN KEY (`id_ute`) REFERENCES `utes` (`id_ute`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE `participantes` (
   `id_participante` int NOT NULL AUTO_INCREMENT,
@@ -121,17 +110,27 @@ CREATE TABLE `participantes` (
   PRIMARY KEY (`id_participante`),
   UNIQUE KEY `dni` (`dni`),
   UNIQUE KEY `token_qr` (`token_qr`)
-) ENGINE=InnoDB AUTO_INCREMENT=392 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=408 DEFAULT CHARSET=latin1;
 
-CREATE TABLE `participantes_utes` (
-  `id_ute` int NOT NULL,
-  `id_participante` int NOT NULL,
-  `fecha_asociacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id_ute`,`id_participante`),
-  KEY `fk_pu_participante` (`id_participante`),
-  CONSTRAINT `fk_pu_participante` FOREIGN KEY (`id_participante`) REFERENCES `participantes` (`id_participante`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_pu_ute` FOREIGN KEY (`id_ute`) REFERENCES `utes` (`id_ute`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+CREATE TABLE `premiaciones` (
+  `id_premiacion` int NOT NULL AUTO_INCREMENT,
+  `id_categoria` int NOT NULL COMMENT 'Categoría/deporte premiado',
+  `puesto` tinyint NOT NULL COMMENT '1 = oro, 2 = plata, 3 = bronce',
+  `id_ute` int DEFAULT NULL COMMENT 'UTE/equipo premiado (si existe registrado)',
+  `nombre` varchar(150) NOT NULL COMMENT 'Nombre del premiado (snapshot al momento de entregar)',
+  `origen_resultado` enum('MARCADOR','TIEMPO') NOT NULL DEFAULT 'MARCADOR' COMMENT 'Cómo se definió el podio',
+  `id_resultado_ref` int DEFAULT NULL COMMENT 'Resultado del que se tomó el podio',
+  `fecha_entrega` date NOT NULL COMMENT 'Noche/ceremonia en la que se entrega',
+  `entregado` tinyint(1) NOT NULL DEFAULT '0' COMMENT '0 = pendiente, 1 = entregado',
+  `fecha_entregado` datetime DEFAULT NULL,
+  `observaciones` varchar(255) DEFAULT NULL,
+  `creado_por` int DEFAULT NULL,
+  `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_premiacion`),
+  UNIQUE KEY `uq_cat_puesto` (`id_categoria`,`puesto`),
+  KEY `idx_fecha_entrega` (`fecha_entrega`),
+  CONSTRAINT `fk_prem_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COMMENT='Entrega diaria de premios (podios)';
 
 CREATE TABLE `resultado_detalle` (
   `id_detalle` int NOT NULL AUTO_INCREMENT,
@@ -145,17 +144,7 @@ CREATE TABLE `resultado_detalle` (
   PRIMARY KEY (`id_detalle`),
   KEY `fk_det_resultado` (`id_resultado`),
   CONSTRAINT `fk_det_resultado` FOREIGN KEY (`id_resultado`) REFERENCES `resultados` (`id_resultado`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
-CREATE TABLE `usuarios` (
-  `id_usuario` int NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `rol` enum('superadmin','admin','staff','mesa_control','seguridad_cenas','delegado') NOT NULL,
-  `nombre_usuario` varchar(100) DEFAULT NULL,
-  PRIMARY KEY (`id_usuario`),
-  UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `resultados` (
   `id_resultado` int NOT NULL AUTO_INCREMENT,
@@ -166,18 +155,20 @@ CREATE TABLE `resultados` (
   `fecha_resultado` date DEFAULT NULL,
   `lugar` varchar(150) DEFAULT NULL COMMENT 'Texto libre o nombre del lugar',
   `observaciones` text,
-  `hubo_desempate` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = empató en tiempo regular pero hubo desempate (ver sql/desempate.sql)',
-  `desempate_metodo` enum('PENALES','PRORROGA','PUNTOS_DE_ORO','MUERTE_SUBITA','LANZAMIENTO_TIRLIBRE','OTRO') DEFAULT NULL COMMENT 'Cómo se quebró el empate; NULL = empate definitivo',
-  `id_ute_ganador` int DEFAULT NULL COMMENT 'UTE que ganó el desempate y avanza en la llave',
+  `hubo_desempate` tinyint(1) NOT NULL DEFAULT '0' COMMENT '1 = el partido terminó empatado en tiempo regular pero hubo desempate',
+  `desempate_metodo` enum('PENALES','PRORROGA','PUNTOS_DE_ORO','MUERTE_SUBITA','LANZAMIENTO_TIRLIBRE','OTRO') DEFAULT NULL COMMENT 'Cómo se quebró el empate (NULL = empate definitivo o no hubo empate)',
+  `id_ute_ganador` int DEFAULT NULL COMMENT 'UTE que ganó el desempate (avanza en llaves); NULL si el empate fue definitivo',
   `creado_por` int DEFAULT NULL COMMENT 'id_usuario que cargó el resultado',
   `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `actualizado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_resultado`),
   KEY `fk_res_categoria` (`id_categoria`),
   KEY `fk_res_fixture` (`id_fixture`),
+  KEY `fk_res_ganador_desempate` (`id_ute_ganador`),
   CONSTRAINT `fk_res_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_res_fixture` FOREIGN KEY (`id_fixture`) REFERENCES `fixtures` (`id_fixture`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+  CONSTRAINT `fk_res_fixture` FOREIGN KEY (`id_fixture`) REFERENCES `fixtures` (`id_fixture`) ON DELETE SET NULL ON UPDATE CASCADE,
+  CONSTRAINT `fk_res_ganador_desempate` FOREIGN KEY (`id_ute_ganador`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `utes` (
   `id_ute` int NOT NULL AUTO_INCREMENT,
@@ -187,4 +178,4 @@ CREATE TABLE `utes` (
   PRIMARY KEY (`id_ute`),
   KEY `fk_ute_categoria` (`id_categoria`),
   CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=62 DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=215 DEFAULT CHARSET=latin1;
