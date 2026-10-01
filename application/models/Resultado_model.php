@@ -59,6 +59,26 @@ class Resultado_model extends CI_Model {
      * caché vieja (columnas ya creadas) el guardado no rompe, y si faltan
      * todavía el modelo avisa en el log que hay que correr el ALTER.
      */
+    /** ¿Existen las columnas de tarjetas (fair play) en resultado_detalle? (sql/mundial_grupos.sql). */
+    private function _existe_columna_tarjetas() {
+        static $existe = null;
+        if ($existe === null) {
+            try {
+                $cols = $this->db->field_names('resultado_detalle');
+                $existe = is_array($cols) && in_array('tarjetas_amarillas', $cols, true);
+            } catch (Throwable $e) {
+                $existe = false;
+            }
+        }
+        return $existe;
+    }
+
+    /**
+     * ¿Existen las columnas de desempate en resultados? (ver sql/desempate.sql).
+     * Se resuelve UNA sola vez por request y se cachea en archivo: con la
+     * caché vieja (columnas ya creadas) el guardado no rompe, y si faltan
+     * todavía el modelo avisa en el log que hay que correr el ALTER.
+     */
     private function _existe_columna_desempate() {
         static $existe = null;
         if ($existe !== null) return $existe;
@@ -486,6 +506,24 @@ class Resultado_model extends CI_Model {
             }
             $filas[] = $fila;
         }
+        // Tarjetas (fair play): si existen las columnas (sql/mundial_grupos.sql)
+        // y el formulario las envía, se guardan por equipo.
+        if ($tipo === 'MARCADOR' && $this->_existe_columna_tarjetas()) {
+            $tarjetas = array(
+                0 => array('amarillas' => 'amarillas_1', 'indirectas' => 'rojas_indirectas_1', 'directas' => 'rojas_1'),
+                1 => array('amarillas' => 'amarillas_2', 'indirectas' => 'rojas_indirectas_2', 'directas' => 'rojas_2'),
+            );
+            foreach ($detalle as $idx => $d) {
+                $map = $tarjetas[$idx];
+                $am = (int) (isset($datos[$map['amarillas']]) ? $datos[$map['amarillas']] : 0);
+                $ri = (int) (isset($datos[$map['indirectas']]) ? $datos[$map['indirectas']] : 0);
+                $rd = (int) (isset($datos[$map['directas']]) ? $datos[$map['directas']] : 0);
+                $detalle[$idx]['tarjetas_amarillas']         = $am;
+                $detalle[$idx]['tarjetas_rojas_indirectas']  = $ri;
+                $detalle[$idx]['tarjetas_rojas_directas']    = $rd;
+            }
+            $cols = array_merge($cols, array('tarjetas_amarillas', 'tarjetas_rojas_indirectas', 'tarjetas_rojas_directas'));
+        }
         $this->db->insert_batch('resultado_detalle', $filas);
 
         // Si el resultado se vinculó (a mano o inferido) a un partido del
@@ -505,10 +543,25 @@ class Resultado_model extends CI_Model {
             if ($desempate_metodo !== '' && $id_ganador_desempate) {
                 $this->load->model('Fixture_model');
                 $fx = $this->db->where('id_fixture', $id_fixture)->get('fixtures')->row_array();
-                if ($fx && !in_array($fx['fase'], array('GRUPO', 'JORNADA_UNICA'), true)) {
+                if ($fx && $fx['fase'] === 'JORNADA_UNICA') {
+                    // jornada de deporte masivo: no clasifica a nadie
+                } elseif ($fx && Fixture_model::es_fase_grupo($fx['fase'])) {
+                    // Fase de grupos: el ganador del desempate NO avanza solo.
+                    // Se consolida la tabla del grupo (si ya está completo,
+                    // 1° y 2° pasan a la eliminatoria automáticamente).
+                    $this->Fixture_model->consolidar_grupo_del_partido($id_fixture);
+                } else {
                     $this->Fixture_model->registrar_resultado($id_fixture, $id_ganador_desempate);
                     $clasifico = $id_ganador_desempate;
                 }
+            }
+
+            // Partido de fase de grupos SIN desempate: al quedar completo el
+            // grupo, los 2 primeros clasifican a la eliminatoria cruzada.
+            $this->load->model('Fixture_model');
+            $fx_g = $this->db->where('id_fixture', $id_fixture)->get('fixtures')->row_array();
+            if ($fx_g && Fixture_model::es_fase_grupo($fx_g['fase'])) {
+                $this->Fixture_model->consolidar_grupo_del_partido($id_fixture);
             }
         }
 
