@@ -483,7 +483,85 @@ class Fixture_model extends CI_Model {
         }
         unset($f);
 
+        // Integrantes de las UTEs que intervienen, agrupados por id_ute. El
+        // reporte (admin/reporte_fixture) los usa para mostrar "maría, paula,
+        // juliana vs nora, martina, guille" en vez de "Equipo 1 vs Equipo 2".
+        $ids_ute = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0) $ids_ute[] = $idl;
+            }
+        }
+        // Los slots negativos (-id_inscripcion) son competidores INDIVIDUALES:
+        // no llevan lista de integrantes (su nombre ya viene en ute_X_nombre).
+        $ids_ute_pos = array_values(array_filter($ids_ute, function ($idl) {
+            return $idl > 0;
+        }));
+        $integrantes_por_ute = $this->_integrantes_de_utes(array_unique($ids_ute_pos));
+        // Las UTEs sin integrantes en participantes_utes se resuelven por las
+        // inscripciones de la categoría que mencionan al equipo (por id_ute o
+        // por detalle_ute), igual que hace el modal "ver participantes" y el
+        // reporte del delegado. Sin esto, los equipos cargados con inscripciones
+        // viejas aparecían como "Equipo 1 vs Equipo 2" en el PDF.
+        $pendientes = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0 && empty($integrantes_por_ute[$idl])) {
+                    $pendientes[$idl][] = (int) $fx['id_categoria'];
+                }
+            }
+        }
+        foreach ($pendientes as $idl => $cats) {
+            $lista = $this->_inscriptos_de_ute_por_categoria($idl, array_unique($cats));
+            if ($lista) $integrantes_por_ute[$idl] = $lista;
+        }
+        foreach ($fixtures as &$f) {
+            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+            $f['jugadores_ute_1'] = ($idl1 > 0 && isset($integrantes_por_ute[$idl1]))
+                ? $integrantes_por_ute[$idl1] : array();
+            $f['jugadores_ute_2'] = ($idl2 > 0 && isset($integrantes_por_ute[$idl2]))
+                ? $integrantes_por_ute[$idl2] : array();
+        }
+        unset($f);
+
         return $fixtures;
+    }
+
+    /**
+     * Inscriptos de UNA categoría que pertenecen a la UTE dada de alta en esa
+     * categoría: se los reconoce por inscripciones_deportivas.id_ute o, para
+     * inscripciones históricas sin id_ute, por el nombre guardado en
+     * detalle_ute. Devuelve nombres completos sin repetir.
+     */
+    private function _inscriptos_de_ute_por_categoria($id_ute, $id_categoria) {
+        $id_ute = (int) $id_ute;
+        $id_categoria = (int) $id_categoria;
+        if ($id_ute <= 0 || $id_categoria <= 0) return array();
+
+        $this->db->select('nombre_ute', FALSE);
+        $this->db->where('id_ute', $id_ute);
+        $ute = $this->db->get('utes')->row_array();
+        if (!$ute) return array();
+        $nombre_ute = strtoupper(trim((string) $ute['nombre_ute']));
+
+        $this->db->select('p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $id_categoria);
+        $this->db->group_start();
+        $this->db->where('i.id_ute', $id_ute);
+        if ($nombre_ute !== '') {
+            $this->db->or_where('TRIM(UPPER(i.detalle_ute))', $nombre_ute);
+        }
+        $this->db->group_end();
+        $this->db->order_by('p.nombre_completo', 'ASC');
+
+        return $this->_fusionar_nombres_con_inscriptos(
+            array(), array_column($this->db->get()->result_array(), 'nombre_completo')
+        );
     }
 
     /**
