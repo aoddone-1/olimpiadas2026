@@ -55,6 +55,8 @@
                                 data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
                                 data-categoria="<?= htmlspecialchars($cat['nombre_categoria']) ?>"
                                 data-modalidad="<?= $cat['modalidad_competencia'] ?>"
+                                data-tipo-torneo="<?= htmlspecialchars($cat['tipo_torneo']) ?>"
+                                data-equipos-por-grupo="<?= isset($cat['equipos_por_grupo']) ? (int) $cat['equipos_por_grupo'] : 4 ?>"
                                 data-duracion="<?= $cat['tipo_duracion'] ?>">
                             <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
                             (<?= htmlspecialchars($cat['genero']) ?>)
@@ -80,6 +82,47 @@
 
         <!-- Info de la categoría seleccionada -->
         <div id="fx_info" class="alert alert-info py-2 small d-none"></div>
+
+        <!-- Wizard formato Mundial: los pasos se habilitan en cascada según el estado -->
+        <div id="fx_wizard" class="card border-primary-subtle bg-primary-subtle mb-3 d-none">
+            <div class="card-body py-2">
+                <div class="small fw-bold text-primary mb-2">
+                    <i class="bi bi-globe-americas me-1"></i>Torneo formato Mundial — pasos para la categoría seleccionada
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <div class="input-group input-group-sm" style="max-width: 170px;" title="Equipos que querés por grupo (el sistema balancea si no divide exacto)">
+                        <span class="input-group-text">x/grupo</span>
+                        <select id="fx_wiz_tam" class="form-select">
+                            <option value="3">3 equipos</option>
+                            <option value="4" selected>4 equipos</option>
+                            <option value="5">5 equipos</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-primary fx-wiz-btn" data-paso="crear_grupos"
+                            title="Reparte los equipos inscriptos en grupos A, B, C... (borra grupos/partidos de fase GRUPO previos)">
+                        <i class="bi bi-1-circle me-1"></i>1 · Crear grupos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary fx-wiz-btn" data-paso="generar_partidos_grupo"
+                            title="Genera todos los partidos 'todos contra todos' dentro de cada grupo">
+                        <i class="bi bi-2-circle me-1"></i>2 · Partidos de grupos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary fx-wiz-btn" data-paso="clasificar_grupos"
+                            title="Cierra la fase de grupos: posiciones finales + clasificados (cargá antes TODOS los marcadores)">
+                        <i class="bi bi-3-circle me-1"></i>3 · Cerrar grupos
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success fx-wiz-btn" data-paso="armar_bracket"
+                            title="Arma los cruces eliminatorios: cuartos → semis → final + 3er puesto">
+                        <i class="bi bi-4-circle me-1"></i>4 · Armar cruces
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary fx-wiz-btn" data-paso="resolver_pendientes"
+                            title="Completa las casillas vacías del bracket con los clasificados ya conocidos (repetible, no pisca datos)">
+                        <i class="bi bi-magic fx-rot" title="Completar casillas pendientes"></i> Resolver pendientes
+                    </button>
+                </div>
+                <!-- Tablas de posiciones de los grupos (se cargan al crear grupos o resolver) -->
+                <div id="fx_grupos_tablas" class="mt-2 small"></div>
+            </div>
+        </div>
 
         <!-- Toast de mensajes -->
         <div id="fx_mensaje" class="alert d-none"></div>
@@ -730,7 +773,7 @@
     }
 
     /* ---------- Carga GENERAL (sin filtro de categoría) ---------- */
-    function cargarTodo() {
+    function cargarTodo(alFin) {
         getJSON('ajax_fixture_todo')
             .then(res => {
                 if (!res.ok) {
@@ -753,7 +796,7 @@
                     }
                 });
                 const idsCats = Object.keys(catsSinUtes);
-                if (!idsCats.length) { render(); return; }
+                if (!idsCats.length) { render(); if (alFin) alFin(); return; }
 
                 Promise.all(idsCats.map(idCat =>
                     fetch(BASE + '/ajax_fixture_categoria/' + idCat)
@@ -767,6 +810,7 @@
                         });
                     });
                     render();
+                    if (alFin) alFin();
                 });
             })
             .catch(err => {
@@ -1093,10 +1137,15 @@
         if (activo) {
             infoBox.classList.remove('d-none');
             infoBox.innerHTML = `<strong>${esc(opt.dataset.deporte)} — ${esc(opt.dataset.categoria)}</strong><br>`
-                + 'El fixture se arma a mano con el botón <i class="bi bi-plus-circle"></i> "Nuevo partido". '
-                + 'Este selector solo sirve para borrar todo el fixture de la categoría.';
+                + 'Usá los pasos de abajo para armar el torneo formato Mundial, o creá partidos sueltos con '
+                + '<i class="bi bi-plus-circle"></i> "Nuevo partido". Este selector solo sirve para borrar todo.';
+            // Sincronizar el tamaño de grupo guardado en la categoría
+            const tamSel = document.getElementById('fx_wiz_tam');
+            if (tamSel && opt.dataset.equiposPorGrupo) tamSel.value = opt.dataset.equiposPorGrupo;
+            wizRefrescar(selCategoria.value);
         } else {
             infoBox.classList.add('d-none');
+            wizRefrescar('');
         }
     });
 
@@ -1109,6 +1158,112 @@
             cargarTodo();
         });
     });
+
+    /* ============================================================
+     *  WIZARD FORMATO MUNDIAL (grupos -> partidos -> cerrar -> bracket)
+     * ============================================================ */
+    const wizBox = document.getElementById('fx_wizard');
+    const wizTablas = document.getElementById('fx_grupos_tablas');
+    let wizEstado = { tieneGrupos: false, partidosGrupo: 0, cerrados: false, bracket: false };
+
+    /** Habilita/deshabilita los pasos en cascada según el estado de la categoría. */
+    function wizPintarPasos() {
+        const setBtn = (paso, activo) => {
+            const b = wizBox.querySelector('[data-paso="' + paso + '"]');
+            if (!b) return;
+            b.disabled = !activo;
+            b.classList.toggle('opacity-50', !activo);
+        };
+        // Paso 1 siempre disponible (es destructivo pero recrea todo).
+        setBtn('crear_grupos', true);
+        // Paso 2 necesita grupos creados.
+        setBtn('generar_partidos_grupo', wizEstado.tieneGrupos);
+        // Paso 3 necesita partidos de grupo ya jugados (alguno finalizado alcanza;
+        // el modelo recalcula igual con los que haya).
+        setBtn('clasificar_grupos', wizEstado.tieneGrupos && wizEstado.partidosGrupo > 0);
+        // Paso 4 necesita grupos cerrados (posiciones definidas).
+        setBtn('armar_bracket', wizEstado.cerrados);
+        // Resolver pendientes solo tiene sentido si hay bracket armado.
+        setBtn('resolver_pendientes', wizEstado.bracket || wizEstado.tieneGrupos);
+    }
+
+    /** Mini tablas de posiciones por grupo dentro del wizard. */
+    function wizPintarTablas(grupos) {
+        if (!grupos || !grupos.length) { wizTablas.innerHTML = ''; return; }
+        let html = '<div class="d-flex flex-wrap gap-3 mt-1">';
+        grupos.forEach(g => {
+            const filas = (g.miembros || []).map(m => `
+                <tr class="${m.clasificado == 1 ? 'fw-bold text-success' : ''}">
+                    <td>${m.pos_grupo ? m.pos_grupo + '°' : '·'}</td>
+                    <td>${esc(m.nombre_ute)}</td>
+                    <td class="text-end">${m.pts ?? 0}</td>
+                    <td class="text-end">${(m.gf ?? 0) + ':' + (m.gc ?? 0)}</td>
+                    <td class="text-end">${m.dg ?? 0}</td>
+                </tr>`).join('');
+            html += `<table class="table table-sm table-bordered bg-white mb-0" style="min-width:230px">
+                <thead><tr class="table-primary"><th colspan="2">Grupo ${esc(g.nombre_grupo)}</th>
+                    <th class="text-end small">Pts</th><th class="text-end small">GF:GC</th><th class="text-end small">DG</th></tr></thead>
+                <tbody>${filas}</tbody></table>`;
+        });
+        wizTablas.innerHTML = html + '</div>';
+    }
+
+    /** Lee el estado actual de la categoría: grupos, partidos y bracket. */
+    function wizRefrescar(idCategoria) {
+        wizEstado = { tieneGrupos: false, partidosGrupo: 0, cerrados: false, bracket: false };
+        wizTablas.innerHTML = '';
+        if (!idCategoria) { wizBox.classList.add('d-none'); wizPintarPasos(); return; }
+
+        getJSON('ajax_grupos_categoria/' + idCategoria).then(res => {
+            const grupos = (res.ok ? res.grupos : []) || [];
+            wizEstado.tieneGrupos = grupos.length > 0;
+            if (wizEstado.tieneGrupos) {
+                wizPintarTablas(grupos);
+                wizEstado.cerrados = grupos.some(g =>
+                    (g.miembros || []).some(m => m.pos_grupo != null));
+            }
+            // Estado del fixture de la categoría: ¿hay partidos GRUPO? ¿bracket?
+            const fx = todosFixtures.filter(f => String(f.id_categoria) === String(idCategoria));
+            wizEstado.partidosGrupo = fx.filter(f => f.fase === 'GRUPO').length;
+            wizEstado.bracket = fx.some(f => ['OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'FINAL', 'TERCER_PUESTO'].includes(f.fase));
+            wizPintarPasos();
+        }).catch(() => wizPintarPasos());
+        wizBox.classList.remove('d-none');
+    }
+
+    const WIZ_ENDPOINTS = {
+        crear_grupos:          { confirm: '¿Armar los grupos de esta categoría? Reparte los equipos inscriptos y BORRA grupos/partidos de fase GRUPO previos.' },
+        generar_partidos_grupo:{ confirm: '¿Generar los partidos "todos contra todos" de cada grupo? Reemplaza los partidos de fase GRUPO existentes.' },
+        clasificar_grupos:     { confirm: '¿Cerrar la fase de grupos? Calcula posiciones y clasificados con los marcadores cargados hasta ahora.' },
+        armar_bracket:         { confirm: '¿Armar los cruces eliminatorios (cuartos → semis → final → 3er puesto)? Reemplaza un bracket previo.' },
+        resolver_pendientes:   { confirm: null },
+    };
+
+    wizBox.querySelectorAll('.fx-wiz-btn').forEach(b => b.addEventListener('click', () => {
+        const paso = b.dataset.paso;
+        const cfg = WIZ_ENDPOINTS[paso];
+        if (!cfg || b.disabled) return;
+        const idCategoria = selCategoria.value;
+        if (!idCategoria) { mensaje('Elegí primero una categoría.', 'warning'); return; }
+        if (cfg.confirm && !confirm(cfg.confirm)) return;
+
+        b.disabled = true;
+        const datos = { id_categoria: idCategoria };
+        if (paso === 'crear_grupos') datos.equipos_por_grupo = document.getElementById('fx_wiz_tam').value;
+
+        post(paso, datos).then(res => {
+            if (res.ok) {
+                mensaje(res.mensaje, 'success');
+                cargarTodo(() => wizRefrescar(idCategoria));
+            } else {
+                mensaje(res.error || 'No se pudo completar el paso.', 'danger');
+                b.disabled = false;
+            }
+        }).catch(err => {
+            mensaje(err.message, 'danger');
+            b.disabled = false;
+        });
+    }));
 
     /* Al iniciar, mostrar TODO el fixture ya cargado */
     cargarTodo();
