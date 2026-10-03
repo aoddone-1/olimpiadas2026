@@ -882,6 +882,28 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /**
+     * PASO 5 (mantenimiento): completar las casillas pendientes del bracket
+     * con los equipos ya clasificados ("1° del Grupo A", ganadores de llave,
+     * perdedores de semi para el 3er puesto). Se puede repetir sin riesgo:
+     * solo escribe slots vacíos. Lo dispara el botón "Resolver pendientes"
+     * del panel y también la carga de resultados de forma automática.
+     */
+    public function ajax_resolver_pendientes() {
+        try {
+            if (!$this->_fixture_auth_json()) return;
+            $modifico = $this->Fixture_model->resolver_pendientes();
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'mensaje' => $modifico
+                    ? 'Se completaron casillas pendientes del bracket.'
+                    : 'No había casillas pendientes por resolver (o falta cerrar los grupos).',
+            )));
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('No se pudieron resolver los pendientes.', $e->getMessage());
+        }
+    }
+
     /** Marcador de un partido de fase GRUPO (3-1-0, empate definitivo). */
     public function ajax_marcador_grupo() {
         try {

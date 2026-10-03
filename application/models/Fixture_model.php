@@ -17,9 +17,19 @@ class Fixture_model extends CI_Model {
 
     /** Categorías con su deporte y lugar (para el selector del panel). */
     public function obtener_categorias_para_fixture() {
+        // equipos_por_grupo/clasificados_por_grupo solo existen tras aplicar
+        // sql/migracion_mundial.sql: se seleccionan de forma condicional para
+        // que el panel no reviente contra una base todavía sin migrar.
+        $extra = '';
+        if ($this->_columna_existe('categorias', 'equipos_por_grupo')) {
+            $extra .= ', c.equipos_por_grupo';
+        }
+        if ($this->_columna_existe('categorias', 'clasificados_por_grupo')) {
+            $extra .= ', c.clasificados_por_grupo';
+        }
         $this->db->select('
             c.id_categoria, c.nombre_categoria, c.genero, c.tipo_torneo,
-            c.dia_competencia, c.hora_competencia,
+            c.dia_competencia, c.hora_competencia' . $extra . ',
             d.id_deporte, d.nombre_deporte, d.modalidad_competencia, d.tipo_duracion,
             l.nombre as nombre_lugar
         ', FALSE);
@@ -1267,6 +1277,35 @@ class Fixture_model extends CI_Model {
             return 'Resultado registrado. No hay instancia superior.';
         }
 
+        /* ---------- Bracket estilo Mundial: propagación por LLAVE ---------- */
+        // Si el torneo usa origen_1/origen_2 (columnas de la migración
+        // sql/migracion_mundial.sql), el ganador se propaga a los slots que
+        // referencian "LLAVE_GANADOR(id_fixture)" y el perdedor a los que
+        // referencian "LLAVE_PERDEDOR(id_fixture)". Es más preciso que el
+        // orden genérico por fase porque respeta la llave exacta del bracket.
+        if ($this->_columna_existe('fixtures', 'origen_1_tipo')) {
+            // Primero intentar resolver los huecos "A-1 / B-2" del bracket con
+            // las posiciones ya cerradas de los grupos (si ya se ejecutó
+            // "Cerrar grupos"). Devuelve true si algún slot pendiente quedó
+            // definido — el partido pasa a EN CURSO listo para jugar.
+            $resolvio_grupo = $this->_resolver_slots_grupo($partido['id_categoria']);
+
+            $propagados = 0;
+            $propagados += $this->_propagar_en_llaves($id_fixture, 'LLAVE_GANADOR', $id_ganador);
+            if ($id_perdedor !== null) {
+                $propagados += $this->_propagar_en_llaves($id_fixture, 'LLAVE_PERDEDOR', $id_perdedor);
+            }
+            if ($propagados > 0 || $resolvio_grupo) {
+                return 'Resultado guardado.' . ($propagados > 0
+                    ? ' Se completaron ' . $propagados . ' casilla/s del bracket con los clasificados.'
+                    : '') . ($resolvio_grupo
+                    ? ' También se resolvieron casillas de grupos (ej. "1° del Grupo A").'
+                    : '');
+            }
+            // Sin referencias de llave (partido manual sin origen): caer al
+            // esquema antiguo de "hueco en la fase superior".
+        }
+
         // 1. EL GANADOR SIEMPRE AVANZA A LA SIGUIENTE INSTANCIA
         $siguiente = $this->buscar_siguiente_instancia($partido);
         if ($siguiente) {
@@ -1284,6 +1323,111 @@ class Fixture_model extends CI_Model {
         }
 
         return 'Resultado guardado correctamente.';
+    }
+
+    /**
+     * Busca partidos de la misma categoría cuyo slot 1 o 2 declare
+     * origen_*_tipo = $tipo_y_buscar y origen_*_valor = id_fixture, y coloca
+     * al equipo indicado en ese slot (solo si todavía está vacío).
+     *
+     * @return int cantidad de casillas completadas
+     */
+    private function _propagar_en_llaves($id_fixture, $tipo_y_buscar, $id_ute) {
+        $id_fixture = (int) $id_fixture;
+        $campos = array(
+            array('origen_1_tipo', 'origen_1_valor', 'id_ute_1'),
+            array('origen_2_tipo', 'origen_2_valor', 'id_ute_2'),
+        );
+        $completadas = 0;
+        foreach ($campos as list($col_tipo, $col_valor, $col_ute)) {
+            $this->db->select('id_fixture');
+            $this->db->where($col_tipo, $tipo_y_buscar);
+            $this->db->where($col_valor, (string) $id_fixture);
+            $this->db->where('(id_ute_1 IS NULL OR id_ute_2 IS NULL)', null, false);
+            $ids = $this->db->get('fixtures')->result_array();
+            foreach ($ids as $row) {
+                // Solo escribir si el slot está libre (no pisar datos manuales).
+                $this->db->where('id_fixture', (int) $row['id_fixture']);
+                $this->db->where('(' . $col_ute . ' IS NULL)', null, false);
+                $this->db->update('fixtures', array($col_ute => (int) $id_ute));
+                if ($this->db->affected_rows() > 0) $completadas++;
+            }
+        }
+        return $completadas;
+    }
+
+    /**
+     * Resuelve los huecos del bracket que referencian una posición de grupo
+     * (origen_*_tipo = 'GRUPO_POS', valor "A-1" = 1° del Grupo A). Solo toca
+     * partidos PROGRAMADO/EN_CURSO con algún lado vacío y escribe únicamente
+     * cuando posiciones_grupo.pos_grupo ya está cerrada (botón "Cerrar grupos").
+     * Si un cruce queda con ambos equipos definidos, pasa a EN CURSO: listo
+     * para cargar su resultado.
+     *
+     * @return bool true si completó al menos una casilla
+     */
+    public function resolver_pendientes() {
+        if (!$this->_columna_existe('fixtures', 'origen_1_tipo')
+            || !$this->_columna_existe('grupos', 'nombre_grupo')) {
+            return false;   // BD sin migrar: nada para resolver
+        }
+        $this->load->model('Grupo_model');
+        $modifico = false;
+        foreach ($this->obtener_categorias_con_fixture() as $cat) {
+            if ($this->_resolver_slots_grupo((int) $cat['id_categoria'])) {
+                $modifico = true;
+            }
+        }
+        return $modifico;
+    }
+
+    /** Resolver los slots GRUPO_POS pendientes de UNA categoría. */
+    private function _resolver_slots_grupo($id_categoria) {
+        $partidos = $this->db
+            ->where('id_categoria', (int) $id_categoria)
+            ->where_in('estado', array('PROGRAMADO', 'EN_CURSO'))
+            ->where('(id_ute_1 IS NULL OR id_ute_2 IS NULL)', null, false)
+            ->where('(origen_1_tipo = \'GRUPO_POS\' OR origen_2_tipo = \'GRUPO_POS\')', null, false)
+            ->get('fixtures')->result_array();
+        if (!$partidos) return false;
+
+        $completadas = 0;
+        foreach ($partidos as $p) {
+            foreach (array(array('origen_1_tipo', 'origen_1_valor', 'id_ute_1'),
+                           array('origen_2_tipo', 'origen_2_valor', 'id_ute_2')) as $slot) {
+                list($col_tipo, $col_valor, $col_ute) = $slot;
+                if ($p[$col_tipo] !== 'GRUPO_POS' || !empty($p[$col_ute])) continue;
+                if (!preg_match('/^([A-Z])-(\d+)$/', (string) $p[$col_valor], $m)) continue;
+                $ute = $this->buscar_ute_en_posicion_grupo(
+                    (int) $id_categoria, $m[1], (int) $m[2]);
+                if (!$ute) continue;   // el grupo aún no está cerrado
+                $this->db->where('id_fixture', (int) $p['id_fixture']);
+                $this->db->where('(' . $col_ute . ' IS NULL)', null, false);
+                $this->db->update('fixtures', array($col_ute => (int) $ute['id_ute']));
+                if ($this->db->affected_rows() > 0) $completadas++;
+            }
+            // ¿Quedó completo el cruce? Pasarlo a EN CURSO para poder jugarlo.
+            $actual = $this->obtener_fixture_por_id((int) $p['id_fixture']);
+            if ($actual && !empty($actual['id_ute_1']) && !empty($actual['id_ute_2'])
+                && $actual['estado'] === 'PROGRAMADO') {
+                $this->db->where('id_fixture', (int) $p['id_fixture']);
+                $this->db->update('fixtures', array('estado' => 'EN_CURSO'));
+            }
+        }
+        return $completadas > 0;
+    }
+
+    /** UTE que quedó en $posicion del Grupo $letra (o null si aún no se cerró). */
+    public function buscar_ute_en_posicion_grupo($id_categoria, $letra, $posicion) {
+        $this->db->select('p.id_ute, u.nombre_ute');
+        $this->db->from('posiciones_grupo p');
+        $this->db->join('grupos g', 'g.id_grupo = p.id_grupo', 'inner');
+        $this->db->join('utes u', 'u.id_ute = p.id_ute', 'inner');
+        $this->db->where('g.id_categoria', (int) $id_categoria);
+        $this->db->where('g.nombre_grupo', strtoupper(trim($letra)));
+        $this->db->where('p.pos_grupo', (int) $posicion);
+        $this->db->limit(1);
+        return $this->db->get()->row_array();
     }
 
     /**
