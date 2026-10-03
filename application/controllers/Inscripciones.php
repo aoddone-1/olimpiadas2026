@@ -700,8 +700,125 @@ class Inscripciones extends CI_Controller {
         }
     }
 
-    /**
-     * Descarga un resumen del fixture cargado (todas las categorías) en formato
+    /* ============================================================
+     *  FASE DE GRUPOS — PARTE 1 (Fixture tipo Mundial)
+     *  Flujo: elegir categoría → crear grupos A,B,C... → asignar UTEs.
+     *  Endpoints JSON consumidos por panel_fixture.php.
+     * ============================================================ */
+
+    /** Auth propio para los endpoints de grupos (superadmin/admin). */
+    private function _grupos_auth_json() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
+            return false;
+        }
+        $this->load->model('Grupo_model');
+        return true;
+    }
+
+    /** Categorías con deporte + cantidad de UTEs (selector del panel). */
+    public function ajax_grupos_categorias() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $categorias = $this->Grupo_model->obtener_categorias_con_deportes();
+            foreach ($categorias as &$c) {
+                $c['cantidad_utes'] = $this->db->where('id_categoria', (int) $c['id_categoria'])
+                                               ->count_all_results('utes');
+            }
+            unset($c);
+
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'categorias' => $categorias)));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Estado completo de una categoría: grupos con sus UTEs + UTEs sin grupo + resumen. */
+    public function ajax_grupos_estado($id_categoria) {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $id_categoria = (int) $id_categoria;
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'grupos' => $this->Grupo_model->obtener_grupos_con_utes($id_categoria),
+                'utes' => $this->Grupo_model->obtener_utes_por_categoria($id_categoria),
+                'resumen' => $this->Grupo_model->resumen_categoria($id_categoria),
+                'siguiente_nombre' => $this->Grupo_model->sugerir_siguiente_nombre($id_categoria),
+            )));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Crear grupo: POST id_categoria, nombre_grupo (opcional: se sugiere la siguiente letra). */
+    public function ajax_grupo_crear() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $id_categoria = (int) $this->input->post('id_categoria');
+            $nombre = $this->input->post('nombre_grupo');
+            if ($nombre === NULL || trim($nombre) === '') {
+                $nombre = $this->Grupo_model->sugerir_siguiente_nombre($id_categoria);
+            }
+            $r = $this->Grupo_model->crear_grupo($id_categoria, $nombre);
+            $this->output->set_content_type('application/json')->set_output(json_encode($r));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Eliminar grupo: POST id_grupo (las UTEs quedan sin grupo). */
+    public function ajax_grupo_eliminar() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $r = $this->Grupo_model->eliminar_grupo((int) $this->input->post('id_grupo'));
+            $this->output->set_content_type('application/json')->set_output(json_encode($r));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Asignar/desasignar una UTE: POST id_ute, id_grupo (vacío/0 = sin grupo). */
+    public function ajax_ute_asignar_grupo() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $id_grupo = $this->input->post('id_grupo');
+            $r = $this->Grupo_model->asignar_ute_a_grupo(
+                (int) $this->input->post('id_ute'),
+                ($id_grupo === NULL || $id_grupo === '') ? NULL : (int) $id_grupo
+            );
+            $this->output->set_content_type('application/json')->set_output(json_encode($r));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Sorteo automático: POST id_categoria → reparte las UTEs sin grupo en serpentina. */
+    public function ajax_grupo_sorteo() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $r = $this->Grupo_model->sorteo_automatico((int) $this->input->post('id_categoria'));
+            $this->output->set_content_type('application/json')->set_output(json_encode($r));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Descarga un resumen del fixture cargado (todas las categorías) en formato
      * CSV TIPO CUADRO: cada COLUMNA es un día de competencia y cada FILA un
      * rango horario (franjas de 1 hora). Cada celda muestra los partidos de ese
      * día/franja como líneas "HH:MM–HH:MM · Deporte Cat · Local vs Visitante".
