@@ -785,6 +785,118 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /* ============================================================
+     *  FORMATO MUNDIAL: GRUPOS + BRACKET (endpoints AJAX)
+     * ============================================================ */
+
+    /** Carga el Grupo_model con las mismas reglas de auth del fixture. */
+    private function _grupo_auth_json() {
+        if (!$this->_fixture_auth_json()) return false;
+        $this->load->model('Grupo_model');
+        return true;
+    }
+
+    /** Devuelve los grupos de una categoría con miembros y posiciones. */
+    public function ajax_grupos_categoria($id_categoria) {
+        if (!$this->_grupo_auth_json()) return;
+        try {
+            $grupos = $this->Grupo_model->obtener_grupos((int) $id_categoria);
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('Error al consultar los grupos.', $e->getMessage());
+            return;
+        }
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'grupos' => $grupos)));
+    }
+
+    /** PASO 1: repartir los equipos inscriptos en grupos A, B, C... balanceados. */
+    public function ajax_crear_grupos() {
+        try {
+            if (!$this->_grupo_auth_json()) return;
+            $id_categoria = (int) $this->input->post('id_categoria');
+            $tamanio = (int) $this->input->post('equipos_por_grupo');
+            if (!$id_categoria) throw new Exception('Elegí una categoría.');
+            $res = $this->Grupo_model->crear_grupos($id_categoria, $tamanio ?: 4);
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'mensaje' => 'Grupos creados: ' . implode(', ', $res['distribucion']),
+                'grupos' => $res,
+            )));
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('No se pudieron crear los grupos.', $e->getMessage());
+        }
+    }
+
+    /** PASO 2: generar los partidos todos-contra-todos dentro de cada grupo. */
+    public function ajax_generar_partidos_grupo() {
+        try {
+            if (!$this->_grupo_auth_json()) return;
+            $id_categoria = (int) $this->input->post('id_categoria');
+            if (!$id_categoria) throw new Exception('Elegí una categoría.');
+            $n = $this->Grupo_model->generar_partidos_grupo($id_categoria);
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'mensaje' => 'Se generaron ' . $n . ' partidos de fase de grupos (ajustá día/hora desde "Nuevo partido").',
+            )));
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('No se pudieron generar los partidos de grupos.', $e->getMessage());
+        }
+    }
+
+    /** PASO 3: cerrar grupos -> posiciones finales + clasificados a la eliminatoria. */
+    public function ajax_clasificar_grupos() {
+        try {
+            if (!$this->_grupo_auth_json()) return;
+            $id_categoria = (int) $this->input->post('id_categoria');
+            if (!$id_categoria) throw new Exception('Elegí una categoría.');
+            $res = $this->Grupo_model->clasificar_grupos($id_categoria);
+            $lineas = array();
+            foreach ($res as $r) {
+                $lineas[] = 'Grupo ' . $r['grupo'] . ': ' . implode(' y ', $r['clasificados']);
+            }
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'mensaje' => 'Clasificados — ' . implode(' · ', $lineas),
+                'resumen' => $res,
+            )));
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('No se pudieron cerrar los grupos.', $e->getMessage());
+        }
+    }
+
+    /** PASO 4: armar el bracket eliminatorio (cuartos -> semi -> final -> 3er puesto). */
+    public function ajax_armar_bracket() {
+        try {
+            if (!$this->_grupo_auth_json()) return;
+            $id_categoria = (int) $this->input->post('id_categoria');
+            if (!$id_categoria) throw new Exception('Elegí una categoría.');
+            $res = $this->Grupo_model->armar_bracket($id_categoria);
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true,
+                'mensaje' => 'Bracket armado: ' . $res['cuartos'] . ' cuartos, ' . $res['semis']
+                           . ' semis, final y ' . ($res['tercer'] ? 'definición de 3er puesto' : 'sin 3er puesto') . '.',
+            )));
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('No se pudo armar el bracket.', $e->getMessage());
+        }
+    }
+
+    /** Marcador de un partido de fase GRUPO (3-1-0, empate definitivo). */
+    public function ajax_marcador_grupo() {
+        try {
+            if (!$this->_fixture_auth_json()) return;
+            $id_fixture = (int) $this->input->post('id_fixture');
+            $mensaje = $this->Fixture_model->guardar_marcador_grupo(
+                $id_fixture, $this->input->post('goles1'), $this->input->post('goles2'));
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => true, 'mensaje' => $mensaje)));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')->set_output(json_encode(array(
+                'ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     /** Registrar ganador de un partido (clasifica a la siguiente fase). */
     public function ajax_resultado_partido() {
         if (!$this->_fixture_auth_json()) return;

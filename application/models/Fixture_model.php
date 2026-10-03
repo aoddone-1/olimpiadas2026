@@ -896,6 +896,56 @@ class Fixture_model extends CI_Model {
                      'TERCER_PUESTO', 'FINAL', 'JORNADA_UNICA');
     }
 
+    /** ¿Existe la columna fixtures.resultado? (requiere el ALTER del sql provisto). */
+    public function existe_columna_resultado() {
+        return $this->_existe_columna_resultado();
+    }
+
+    /**
+     * Guardar el MARCADOR de un partido de fase GRUPO (empate definitivo,
+     * sin penales ni prórroga). No clasifica a nadie: solo actualiza
+     * resultado/estado y recalcula la tabla de posiciones del grupo.
+     *
+     * @param int $id_fixture
+     * @param int $goles1  goles del equipo del slot id_ute_1
+     * @param int $goles2
+     * @return string mensaje
+     */
+    public function guardar_marcador_grupo($id_fixture, $goles1, $goles2) {
+        $partido = $this->obtener_fixture_por_id($id_fixture);
+        if (!$partido) throw new Exception('Partido no encontrado.');
+        if ($partido['fase'] !== 'GRUPO') {
+            throw new Exception('El marcador aplica solo a partidos de fase GRUPO. Para eliminatoria usá el botón 🏆 del ganador.');
+        }
+        if (empty($partido['id_ute_1']) || empty($partido['id_ute_2'])) {
+            throw new Exception('El partido todavía no tiene ambos equipos definidos.');
+        }
+        if (!is_numeric($goles1) || !is_numeric($goles2)
+            || (int) $goles1 < 0 || (int) $goles2 < 0 || (int) $goles1 > 99 || (int) $goles2 > 99) {
+            throw new Exception('Marcador inválido: usá números entre 0 y 99.');
+        }
+        if (!$this->_existe_columna_resultado()) {
+            throw new Exception('Falta la columna "resultado" en la tabla fixtures. Ejecutá sql/fixture_resultado_masivo.sql.');
+        }
+
+        $goles1 = (int) $goles1; $goles2 = (int) $goles2;
+        $this->db->where('id_fixture', $id_fixture);
+        $this->db->update('fixtures', array(
+            'estado'    => 'FINALIZADO',
+            'resultado' => json_encode(array($goles1, $goles2)),
+        ));
+
+        // Recalcular la tabla del grupo si el partido está asignado a uno.
+        if (!empty($partido['id_grupo'])) {
+            $this->load->model('Grupo_model');
+            $this->Grupo_model->recalcular_posiciones((int) $partido['id_grupo']);
+        }
+
+        $res = $goles1 === $goles2 ? 'Empate' :
+               ($goles1 > $goles2 ? 'Gana local' : 'Gana visitante');
+        return 'Marcador guardado: ' . $goles1 . '-' . $goles2 . ' (' . $res . '). Posiciones actualizadas.';
+    }
+
     /** Crear/editar un partido manualmente. */
     public function guardar_partido($datos) {
         // --- Validaciones defensivas: cualquier valor inválido habría hecho
@@ -942,6 +992,20 @@ class Fixture_model extends CI_Model {
         $h_ini = strlen($h_ini) === 5 ? $h_ini . ':00' : $h_ini;
         $h_fin = strlen($h_fin) === 5 ? $h_fin . ':00' : $h_fin;
 
+        // Fase GRUPO con marcador (flujo Mundial): si viene goles1/goles2 en
+        // un partido ya creado, se delega en guardar_marcador_grupo (guarda
+        // el resultado, FINALIZA el partido y recalcula posiciones del grupo).
+        // La creación manual pura sigue el camino de abajo; el marcador se
+        // carga después desde el panel.
+        if ($fase === 'GRUPO' && isset($datos['goles1']) && isset($datos['goles2'])
+            && $datos['goles1'] !== '' && $datos['goles2'] !== '') {
+            if (empty($datos['id_fixture'])) {
+                throw new Exception('Guardá primero el partido y después cargá el marcador.');
+            }
+            return $this->guardar_marcador_grupo((int) $datos['id_fixture'],
+                                                 $datos['goles1'], $datos['goles2']);
+        }
+
         // Equipos: pueden ir vacíos ('' -> NULL). Si vienen con valor, validar
         // que existan (ids negativos = competidores individuales, no se validan).
         $ute1 = isset($datos['id_ute_1']) && $datos['id_ute_1'] !== '' ? (int) $datos['id_ute_1'] : null;
@@ -969,6 +1033,24 @@ class Fixture_model extends CI_Model {
             'estado'            => !empty($datos['estado']) ? $datos['estado'] : 'PROGRAMADO',
         );
 
+        // Columnas del formato Mundial (solo si la migración ya se aplicó).
+        if ($this->_columna_existe('fixtures', 'id_grupo')) {
+            if ($fase === 'GRUPO') {
+                $g = !empty($datos['id_grupo']) ? (int) $datos['id_grupo'] : null;
+                if ($g) {
+                    $this->db->where('id_grupo', $g);
+                    $this->db->where('id_categoria', $id_cat);
+                    if (!$this->db->get('grupos')->num_rows()) {
+                        throw new Exception('El grupo seleccionado no existe en esta categoría.');
+                    }
+                }
+                $payload['id_grupo'] = $g;
+            } else {
+                // Fuera de fase GRUPO el campo debe quedar NULL (no rompe FK).
+                $payload['id_grupo'] = null;
+            }
+        }
+
         if (!empty($datos['id_fixture'])) {
             $this->db->where('id_fixture', (int) $datos['id_fixture']);
             $this->db->update('fixtures', $payload);
@@ -991,6 +1073,25 @@ class Fixture_model extends CI_Model {
             }
         }
         return $existe;
+    }
+
+    /** Cache por-request de SHOW COLUMNS: verifica columnas de la migración Mundial. */
+    private function _columnas($tabla) {
+        static $cache = array();
+        if (!isset($cache[$tabla])) {
+            try {
+                $q = $this->db->query('SHOW COLUMNS FROM `' . $tabla . '`');
+                $cache[$tabla] = array_map(function ($r) { return isset($r['Field']) ? $r['Field'] : ''; },
+                                           $q ? $q->result_array() : array());
+            } catch (Throwable $e) {
+                $cache[$tabla] = array();
+            }
+        }
+        return $cache[$tabla];
+    }
+
+    private function _columna_existe($tabla, $col) {
+        return in_array($col, $this->_columnas($tabla), true);
     }
 
     /**
@@ -1134,6 +1235,18 @@ class Fixture_model extends CI_Model {
         }
         if ($partido['fase'] === 'JORNADA_UNICA') {
             throw new Exception('Los deportes de jornada única no generan clasificados.');
+        }
+
+        // En fase GRUPO el "resultado" es un MARCADOR (puede haber empate y
+        // suma puntos 3-1-0). No se propaga ningún equipo a la eliminatoria:
+        // los clasificados surgen de la tabla al cerrar los grupos.
+        if ($partido['fase'] === 'GRUPO') {
+            if (!is_array($id_ganador)) {
+                throw new Exception('En fase de grupos cargá el marcador (goles local / goles visitante), no solo el ganador.');
+            }
+            return $this->guardar_marcador_grupo($id_fixture,
+                                                 isset($id_ganador[0]) ? $id_ganador[0] : '',
+                                                 isset($id_ganador[1]) ? $id_ganador[1] : '');
         }
 
         // Validar que el ganador sea uno de los dos participantes del partido
