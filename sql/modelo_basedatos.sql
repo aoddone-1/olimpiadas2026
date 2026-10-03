@@ -52,19 +52,7 @@ CREATE TABLE `fixtures` (
   CONSTRAINT `fk_fixture_lugar` FOREIGN KEY (`id_lugar`) REFERENCES `lugares` (`id`) ON UPDATE CASCADE,
   CONSTRAINT `fk_fixture_ute1` FOREIGN KEY (`id_ute_1`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `fk_fixture_ute2` FOREIGN KEY (`id_ute_2`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-
--- Tabla GRUPOS de la fase de grupos (Mundial: Grupo A, B, C... por categoria).
--- Las UTEs se asignan a un grupo mediante FK directa en `utes.id_grupo`.
-CREATE TABLE `grupos` (
-  `id_grupo` int NOT NULL AUTO_INCREMENT,
-  `id_categoria` int NOT NULL,
-  `nombre_grupo` varchar(10) NOT NULL COMMENT 'Letra del grupo: A, B, C...',
-  PRIMARY KEY (`id_grupo`),
-  UNIQUE KEY `uq_categoria_grupo` (`id_categoria`,`nombre_grupo`),
-  KEY `fk_grupo_categoria` (`id_categoria`),
-  CONSTRAINT `fk_grupo_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
 
 CREATE TABLE `inscripciones_deportivas` (
   `id_inscripcion` int NOT NULL AUTO_INCREMENT,
@@ -185,16 +173,6 @@ CREATE TABLE `resultado_detalle` (
   CONSTRAINT `fk_det_resultado` FOREIGN KEY (`id_resultado`) REFERENCES `resultados` (`id_resultado`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
-CREATE TABLE `usuarios` (
-  `id_usuario` int NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `rol` enum('superadmin','admin','staff','mesa_control','seguridad_cenas','delegado') NOT NULL,
-  `nombre_usuario` varchar(100) DEFAULT NULL,
-  PRIMARY KEY (`id_usuario`),
-  UNIQUE KEY `username` (`username`)
-) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=latin1;
-
 CREATE TABLE `utes` (
   `id_ute` int NOT NULL AUTO_INCREMENT,
   `id_categoria` int NOT NULL,
@@ -207,3 +185,13 @@ CREATE TABLE `utes` (
   CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE,
   CONSTRAINT `fk_ute_grupo` FOREIGN KEY (`id_grupo`) REFERENCES `grupos` (`id_grupo`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=215 DEFAULT CHARSET=latin1;
+
+CREATE TABLE `usuarios` (
+  `id_usuario` int NOT NULL AUTO_INCREMENT,
+  `username` varchar(50) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `rol` enum('superadmin','admin','staff','mesa_control','seguridad_cenas','delegado') NOT NULL,
+  `nombre_usuario` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id_usuario`),
+  UNIQUE KEY `username` (`username`)
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=latin1;
