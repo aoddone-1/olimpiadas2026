@@ -42,13 +42,14 @@
                 </select>
             </div>
             <div class="col-md-4">
-                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (solo para generar / borrar fixture — el listado se ve por día abajo)</label>
+                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (solo para borrar fixture — el listado se ve por día abajo)</label>
                 <select id="fx_categoria" class="form-select">
                     <option value="">— Seleccioná una categoría —</option>
                     <?php
-                    // Para GENERAR fixture solo muestran las categorías que aún
-                    // NO tienen fixture generado.
-                    foreach ($categorias_sin_fixture as $cat): ?>
+                    // La generación automática está dada de baja: este selector
+                    // solo sirve para BORRAR el fixture de una categoría, por lo
+                    // que muestra TODAS las categorías (las que ya tienen fixture).
+                    foreach ($categorias_fixture as $cat): ?>
                         <option value="<?= $cat['id_categoria'] ?>"
                                 data-id-deporte="<?= $cat['id_deporte'] ?>"
                                 data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
@@ -64,9 +65,7 @@
             <div class="col-md-5">
                 <label class="form-label small fw-bold">Acciones</label>
                 <div class="d-flex flex-wrap gap-2">
-                    <button id="fx_btn_generar" class="btn btn-primary d-inline-flex align-items-center" disabled>
-                        <i class="bi bi-magic me-2"></i>Generar fixture
-                    </button>
+                    <!-- La generación automática está dada de baja: el fixture se arma solo a mano -->
                     <button id="fx_btn_nuevo" class="btn  btn-lg  btn-primary d-inline-flex align-items-center">
                         <i class="bi bi-plus-circle me-1"></i>
                     </button>
@@ -256,7 +255,6 @@
 
     const selDeporte = document.getElementById('fx_deporte');
     const selCategoria = document.getElementById('fx_categoria');
-    const btnGenerar = document.getElementById('fx_btn_generar');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
     const btnBorrarTodo = document.getElementById('fx_btn_borrar_todo');
     const infoBox = document.getElementById('fx_info');
@@ -744,9 +742,6 @@
                 }
                 todosFixtures = res.fixtures || [];
 
-                // Actualizar el select de categorías: solo las que aún no tienen fixture
-                aplicarFiltroSinFixture(res);
-
                 // Fallback: si el server no adjuntó las UTEs de cada categoría
                 // (p. ej. BD vieja sin la columna resultado), las pedimos por
                 // categoría para que el botón "Cargar resultados" siempre aparezca.
@@ -1053,8 +1048,8 @@
 
     /* ---------- Filtro Deporte → Categoría ---------- */
     // Al elegir un deporte, la lista de categorías se reduce a las de ese deporte.
-    // Además, solo se muestran las categorías que AÚN NO tienen fixture generado
-    // (la lista llega del server en ajax_fixture_todo → categorias_sin_fixture).
+    // La generación automática está dada de baja: este selector solo sirve para
+    // BORRAR el fixture de una categoría, por eso muestra TODAS las categorías.
     const todasLasCategorias = Array.from(selCategoria.options)
         .filter(o => o.value !== '')
         .map(o => ({
@@ -1063,42 +1058,6 @@
             html: o.innerHTML,
             dataset: Object.assign({}, o.dataset)
         }));
-
-    let categoriasDisponibles = null; // set de ids sin fixture (null = no filtrar aún)
-
-    function aplicarFiltroSinFixture(res) {
-        if (!res || !Array.isArray(res.categorias_sin_fixture)) return;
-
-        categoriasDisponibles = new Set(res.categorias_sin_fixture.map(c => String(c.id_categoria)));
-
-        // Reconstruir el catálogo dinámico con SOLO las categorías sin fixture
-        todasLasCategorias.length = 0;
-        res.categorias_sin_fixture.forEach(c => {
-            todasLasCategorias.push({
-                id: String(c.id_categoria),
-                idDeporte: String(c.id_deporte),
-                html: `${esc(c.nombre_deporte)} — ${esc(c.nombre_categoria)} (${esc(c.genero)})`,
-                dataset: {
-                    idDeporte: String(c.id_deporte),
-                    deporte: c.nombre_deporte,
-                    categoria: c.nombre_categoria,
-                    modalidad: c.modalidad_competencia,
-                    duracion: c.tipo_duracion
-                }
-            });
-        });
-
-        // Si la categoría seleccionada ya tiene fixture (p. ej. recién generada),
-        // se limpia la selección y se deshabilitan los botones.
-        if (selCategoria.value && !categoriasDisponibles.has(String(selCategoria.value))) {
-            selCategoria.value = '';
-            infoBox.classList.add('d-none');
-            btnGenerar.disabled = true;
-            btnBorrarTodo.disabled = true;
-        }
-
-        filtrarCategoriasPorDeporte();
-    }
 
     function filtrarCategoriasPorDeporte() {
         const dep = selDeporte.value;
@@ -1119,39 +1078,26 @@
         selCategoria.value = actual;
         if (!selCategoria.value) {
             infoBox.classList.add('d-none');
-            btnGenerar.disabled = true;
             btnBorrarTodo.disabled = true;
         }
     }
 
     selDeporte.addEventListener('change', filtrarCategoriasPorDeporte);
 
-    /* ---------- Acciones sobre la categoría del selector (solo generar/borrar) ---------- */
+    /* ---------- Acciones sobre la categoría del selector (solo borrar) ---------- */
     selCategoria.addEventListener('change', () => {
         const opt = selCategoria.selectedOptions[0];
         const activo = !!selCategoria.value;
-        btnGenerar.disabled = !activo;
         btnBorrarTodo.disabled = !activo;
 
         if (activo) {
             infoBox.classList.remove('d-none');
-            const tipo = opt.dataset.modalidad === 'MASIVO_TIEMPO'
-                ? 'Deporte MASIVO de un solo día → se genera una única jornada (largada).'
-                : (opt.dataset.duracion === 'UNICO_DIA'
-                    ? 'Deporte de enfrentamiento en jornada única → eliminatoria concentrada en 1 día.'
-                    : 'Deporte MULTIDIA de enfrentamiento → se genera bracket de eliminatoria por fechas.');
-            infoBox.innerHTML = `<strong>${esc(opt.dataset.deporte)} — ${esc(opt.dataset.categoria)}</strong><br>${tipo}`;
+            infoBox.innerHTML = `<strong>${esc(opt.dataset.deporte)} — ${esc(opt.dataset.categoria)}</strong><br>`
+                + 'El fixture se arma a mano con el botón <i class="bi bi-plus-circle"></i> "Nuevo partido". '
+                + 'Este selector solo sirve para borrar todo el fixture de la categoría.';
         } else {
             infoBox.classList.add('d-none');
         }
-    });
-
-    btnGenerar.addEventListener('click', () => {
-        if (!confirm('Se generará el fixture automáticamente con las UTEs existentes (cruces aleatorios). ¿Continuar?')) return;
-        post('ajax_generar_fixture', { id_categoria: selCategoria.value }).then(res => {
-            mensaje(res.ok ? res.mensaje : res.error, res.ok ? 'success' : 'danger');
-            if (res.ok) cargarTodo();
-        });
     });
 
     btnNuevo.addEventListener('click', () => abrirModal(null));
