@@ -718,17 +718,54 @@ class Inscripciones extends CI_Controller {
         return true;
     }
 
+    /** Deportes disponibles (selector 1 del panel de grupos). */
+    public function ajax_grupos_deportes() {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $deportes = $this->Grupo_model->obtener_deportes_con_categorias();
+
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'deportes' => $deportes)));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /** Categorías de un deporte (selector 2 encadenado a ajax_grupos_deportes). */
+    public function ajax_grupos_categorias_por_deporte($id_deporte = NULL) {
+        try {
+            if (!$this->_grupos_auth_json()) return;
+
+            $id_deporte = (int) ($id_deporte !== NULL ? $id_deporte : $this->input->get_post('id_deporte'));
+            if ($id_deporte <= 0) {
+                $this->output->set_content_type('application/json')
+                    ->set_output(json_encode(array('ok' => false, 'error' => 'Deporte inválido.')));
+                return;
+            }
+
+            $categorias = $this->Grupo_model->obtener_categorias_por_deporte($id_deporte);
+
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'categorias' => $categorias)));
+        } catch (Throwable $e) {
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
     /** Categorías con deporte + cantidad de UTEs (selector del panel). */
     public function ajax_grupos_categorias() {
         try {
             if (!$this->_grupos_auth_json()) return;
 
+            // El conteo de UTEs ya viene como subquery en el SELECT del model.
+            // Antes se hacía count_all_results() por categoría DESPUÉS de armar
+            // la consulta padre, lo que reseteaba la Query Builder y hacía que
+            // db->get() devolviera FALSE ("Call to a member function
+            // result_array() on bool").
             $categorias = $this->Grupo_model->obtener_categorias_con_deportes();
-            foreach ($categorias as &$c) {
-                $c['cantidad_utes'] = $this->db->where('id_categoria', (int) $c['id_categoria'])
-                                               ->count_all_results('utes');
-            }
-            unset($c);
 
             $this->output->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => true, 'categorias' => $categorias)));

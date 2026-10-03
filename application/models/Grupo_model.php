@@ -9,13 +9,29 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  */
 class Grupo_model extends CI_Model {
 
+    /** Deportes que tienen categorías (para el selector de deporte del panel). */
+    public function obtener_deportes_con_categorias() {
+        $this->db->select('d.id_deporte, d.nombre_deporte', FALSE);
+        $this->db->distinct();
+        $this->db->from('deportes d');
+        $this->db->join('categorias c', 'c.id_deporte = d.id_deporte', 'inner');
+        $this->db->order_by('d.nombre_deporte', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
     /** Todas las categorías con deporte (para el selector). */
     public function obtener_categorias_con_deportes() {
-        $this->db->select('c.id_categoria, c.nombre_categoria, c.equipos_por_grupo, c.clasificados_por_grupo, c.mejores_segundos, c.tipo_torneo, d.id_deporte, d.nombre_deporte', FALSE);
+        // Ojo: count_all_results() resetea la consulta activa; si se usa en el
+        // mismo request antes de este get(), CI queda sin FROM y db->get()
+        // devuelve FALSE ("Call to a member function result_array() on bool").
+        // Por eso usamos un subquery de conteo en vez de count_all_results.
+        $this->db->select('c.id_categoria, c.nombre_categoria, c.genero, c.equipos_por_grupo, c.clasificados_por_grupo, c.mejores_segundos, c.tipo_torneo, d.id_deporte, d.nombre_deporte,
+                           (SELECT COUNT(*) FROM utes u WHERE u.id_categoria = c.id_categoria) AS cantidad_utes', FALSE);
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
-        return $this->db->get()->result_array();
+        $query = $this->db->get();
+        return $query ? $query->result_array() : array();
     }
 
     public function obtener_categoria($id_categoria) {
@@ -110,13 +126,19 @@ class Grupo_model extends CI_Model {
         if (!$grupo) return array('ok' => FALSE, 'error' => 'Grupo inexistente.');
 
         // Bloquear si ya hay partidos de fase GRUPO generados para este grupo.
-        $partidos = $this->db->where('f.id_categoria', (int) $grupo['id_categoria'])
-                             ->where('f.fase', 'GRUPO')
-                             ->where('(u1.id_grupo = ' . (int) $id_grupo . ' OR u2.id_grupo = ' . (int) $id_grupo . ')', NULL, FALSE)
-                             ->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left')
-                             ->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left')
-                             ->from('fixtures f')
-                             ->count_all_results();
+        // Se hace con get()->num_rows() en vez de count_all_results(): el count
+        // sin tabla deja la Query Builder en un estado raro que puede romper el
+        // siguiente db->get() del request ("result_array() on bool").
+        $this->db->select('f.id_fixture', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
+        $this->db->where('f.id_categoria', (int) $grupo['id_categoria']);
+        $this->db->where('f.fase', 'GRUPO');
+        $this->db->where('(u1.id_grupo = ' . (int) $id_grupo . ' OR u2.id_grupo = ' . (int) $id_grupo . ')', NULL, FALSE);
+        $q = $this->db->get();
+        $partidos = $q ? $q->num_rows() : 0;
+        $this->db->reset_query();
         if ($partidos > 0) {
             return array('ok' => FALSE, 'error' => 'El grupo tiene partidos de fase GRUPO generados. Borralos primero.');
         }
@@ -124,6 +146,23 @@ class Grupo_model extends CI_Model {
         $this->db->where('id_grupo', (int) $id_grupo);
         $this->db->delete('grupos');
         return array('ok' => TRUE);
+    }
+
+    /** Deportes disponibles para el primer selector del panel. */
+    public function obtener_deportes() {
+        return $this->db->order_by('nombre_deporte', 'ASC')->get('deportes')->result_array();
+    }
+
+    /** Categorías de un deporte (para el segundo selector encadenado). */
+    public function obtener_categorias_por_deporte($id_deporte) {
+        $this->db->select('c.id_categoria, c.nombre_categoria, c.genero, c.equipos_por_grupo, c.clasificados_por_grupo, c.mejores_segundos, c.tipo_torneo, c.id_deporte, d.nombre_deporte,
+                           (SELECT COUNT(*) FROM utes u WHERE u.id_categoria = c.id_categoria) AS cantidad_utes', FALSE);
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('c.id_deporte', (int) $id_deporte);
+        $this->db->order_by('c.nombre_categoria', 'ASC');
+        $query = $this->db->get();
+        return $query ? $query->result_array() : array();
     }
 
     /* ============================================================
@@ -207,9 +246,13 @@ class Grupo_model extends CI_Model {
         if (!$cat) return array('ok' => FALSE, 'error' => 'Categoría inexistente.');
 
         $grupos = $this->obtener_grupos($id_categoria);
-        $sin_grupo = $this->db->where('id_categoria', (int) $id_categoria)
-                              ->where('id_grupo IS NULL', NULL, FALSE)
-                              ->count_all_results('utes');
+        // Conteo por subquery + reset_query(): evitar que un count_all_results()
+        // deje restos en la Query Builder y rompa el get() siguiente del request.
+        $sin_grupo = (int) $this->db->select('COUNT(*) AS n', FALSE)
+                                    ->where('id_categoria', (int) $id_categoria)
+                                    ->where('id_grupo IS NULL', NULL, FALSE)
+                                    ->get('utes')->row()->n;
+        $this->db->reset_query();
 
         $tamnios = array();
         foreach ($grupos as $g) $tamnios[] = (int) $g['cantidad_utes'];
