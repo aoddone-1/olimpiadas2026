@@ -19,22 +19,26 @@
 
     <div class="card-body">
 
-        <!-- PASO 1: elegir categoría -->
+        <!-- PASO 1: elegir deporte → categoría (selects encadenados) -->
         <div class="row g-2 align-items-end mb-4">
-            <div class="col-md-6">
-                <label class="form-label fw-bold small text-secondary">1 · Categoría (deporte + categoría)</label>
-                <select id="fx-cat" class="form-select">
-                    <option value="">— Elegí una categoría —</option>
+            <div class="col-md-4">
+                <label class="form-label fw-bold small text-secondary">1 · Deporte</label>
+                <select id="fx-deporte" class="form-select">
+                    <option value="">— Elegí un deporte —</option>
                 </select>
             </div>
-            <div class="col-md-3">
-                <button id="fx-btn-nuevo-grupo" class="btn btn-primary w-100" disabled>
+            <div class="col-md-5">
+                <label class="form-label fw-bold small text-secondary">2 · Categoría</label>
+                <select id="fx-cat" class="form-select" disabled>
+                    <option value="">— Elegí primero un deporte —</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button id="fx-btn-nuevo-grupo" class="btn btn-primary flex-fill" disabled>
                     <i class="bi bi-plus-lg me-1"></i>Crear grupo
                 </button>
-            </div>
-            <div class="col-md-3">
-                <button id="fx-btn-sorteo" class="btn btn-outline-secondary w-100" disabled title="Reparte las UTEs sin grupo entre los grupos (serpentina)">
-                    <i class="bi bi-shuffle me-1"></i>Sorteo automático
+                <button id="fx-btn-sorteo" class="btn btn-outline-secondary flex-fill" disabled title="Reparte las UTEs sin grupo entre los grupos (serpentina)">
+                    <i class="bi bi-shuffle me-1"></i>Sorteo
                 </button>
             </div>
         </div>
@@ -97,7 +101,7 @@
     const BASE = '<?= base_url("Inscripciones") ?>';
     const $ = (sel) => document.querySelector(sel);
 
-    let estado = { categorias: [], idCat: null, grupos: [], utes: [], resumen: null, siguiente: 'A' };
+    let estado = { deportes: [], idDep: null, categorias: [], idCat: null, grupos: [], utes: [], resumen: null, siguiente: 'A' };
 
     /* ---------- helpers ---------- */
     function post(url, datos) {
@@ -123,26 +127,56 @@
         setTimeout(() => a.classList.add('d-none'), 4000);
     }
 
-    /* ---------- carga inicial: categorías ---------- */
-    function cargarCategorias() {
-        get('ajax_grupos_categorias').then(res => {
-            if (!res.ok) { alerta(res.error || 'No se pudieron cargar las categorías.', 'danger'); return; }
+    /* ---------- carga inicial: deportes (selector 1) ---------- */
+    function cargarDeportes() {
+        get('ajax_grupos_deportes').then(res => {
+            if (!res.ok) { alerta(res.error || 'No se pudieron cargar los deportes.', 'danger'); return; }
+            estado.deportes = res.deportes;
+            const sel = $('#fx-deporte');
+            sel.innerHTML = '<option value="">— Elegí un deporte —</option>';
+            res.deportes.forEach(d => {
+                const o = document.createElement('option');
+                o.value = d.id_deporte;
+                o.textContent = d.nombre_deporte;
+                sel.appendChild(o);
+            });
+        });
+    }
+
+    /* ---------- selector 2: categorías del deporte elegido ---------- */
+    function limpiarSelectorCategoria(placeholder) {
+        estado.categorias = [];
+        estado.idCat = null;
+        const sel = $('#fx-cat');
+        sel.disabled = true;
+        sel.innerHTML = '<option value="">' + placeholder + '</option>';
+    }
+
+    function cargarCategorias(idDeporte) {
+        limpiarSelectorCategoria('— Cargando… —');
+        get('ajax_grupos_categorias_por_deporte/' + idDeporte).then(res => {
+            if (!res.ok) {
+                alerta(res.error || 'No se pudieron cargar las categorías.', 'danger');
+                limpiarSelectorCategoria('— Elegí primero un deporte —');
+                return;
+            }
+            // Si el usuario cambió de deporte mientras cargaba, descartar.
+            if (estado.idDep !== Number(idDeporte)) return;
+
             estado.categorias = res.categorias;
             const sel = $('#fx-cat');
             sel.innerHTML = '<option value="">— Elegí una categoría —</option>';
-            let grupoActual = null;
             res.categorias.forEach(c => {
-                if (c.nombre_deporte !== (grupoActual && grupoActual.label)) {
-                    grupoActual = document.createElement('optgroup');
-                    grupoActual.label = c.nombre_deporte;
-                    sel.appendChild(grupoActual);
-                }
                 const o = document.createElement('option');
                 o.value = c.id_categoria;
                 o.textContent = c.nombre_categoria + ' (' + c.genero + ') — ' + c.cantidad_utes + ' UTEs';
-                grupoActual.appendChild(o);
+                sel.appendChild(o);
             });
-        });
+            sel.disabled = res.categorias.length === 0;
+            if (res.categorias.length === 0) {
+                sel.innerHTML = '<option value="">— Sin categorías para este deporte —</option>';
+            }
+        }).catch(() => limpiarSelectorCategoria('— Error al cargar —'));
     }
 
     /* ---------- estado de la categoría elegida ---------- */
@@ -226,6 +260,19 @@
     }
 
     /* ---------- acciones ---------- */
+    // Selector 1: Deporte → carga las categorías del deporte elegido.
+    $('#fx-deporte').addEventListener('change', function () {
+        estado.idDep = this.value ? Number(this.value) : null;
+        estado.grupos = []; estado.utes = []; estado.resumen = null;
+        render();
+        if (estado.idDep) {
+            cargarCategorias(estado.idDep);
+        } else {
+            limpiarSelectorCategoria('— Elegí primero un deporte —');
+        }
+    });
+
+    // Selector 2: Categoría → carga grupos/UTEs de la categoría.
     $('#fx-cat').addEventListener('change', function () {
         estado.idCat = this.value ? Number(this.value) : null;
         estado.grupos = []; estado.utes = []; estado.resumen = null;
@@ -295,6 +342,6 @@
 
     /* init */
     render();
-    cargarCategorias();
+    cargarDeportes();
 })();
 </script>
