@@ -379,15 +379,13 @@ class Grupo_model extends CI_Model {
      * ============================================================ */
 
     /**
-     * Crear los cruces eliminatorios con slots simbólicos tipo Mundial:
-     *   cuartos:  Q1: A-1 vs B-2 | Q2: B-1 vs A-2 | Q3: C-1 vs D-2 | Q4: D-1 vs C-2
-     *   semis:    S1: WQ1 vs WQ2 | S2: WQ3 vs WQ4
-     *   final:    WF: WS1 vs WS2 ; tercer puesto: perdedores de S1/S2.
-     * Con 3 grupos: el 1° con mejor registro queda "bye" directo a semi.
-     * Los ganadores reales se resuelven al registrar resultados
-     * (Fixture_model::_resolver_origenes / _propagar_ganador_llave).
-     *
-     * @return array resumen con llaves creadas
+     * Crear los cruces eliminatorios con slots simbólicos tipo Mundial.
+     * La ronda base se empareja en espejo entre grupos vecinos:
+     *   2 grupos (S1: A-1 vs B-2 | S2: B-1 vs A-2) -> Final -> 3er puesto
+     *   4 grupos (Q1..Q4 espejados)               -> Semis  -> Final -> 3°
+     * Con 3 grupos: el 1° del grupo C queda "bye" directo a semi.
+     * Los ganadores reales se resuelven al cerrar los grupos y registrar
+     * resultados (Fixture_model::_resolver_slots_grupo / _propagar_en_llaves).
      */
     public function armar_bracket($id_categoria) {
         $id_categoria = (int) $id_categoria;
@@ -413,70 +411,97 @@ class Grupo_model extends CI_Model {
         $this->db->where_in('fase', array_merge(self::FASES_ELIM, array('TERCER_PUESTO')));
         $this->db->delete('fixtures');
 
-        // Armar pares de cuartos según la cantidad de grupos.
-        $cuartos = array();       // lista de ['origen1'=>[..], 'origen2'=>[..]]
-        $byes = array();          // "letra-pos" que saltan directo a semi
+        // Armar los cruces de la primera ronda eliminatoria según la cantidad
+        // de grupos y clasificados. Se emparejan grupos VECINOS en espejo
+        // (estilo Mundial): 1° del Grupo A vs 2° del Grupo B, y viceversa.
+        $cruces = array();         // lista de ["A-1", "B-2"] (letra-posición)
+        $byes = array();           // "letra-pos" que salta directo a la semi
         if ($ava >= 2) {
             if ($ng % 2 === 0) {
                 for ($i = 0; $i < $ng; $i += 2) {
                     $a = $letas[$i]; $b = $letas[$i + 1];
-                    $cuartos[] = array("$a-1", "$b-2");
-                    $cuartos[] = array("$b-1", "$a-2");
+                    $cruces[] = array("$a-1", "$b-2");
+                    $cruces[] = array("$b-1", "$a-2");
                 }
             } else {
                 // 3 grupos: emparejar A/B y C recibe bye (el mejor 1°).
-                $cuartos[] = array("{$letas[0]}-1", "{$letas[1]}-2");
-                $cuartos[] = array("{$letas[1]}-1", "{$letas[0]}-2");
+                $cruces[] = array("{$letas[0]}-1", "{$letas[1]}-2");
+                $cruces[] = array("{$letas[1]}-1", "{$letas[0]}-2");
                 $byes[] = "{$letas[2]}-1";
             }
         } else {
-            // clasificados=1: 1° vs 2° de grupos vecinos
+            // clasificados=1: 1° contra 1° de grupos vecinos
             for ($i = 0; $i + 1 < $ng; $i += 2) {
-                $cuartos[] = array("{$letas[$i]}-1", "{$letas[$i+1]}-1");
+                $cruces[] = array("{$letas[$i]}-1", "{$letas[$i+1]}-1");
             }
             if ($ng % 2 === 1) $byes[] = "{$letas[$ng-1]}-1";
         }
 
-        $this->db->trans_start();
+        // Nombre de la ronda base según cuántos partidos queden:
+        //   2 -> semifinales | 4 -> cuartos | 8 o más -> octavos.
+        $nc = count($cruces);
+        $fase_base = $nc <= 2 ? 'SEMIFINAL' : ($nc <= 4 ? 'CUARTOS' : 'OCTAVOS');
+        $nombre_base = array('SEMIFINAL' => 'Semifinal', 'CUARTOS' => 'Cuartos de final',
+                             'OCTAVOS' => 'Octavos de final');
+
+        /* ---------- Ronda base: slots GRUPO_POS ("A-1" vs "B-2") ---------- */
+        // Al cerrarse los grupos, esos huecos se resuelven solos con el
+        // botón "Resolver pendientes" (o automáticamente al cargar un
+        // resultado). Las rondas siguientes ya no referencian grupos:
+        // referencian la LLAVE (id_fixture) del cruce anterior.
+        $ids_ronda = array();
         $llave = 0;
-        $ids_cuartos = array();
-        foreach ($cuartos as $pair) {
+        $this->db->trans_start();
+        foreach ($cruces as $pair) {
             $llave++;
-            $ids_cuartos[] = $this->_insertar_cruce(
-                $id_categoria, $lugar, $fecha, $h_ini, $h_fin, $llave, 'CUARTOS',
-                'Cuartos de final — Llave ' . $llave, $pair[0], $pair[1]);
+            $ids_ronda[] = $this->_insertar_cruce(
+                $id_categoria, $lugar, $fecha, $h_ini, $h_fin, $llave, $fase_base,
+                $nombre_base[$fase_base] . ' — Llave ' . $llave,
+                $this->_origen_desde_pos($pair[0]), $this->_origen_desde_pos($pair[1]));
         }
 
-        // Semifinales: ganadores de pares de cuartos (+ byes intercalados)
-        $slots_semi = array();
-        for ($i = 0; $i < count($ids_cuartos); $i += 2) {
-            $slots_semi[] = array('LLAVE_GANADOR', (string) $ids_cuartos[$i]);
-            $sig = $i + 1;
-            if ($sig < count($ids_cuartos)) {
-                $slots_semi[] = array('LLAVE_GANADOR', (string) $ids_cuartos[$sig]);
-            } elseif ($byes) {
-                $slots_semi[] = $this->_origen_desde_pos(array_shift($byes));
-            }
-        }
-        while ($byes) $slots_semi[] = $this->_origen_desde_pos(array_shift($byes));
-
+        /* ---------- Semifinales / Final ---------- */
+        // Si la ronda base NO fue semifinal, los ganadores de pares de esa
+        // ronda arman las semifinales (los byes entran acá directamente).
         $ids_semis = array();
-        for ($i = 0; $i + 1 < count($slots_semi); $i += 2) {
-            $llave++;
-            $ids_semis[] = $this->_insertar_cruce(
-                $id_categoria, $lugar, $fecha, $h_ini, $h_fin, $llave, 'SEMIFINAL',
-                'Semifinal — Llave ' . $llave, $slots_semi[$i], $slots_semi[$i + 1]);
-        }
-        // Si sobra un slot semi (caso raro), lo mandamos directo a la final.
-        $semis_directas = array();
-        if (count($slots_semi) % 2 === 1) {
-            $semis_directas[] = end($slots_semi);
+        if ($fase_base !== 'SEMIFINAL') {
+            $slots_semi = array();
+            for ($i = 0; $i < count($ids_ronda); $i += 2) {
+                $slots_semi[] = array('LLAVE_GANADOR', (string) $ids_ronda[$i]);
+                $sig = $i + 1;
+                if ($sig < count($ids_ronda)) {
+                    $slots_semi[] = array('LLAVE_GANADOR', (string) $ids_ronda[$sig]);
+                } elseif ($byes) {
+                    $slots_semi[] = $this->_origen_desde_pos(array_shift($byes));
+                }
+            }
+            while ($byes) $slots_semi[] = $this->_origen_desde_pos(array_shift($byes));
+
+            for ($i = 0; $i + 1 < count($slots_semi); $i += 2) {
+                $llave++;
+                $ids_semis[] = $this->_insertar_cruce(
+                    $id_categoria, $lugar, $fecha, $h_ini, $h_fin, $llave, 'SEMIFINAL',
+                    'Semifinal — Llave ' . $llave, $slots_semi[$i], $slots_semi[$i + 1]);
+            }
+            // Si sobra un slot semi (caso raro), lo mandamos directo a la final.
+            $semis_directas = array();
+            if (count($slots_semi) % 2 === 1) {
+                $semis_directas[] = end($slots_semi);
+            }
+
+            // Final: ganadores de las semis (+ eventuales directos)
+            $slots_final = array();
+            foreach ($ids_semis as $idsemi) $slots_final[] = array('LLAVE_GANADOR', (string) $idsemi);
+            foreach ($semis_directas as $s) $slots_final[] = $s;
+        } else {
+            // La ronda base ya eran las semifinales: la final juega contra sus ganadores.
+            $ids_semis = $ids_ronda;
+            $slots_final = array(
+                array('LLAVE_GANADOR', (string) $ids_ronda[0]),
+                array('LLAVE_GANADOR', (string) $ids_ronda[1]),
+            );
         }
 
-        // Final
-        $slots_final = array();
-        foreach ($ids_semis as $idsemi) $slots_final[] = array('LLAVE_GANADOR', (string) $idsemi);
-        foreach ($semis_directas as $s) $slots_final[] = $s;
         $llave_final = $llave + 1;
         $this->_insertar_cruce(
             $id_categoria, $lugar, $fecha, $h_ini, $h_fin, $llave_final, 'FINAL',
@@ -498,7 +523,7 @@ class Grupo_model extends CI_Model {
         }
 
         return array(
-            'cuartos'  => count($ids_cuartos),
+            'base'     => count($cruces),
             'semis'    => count($ids_semis),
             'final'    => 1,
             'tercer'   => count($ids_semis) >= 2 ? 1 : 0,
