@@ -17,19 +17,9 @@ class Fixture_model extends CI_Model {
 
     /** Categorías con su deporte y lugar (para el selector del panel). */
     public function obtener_categorias_para_fixture() {
-        // equipos_por_grupo/clasificados_por_grupo solo existen tras aplicar
-        // sql/migracion_mundial.sql: se seleccionan de forma condicional para
-        // que el panel no reviente contra una base todavía sin migrar.
-        $extra = '';
-        if ($this->_columna_existe('categorias', 'equipos_por_grupo')) {
-            $extra .= ', c.equipos_por_grupo';
-        }
-        if ($this->_columna_existe('categorias', 'clasificados_por_grupo')) {
-            $extra .= ', c.clasificados_por_grupo';
-        }
         $this->db->select('
             c.id_categoria, c.nombre_categoria, c.genero, c.tipo_torneo,
-            c.dia_competencia, c.hora_competencia' . $extra . ',
+            c.dia_competencia, c.hora_competencia,
             d.id_deporte, d.nombre_deporte, d.modalidad_competencia, d.tipo_duracion,
             l.nombre as nombre_lugar
         ', FALSE);
@@ -493,7 +483,85 @@ class Fixture_model extends CI_Model {
         }
         unset($f);
 
+        // Integrantes de las UTEs que intervienen, agrupados por id_ute. El
+        // reporte (admin/reporte_fixture) los usa para mostrar "maría, paula,
+        // juliana vs nora, martina, guille" en vez de "Equipo 1 vs Equipo 2".
+        $ids_ute = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0) $ids_ute[] = $idl;
+            }
+        }
+        // Los slots negativos (-id_inscripcion) son competidores INDIVIDUALES:
+        // no llevan lista de integrantes (su nombre ya viene en ute_X_nombre).
+        $ids_ute_pos = array_values(array_filter($ids_ute, function ($idl) {
+            return $idl > 0;
+        }));
+        $integrantes_por_ute = $this->_integrantes_de_utes(array_unique($ids_ute_pos));
+        // Las UTEs sin integrantes en participantes_utes se resuelven por las
+        // inscripciones de la categoría que mencionan al equipo (por id_ute o
+        // por detalle_ute), igual que hace el modal "ver participantes" y el
+        // reporte del delegado. Sin esto, los equipos cargados con inscripciones
+        // viejas aparecían como "Equipo 1 vs Equipo 2" en el PDF.
+        $pendientes = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0 && empty($integrantes_por_ute[$idl])) {
+                    $pendientes[$idl][] = (int) $fx['id_categoria'];
+                }
+            }
+        }
+        foreach ($pendientes as $idl => $cats) {
+            $lista = $this->_inscriptos_de_ute_por_categoria($idl, array_unique($cats));
+            if ($lista) $integrantes_por_ute[$idl] = $lista;
+        }
+        foreach ($fixtures as &$f) {
+            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+            $f['jugadores_ute_1'] = ($idl1 > 0 && isset($integrantes_por_ute[$idl1]))
+                ? $integrantes_por_ute[$idl1] : array();
+            $f['jugadores_ute_2'] = ($idl2 > 0 && isset($integrantes_por_ute[$idl2]))
+                ? $integrantes_por_ute[$idl2] : array();
+        }
+        unset($f);
+
         return $fixtures;
+    }
+
+    /**
+     * Inscriptos de UNA categoría que pertenecen a la UTE dada de alta en esa
+     * categoría: se los reconoce por inscripciones_deportivas.id_ute o, para
+     * inscripciones históricas sin id_ute, por el nombre guardado en
+     * detalle_ute. Devuelve nombres completos sin repetir.
+     */
+    private function _inscriptos_de_ute_por_categoria($id_ute, $id_categoria) {
+        $id_ute = (int) $id_ute;
+        $id_categoria = (int) $id_categoria;
+        if ($id_ute <= 0 || $id_categoria <= 0) return array();
+
+        $this->db->select('nombre_ute', FALSE);
+        $this->db->where('id_ute', $id_ute);
+        $ute = $this->db->get('utes')->row_array();
+        if (!$ute) return array();
+        $nombre_ute = strtoupper(trim((string) $ute['nombre_ute']));
+
+        $this->db->select('p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('i.id_categoria', $id_categoria);
+        $this->db->group_start();
+        $this->db->where('i.id_ute', $id_ute);
+        if ($nombre_ute !== '') {
+            $this->db->or_where('TRIM(UPPER(i.detalle_ute))', $nombre_ute);
+        }
+        $this->db->group_end();
+        $this->db->order_by('p.nombre_completo', 'ASC');
+
+        return $this->_fusionar_nombres_con_inscriptos(
+            array(), array_column($this->db->get()->result_array(), 'nombre_completo')
+        );
     }
 
     /**
@@ -514,8 +582,8 @@ class Fixture_model extends CI_Model {
 
         $this->db->select('
             f.*,
-            u1.nombre_ute as rival_ute_1_nombre,
-            u2.nombre_ute as rival_ute_2_nombre,
+            u1.nombre_ute as ute_1_nombre_crudo,
+            u2.nombre_ute as ute_2_nombre_crudo,
             l.nombre as lugar_nombre,
             c.nombre_categoria,
             c.genero as genero_categoria,
@@ -524,8 +592,8 @@ class Fixture_model extends CI_Model {
             d.tipo_duracion
         ', FALSE);
         $this->db->from('fixtures f');
-        // Nombres crudos de las UTEs enfrentadas: se conservan en el reporte del
-        // delegado SOLO para el lado rival (el lado propio muestra participantes).
+        // Nombres crudos de las UTEs enfrentadas (alias ute_X_nombre_crudo):
+        // sirven como respaldo si la tabla `utes` no devolviera el nombre.
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
         $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
         $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
@@ -582,19 +650,9 @@ class Fixture_model extends CI_Model {
 
         $comp_delegacion = $this->_competidores_de_delegacion($delegacion);
 
-        // Integrantes propios de cada UTE de la delegación (clave: id_ute), para
-        // que el delegado vea los nombres de sus jugadores en cada partido.
-        $utes_propias = array();
-        foreach ($fixtures as $fx) {
-            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
-                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
-                if ($idl > 0 && !isset($utes_propias[$idl])) {
-                    $l = $this->_describir_lado_del_partido($fx, $campo, $nombres_utes, $comp_delegacion);
-                    if (!empty($l['es_delegacion'])) $utes_propias[$idl] = true;
-                }
-            }
-        }
-        $integrantes_ute = $this->_integrantes_de_utes(array_keys($utes_propias));
+        // Integrantes de TODAS las UTEs que juegan (propias y rivales), para que
+        // el delegado vea los nombres de los equipos ENFRENTADOS por ambos lados.
+        $integrantes_ute = $this->_integrantes_de_utes($ids_ute);
 
         foreach ($fixtures as &$f) {
             $lado1 = $this->_describir_lado_del_partido($f, 'id_ute_1', $nombres_utes, $comp_delegacion);
@@ -603,55 +661,30 @@ class Fixture_model extends CI_Model {
             $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
             $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
 
-            // Lado propio: se envía el nombre CRUDO de la UTE (sin el prefijo
-            // "Equipo: ...") porque el reporte del delegado muestra únicamente
-            // los participantes. El lado rival conserva el nombre del equipo.
-            // Si el partido es individual o de jornada masiva ($lado['nombre']
-            // ya trae los nombres resueltos y no hay UTE real), se conserva ese
-            // nombre para que el reporte nunca quede vacío.
-            $f['ute_1_nombre'] = $this->_nombre_lado_reporte(
-                $lado1, $idl1 > 0 && $lado1['es_delegacion'] && isset($nombres_utes[$idl1])
-                    ? $nombres_utes[$idl1] : $lado1['nombre']
-            );
-            $f['ute_2_nombre'] = $this->_nombre_lado_reporte(
-                $lado2, $idl2 > 0 && $lado2['es_delegacion'] && isset($nombres_utes[$idl2])
-                    ? $nombres_utes[$idl2] : $lado2['nombre']
-            );
-            $f['delegacion_en_ute_1'] = $lado1['es_delegacion'];
-            $f['delegacion_en_ute_2'] = $lado2['es_delegacion'];
+            // NOMBRE DEL EQUIPO de cada lado: siempre el de la tabla `utes`; si
+            // no está, se usa el alias crudo de la consulta o el texto ya
+            // resuelto por _describir_lado_del_partido (individuales / masivos).
+            // Así EL REPORTE DEL DELEGADO NUNCA QUEDA SIN LOS EQUIPOS.
+            $eq1 = $this->_nombre_equipo_reporte($idl1, $nombres_utes, $f, 1, $lado1);
+            $eq2 = $this->_nombre_equipo_reporte($idl2, $nombres_utes, $f, 2, $lado2);
 
-            // Rivales: si del otro lado hay una UTE de otra delegación, se envía
-            // su nombre para poder mostrar "Equipo A vs Equipo B" en el reporte.
-            $f['rival_ute_1_nombre'] = (!$lado1['es_delegacion'] && $idl1 > 0 && isset($nombres_utes[$idl1]))
-                ? $nombres_utes[$idl1] : NULL;
-            $f['rival_ute_2_nombre'] = (!$lado2['es_delegacion'] && $idl2 > 0 && isset($nombres_utes[$idl2]))
-                ? $nombres_utes[$idl2] : NULL;
+            // Integrantes de CADA lado (propios y rivales): lista registrada en
+            // participantes_utes + inscriptos de la categoría que mencionan al
+            // equipo (histórico sin id_ute) + despeje del texto "Equipo: J1, J2".
+            $f['jugadores_ute_1'] = $this->_integrantes_del_lado_reporte(
+                $idl1, $integrantes_ute, $f, $lado1, $delegacion);
+            $f['jugadores_ute_2'] = $this->_integrantes_del_lado_reporte(
+                $idl2, $integrantes_ute, $f, $lado2, $delegacion);
 
-            // Flag del modo delegado: la vista (reporte_fixture) lo usa para
-            // decidir si cada lado muestra participantes o el nombre del equipo.
+            // El modelo SIEMPRE deja los nombres crudos en ute_X_nombre: la vista
+            // decide (según quién descarga) si imprime el equipo o sus integrantes.
+            $f['ute_1_nombre'] = $eq1;
+            $f['ute_2_nombre'] = $eq2;
+
+            // Banderas informativas (la vista hoy decide solo por modo_delegado).
+            $f['delegacion_en_ute_1'] = !empty($lado1['es_delegacion']);
+            $f['delegacion_en_ute_2'] = !empty($lado2['es_delegacion']);
             $f['es_reporte_delegado'] = TRUE;
-
-            // Integrantes de la delegación que juegan ese partido por cada lado.
-            $jug1 = ($lado1['es_delegacion'] && isset($integrantes_ute[$idl1])) ? $integrantes_ute[$idl1] : array();
-            $jug2 = ($lado2['es_delegacion'] && isset($integrantes_ute[$idl2])) ? $integrantes_ute[$idl2] : array();
-            $f['jugadores_ute_1'] = $this->_fusionar_nombres_con_inscriptos(
-                $jug1, $this->_inscriptos_de_ute_en_categoria($idl1, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
-            );
-            $f['jugadores_ute_2'] = $this->_fusionar_nombres_con_inscriptos(
-                $jug2, $this->_inscriptos_de_ute_en_categoria($idl2, isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0, $delegacion)
-            );
-
-            // Safety net: si el lado es propio pero quedó sin lista de jugadores
-            // (p. ej. inscriptos reconocidos solo por detalle_ute), se extraen
-            // los nombres del texto "NombreEquipo: J1, J2" que devolvió
-            // _describir_lado_del_partido, para que el reporte SIEMPRE muestre
-            // participantes y nunca el nombre del equipo suelto.
-            if ($lado1['es_delegacion'] && !$f['jugadores_ute_1']) {
-                $f['jugadores_ute_1'] = $this->_participantes_desde_texto_lado($lado1['nombre']);
-            }
-            if ($lado2['es_delegacion'] && !$f['jugadores_ute_2']) {
-                $f['jugadores_ute_2'] = $this->_participantes_desde_texto_lado($lado2['nombre']);
-            }
         }
         unset($f);
 
@@ -659,16 +692,77 @@ class Fixture_model extends CI_Model {
     }
 
     /**
-     * Nombre del lado del partido para el reporte del delegado:
-     *   - equipo propio  → nombre crudo de la UTE, SIN el prefijo "Equipo: J1, J2"
-     *     (los participantes se listan aparte en jugadores_ute_X);
-     *   - individual / jornada masiva → se conservan los nombres ya resueltos.
+     * NOMBRE DEL EQUIPO de un lado para el reporte del delegado. Se toma siempre
+     * el nombre registrado en la tabla `utes`; si no está se usa el alias crudo
+     * de la consulta (ute_X_nombre_crudo) y, solo para slots individuales o de
+     * jornada masiva (sin UTE real), el texto que ya resolvió
+     * _describir_lado_del_partido. Garantiza que el reporte nunca quede sin el
+     * nombre de los equipos enfrentados.
      */
-    private function _nombre_lado_reporte($lado, $nombre_crudo) {
-        if (!empty($lado['es_delegacion']) && $nombre_crudo !== NULL && $nombre_crudo !== '') {
-            return $nombre_crudo;
+    private function _nombre_equipo_reporte($id_lado, $nombres_utes, $f, $lado, $lado_info) {
+        if ($id_lado > 0) {
+            if (isset($nombres_utes[$id_lado]) && trim((string) $nombres_utes[$id_lado]) !== '') {
+                return trim((string) $nombres_utes[$id_lado]);
+            }
+            $crudo = trim((string) ($f['ute_' . $lado . '_nombre_crudo'] ?? ''));
+            if ($crudo !== '') return $crudo;
         }
-        return $lado['nombre'];
+        // Slot negativo (individual) o pendiente: se conserva lo resuelto por el
+        // modelo ("Juan Pérez (12.345)", "Ganador Llave 1", lista del masivo...).
+        return trim((string) ($lado_info['nombre'] ?? ''));
+    }
+
+    /**
+     * Integrantes de UN lado del enfrentamiento para el reporte del delegado
+     * (se listan los de AMBOS equipos: los propios y los del rival). Se combinan,
+     * sin repetir:
+     *   1. los dados de alta en participantes_utes para esa UTE;
+     *   2. los inscriptos de la categoría que reconocen al equipo por id_ute o
+     *      por detalle_ute (inscripciones históricas);
+     *   3. si nada de lo anterior funcionó, la lista del texto
+     *      "NombreEquipo: J1, J2" que arma _describir_lado_del_partido.
+     * El paso 3 solo aporta datos cuando el lado es PROPIO de la delegación
+     * (para el rival ese texto trae únicamente el nombre del equipo).
+     * Devuelve array de nombres (vacío si el lado es un slot pendiente).
+     */
+    private function _integrantes_del_lado_reporte($id_lado, $integrantes_ute, $f, $lado_info, $delegacion) {
+        if ($id_lado <= 0) {
+            // Individual / jornada masiva: si el lado es propio, el texto ya trae
+            // los nombres resueltos ("Juan Pérez (12.345), ..."); si es el rival,
+            // queda vacío y la vista imprime su nombre de competidor/equipo.
+            if (empty($lado_info['es_delegacion'])) return array();
+            return $this->_participantes_desde_lista($lado_info['nombre'] ?? '');
+        }
+
+        $registrados = isset($integrantes_ute[$id_lado]) ? $integrantes_ute[$id_lado] : array();
+        $id_categoria = isset($f['id_categoria']) ? (int) $f['id_categoria'] : 0;
+        // Inscriptos reconocidos por id_ute o detalle_ute. Para el lado propio se
+        // filtra además por delegación (solo sus jugadores); para el rival se toma
+        // cualquier inscripto vinculado a esa UTE en la categoría.
+        $por_inscripcion = !empty($lado_info['es_delegacion'])
+            ? $this->_inscriptos_de_ute_en_categoria($id_lado, $id_categoria, $delegacion)
+            : $this->_inscriptos_de_ute_por_categoria($id_lado, $id_categoria);
+
+        $desde_texto = array();
+        if (!$registrados && !$por_inscripcion && !empty($lado_info['es_delegacion'])) {
+            $desde_texto = $this->_participantes_desde_texto_lado($lado_info['nombre'] ?? '');
+        }
+
+        return $this->_fusionar_nombres_con_inscriptos(
+            $this->_fusionar_nombres_con_inscriptos($registrados, $por_inscripcion),
+            $desde_texto
+        );
+    }
+
+    /** Lista de nombres a partir de un texto ya resuelto (con o sin prefijo
+     *  "Equipo: "). Si el texto no tiene lista separada por comas, se devuelve
+     *  como un único elemento (p. ej. "Juan Pérez (12.345)"). */
+    private function _participantes_desde_lista($texto) {
+        $texto = trim((string) $texto);
+        if ($texto === '') return array();
+        $lista = $this->_participantes_desde_texto_lado($texto);
+        if ($lista) return $lista;
+        return $this->_fusionar_nombres_con_inscriptos(array(), array($texto));
     }
 
     /**
@@ -676,14 +770,16 @@ class Fixture_model extends CI_Model {
      * _describir_lado_del_partido para un lado propio:
      *   "NombreEquipo: Juan Pérez, Ana Gómez"  →  ["Juan Pérez", "Ana Gómez"]
      * Se usa como respaldo cuando jugadores_ute_X quedó vacío, para que el
-     * reporte del delegado nunca imprima el nombre del equipo suelto.
+     * reporte del delegado SIEMPRE muestre los integrantes de sus equipos.
      */
     private function _participantes_desde_texto_lado($texto) {
         $texto = trim((string) $texto);
         if ($texto === '') return array();
         $pos = strpos($texto, ': ');
         if ($pos === FALSE) return array();
-        $lista = preg_split('/\s*,\s*/', substr($texto, $pos + 2), -1, PREG_SPLIT_NO_EMPTY);
+        $cola = trim(substr($texto, $pos + 2));
+        if ($cola === '' || $cola === ',') return array();
+        $lista = preg_split('/\s*,\s*/', $cola, -1, PREG_SPLIT_NO_EMPTY);
         return $this->_fusionar_nombres_con_inscriptos(array(), (array) $lista);
     }
 
@@ -879,21 +975,245 @@ class Fixture_model extends CI_Model {
     }
 
     /* ============================================================
-     *  GENERACIÓN AUTOMÁTICA: DADA DE BAJA
+     *  GENERACIÓN AUTOMÁTICA
      * ============================================================ */
 
     /**
-     * La generación automática de fixtures fue eliminada del sistema.
-     * El fixture ahora se arma SIEMPRE a mano desde el panel ("Nuevo partido")
-     * y las jornadas masivas se crean como un partido con fase JORNADA_UNICA.
-     * Este método existe solo para responder con un mensaje claro ante
-     * llamadas antiguas (bookmarks, scripts, etc.).
+     * Genera el fixture de una categoría según el tipo de deporte:
+     *  - MASIVO_TIEMPO o tipo_torneo JORNADA_UNICA -> 1 solo registro JORNADA_UNICA.
+     *  - ENFRENTAMIENTO -> bracket de ELIMINACION_DIRECTA con cruces aleatorios.
+     * Devuelve la cantidad de partidos generados.
      */
     public function generar_fixture_para_categoria($id_categoria) {
-        throw new Exception(
-            'La generación automática de fixture está deshabilitada. '
-            . 'Armá el fixture manualmente desde el panel: botón "Nuevo partido".'
+        $this->db->select('c.*, d.modalidad_competencia, d.tipo_duracion');
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('c.id_categoria', $id_categoria);
+        $categoria = $this->db->get()->row_array();
+
+        if (!$categoria) {
+            throw new Exception('La categoría no existe.');
+        }
+
+        // Si ya tiene fixture, no duplicar (el borrado es una acción explícita aparte).
+        $this->db->where('id_categoria', $id_categoria);
+        if ($this->db->count_all_results('fixtures') > 0) {
+            throw new Exception('Esta categoría ya tiene fixture generado. Usá "Borrar fixture" primero si querés regenerarlo.');
+        }
+
+        $es_masivo = ($categoria['modalidad_competencia'] === 'MASIVO_TIEMPO')
+                  || ($categoria['tipo_torneo'] === 'JORNADA_UNICA');
+
+        if ($es_masivo) {
+            return $this->_generar_jornada_unica($categoria);
+        }
+
+        return $this->_generar_eliminatoria($categoria);
+    }
+
+    /**
+     * Asegura que toda categoría de deporte MASIVO_TIEMPO tenga al menos una
+     * jornada JORNADA_UNICA creada (para poder cargar resultados). Se ejecuta
+     * cada vez que se lista el fixture, así los deportes masivos creados a mano
+     * o por generación previa quedan siempre cubiertos. Devuelve la cantidad
+     * de jornadas auto-creadas.
+     */
+    public function asegurar_jornadas_masivas() {
+        // Categorías de deportes masivos (o de jornada única) que aún NO tienen
+        // ninguna fila JORNADA_UNICA en fixtures.
+        $this->db->select('c.id_categoria, c.dia_competencia, c.hora_competencia, c.id_lugar', FALSE);
+        $this->db->from('categorias c');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->group_start();
+        $this->db->where('d.modalidad_competencia', 'MASIVO_TIEMPO');
+        $this->db->or_where('c.tipo_torneo', 'JORNADA_UNICA');
+        $this->db->group_end();
+        // Sin subquery NOT EXISTS (CI3 la interpreta mal): se filtran en PHP.
+        $cats = $this->db->get()->result_array();
+
+        if (empty($cats)) {
+            return 0;
+        }
+
+        // Cuáles categorías ya tienen alguna jornada creada.
+        $this->db->select('DISTINCT id_categoria', FALSE);
+        $this->db->where_in('fase', array('JORNADA_UNICA'));
+        $con_jornada = array_column($this->db->get('fixtures')->result_array(), 'id_categoria');
+
+        $creadas = 0;
+        foreach ($cats as $c) {
+            $id_cat = (int) $c['id_categoria'];
+            if (in_array($id_cat, $con_jornada)) {
+                continue; // ya tiene su largada
+            }
+            try {
+                $this->_generar_jornada_unica(array(
+                    'id_categoria'      => $id_cat,
+                    'dia_competencia'   => $c['dia_competencia'],
+                    'hora_competencia'  => $c['hora_competencia'],
+                    'id_lugar'          => $c['id_lugar'],
+                ));
+                $creadas++;
+            } catch (Exception $e) {
+                // si falla una, seguimos con las demás
+                log_message('error', 'asegurar_jornadas_masivas: ' . $e->getMessage());
+            }
+        }
+        return $creadas;
+    }
+
+    /** Un solo "partido": la largada/jornada de un deporte masivo. */
+    private function _generar_jornada_unica($categoria) {
+        $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
+
+        $fecha = $categoria['dia_competencia'] ?: date('Y-m-d');
+        $hora   = $categoria['hora_competencia'] ?: '09:00:00';
+
+        // El fixture exige un lugar NOT NULL: si la categoría no tiene uno,
+        // se usa el primer lugar disponible (si no hay ninguno, se avisa claro).
+        $lugar = !empty($categoria['id_lugar']) ? (int) $categoria['id_lugar'] : $this->_primer_lugar();
+        if (!$lugar) {
+            throw new Exception('No hay lugares cargados. Creá al menos un lugar antes de generar jornadas masivas.');
+        }
+
+        $datos = array(
+            'id_categoria'      => $categoria['id_categoria'],
+            'id_lugar'          => $lugar,
+            'id_ute_1'          => null,
+            'id_ute_2'          => null,
+            'nombre_prueba'     => 'Largada General (' . count($utes) . ' equipos)',
+            'fase'              => 'JORNADA_UNICA',
+            'numero_fecha'      => 1,
+            'fecha_competencia' => $fecha,
+            'hora_inicio'       => $hora,
+            'hora_fin'          => $this->_sumar_horas($hora, 2),
+            'estado'            => 'PROGRAMADO'
         );
+
+        $this->db->insert('fixtures', $datos);
+        return 1;
+    }
+
+    private function _generar_eliminatoria($categoria) {
+        $utes = $this->obtener_utes_por_categoria($categoria['id_categoria']);
+        $cant = count($utes);
+
+        if ($cant < 2) {
+            throw new Exception('Se necesitan al menos 2 UTEs/equipos para generar un fixture de enfrentamiento.');
+        }
+
+        shuffle($utes);
+        $slots = array_column($utes, 'id_ute');
+
+        $fases_por_partidos = array(
+            1  => 'FINAL',
+            2  => 'SEMIFINAL',
+            4  => 'CUARTOS',
+            8  => 'OCTAVOS',
+            16 => '16AVOS'
+        );
+
+        $rondas = array();
+
+        // 1. PRIMERA RONDA (GRUPO): TODOS LOS EQUIPOS INGRESAN AQUÍ
+        $partidos_grupo = (int) ceil($cant / 2);
+        $llaves_grupo = array();
+
+        for ($i = 0; $i < $cant; $i += 2) {
+            $e1 = $slots[$i];
+            $e2 = isset($slots[$i + 1]) ? $slots[$i + 1] : null;
+            $llaves_grupo[] = array($e1, $e2);
+        }
+
+        $rondas[] = array(
+            'fase'   => 'GRUPO',
+            'llaves' => $llaves_grupo
+        );
+
+        // 2. DETERMINAR LA SIGUIENTE FASE DE ELIMINACIÓN DIRECTA
+        $potencia_siguiente = 1;
+        while ($potencia_siguiente * 2 < $partidos_grupo) {
+            $potencia_siguiente *= 2;
+        }
+        
+        $partidos_siguiente = max(1, $potencia_siguiente);
+
+        // 3. GENERAR TODAS LAS FASES SIGUIENTES 100% VACÍAS (Pendiente vs Pendiente)
+        while ($partidos_siguiente >= 1) {
+            $fase_nombre = isset($fases_por_partidos[$partidos_siguiente]) 
+                ? $fases_por_partidos[$partidos_siguiente] 
+                : 'GRUPO';
+
+            $llaves_fase = array();
+            for ($i = 0; $i < $partidos_siguiente; $i++) {
+                $llaves_fase[] = array(null, null);
+            }
+
+            $rondas[] = array(
+                'fase'   => $fase_nombre,
+                'llaves' => $llaves_fase
+            );
+
+            // Agregamos el TERCER PUESTO ÚNICAMENTE cuando llegamos a la FINAL
+            if ($fase_nombre === 'FINAL') {
+                $rondas[] = array(
+                    'fase'   => 'TERCER_PUESTO',
+                    'llaves' => array(
+                        array(null, null)
+                    )
+                );
+            }
+
+            if ($partidos_siguiente === 1) {
+                break; // Llegamos a la FINAL
+            }
+
+            $partidos_siguiente = (int) ($partidos_siguiente / 2);
+        }
+
+        // 4. PERSISTENCIA EN BASE DE DATOS
+        $lugar = $categoria['id_lugar'] ?: $this->_primer_lugar();
+        $fecha_base = $categoria['dia_competencia'] ?: date('Y-m-d');
+        $hora_base  = $categoria['hora_competencia'] ?: '09:00:00';
+
+        $generados = 0;
+        foreach ($rondas as $idx_ronda => $ronda) {
+            $fase = $ronda['fase'];
+            $es_final = ($fase === 'FINAL');
+            $es_tercer = ($fase === 'TERCER_PUESTO');
+
+            // Si es TERCER_PUESTO, sincronizamos la jornada/fecha con la ronda anterior (la FINAL)
+            $desfase_dias = $es_tercer ? ($idx_ronda - 1) : $idx_ronda;
+
+            foreach ($ronda['llaves'] as $i => $par) {
+                if ($es_final) {
+                    $nombre_prueba = 'GRAN FINAL';
+                } elseif ($es_tercer) {
+                    $nombre_prueba = 'TERCER Y CUARTO PUESTO';
+                } else {
+                    $nombre_prueba = $fase . ' - Partido ' . ($i + 1);
+                }
+
+                $datos = array(
+                    'id_categoria'      => $categoria['id_categoria'],
+                    'id_lugar'          => $lugar,
+                    'id_ute_1'          => $par[0],
+                    'id_ute_2'          => $par[1],
+                    'nombre_prueba'     => $nombre_prueba,
+                    'fase'              => $fase,
+                    'numero_fecha'      => $desfase_dias + 1,
+                    'fecha_competencia' => date('Y-m-d', strtotime($fecha_base . ' +' . $desfase_dias . ' days')),
+                    'hora_inicio'       => $hora_base,
+                    'hora_fin'          => $this->_sumar_horas($hora_base, 1),
+                    'estado'            => 'PROGRAMADO'
+                );
+
+                $this->db->insert('fixtures', $datos);
+                $generados++;
+            }
+        }
+
+        return $generados;
     }
 
     /* ============================================================
@@ -904,56 +1224,6 @@ class Fixture_model extends CI_Model {
     private function _fases_validas() {
         return array('GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL',
                      'TERCER_PUESTO', 'FINAL', 'JORNADA_UNICA');
-    }
-
-    /** ¿Existe la columna fixtures.resultado? (requiere el ALTER del sql provisto). */
-    public function existe_columna_resultado() {
-        return $this->_existe_columna_resultado();
-    }
-
-    /**
-     * Guardar el MARCADOR de un partido de fase GRUPO (empate definitivo,
-     * sin penales ni prórroga). No clasifica a nadie: solo actualiza
-     * resultado/estado y recalcula la tabla de posiciones del grupo.
-     *
-     * @param int $id_fixture
-     * @param int $goles1  goles del equipo del slot id_ute_1
-     * @param int $goles2
-     * @return string mensaje
-     */
-    public function guardar_marcador_grupo($id_fixture, $goles1, $goles2) {
-        $partido = $this->obtener_fixture_por_id($id_fixture);
-        if (!$partido) throw new Exception('Partido no encontrado.');
-        if ($partido['fase'] !== 'GRUPO') {
-            throw new Exception('El marcador aplica solo a partidos de fase GRUPO. Para eliminatoria usá el botón 🏆 del ganador.');
-        }
-        if (empty($partido['id_ute_1']) || empty($partido['id_ute_2'])) {
-            throw new Exception('El partido todavía no tiene ambos equipos definidos.');
-        }
-        if (!is_numeric($goles1) || !is_numeric($goles2)
-            || (int) $goles1 < 0 || (int) $goles2 < 0 || (int) $goles1 > 99 || (int) $goles2 > 99) {
-            throw new Exception('Marcador inválido: usá números entre 0 y 99.');
-        }
-        if (!$this->_existe_columna_resultado()) {
-            throw new Exception('Falta la columna "resultado" en la tabla fixtures. Ejecutá sql/fixture_resultado_masivo.sql.');
-        }
-
-        $goles1 = (int) $goles1; $goles2 = (int) $goles2;
-        $this->db->where('id_fixture', $id_fixture);
-        $this->db->update('fixtures', array(
-            'estado'    => 'FINALIZADO',
-            'resultado' => json_encode(array($goles1, $goles2)),
-        ));
-
-        // Recalcular la tabla del grupo si el partido está asignado a uno.
-        if (!empty($partido['id_grupo'])) {
-            $this->load->model('Grupo_model');
-            $this->Grupo_model->recalcular_posiciones((int) $partido['id_grupo']);
-        }
-
-        $res = $goles1 === $goles2 ? 'Empate' :
-               ($goles1 > $goles2 ? 'Gana local' : 'Gana visitante');
-        return 'Marcador guardado: ' . $goles1 . '-' . $goles2 . ' (' . $res . '). Posiciones actualizadas.';
     }
 
     /** Crear/editar un partido manualmente. */
@@ -1002,20 +1272,6 @@ class Fixture_model extends CI_Model {
         $h_ini = strlen($h_ini) === 5 ? $h_ini . ':00' : $h_ini;
         $h_fin = strlen($h_fin) === 5 ? $h_fin . ':00' : $h_fin;
 
-        // Fase GRUPO con marcador (flujo Mundial): si viene goles1/goles2 en
-        // un partido ya creado, se delega en guardar_marcador_grupo (guarda
-        // el resultado, FINALIZA el partido y recalcula posiciones del grupo).
-        // La creación manual pura sigue el camino de abajo; el marcador se
-        // carga después desde el panel.
-        if ($fase === 'GRUPO' && isset($datos['goles1']) && isset($datos['goles2'])
-            && $datos['goles1'] !== '' && $datos['goles2'] !== '') {
-            if (empty($datos['id_fixture'])) {
-                throw new Exception('Guardá primero el partido y después cargá el marcador.');
-            }
-            return $this->guardar_marcador_grupo((int) $datos['id_fixture'],
-                                                 $datos['goles1'], $datos['goles2']);
-        }
-
         // Equipos: pueden ir vacíos ('' -> NULL). Si vienen con valor, validar
         // que existan (ids negativos = competidores individuales, no se validan).
         $ute1 = isset($datos['id_ute_1']) && $datos['id_ute_1'] !== '' ? (int) $datos['id_ute_1'] : null;
@@ -1043,24 +1299,6 @@ class Fixture_model extends CI_Model {
             'estado'            => !empty($datos['estado']) ? $datos['estado'] : 'PROGRAMADO',
         );
 
-        // Columnas del formato Mundial (solo si la migración ya se aplicó).
-        if ($this->_columna_existe('fixtures', 'id_grupo')) {
-            if ($fase === 'GRUPO') {
-                $g = !empty($datos['id_grupo']) ? (int) $datos['id_grupo'] : null;
-                if ($g) {
-                    $this->db->where('id_grupo', $g);
-                    $this->db->where('id_categoria', $id_cat);
-                    if (!$this->db->get('grupos')->num_rows()) {
-                        throw new Exception('El grupo seleccionado no existe en esta categoría.');
-                    }
-                }
-                $payload['id_grupo'] = $g;
-            } else {
-                // Fuera de fase GRUPO el campo debe quedar NULL (no rompe FK).
-                $payload['id_grupo'] = null;
-            }
-        }
-
         if (!empty($datos['id_fixture'])) {
             $this->db->where('id_fixture', (int) $datos['id_fixture']);
             $this->db->update('fixtures', $payload);
@@ -1083,25 +1321,6 @@ class Fixture_model extends CI_Model {
             }
         }
         return $existe;
-    }
-
-    /** Cache por-request de SHOW COLUMNS: verifica columnas de la migración Mundial. */
-    private function _columnas($tabla) {
-        static $cache = array();
-        if (!isset($cache[$tabla])) {
-            try {
-                $q = $this->db->query('SHOW COLUMNS FROM `' . $tabla . '`');
-                $cache[$tabla] = array_map(function ($r) { return isset($r['Field']) ? $r['Field'] : ''; },
-                                           $q ? $q->result_array() : array());
-            } catch (Throwable $e) {
-                $cache[$tabla] = array();
-            }
-        }
-        return $cache[$tabla];
-    }
-
-    private function _columna_existe($tabla, $col) {
-        return in_array($col, $this->_columnas($tabla), true);
     }
 
     /**
@@ -1247,18 +1466,6 @@ class Fixture_model extends CI_Model {
             throw new Exception('Los deportes de jornada única no generan clasificados.');
         }
 
-        // En fase GRUPO el "resultado" es un MARCADOR (puede haber empate y
-        // suma puntos 3-1-0). No se propaga ningún equipo a la eliminatoria:
-        // los clasificados surgen de la tabla al cerrar los grupos.
-        if ($partido['fase'] === 'GRUPO') {
-            if (!is_array($id_ganador)) {
-                throw new Exception('En fase de grupos cargá el marcador (goles local / goles visitante), no solo el ganador.');
-            }
-            return $this->guardar_marcador_grupo($id_fixture,
-                                                 isset($id_ganador[0]) ? $id_ganador[0] : '',
-                                                 isset($id_ganador[1]) ? $id_ganador[1] : '');
-        }
-
         // Validar que el ganador sea uno de los dos participantes del partido
         if (!in_array((int) $id_ganador, array((int) $partido['id_ute_1'], (int) $partido['id_ute_2']), true)) {
             throw new Exception('El ganador seleccionado no corresponde a este partido.');
@@ -1275,35 +1482,6 @@ class Fixture_model extends CI_Model {
 
         if ($partido['fase'] === 'FINAL' || $partido['fase'] === 'TERCER_PUESTO') {
             return 'Resultado registrado. No hay instancia superior.';
-        }
-
-        /* ---------- Bracket estilo Mundial: propagación por LLAVE ---------- */
-        // Si el torneo usa origen_1/origen_2 (columnas de la migración
-        // sql/migracion_mundial.sql), el ganador se propaga a los slots que
-        // referencian "LLAVE_GANADOR(id_fixture)" y el perdedor a los que
-        // referencian "LLAVE_PERDEDOR(id_fixture)". Es más preciso que el
-        // orden genérico por fase porque respeta la llave exacta del bracket.
-        if ($this->_columna_existe('fixtures', 'origen_1_tipo')) {
-            // Primero intentar resolver los huecos "A-1 / B-2" del bracket con
-            // las posiciones ya cerradas de los grupos (si ya se ejecutó
-            // "Cerrar grupos"). Devuelve true si algún slot pendiente quedó
-            // definido — el partido pasa a EN CURSO listo para jugar.
-            $resolvio_grupo = $this->_resolver_slots_grupo($partido['id_categoria']);
-
-            $propagados = 0;
-            $propagados += $this->_propagar_en_llaves($id_fixture, 'LLAVE_GANADOR', $id_ganador);
-            if ($id_perdedor !== null) {
-                $propagados += $this->_propagar_en_llaves($id_fixture, 'LLAVE_PERDEDOR', $id_perdedor);
-            }
-            if ($propagados > 0 || $resolvio_grupo) {
-                return 'Resultado guardado.' . ($propagados > 0
-                    ? ' Se completaron ' . $propagados . ' casilla/s del bracket con los clasificados.'
-                    : '') . ($resolvio_grupo
-                    ? ' También se resolvieron casillas de grupos (ej. "1° del Grupo A").'
-                    : '');
-            }
-            // Sin referencias de llave (partido manual sin origen): caer al
-            // esquema antiguo de "hueco en la fase superior".
         }
 
         // 1. EL GANADOR SIEMPRE AVANZA A LA SIGUIENTE INSTANCIA
@@ -1323,111 +1501,6 @@ class Fixture_model extends CI_Model {
         }
 
         return 'Resultado guardado correctamente.';
-    }
-
-    /**
-     * Busca partidos de la misma categoría cuyo slot 1 o 2 declare
-     * origen_*_tipo = $tipo_y_buscar y origen_*_valor = id_fixture, y coloca
-     * al equipo indicado en ese slot (solo si todavía está vacío).
-     *
-     * @return int cantidad de casillas completadas
-     */
-    private function _propagar_en_llaves($id_fixture, $tipo_y_buscar, $id_ute) {
-        $id_fixture = (int) $id_fixture;
-        $campos = array(
-            array('origen_1_tipo', 'origen_1_valor', 'id_ute_1'),
-            array('origen_2_tipo', 'origen_2_valor', 'id_ute_2'),
-        );
-        $completadas = 0;
-        foreach ($campos as list($col_tipo, $col_valor, $col_ute)) {
-            $this->db->select('id_fixture');
-            $this->db->where($col_tipo, $tipo_y_buscar);
-            $this->db->where($col_valor, (string) $id_fixture);
-            $this->db->where('(id_ute_1 IS NULL OR id_ute_2 IS NULL)', null, false);
-            $ids = $this->db->get('fixtures')->result_array();
-            foreach ($ids as $row) {
-                // Solo escribir si el slot está libre (no pisar datos manuales).
-                $this->db->where('id_fixture', (int) $row['id_fixture']);
-                $this->db->where('(' . $col_ute . ' IS NULL)', null, false);
-                $this->db->update('fixtures', array($col_ute => (int) $id_ute));
-                if ($this->db->affected_rows() > 0) $completadas++;
-            }
-        }
-        return $completadas;
-    }
-
-    /**
-     * Resuelve los huecos del bracket que referencian una posición de grupo
-     * (origen_*_tipo = 'GRUPO_POS', valor "A-1" = 1° del Grupo A). Solo toca
-     * partidos PROGRAMADO/EN_CURSO con algún lado vacío y escribe únicamente
-     * cuando posiciones_grupo.pos_grupo ya está cerrada (botón "Cerrar grupos").
-     * Si un cruce queda con ambos equipos definidos, pasa a EN CURSO: listo
-     * para cargar su resultado.
-     *
-     * @return bool true si completó al menos una casilla
-     */
-    public function resolver_pendientes() {
-        if (!$this->_columna_existe('fixtures', 'origen_1_tipo')
-            || !$this->_columna_existe('grupos', 'nombre_grupo')) {
-            return false;   // BD sin migrar: nada para resolver
-        }
-        $this->load->model('Grupo_model');
-        $modifico = false;
-        foreach ($this->obtener_categorias_con_fixture() as $cat) {
-            if ($this->_resolver_slots_grupo((int) $cat['id_categoria'])) {
-                $modifico = true;
-            }
-        }
-        return $modifico;
-    }
-
-    /** Resolver los slots GRUPO_POS pendientes de UNA categoría. */
-    private function _resolver_slots_grupo($id_categoria) {
-        $partidos = $this->db
-            ->where('id_categoria', (int) $id_categoria)
-            ->where_in('estado', array('PROGRAMADO', 'EN_CURSO'))
-            ->where('(id_ute_1 IS NULL OR id_ute_2 IS NULL)', null, false)
-            ->where('(origen_1_tipo = \'GRUPO_POS\' OR origen_2_tipo = \'GRUPO_POS\')', null, false)
-            ->get('fixtures')->result_array();
-        if (!$partidos) return false;
-
-        $completadas = 0;
-        foreach ($partidos as $p) {
-            foreach (array(array('origen_1_tipo', 'origen_1_valor', 'id_ute_1'),
-                           array('origen_2_tipo', 'origen_2_valor', 'id_ute_2')) as $slot) {
-                list($col_tipo, $col_valor, $col_ute) = $slot;
-                if ($p[$col_tipo] !== 'GRUPO_POS' || !empty($p[$col_ute])) continue;
-                if (!preg_match('/^([A-Z])-(\d+)$/', (string) $p[$col_valor], $m)) continue;
-                $ute = $this->buscar_ute_en_posicion_grupo(
-                    (int) $id_categoria, $m[1], (int) $m[2]);
-                if (!$ute) continue;   // el grupo aún no está cerrado
-                $this->db->where('id_fixture', (int) $p['id_fixture']);
-                $this->db->where('(' . $col_ute . ' IS NULL)', null, false);
-                $this->db->update('fixtures', array($col_ute => (int) $ute['id_ute']));
-                if ($this->db->affected_rows() > 0) $completadas++;
-            }
-            // ¿Quedó completo el cruce? Pasarlo a EN CURSO para poder jugarlo.
-            $actual = $this->obtener_fixture_por_id((int) $p['id_fixture']);
-            if ($actual && !empty($actual['id_ute_1']) && !empty($actual['id_ute_2'])
-                && $actual['estado'] === 'PROGRAMADO') {
-                $this->db->where('id_fixture', (int) $p['id_fixture']);
-                $this->db->update('fixtures', array('estado' => 'EN_CURSO'));
-            }
-        }
-        return $completadas > 0;
-    }
-
-    /** UTE que quedó en $posicion del Grupo $letra (o null si aún no se cerró). */
-    public function buscar_ute_en_posicion_grupo($id_categoria, $letra, $posicion) {
-        $this->db->select('p.id_ute, u.nombre_ute');
-        $this->db->from('posiciones_grupo p');
-        $this->db->join('grupos g', 'g.id_grupo = p.id_grupo', 'inner');
-        $this->db->join('utes u', 'u.id_ute = p.id_ute', 'inner');
-        $this->db->where('g.id_categoria', (int) $id_categoria);
-        $this->db->where('g.nombre_grupo', strtoupper(trim($letra)));
-        $this->db->where('p.pos_grupo', (int) $posicion);
-        $this->db->limit(1);
-        return $this->db->get()->row_array();
     }
 
     /**

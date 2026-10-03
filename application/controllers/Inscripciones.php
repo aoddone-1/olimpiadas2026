@@ -601,15 +601,16 @@ class Inscripciones extends CI_Controller {
 
         // Datos para la pestaña de Fixture
         $this->load->model('Fixture_model');
-        // La generación automática está dada de baja: el fixture se arma solo a
-        // MANO. El selector "Categoría" del panel usa TODAS las categorías
-        // (sirve únicamente para borrar el fixture de una categoría; el modal
-        // de partido manual también necesita todas).
-        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        // El select de categorías para GENERAR FIXTURE solo muestra las que
+        // todavía NO tienen fixture generado (por eso se calcula aparte).
+        $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
         // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
-        // categorías que YA tienen fixture generado.
+        // categorías que YA tienen fixture generado (por orden: tiene sentido
+        // cargar resultados únicamente donde ya existe calendario/jornadas).
         $this->load->model('Resultado_model');
         $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
+        // El panel Fixture (modal de partido manual) sigue necesitando TODAS las categorías.
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
@@ -687,18 +688,25 @@ class Inscripciones extends CI_Controller {
         $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
         try {
+            // Auto-crear la jornada de los deportes masivos que aún no tienen
+            // fixture, para que siempre se puedan cargar resultados.
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
         }
 
+        // Categorías sin fixture: para que el select "Categoría" del panel solo
+        // muestre las que todavía no tienen fixture generado.
+        $categorias_sin_fixture = $this->Fixture_model->obtener_categorias_sin_fixture();
+
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode(array(
                 'ok' => true,
                 'orden' => $orden,
-                'fixtures' => $fixtures
+                'fixtures' => $fixtures,
+                'categorias_sin_fixture' => $categorias_sin_fixture
             )));
     }
 
@@ -740,22 +748,24 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true) + $listado));
     }
 
-    /**
-     * GENERACIÓN AUTOMÁTICA DADA DE BAJA.
-     * La ruta queda solo como "puente": responde JSON con un mensaje claro
-     * para cualquier cliente antiguo que todavía la llame. El fixture ahora
-     * se arma únicamente a mano desde el panel ("Nuevo partido").
-     */
+    /** Genera automáticamente el fixture de una categoría. */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;
 
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array(
-                'ok' => false,
-                'error' => 'La generación automática de fixture está deshabilitada. '
-                         . 'Armá el fixture manualmente con el botón "Nuevo partido".'
-            )));
+        $id_categoria = (int) $this->input->post('id_categoria');
+        try {
+            $cantidad = $this->Fixture_model->generar_fixture_para_categoria($id_categoria);
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
+                )));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
     }
 
     /** Crear/editar un partido manualmente. */
@@ -782,140 +792,6 @@ class Inscripciones extends CI_Controller {
                 ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));
         } catch (Throwable $e) {
             $this->_fixture_error_json('No se pudo guardar el partido.', $e->getMessage());
-        }
-    }
-
-    /* ============================================================
-     *  FORMATO MUNDIAL: GRUPOS + BRACKET (endpoints AJAX)
-     * ============================================================ */
-
-    /** Carga el Grupo_model con las mismas reglas de auth del fixture. */
-    private function _grupo_auth_json() {
-        if (!$this->_fixture_auth_json()) return false;
-        $this->load->model('Grupo_model');
-        return true;
-    }
-
-    /** Devuelve los grupos de una categoría con miembros y posiciones. */
-    public function ajax_grupos_categoria($id_categoria) {
-        if (!$this->_grupo_auth_json()) return;
-        try {
-            $grupos = $this->Grupo_model->obtener_grupos((int) $id_categoria);
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('Error al consultar los grupos.', $e->getMessage());
-            return;
-        }
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'grupos' => $grupos)));
-    }
-
-    /** PASO 1: repartir los equipos inscriptos en grupos A, B, C... balanceados. */
-    public function ajax_crear_grupos() {
-        try {
-            if (!$this->_grupo_auth_json()) return;
-            $id_categoria = (int) $this->input->post('id_categoria');
-            $tamanio = (int) $this->input->post('equipos_por_grupo');
-            if (!$id_categoria) throw new Exception('Elegí una categoría.');
-            $res = $this->Grupo_model->crear_grupos($id_categoria, $tamanio ?: 4);
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => 'Grupos creados: ' . implode(', ', $res['distribucion']),
-                'grupos' => $res,
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudieron crear los grupos.', $e->getMessage());
-        }
-    }
-
-    /** PASO 2: generar los partidos todos-contra-todos dentro de cada grupo. */
-    public function ajax_generar_partidos_grupo() {
-        try {
-            if (!$this->_grupo_auth_json()) return;
-            $id_categoria = (int) $this->input->post('id_categoria');
-            if (!$id_categoria) throw new Exception('Elegí una categoría.');
-            $n = $this->Grupo_model->generar_partidos_grupo($id_categoria);
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => 'Se generaron ' . $n . ' partidos de fase de grupos (ajustá día/hora desde "Nuevo partido").',
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudieron generar los partidos de grupos.', $e->getMessage());
-        }
-    }
-
-    /** PASO 3: cerrar grupos -> posiciones finales + clasificados a la eliminatoria. */
-    public function ajax_clasificar_grupos() {
-        try {
-            if (!$this->_grupo_auth_json()) return;
-            $id_categoria = (int) $this->input->post('id_categoria');
-            if (!$id_categoria) throw new Exception('Elegí una categoría.');
-            $res = $this->Grupo_model->clasificar_grupos($id_categoria);
-            $lineas = array();
-            foreach ($res as $r) {
-                $lineas[] = 'Grupo ' . $r['grupo'] . ': ' . implode(' y ', $r['clasificados']);
-            }
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => 'Clasificados — ' . implode(' · ', $lineas),
-                'resumen' => $res,
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudieron cerrar los grupos.', $e->getMessage());
-        }
-    }
-
-    /** PASO 4: armar el bracket eliminatorio (cuartos -> semi -> final -> 3er puesto). */
-    public function ajax_armar_bracket() {
-        try {
-            if (!$this->_grupo_auth_json()) return;
-            $id_categoria = (int) $this->input->post('id_categoria');
-            if (!$id_categoria) throw new Exception('Elegí una categoría.');
-            $res = $this->Grupo_model->armar_bracket($id_categoria);
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => 'Bracket armado: ' . $res['cuartos'] . ' cuartos, ' . $res['semis']
-                           . ' semis, final y ' . ($res['tercer'] ? 'definición de 3er puesto' : 'sin 3er puesto') . '.',
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudo armar el bracket.', $e->getMessage());
-        }
-    }
-
-    /**
-     * PASO 5 (mantenimiento): completar las casillas pendientes del bracket
-     * con los equipos ya clasificados ("1° del Grupo A", ganadores de llave,
-     * perdedores de semi para el 3er puesto). Se puede repetir sin riesgo:
-     * solo escribe slots vacíos. Lo dispara el botón "Resolver pendientes"
-     * del panel y también la carga de resultados de forma automática.
-     */
-    public function ajax_resolver_pendientes() {
-        try {
-            if (!$this->_fixture_auth_json()) return;
-            $modifico = $this->Fixture_model->resolver_pendientes();
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true,
-                'mensaje' => $modifico
-                    ? 'Se completaron casillas pendientes del bracket.'
-                    : 'No había casillas pendientes por resolver (o falta cerrar los grupos).',
-            )));
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudieron resolver los pendientes.', $e->getMessage());
-        }
-    }
-
-    /** Marcador de un partido de fase GRUPO (3-1-0, empate definitivo). */
-    public function ajax_marcador_grupo() {
-        try {
-            if (!$this->_fixture_auth_json()) return;
-            $id_fixture = (int) $this->input->post('id_fixture');
-            $mensaje = $this->Fixture_model->guardar_marcador_grupo(
-                $id_fixture, $this->input->post('goles1'), $this->input->post('goles2'));
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => true, 'mensaje' => $mensaje)));
-        } catch (Throwable $e) {
-            $this->output->set_content_type('application/json')->set_output(json_encode(array(
-                'ok' => false, 'error' => $e->getMessage())));
         }
     }
 

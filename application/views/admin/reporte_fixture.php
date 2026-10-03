@@ -482,7 +482,7 @@ $pdf->Body();
 // ---------------------------------------------------------
 
 // Close and output PDF document
-$pdf->Output($pdf->nombre_archivo, 'I');
+$pdf->Output($pdf->nombre_archivo, 'D');
 
 //============================================================+
 // END OF FILE
