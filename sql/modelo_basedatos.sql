@@ -54,6 +54,18 @@ CREATE TABLE `fixtures` (
   CONSTRAINT `fk_fixture_ute2` FOREIGN KEY (`id_ute_2`) REFERENCES `utes` (`id_ute`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
+-- Tabla GRUPOS de la fase de grupos (Mundial: Grupo A, B, C... por categoria).
+-- Las UTEs se asignan a un grupo mediante FK directa en `utes.id_grupo`.
+CREATE TABLE `grupos` (
+  `id_grupo` int NOT NULL AUTO_INCREMENT,
+  `id_categoria` int NOT NULL,
+  `nombre_grupo` varchar(10) NOT NULL COMMENT 'Letra del grupo: A, B, C...',
+  PRIMARY KEY (`id_grupo`),
+  UNIQUE KEY `uq_categoria_grupo` (`id_categoria`,`nombre_grupo`),
+  KEY `fk_grupo_categoria` (`id_categoria`),
+  CONSTRAINT `fk_grupo_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=latin1;
+
 CREATE TABLE `inscripciones_deportivas` (
   `id_inscripcion` int NOT NULL AUTO_INCREMENT,
   `id_participante` int NOT NULL,
@@ -188,7 +200,10 @@ CREATE TABLE `utes` (
   `id_categoria` int NOT NULL,
   `nombre_ute` varchar(150) NOT NULL,
   `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `id_grupo` int DEFAULT NULL COMMENT 'NULL = sin grupo (aun no asignado a la fase de grupos)',
   PRIMARY KEY (`id_ute`),
   KEY `fk_ute_categoria` (`id_categoria`),
-  CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE
+  KEY `fk_ute_grupo` (`id_grupo`),
+  CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE,
+  CONSTRAINT `fk_ute_grupo` FOREIGN KEY (`id_grupo`) REFERENCES `grupos` (`id_grupo`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=215 DEFAULT CHARSET=latin1;
