@@ -975,6 +975,301 @@ class Fixture_model extends CI_Model {
     }
 
     /* ============================================================
+     *  TABLA DE PUNTOS (fixture_puntos)
+     *  Los puntos por jornada se calculan automáticamente a partir
+     *  de fixtures.resultado ([ganador, perdedor] o [id, id] si fue
+     *  empate). La tabla es solo un espejo para poder mostrar/consultar.
+     * ============================================================ */
+
+    /** Crear la tabla de puntos si no existe (auto-migración). */
+    private function _asegurar_tabla_puntos() {
+        static $ok = null;
+        if ($ok !== null) return $ok;
+        try {
+            $this->db->query('CREATE TABLE IF NOT EXISTS `fixture_puntos` (
+                `id_ute` int NOT NULL,
+                `id_categoria` int NOT NULL,
+                `numero_fecha` int NOT NULL DEFAULT 1,
+                `pj` int NOT NULL DEFAULT 0,
+                `pg` int NOT NULL DEFAULT 0,
+                `pe` int NOT NULL DEFAULT 0,
+                `pp` int NOT NULL DEFAULT 0,
+                `gf` int NOT NULL DEFAULT 0,
+                `gc` int NOT NULL DEFAULT 0,
+                `puntos` int NOT NULL DEFAULT 0,
+                PRIMARY KEY (`id_ute`,`numero_fecha`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1');
+            $ok = TRUE;
+        } catch (Throwable $e) {
+            log_message('error', 'fixture_puntos: no se pudo crear/verificar la tabla -> ' . $e->getMessage());
+            $ok = FALSE;
+        }
+        return $ok;
+    }
+
+    /**
+     * Recalcula TODOS los puntos de una categoría/jornada desde cero, leyendo
+     * fixtures.resultado de cada partido FINALIZADO de la fase GRUPO:
+     *   - gana            -> 3 puntos
+     *   - empate          -> 1 punto para cada equipo
+     *   - pierde          -> 0
+     * (Si un partido empatado tuvo desempate con ganador —id_ute_ganador—, ese
+     * equipo recibe los 3 puntos aunque el marcador haya terminado igualado.)
+     */
+    public function recalcular_puntos_jornada($id_categoria, $numero_fecha) {
+        if (!$this->_asegurar_tabla_puntos()) return array();
+
+        $numero_fecha = max(1, (int) $numero_fecha);
+
+        // Fuente principal: fixtures.resultado [ganador, perdedor] elegido
+        // desde el panel Fixture.
+        $this->db->select('f.id_fixture, f.id_ute_1, f.id_ute_2, f.resultado, f.fase');
+        $this->db->from('fixtures f');
+        $this->db->where('f.id_categoria', (int) $id_categoria);
+        $this->db->where('f.numero_fecha', $numero_fecha);
+        $this->db->where('f.estado', 'FINALIZADO');
+        $this->db->group_start();
+        $this->db->where('f.fase', 'GRUPO');
+        $this->db->or_where('f.fase', 'JORNADA_UNICA');
+        $this->db->group_end();
+        $partidos = $this->db->get()->result_array();
+
+        $por_id = array();
+        foreach ($partidos as $p) {
+            $por_id[(int) $p['id_fixture']] = $p;
+        }
+
+        // Complemento: marcadores cargados en la pestaña Resultados que no
+        // tengan resultado elegido en fixtures (se mapean al partido por los
+        // equipos o por el marcador).
+        $extra = $this->_detalles_marcador_pendientes($id_categoria, $numero_fecha, $por_id);
+        foreach ($extra as $e) {
+            $por_id[] = $e;
+        }
+        $partidos = $por_id;
+
+        // Marcadores oficiales (tabla resultados) por si hace falta el gol.
+        $marcadores = $this->_marcadores_por_fixture(array_values($partidos));
+
+        $stats = array(); // id_ute => acumulado
+        $acum = function ($id_ute) use (&$stats) {
+            $id_ute = (int) $id_ute;
+            if (!isset($stats[$id_ute])) {
+                $stats[$id_ute] = array('pj'=>0,'pg'=>0,'pe'=>0,'pp'=>0,'gf'=>0,'gc'=>0,'puntos'=>0);
+            }
+            return $id_ute;
+        };
+
+        foreach ($partidos as $p) {
+            $u1 = (int) $p['id_ute_1'];
+            $u2 = (int) $p['id_ute_2'];
+            if ($u1 <= 0 || $u2 <= 0) continue; // individuales / cruce incompleto
+
+            $arr = json_decode((string) $p['resultado'], true);
+            if (!is_array($arr) || count($arr) < 2) continue;
+
+            $fue_empate = ((int) $arr[0] === (int) $arr[1]);
+            $ganador = $fue_empate ? $this->_ganador_del_desempate((int) $p['id_fixture']) : (int) $arr[0];
+            if ($fue_empate && $ganador === 0) {
+                $g1 = $g2 = 1;               // empate definitivo: 1 punto c/u
+            } elseif ($ganador === $u1) {
+                $g1 = 3; $g2 = 0;
+            } elseif ($ganador === $u2) {
+                $g1 = 0; $g2 = 3;
+            } else {
+                continue;                    // ganador ajeno al partido (raro): ignorar
+            }
+
+            $m = isset($marcadores[(int) $p['id_fixture']]) ? $marcadores[(int) $p['id_fixture']] : null;
+
+            $i1 = $acum($u1); $i2 = $acum($u2);
+            $stats[$i1]['pj']++; $stats[$i2]['pj']++;
+            $stats[$i1]['puntos'] += $g1; $stats[$i2]['puntos'] += $g2;
+            if ($g1 === 3) { $stats[$i1]['pg']++; $stats[$i2]['pp']++; }
+            elseif ($g2 === 3) { $stats[$i2]['pg']++; $stats[$i1]['pp']++; }
+            else { $stats[$i1]['pe']++; $stats[$i2]['pe']++; }
+            if ($m) {
+                $stats[$i1]['gf'] += $m['gf1']; $stats[$i1]['gc'] += $m['gc1'];
+                $stats[$i2]['gf'] += $m['gf2']; $stats[$i2]['gc'] += $m['gc2'];
+            }
+        }
+
+        // Reemplazar el estado anterior de esta jornada por el recalculado.
+        $this->db->where('id_categoria', (int) $id_categoria);
+        $this->db->where('numero_fecha', $numero_fecha);
+        $this->db->delete('fixture_puntos');
+
+        $filas = array();
+        foreach ($stats as $id_ute => $s) {
+            $filas[] = array_merge(array(
+                'id_ute'       => $id_ute,
+                'id_categoria' => (int) $id_categoria,
+                'numero_fecha' => $numero_fecha,
+            ), $s);
+        }
+        if ($filas) $this->db->insert_batch('fixture_puntos', $filas);
+
+        return $filas;
+    }
+
+    /** Tabla de posiciones de una jornada (orden: pts, dif, gf, nombre). */
+    public function obtener_posiciones_jornada($id_categoria, $numero_fecha) {
+        if (!$this->_asegurar_tabla_puntos()) return array();
+
+        $this->db->select('fp.*, u.nombre_ute');
+        $this->db->from('fixture_puntos fp');
+        $this->db->join('utes u', 'u.id_ute = fp.id_ute', 'left');
+        $this->db->where('fp.id_categoria', (int) $id_categoria);
+        $this->db->where('fp.numero_fecha', max(1, (int) $numero_fecha));
+        $this->db->order_by('fp.puntos', 'DESC');
+        $this->db->order_by('(fp.gf - fp.gc)', 'DESC');
+        $this->db->order_by('fp.gf', 'DESC');
+        $this->db->order_by('u.nombre_ute', 'ASC');
+        return $this->db->get()->result_array();
+    }
+
+    /**
+     * ¿Qué equipo ganó el desempate de un partido? Solo cuenta si el marcador
+     * cargado terminó empatado (hubo_desempate=1) y se eligió ganador; así un
+     * partido 3-1 no "gana por penales". Devuelve 0 si el empate fue definitivo.
+     */
+    private function _ganador_del_desempate($id_fixture) {
+        if (!$this->_tabla_resultados_con_desempate()) return 0;
+        $this->db->select('id_ute_ganador');
+        $this->db->where('id_fixture', (int) $id_fixture);
+        $this->db->where('hubo_desempate', 1);
+        $this->db->where('id_ute_ganador IS NOT NULL', NULL, FALSE);
+        $this->db->order_by('id_resultado', 'DESC');
+        $this->db->limit(1);
+        $r = $this->db->get('resultados')->row_array();
+        return $r ? (int) $r['id_ute_ganador'] : 0;
+    }
+
+    private function _tabla_resultados_con_desempate() {
+        static $ok = null;
+        if ($ok === null) {
+            try {
+                $cols = $this->db->field_names('resultados');
+                $ok = is_array($cols) && in_array('id_ute_ganador', $cols, TRUE);
+            } catch (Throwable $e) {
+                $ok = FALSE;
+            }
+        }
+        return $ok;
+    }
+
+    /** Goles a favor/en contra de cada lado del partido desde resultado_detalle. */
+    private function _marcadores_por_fixture($partidos) {
+        $out = array();
+        if (!$partidos) return $out;
+        try {
+            if (!$this->db->table_exists('resultados') || !$this->db->table_exists('resultado_detalle')) {
+                return $out;
+            }
+        } catch (Throwable $e) {
+            return $out;
+        }
+
+        $ids = array_filter(array_map(function ($p) { return (int) $p['id_fixture']; }, $partidos));
+        if (!$ids) return $out;
+
+        $this->db->select('r.id_fixture, rd.id_ute, rd.marcador_local, rd.marcador_visita');
+        $this->db->from('resultados r');
+        $this->db->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'inner');
+        $this->db->where_in('r.id_fixture', $ids);
+        $this->db->where('r.tipo_resultado', 'MARCADOR');
+        $this->db->order_by('r.id_resultado', 'DESC');
+        $rows = $this->db->get()->result_array();
+
+        foreach ($rows as $row) {
+            $idf = (int) $row['id_fixture'];
+            if (isset($out[$idf])) continue; // nos quedamos con el más nuevo
+            $u1 = $u2 = null;
+            foreach ($partidos as $p) {
+                if ((int) $p['id_fixture'] === $idf) {
+                    $u1 = (int) $p['id_ute_1']; $u2 = (int) $p['id_ute_2'];
+                    break;
+                }
+            }
+            $id_ute = (int) $row['id_ute'];
+            $gl = (int) $row['marcador_local'];
+            $gv = (int) $row['marcador_visita'];
+            if ($id_ute === $u1) {
+                $out[$idf] = array('gf1' => $gl, 'gc1' => $gv, 'gf2' => $gv, 'gc2' => $gl);
+            } elseif ($id_ute === $u2) {
+                $out[$idf] = array('gf1' => $gv, 'gc1' => $gl, 'gf2' => $gl, 'gc2' => $gv);
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Cierre de una jornada de fase GRUPO: si TODOS los partidos del grupo
+     * ya tienen resultado elegido (ganador o empate), se recalculan los
+     * puntos y los DOS equipos con más puntos clasifica a la siguiente fase.
+     * Devuelve un mensaje descriptivo (o NULL si todavía faltan partidos).
+     */
+    public function cerrar_jornada_si_completa($id_categoria, $numero_fecha) {
+        $id_categoria = (int) $id_categoria;
+        $numero_fecha = max(1, (int) $numero_fecha);
+
+        $this->db->where('id_categoria', $id_categoria);
+        $this->db->where('numero_fecha', $numero_fecha);
+        $this->db->where('fase', 'GRUPO');
+        $todos = $this->db->get('fixtures')->result_array();
+        if (!$todos) return null;
+
+        $jugables = array();
+        foreach ($todos as $f) {
+            if ((int) $f['id_ute_1'] > 0 && (int) $f['id_ute_2'] > 0) {
+                $jugables[] = $f;
+            }
+        }
+        if (!$jugables) return null;
+
+        $pendientes = array();
+        foreach ($jugables as $f) {
+            $arr = json_decode((string) $f['resultado'], true);
+            if (!is_array($arr) || count($arr) < 2) {
+                $pendientes[] = $f['nombre_prueba'];
+            }
+        }
+        if ($pendientes) return null; // la jornada aún no está completa
+
+        // 1) Tabla de puntos de la jornada (3 victorias / 1 empate).
+        $posiciones = $this->recalcular_puntos_jornada($id_categoria, $numero_fecha);
+        if (!$posiciones) return null;
+
+        // 2) Avanzan los dos de arriba en la tabla. El slot de destino se
+        // busca SIEMPRE en el fixture de la categoría (no en el snapshot de
+        // este llamado), para que el segundo clasificado ocupe el hueco que
+        // recién ocupó el primero.
+        $avanzaron = array();
+        foreach ($posiciones as $i => $c) {
+            if ($i >= 2) break;
+            $id_ute = (int) $c['id_ute'];
+
+            $partido_fase = $this->db->where('id_categoria', $id_categoria)
+                                     ->where('fase', 'GRUPO')
+                                     ->order_by('id_fixture', 'ASC')
+                                     ->limit(1)
+                                     ->get('fixtures')->row_array();
+            if (!$partido_fase) continue;
+
+            $sig = $this->buscar_siguiente_instancia($partido_fase);
+            if (!$sig) continue;
+
+            $this->db->where('id_fixture', $sig['fixture']['id_fixture']);
+            $this->db->update('fixtures', array($sig['campo'] => $id_ute));
+            $avanzaron[] = $c['nombre_ute'] . ' (' . $c['puntos'] . ' pts)';
+        }
+
+        if (!$avanzaron) return null;
+        return 'Jornada ' . $numero_fecha . ' completa: clasifican ' . implode(' y ', $avanzaron)
+             . ' según los puntos de la tabla (3 por victoria, 1 por empate).';
+    }
+
+    /* ============================================================
      *  GENERACIÓN AUTOMÁTICA
      * ============================================================ */
 
@@ -1455,9 +1750,15 @@ class Fixture_model extends CI_Model {
     }
 
     /**
-     * Registrar resultado: ganador pasa a la siguiente fecha de la misma categoría.
+     * Registrar resultado: el ganador pasa a la siguiente instancia de la
+     * misma categoría. En fase GRUPO además se guarda el marcador en
+     * fixtures.resultado como JSON [ganador, perdedor] (o [id, id] si fue
+     * empate), que es la fuente con la que se calculan los puntos de la
+     * jornada (3 por victoria / 1 por empate). Al elegir el resultado del
+     * último partido pendiente de la jornada, los dos equipos con más puntos
+     * clasifican automáticamente.
      */
-    public function registrar_resultado($id_fixture, $id_ganador) {
+    public function registrar_resultado($id_fixture, $id_ganador, $empate = false) {
         $partido = $this->obtener_fixture_por_id($id_fixture);
         if (!$partido) {
             throw new Exception('Partido no encontrado.');
@@ -1472,16 +1773,45 @@ class Fixture_model extends CI_Model {
         }
 
         // Obtener ID del perdedor
-        $id_perdedor = ((int) $id_ganador === (int) $partido['id_ute_1']) 
-            ? $partido['id_ute_2'] 
+        $id_perdedor = ((int) $id_ganador === (int) $partido['id_ute_1'])
+            ? $partido['id_ute_2']
             : $partido['id_ute_1'];
 
-        // Marcar partido como finalizado
+        // Marcar partido como finalizado (+ marcador en fase GRUPO)
         $this->db->where('id_fixture', $id_fixture);
-        $this->db->update('fixtures', array('estado' => 'FINALIZADO'));
+        $update = array('estado' => 'FINALIZADO');
+
+        // FASE GRUPO: guardar el resultado [ganador, perdedor] (empate =
+        // [id, id]) para calcular los puntos de la jornada y, si con esto la
+        // jornada quedó completa, cerrar: repartir puntos y clasificar a los
+        // dos primeros de la tabla.
+        $mensaje_extra = '';
+        if ($partido['fase'] === 'GRUPO' && $this->_existe_columna_resultado()) {
+            $primer  = $empate ? (int) $partido['id_ute_1'] : (int) $id_ganador;
+            $segundo = $empate ? (int) $partido['id_ute_1'] : (int) $id_perdedor;
+            $update['resultado'] = json_encode(array($primer, $segundo));
+        }
+
+        $this->db->update('fixtures', $update);
+
+        if (!empty($update['resultado'])) {
+            $cierre = $this->cerrar_jornada_si_completa($partido['id_categoria'], $partido['numero_fecha']);
+            if ($cierre !== null) {
+                $mensaje_extra = ' ' . $cierre;
+            }
+        }
 
         if ($partido['fase'] === 'FINAL' || $partido['fase'] === 'TERCER_PUESTO') {
-            return 'Resultado registrado. No hay instancia superior.';
+            return 'Resultado registrado. No hay instancia superior.' . $mensaje_extra;
+        }
+
+        // En fase GRUPO la clasificación NO es "el ganador avanza": la definen
+        // los puntos de la jornada al cerrarse (ver cerrar_jornada_si_completa).
+        if ($partido['fase'] === 'GRUPO') {
+            return 'Resultado registrado ('
+                 . ($empate ? 'empate: 1 punto para cada equipo'
+                            : 'victoria: 3 puntos para el ganador')
+                 . ').' . $mensaje_extra;
         }
 
         // 1. EL GANADOR SIEMPRE AVANZA A LA SIGUIENTE INSTANCIA
