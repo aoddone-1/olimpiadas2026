@@ -104,12 +104,12 @@ class MYPDF extends TCPDF {
          *
          * IMPORTANTE: la decisión se toma SOLO por el flag del controlador
          * (modo_delegado). Las filas del reporte general traen jugadores_ute_X
-         * cargados por Fixture_model (los usan otros reportes), y antes se
-         * imprimían siempre: por eso el superadmin veía todos los integrantes.
+         * cargados por el modelo del fixture (los usan otros reportes), y antes
+         * se imprimían siempre: por eso el superadmin veía todos los integrantes.
          */
 
         /** Nombres de los integrantes de un lado del enfrentamiento. Para
-         *  equipos salen de jugadores_ute_X (Fixture_model); si esa lista
+         *  equipos salen de jugadores_ute_X (modelo del fixture); si esa lista
          *  viene vacía se despeja el prefijo "Equipo: J1, J2" que arma el
          *  modelo sobre el nombre del slot. Devuelve array de nombres. */
         $_integrantes_raw = function ($f, $lado) {

@@ -599,20 +599,12 @@ class Inscripciones extends CI_Controller {
         $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
         $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
 
-        // Datos para la pestaña de Fixture
-        $this->load->model('Fixture_model');
-        // El select de categorías para GENERAR FIXTURE solo muestra las que
-        // todavía NO tienen fixture generado (por eso se calcula aparte).
-        $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
-        // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
-        // categorías que YA tienen fixture generado (por orden: tiene sentido
-        // cargar resultados únicamente donde ya existe calendario/jornadas).
+        // Pestaña Fixture: panel REINICIADO a pantalla en blanco.
+        // (Ya no se cargan datos de fixture; se agregaran al reconstruirlo.)
+
+        // Datos para la pestaña de Resultados (categorias con fixture generado).
         $this->load->model('Resultado_model');
         $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
-        // El panel Fixture (modal de partido manual) sigue necesitando TODAS las categorías.
-        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
-        $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
-        $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
         $data['menu_activo'] = 'control';
         $this->load->view('admin/control_total', $data);
@@ -633,202 +625,77 @@ class Inscripciones extends CI_Controller {
     }
 
     /* ============================================================
-     *  FIXTURE (pestaña de Control Total) - endpoints AJAX
+     *  FIXTURE (pestaña de Control Total)
+     *  Panel REINICIADO a cero: la vista esta vacia y aun no hay
+     *  endpoints propios. Se conservan unicamente los endpoints que
+     *  consumen OTROS modulos (reportes PDF/CSV y la pestaña
+     *  Resultados), reescritos sobre la tabla `fixtures` sin
+     *  depender de Fixture_model hasta reconstruir el panel.
      * ============================================================ */
 
-    private function _fixture_auth_json() {
-        // Solo superadmin/admin pueden gestionar el fixture
+    /** Estado actual de la tabla fixtures como JSON (placeholder del panel vacio). */
+    public function ajax_fixture_estado() {
         if (!$this->session->userdata('is_organizador')
             || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
-            $this->output
-                ->set_content_type('application/json')
+            $this->output->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
-            return false;
-        }
-        $this->load->model('Fixture_model');
-        return true;
-    }
-
-    /** JSON de error con detalle para poder diagnosticar en pantalla. */
-    private function _fixture_error_json($mensaje, $detalle = '') {
-        log_message('error', '[Fixture] ' . $mensaje . ($detalle !== '' ? ' :: ' . $detalle : ''));
-        $this->output
-            ->set_content_type('application/json')
-            ->set_status_header(200)
-            ->set_output(json_encode(array(
-                'ok' => false,
-                'error' => $mensaje,
-                'detalle' => $detalle
-            )));
-    }
-
-    /** Devuelve el fixture + las UTEs de una categoría (para pintar la pestaña). */
-    public function ajax_fixture_categoria($id_categoria) {
-        if (!$this->_fixture_auth_json()) return;
-
-        try {
-            $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
-            $utes = $this->Fixture_model->obtener_utes_por_categoria((int) $id_categoria);
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('Error al consultar el fixture de la categoría.', $e->getMessage());
             return;
         }
 
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures, 'utes' => $utes)));
-    }
-
-    /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
-    public function ajax_fixture_todo() {
-        if (!$this->_fixture_auth_json()) return;
-
-        // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
-        // defecto) u 'horario' (Fecha → Hora → Deporte → Categoría).
-        $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
-
         try {
-            // Auto-crear la jornada de los deportes masivos que aún no tienen
-            // fixture, para que siempre se puedan cargar resultados.
-            $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
+            $filas = $this->db->order_by('fecha_competencia, hora_inicio', 'ASC')
+                              ->get('fixtures')->result_array();
         } catch (Throwable $e) {
-            $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
-            return;
+            $filas = array();
         }
 
-        // Categorías sin fixture: para que el select "Categoría" del panel solo
-        // muestre las que todavía no tienen fixture generado.
-        $categorias_sin_fixture = $this->Fixture_model->obtener_categorias_sin_fixture();
-
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array(
-                'ok' => true,
-                'orden' => $orden,
-                'fixtures' => $fixtures,
-                'categorias_sin_fixture' => $categorias_sin_fixture
-            )));
+        $this->output->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'fixtures' => $filas)));
     }
 
-    /** Detalle de participantes de un partido/jornada (modal "Detalle" del fixture). */
-    public function ajax_fixture_detalle($id_fixture) {
-        if (!$this->_fixture_auth_json()) return;
-
+    /** Partidos de una categoria (lo usa la pestaña Resultados al vincular jornadas). */
+    public function ajax_fixtures_por_categoria($id_categoria) {
         try {
-            $detalle = $this->Fixture_model->detalle_participantes_del_partido((int) $id_fixture);
-            if (!$detalle) {
-                $this->output
-                    ->set_content_type('application/json')
-                    ->set_output(json_encode(array('ok' => false, 'error' => 'El partido no existe.')));
-                return;
-            }
+            if (!$this->_resultados_auth_json()) return;
+
+            $fixtures = $this->db->where('id_categoria', (int) $id_categoria)
+                                 ->order_by('numero_fecha, fecha_competencia, hora_inicio', 'ASC')
+                                 ->get('fixtures')->result_array();
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
         } catch (Throwable $e) {
-            $this->_fixture_error_json('Error al obtener el detalle del partido.', $e->getMessage());
-            return;
-        }
-
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true) + $detalle));
-    }
-
-    /** Lista de inscriptos de una categoría (modal "Participantes" de la categoría). */
-    public function ajax_inscriptos_categoria($id_categoria) {
-        if (!$this->_fixture_auth_json()) return;
-
-        try {
-            $listado = $this->Fixture_model->inscriptos_de_categoria((int) $id_categoria);
-        } catch (Throwable $e) {
-            $this->_fixture_error_json('Error al obtener los inscriptos de la categoría.', $e->getMessage());
-            return;
-        }
-
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true) + $listado));
-    }
-
-    /** Genera automáticamente el fixture de una categoría. */
-    public function ajax_generar_fixture() {
-        if (!$this->_fixture_auth_json()) return;
-
-        $id_categoria = (int) $this->input->post('id_categoria');
-        try {
-            $cantidad = $this->Fixture_model->generar_fixture_para_categoria($id_categoria);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array(
-                    'ok' => true,
-                    'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
-                )));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
+            $this->output->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
         }
     }
 
-    /** Crear/editar un partido manualmente. */
-    public function ajax_guardar_partido() {
-        // Captura cualquier error fatal del modelo para SIEMPRE responder JSON
-        // (nunca un HTTP 500 con HTML que el JS no puede parsear).
+    /** Competidores (inscripciones personales + UTEs) de una categoria (pestana Resultados). */
+    public function ajax_competidores_por_categoria($id_categoria) {
         try {
-            if (!$this->_fixture_auth_json()) return;
+            if (!$this->_resultados_auth_json()) return;
 
-            $datos = $this->input->post();
-            if (empty($datos['id_categoria']) || empty($datos['nombre_prueba'])
-                || empty($datos['fecha_competencia']) || empty($datos['hora_inicio']) || empty($datos['hora_fin'])) {
-                $this->output
-                    ->set_content_type('application/json')
-                    ->set_status_header(200)
-                    ->set_output(json_encode(array('ok' => false, 'error' => 'Completá todos los campos obligatorios.')));
-                return;
+            // Deporte MASIVO_TIEMPO: si la categoria todavia no tiene jornada en
+            // el fixture, se crea automaticamente la JORNADA_UNICA.
+            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
+                $this->Resultado_model->asegurar_jornada_masiva((int) $id_categoria);
             }
 
-            $id = $this->Fixture_model->guardar_partido($datos);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_status_header(200)
-                ->set_output(json_encode(array('ok' => true, 'id_fixture' => $id, 'mensaje' => 'Partido guardado.')));
+            $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $id_categoria);
+            $respuesta = array('ok' => true, 'competidores' => $competidores);
+
+            // Participantes por jornada para deportes masivos (pestana Resultados).
+            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
+                $por_jornada = array();
+                foreach ($this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria) as $f) {
+                    $por_jornada[(int) $f['id_fixture']] = isset($f['competidores']) ? $f['competidores'] : array();
+                }
+                $respuesta['participantes_por_fixture'] = $por_jornada;
+            }
+
+            $this->output->set_content_type('application/json')
+                ->set_output(json_encode($respuesta));
         } catch (Throwable $e) {
-            $this->_fixture_error_json('No se pudo guardar el partido.', $e->getMessage());
-        }
-    }
-
-    /** Registrar ganador de un partido (clasifica a la siguiente fase). */
-    public function ajax_resultado_partido() {
-        if (!$this->_fixture_auth_json()) return;
-
-        $id_fixture = (int) $this->input->post('id_fixture');
-        $id_ganador = (int) $this->input->post('id_ganador');
-
-        try {
-            $mensaje = $this->Fixture_model->registrar_resultado($id_fixture, $id_ganador);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
-        }
-    }
-
-    /** Registrar resultado de un deporte masivo (JORNADA_UNICA): orden de llegada. */
-    public function ajax_resultado_masivo() {
-        if (!$this->_fixture_auth_json()) return;
-
-        $id_fixture = (int) $this->input->post('id_fixture');
-        $ute_ids = $this->input->post('ute_ids'); // array en el orden elegido
-
-        try {
-            $mensaje = $this->Fixture_model->registrar_resultado_masivo($id_fixture, (array) $ute_ids);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => true, 'mensaje' => $mensaje)));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
+            $this->output->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
         }
     }
@@ -848,6 +715,7 @@ class Inscripciones extends CI_Controller {
             || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
             redirect('Inscripciones/login');
         }
+
 
         $this->load->model('Fixture_model');
 
@@ -1014,7 +882,6 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        $this->load->model('Fixture_model');
 
         // Deporte opcional elegido desde el panel (?deporte=ID). Si no viene o es
         // inválido, se genera el reporte con TODOS los deportes (comportamiento previo).
@@ -1030,6 +897,8 @@ class Inscripciones extends CI_Controller {
                 $id_deporte_filtro = NULL; // deporte inexistente: reporte general
             }
         }
+
+        $this->load->model('Fixture_model');
 
         try {
             $datos = $this->Fixture_model->obtener_todo_el_fixture($id_deporte_filtro);
@@ -1051,7 +920,6 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        $this->load->model('Fixture_model');
         $this->load->model('Participante_model');
 
         $delegacion = $this->session->userdata('user_nombre');
@@ -1073,6 +941,8 @@ class Inscripciones extends CI_Controller {
         } else {
             $id_deporte_filtro = NULL;
         }
+
+        $this->load->model('Fixture_model');
 
         try {
             $datos = $this->Fixture_model->obtener_fixture_por_delegacion($delegacion, $id_deporte_filtro);
@@ -1150,28 +1020,6 @@ class Inscripciones extends CI_Controller {
             'modo_delegado'     => ($delegacion !== NULL),
         ));
         $this->load->view('admin/reporte_fixture');
-    }
-
-    /** Borrar todo el fixture de una categoría. */
-    public function ajax_eliminar_fixture() {
-        if (!$this->_fixture_auth_json()) return;
-
-        $id_categoria = (int) $this->input->post('id_categoria');
-        $this->Fixture_model->eliminar_fixture_por_categoria($id_categoria);
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Fixture eliminado.')));
-    }
-
-    /** Borrar un partido individual. */
-    public function ajax_eliminar_partido() {
-        if (!$this->_fixture_auth_json()) return;
-
-        $id_fixture = (int) $this->input->post('id_fixture');
-        $this->Fixture_model->eliminar_partido($id_fixture);
-        $this->output
-            ->set_content_type('application/json')
-            ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Partido eliminado.')));
     }
 
     /* ============================================================
@@ -1259,60 +1107,6 @@ class Inscripciones extends CI_Controller {
     }
 
     /** Partidos del fixture de una categoría (para vincular el resultado a uno). */
-    public function ajax_fixtures_por_categoria($id_categoria) {
-        try {
-            if (!$this->_resultados_auth_json()) return;
-
-            $this->load->model('Resultado_model');
-            $fixtures = $this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures)));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
-        }
-    }
-
-    /** Competidores (inscripciones personales + UTEs) de una categoría. */
-    public function ajax_competidores_por_categoria($id_categoria) {
-        try {
-            if (!$this->_resultados_auth_json()) return;
-
-            // Deporte MASIVO_TIEMPO: si la categoría todavía no tiene jornada en
-            // el fixture, se crea automáticamente la JORNADA_UNICA. Sin esto, la
-            // pestaña Resultados no encuentra a qué jornada vincular los inscriptos
-            // y la lista de participantes quedaba vacía.
-            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
-                $this->Resultado_model->asegurar_jornada_masiva((int) $id_categoria);
-            }
-
-            $competidores = $this->Resultado_model->obtener_competidores_por_categoria((int) $id_categoria);
-            $respuesta = array('ok' => true, 'competidores' => $competidores);
-
-            // Deporte MASIVO_TIEMPO: además de los inscriptos de la categoría,
-            // se envían los participantes que compitieron en cada partido/jornada
-            // del fixture (resueltos desde fixtures + inscripciones_deportivas),
-            // para autocompletar la planilla al seleccionar la jornada.
-            if ($this->Resultado_model->modalidad_de_categoria((int) $id_categoria) === 'MASIVO_TIEMPO') {
-                $por_jornada = array();
-                foreach ($this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria) as $f) {
-                    $por_jornada[(int) $f['id_fixture']] = isset($f['competidores']) ? $f['competidores'] : array();
-                }
-                $respuesta['participantes_por_fixture'] = $por_jornada;
-            }
-
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode($respuesta));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
-        }
-    }
-
     /** Elimina un resultado cargado por error. */
     public function ajax_eliminar_resultado() {
         try {
