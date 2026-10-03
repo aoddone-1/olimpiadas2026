@@ -601,16 +601,15 @@ class Inscripciones extends CI_Controller {
 
         // Datos para la pestaña de Fixture
         $this->load->model('Fixture_model');
-        // El select de categorías para GENERAR FIXTURE solo muestra las que
-        // todavía NO tienen fixture generado (por eso se calcula aparte).
-        $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
+        // La generación automática está dada de baja: el fixture se arma solo a
+        // MANO. El selector "Categoría" del panel usa TODAS las categorías
+        // (sirve únicamente para borrar el fixture de una categoría; el modal
+        // de partido manual también necesita todas).
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
-        // categorías que YA tienen fixture generado (por orden: tiene sentido
-        // cargar resultados únicamente donde ya existe calendario/jornadas).
+        // categorías que YA tienen fixture generado.
         $this->load->model('Resultado_model');
         $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
-        // El panel Fixture (modal de partido manual) sigue necesitando TODAS las categorías.
-        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
@@ -688,25 +687,18 @@ class Inscripciones extends CI_Controller {
         $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
         try {
-            // Auto-crear la jornada de los deportes masivos que aún no tienen
-            // fixture, para que siempre se puedan cargar resultados.
             $fixtures = $this->Fixture_model->obtener_todo_el_fixture(null, $orden);
         } catch (Throwable $e) {
             $this->_fixture_error_json('Error al consultar la tabla fixtures.', $e->getMessage());
             return;
         }
 
-        // Categorías sin fixture: para que el select "Categoría" del panel solo
-        // muestre las que todavía no tienen fixture generado.
-        $categorias_sin_fixture = $this->Fixture_model->obtener_categorias_sin_fixture();
-
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode(array(
                 'ok' => true,
                 'orden' => $orden,
-                'fixtures' => $fixtures,
-                'categorias_sin_fixture' => $categorias_sin_fixture
+                'fixtures' => $fixtures
             )));
     }
 
@@ -748,24 +740,22 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true) + $listado));
     }
 
-    /** Genera automáticamente el fixture de una categoría. */
+    /**
+     * GENERACIÓN AUTOMÁTICA DADA DE BAJA.
+     * La ruta queda solo como "puente": responde JSON con un mensaje claro
+     * para cualquier cliente antiguo que todavía la llame. El fixture ahora
+     * se arma únicamente a mano desde el panel ("Nuevo partido").
+     */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;
 
-        $id_categoria = (int) $this->input->post('id_categoria');
-        try {
-            $cantidad = $this->Fixture_model->generar_fixture_para_categoria($id_categoria);
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array(
-                    'ok' => true,
-                    'mensaje' => "Fixture generado: {$cantidad} partido(s)/jornada(s)."
-                )));
-        } catch (Throwable $e) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
-        }
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array(
+                'ok' => false,
+                'error' => 'La generación automática de fixture está deshabilitada. '
+                         . 'Armá el fixture manualmente con el botón "Nuevo partido".'
+            )));
     }
 
     /** Crear/editar un partido manualmente. */
