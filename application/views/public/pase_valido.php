@@ -334,7 +334,11 @@
                                                 <?php if(!$fx['es_masivo']): ?>
                                                     <div class="mt-1 small text-muted">
                                                         <i class="bi bi-vs2 me-1"></i>
-                                                        <?= $fx['id_ute_1'] > 0 ? 'Rival por definir' : htmlspecialchars($fx['nombre_prueba'] ?: 'Partido') ?>
+                                                        <?php if(!empty($fx['rival_nombre'])): ?>
+                                                            <?= htmlspecialchars($fx['rival_nombre']) ?>
+                                                        <?php else: ?>
+                                                            Rival por definir
+                                                        <?php endif; ?>
                                                     </div>
                                                 <?php endif; ?>
                                             </div>

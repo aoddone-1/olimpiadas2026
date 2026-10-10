@@ -208,7 +208,7 @@ class Participante_model extends CI_Model {
         if (!$id_categoria || !$this->_tabla_existe_silenciosa('fixtures')) return array();
 
         $this->db->select('
-            f.id_fixture, f.fase, f.numero_fecha, f.nombre_prueba,
+            f.id_fixture, f.id_categoria, f.fase, f.numero_fecha, f.nombre_prueba,
             f.fecha_competencia, f.hora_inicio, f.hora_fin, f.estado,
             f.id_ute_1, f.id_ute_2, l.nombre AS lugar_nombre,
             d.modalidad_competencia
@@ -236,11 +236,119 @@ class Participante_model extends CI_Model {
                 continue;
             }
 
+            $s1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $s2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+
+            // Nombre del RIVAL: el lado del partido que NO es el suyo. Si el
+            // rival todavía no está definido (slot NULL en fase eliminatoria),
+            // la vista muestra "Rival por definir".
+            $f['rival_nombre'] = null;
+            if (!$masivo) {
+                $es_lado_1_propio = $this->_lado_es_del_participante($s1, $id_participante, $id_ute, $detalle_ute);
+                $es_lado_2_propio = $this->_lado_es_del_participante($s2, $id_participante, $id_ute, $detalle_ute);
+                if ($es_lado_1_propio && !$es_lado_2_propio) {
+                    $f['rival_nombre'] = $this->_nombre_lado_fixture($s2, $id_categoria, $id_participante, $detalle_ute);
+                } elseif ($es_lado_2_propio && !$es_lado_1_propio) {
+                    $f['rival_nombre'] = $this->_nombre_lado_fixture($s1, $id_categoria, $id_participante, $detalle_ute);
+                } elseif (!$es_lado_1_propio && !$es_lado_2_propio) {
+                    // Ambos lados pendientes (ej. semifinal aún sin clasificados).
+                    $f['rival_nombre'] = null;
+                } else {
+                    // Caso raro: ambos lados parecen propios; mostramos el otro.
+                    $f['rival_nombre'] = $this->_nombre_lado_fixture(
+                        $s1 !== 0 ? $s2 : $s1, $id_categoria, $id_participante, $detalle_ute);
+                }
+            }
+
             $f['es_masivo'] = $masivo;
             $out[] = $f;
             if (count($out) >= 5) break;
         }
         return $out;
+    }
+
+    /** ¿El slot de un lado del fixture pertenece al participante? */
+    private function _lado_es_del_participante($slot, $id_participante, $id_ute, $detalle_ute) {
+        $slot = (int) $slot;
+        if ($slot === 0) return false;
+        if ($slot < 0) {
+            // Individual: el slot es -id_inscripcion de una inscripción propia.
+            $ids = $this->_ids_inscripcion_del_participante_por_nombre_cache($id_participante);
+            return in_array(-$slot, $ids, true);
+        }
+        if ($id_ute > 0 && $slot === $id_ute) return true;
+        $nombres = trim((string) $detalle_ute);
+        if ($nombres !== '' && $this->_ute_coincide_con_detalle($slot, $nombres)) return true;
+        return false;
+    }
+
+    /** ids de inscripción (negados) del participante en toda categoría (para lados). */
+    private function _ids_inscripcion_del_participante_por_nombre_cache($id_participante) {
+        static $cache = array();
+        $id_participante = (int) $id_participante;
+        if (!isset($cache[$id_participante])) {
+            $this->db->select('id_inscripcion');
+            $this->db->where('id_participante', $id_participante);
+            $rows = $this->db->get('inscripciones_deportivas')->result_array();
+            $cache[$id_participante] = array_map(function ($r) {
+                return -(int) $r['id_inscripcion'];
+            }, $rows);
+        }
+        return $cache[$id_participante];
+    }
+
+    /**
+     * Nombre legible de un lado del fixture: UTE real (>0), competidor
+     * individual (<0 = -id_inscripcion) o NULL/0 = todavia sin definir.
+     */
+    private function _nombre_lado_fixture($slot, $id_categoria, $id_participante, $detalle_ute) {
+        $slot = (int) $slot;
+        if ($slot > 0) {
+            $n = $this->_nombre_ute($slot);
+            if ($n !== null && $n !== '') return $n;
+            return 'Rival por definir';
+        }
+        if ($slot < 0) {
+            // Slot individual: -id_inscripcion.
+            $this->_cargar_nombres_individuales(array(-$slot));
+            if (isset($this->_nombres_individuales[-$slot])) {
+                return $this->_nombres_individuales[-$slot];
+            }
+            return 'Competidor';
+        }
+        return null; // slot pendiente
+    }
+
+    /** Cache de nombres de UTE por id. */
+    private $_utes_cache = array();
+    private function _nombre_ute($id_ute) {
+        $id_ute = (int) $id_ute;
+        if (!isset($this->_utes_cache[$id_ute])) {
+            $this->db->select('nombre_ute');
+            $this->db->where('id_ute', $id_ute);
+            $row = $this->db->get('utes')->row_array();
+            $this->_utes_cache[$id_ute] = $row ? $row['nombre_ute'] : null;
+        }
+        return $this->_utes_cache[$id_ute];
+    }
+
+    /** Nombres de competidores individuales (inscripciones_deportivas). */
+    private $_nombres_individuales = array();
+    private function _cargar_nombres_individuales($ids_inscripcion) {
+        $ids = array();
+        foreach ($ids_inscripcion as $i) {
+            $i = (int) $i;
+            if ($i > 0 && !isset($this->_nombres_individuales[$i])) $ids[] = $i;
+        }
+        if (!$ids) return;
+        $this->db->select('i.id_inscripcion, p.nombre_completo', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'left');
+        $this->db->where_in('i.id_inscripcion', $ids);
+        foreach ($this->db->get()->result_array() as $r) {
+            $this->_nombres_individuales[(int) $r['id_inscripcion']] =
+                $r['nombre_completo'] ?: 'Competidor';
+        }
     }
 
     /** ¿El partido/jornada tiene al participante en alguno de sus slots? */
@@ -250,13 +358,17 @@ class Participante_model extends CI_Model {
         $s1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
         $s2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
 
-        if ($s1 === -$id_participante || $s2 === -$id_participante) return true; // individual
+        // Slot POSITIVO = id_ute de un EQUIPO; slot NEGATIVO = -id_inscripcion
+        // de un competidor INDIVIDUAL. El participante es individual solo si su
+        // propia inscripcion aparece como slot negativo (nunca por -id_participante).
+        $ids_propios = $this->_ids_inscripcion_del_participante($f['id_categoria'], $id_participante);
+        foreach ($ids_propios as $iid) {
+            if ($s1 === -$iid || $s2 === -$iid) return true; // individual
+        }
+
         if ($id_ute > 0 && ($s1 === $id_ute || $s2 === $id_ute)) return true;    // su equipo
 
-        // Slot pendiente en fase eliminatoria (ej. "Ganador Llave 1").
-        if (($s1 === 0 || $s2 === 0) && $f['fase'] !== 'GRUPO') return true;
-
-        // Fallback: inscripción con nombre de equipo pero sin id_ute.
+        // Fallback: inscripcion con nombre de equipo pero sin id_ute.
         $nombres = trim((string) $detalle_ute);
         if ($nombres !== '') {
             if (($s1 > 0 && $this->_ute_coincide_con_detalle($s1, $nombres))
@@ -264,7 +376,30 @@ class Participante_model extends CI_Model {
                 return true;
             }
         }
+
+        // Slot pendiente EN LA CATEGORIA del participante: puede ser el suyo
+        // cuando el clasificado aun no esta definido. Solo en fases eliminatorias
+        // y solo si el otro lado ya tiene rival confirmado (asi no entran
+        // partidos de otros equipos todavia sin asignar).
+        if (($s1 === 0 || $s2 === 0) && $f['fase'] !== 'GRUPO' && !($s1 === 0 && $s2 === 0)) {
+            if ($id_ute > 0 || $nombres !== '' || !empty($ids_propios)) return true;
+        }
+
         return false;
+    }
+
+    /** id_inscripcion de este participante en la categoria (para slots negativos). */
+    private function _ids_inscripcion_del_participante($id_categoria, $id_participante) {
+        static $cache = array();
+        $key = (int) $id_categoria . '-' . (int) $id_participante;
+        if (!isset($cache[$key])) {
+            $this->db->select('id_inscripcion');
+            $this->db->where('id_participante', (int) $id_participante);
+            $this->db->where('id_categoria', (int) $id_categoria);
+            $cache[$key] = array_column($this->db->get('inscripciones_deportivas')->result_array(), 'id_inscripcion');
+            $cache[$key] = array_map('intval', $cache[$key]);
+        }
+        return $cache[$key];
     }
 
     /** Compara un id_ute del fixture con el nombre de equipo de la inscripción. */
