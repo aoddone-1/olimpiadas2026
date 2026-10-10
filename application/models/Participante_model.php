@@ -566,10 +566,10 @@ class Participante_model extends CI_Model {
 
     /**
      * Obtiene todos los participantes de una delegación para exportar a CSV
-     * Incluye: dni, nombre completo, sexo, fecha nacimiento, edad, delegacion, deporte, categoria
+     * Incluye: dni, nombre completo, sexo, fecha nacimiento, edad, delegacion, deporte, categoria, dieta_especial
      */
     public function obtener_participantes_para_csv($delegacion) {
-        $this->db->select('id_participante, dni, nombre_completo, sexo, fecha_nacimiento, delegacion');
+        $this->db->select('id_participante, dni, nombre_completo, sexo, fecha_nacimiento, delegacion, dieta_especial');
         if($delegacion!==NULL){
             $this->db->where('delegacion', $delegacion);
         }
@@ -607,7 +607,8 @@ class Participante_model extends CI_Model {
                         'edad' => $edad,
                         'delegacion' => $participante['delegacion'],
                         'deporte' => $deporte['nombre_deporte'],
-                        'categoria' => $deporte['nombre_categoria']
+                        'categoria' => $deporte['nombre_categoria'],
+                        'dieta_especial' => $participante['dieta_especial']
                     ];
                 }
             } else {
@@ -620,7 +621,8 @@ class Participante_model extends CI_Model {
                     'edad' => $edad,
                     'delegacion' => $participante['delegacion'],
                     'deporte' => '',
-                    'categoria' => ''
+                    'categoria' => '',
+                    'dieta_especial' => $participante['dieta_especial']
                 ];
             }
         }

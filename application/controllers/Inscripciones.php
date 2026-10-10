@@ -2049,7 +2049,7 @@ class Inscripciones extends CI_Controller {
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
         // Escribir encabezados con punto y coma como delimitador
-        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría', 'Dieta Especial'], ';');
         
         // Escribir datos con punto y coma como delimitador
         foreach ($datos as $fila) {
@@ -2061,7 +2061,8 @@ class Inscripciones extends CI_Controller {
                 $fila['edad'],
                 $fila['delegacion'],
                 $fila['deporte'],
-                $fila['categoria']
+                $fila['categoria'],
+                $fila['dieta_especial'] ?? ''
             ], ';');
         }
         
@@ -2096,7 +2097,7 @@ class Inscripciones extends CI_Controller {
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
         // Escribir encabezados con punto y coma como delimitador
-        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría'], ';');
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría', 'Dieta Especial'], ';');
         
         // Escribir datos con punto y coma como delimitador
         foreach ($datos as $fila) {
@@ -2108,7 +2109,8 @@ class Inscripciones extends CI_Controller {
                 $fila['edad'],
                 $fila['delegacion'],
                 $fila['deporte'],
-                $fila['categoria']
+                $fila['categoria'],
+                $fila['dieta_especial'] ?? ''
             ], ';');
         }
         
