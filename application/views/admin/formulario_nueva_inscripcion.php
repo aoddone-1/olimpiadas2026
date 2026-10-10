@@ -71,10 +71,16 @@
                         <input type="text" name="dni" id="txt-dni" class="form-control" value="" required>
                         <small class="text-muted">Ingrese el DNI del participante</small>
                     </div>
-                    <div class="col-md-8">
-                        <label class="form-label fw-bold">Nombre Completo</label>
-                        <input type="text" name="nombre_completo" id="txt-nombre" class="form-control" value="" required>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Apellido</label>
+                        <input type="text" name="apellido" id="txt-apellido" class="form-control" value="" placeholder="Ej: Pérez" required>
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-bold">Nombre</label>
+                        <input type="text" name="nombre" id="txt-nombre" class="form-control" value="" placeholder="Ej: Juan Carlos" required>
+                    </div>
+                    <!-- Campo oculto: se completa automáticamente con APELLIDO, NOMBRE -->
+                    <input type="hidden" name="nombre_completo" id="txt-nombre-completo" value="">
                     <div class="col-md-4">
                         <label class="form-label fw-bold">Delegación (Provincia)</label>
                         <select name="delegacion" id="cmb-delegacion" class="form-select" required>
@@ -313,6 +319,26 @@
 <script>
 $(document).ready(function() {
     
+    // ===== Concatenación APELLIDO, NOMBRE -> nombre_completo =====
+    function actualizarNombreCompleto() {
+        const apellido = $('#txt-apellido').val().trim();
+        const nombre   = $('#txt-nombre').val().trim();
+        let completo = '';
+        if (apellido !== '' && nombre !== '') {
+            completo = apellido + ', ' + nombre;
+        } else {
+            completo = apellido + nombre;
+        }
+        $('#txt-nombre-completo').val(completo);
+    }
+
+    $('#txt-apellido, #txt-nombre').on('input change', actualizarNombreCompleto);
+
+    // Antes de enviar el formulario, aseguramos la concatenación
+    $('form.needs-validation').on('submit', function() {
+        actualizarNombreCompleto();
+    });
+
     // Toggle de sección de deportes según rol
     $('input[name="rol_asistente"]').change(function() {
         if ($('#rol-competidor').is(':checked')) {

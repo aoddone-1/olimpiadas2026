@@ -1745,10 +1745,20 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Participante_model');
         $post = $this->input->post();
 
+        // Concatenación APELLIDO, NOMBRE -> nombre_completo (con respaldo en el servidor)
+        $apellido = trim($post['apellido'] ?? '');
+        $nombre_p = trim($post['nombre'] ?? '');
+        if ($apellido !== '' && $nombre_p !== '') {
+            $nombre_completo = $apellido . ', ' . $nombre_p;
+        } else {
+            // Si por algún motivo no vienen los campos separados, usar el campo oculto del formulario
+            $nombre_completo = trim($post['nombre_completo'] ?? '');
+        }
+
         // Estructura de datos nuevos
         $data_persona = [
             'dni'                 => trim($post['dni']),
-            'nombre_completo'     => mb_strtoupper(trim($post['nombre_completo']), 'UTF-8'),
+            'nombre_completo'     => mb_strtoupper($nombre_completo, 'UTF-8'),
             'email'               => strtolower(trim($post['email'])), 
             'telefono'            => trim($post['telefono']),
             'delegacion'          => trim($post['delegacion']),
