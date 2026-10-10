@@ -149,8 +149,15 @@ class Deporte_model extends CI_Model {
         // Agrupamos por el ID único del participante para tener una sola fila por persona
         $this->db->group_by('p.id_participante');
         
-        // Ordenamos por los últimos registrados
-        $this->db->order_by('p.id_participante', 'DESC');
+        // Ordenamos alfabéticamente por APELLIDO y luego NOMBRE.
+        // nombre_completo se guarda como "Nombre Apellido", por lo que el
+        // apellido es la última palabra: extraemos todo lo que sigue del
+        // último espacio. Si no hay espacio (un solo término), se usa el
+        // nombre completo. Los apellidos compuestos ("Gomez Perez") quedan
+        // ordenados por el último componente, igual que una lista simple.
+        $orden_apellido = "CASE WHEN p.nombre_completo LIKE '% %' THEN SUBSTRING_INDEX(p.nombre_completo, ' ', -1) ELSE p.nombre_completo END";
+        $this->db->order_by($orden_apellido, 'ASC');
+        $this->db->order_by('p.nombre_completo', 'ASC');
         
         return $this->db->get()->result_array();
     }
