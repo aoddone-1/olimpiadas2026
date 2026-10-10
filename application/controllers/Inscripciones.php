@@ -2059,7 +2059,7 @@ class Inscripciones extends CI_Controller {
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
         // Escribir encabezados con punto y coma como delimitador
-        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría', 'Dieta Especial'], ';');
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Dieta Especial', 'Deporte', 'Categoría'], ';');
         
         // Escribir datos con punto y coma como delimitador
         foreach ($datos as $fila) {
@@ -2070,9 +2070,9 @@ class Inscripciones extends CI_Controller {
                 $fila['fecha_nacimiento'],
                 $fila['edad'],
                 $fila['delegacion'],
+                $fila['dieta_especial'] ?? '',
                 $fila['deporte'],
-                $fila['categoria'],
-                $fila['dieta_especial'] ?? ''
+                $fila['categoria']
             ], ';');
         }
         
@@ -2107,7 +2107,7 @@ class Inscripciones extends CI_Controller {
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
         // Escribir encabezados con punto y coma como delimitador
-        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Deporte', 'Categoría', 'Dieta Especial'], ';');
+        fputcsv($output, ['DNI', 'Nombre Completo', 'Sexo', 'Fecha de Nacimiento', 'Edad', 'Delegación', 'Dieta Especial', 'Deporte', 'Categoría'], ';');
         
         // Escribir datos con punto y coma como delimitador
         foreach ($datos as $fila) {
@@ -2118,9 +2118,9 @@ class Inscripciones extends CI_Controller {
                 $fila['fecha_nacimiento'],
                 $fila['edad'],
                 $fila['delegacion'],
+                $fila['dieta_especial'] ?? '',
                 $fila['deporte'],
-                $fila['categoria'],
-                $fila['dieta_especial'] ?? ''
+                $fila['categoria']
             ], ';');
         }
         
