@@ -233,6 +233,12 @@ class Inscripciones extends CI_Controller {
         // NUEVO: Buscamos las inscripciones deportivas asociadas usando tu modelo real
         $data['deportes'] = $this->Participante_model->obtener_deportes_inscriptos($participante['id_participante']);
 
+        // NUEVO (Mesa de control): datos de la delegación (total de integrantes
+        // y cuántos tienen el kit ya entregado) para el bloque del delegado.
+        $data['stats_delegacion'] = $this->Participante_model->contar_delegacion(
+            isset($participante['delegacion']) ? $participante['delegacion'] : null
+        );
+
         // ¿Es organizador logueado?
         if ($this->session->userdata('is_organizador')) {
             // PANTALLA PRO: Vos organizadora ves las opciones de deportes
@@ -488,6 +494,42 @@ class Inscripciones extends CI_Controller {
         
         // Pasamos el ID y el nuevo valor
         $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado);
+        redirect('Inscripciones/acreditacion/' . $token);
+    }
+
+    /**
+     * NUEVO (Mesa de control): "Acreditar entrega de kit" para el DELEGADO.
+     * Marca kit_entregado = 1 (o 0 si se revierte) para TODOS los participantes
+     * de la delegación del participante escaneado. Solo aplica si es delegado.
+     */
+    public function acreditar_kit_delegacion() {
+        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+
+        $this->load->model('Participante_model');
+
+        $token        = $this->input->post('token_qr');
+        $delegacion   = trim((string) $this->input->post('delegacion'));
+        $nuevo_estado = ($this->input->post('nuevo_estado') == '0') ? 0 : 1;
+
+        $participante = $this->Participante_model->obtener_por_token($token);
+
+        // Seguridad extra: verificamos en BD que el escaneado sea realmente delegado
+        // y que la delegación enviada desde el form coincida con la suya.
+        if ($participante && !empty($participante['es_delegado'])
+            && $delegacion !== '' && $delegacion === $participante['delegacion']) {
+
+            $afectados = $this->Participante_model->marcar_kit_por_delegacion($delegacion, $nuevo_estado);
+
+            $this->session->set_flashdata(
+                'kit_msg',
+                ($nuevo_estado == 1)
+                    ? 'Kit entregado a la delegación ' . $delegacion . ' (' . (int) $afectados . ' participantes).'
+                    : 'Se revirtió la entrega de kits de la delegación ' . $delegacion . '.'
+            );
+        } else {
+            $this->session->set_flashdata('kit_msg', 'No se pudo registrar la entrega: el participante no es delegado o la delegación no coincide.');
+        }
+
         redirect('Inscripciones/acreditacion/' . $token);
     }
 
