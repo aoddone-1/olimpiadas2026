@@ -149,8 +149,8 @@ class Deporte_model extends CI_Model {
         // Agrupamos por el ID único del participante para tener una sola fila por persona
         $this->db->group_by('p.id_participante');
         
-        // Ordenamos por los últimos registrados
-        $this->db->order_by('p.id_participante', 'DESC');
+        // Ordenamos alfabéticamente por nombre y apellido
+        $this->db->order_by('p.nombre_completo', 'ASC');
         
         return $this->db->get()->result_array();
     }
