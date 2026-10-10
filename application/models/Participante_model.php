@@ -547,6 +547,36 @@ class Participante_model extends CI_Model {
         return $this->db->update('participantes', $data);
     }
 
+    /**
+     * Marca (o desmarca) la entrega del kit para TODOS los participantes de
+     * una delegación. Se usa desde la mesa de control cuando el delegado de
+     * la delegación retira los kits del grupo.
+     */
+    public function marcar_kit_por_delegacion($delegacion, $nuevo_estado = 1) {
+        if (empty($delegacion)) {
+            return false;
+        }
+        $this->db->where('delegacion', $delegacion);
+        $this->db->update('participantes', ['kit_entregado' => $nuevo_estado]);
+        return $this->db->affected_rows();
+    }
+
+    /**
+     * Cuenta cuántos participantes tiene una delegación y cuántos de ellos
+     * ya tienen el kit entregado (para mostrarlo en el panel de acreditación).
+     */
+    public function contar_delegacion($delegacion) {
+        if (empty($delegacion)) {
+            return ['total' => 0, 'con_kit' => 0];
+        }
+        $total = $this->db->where('delegacion', $delegacion)->count_all_results('participantes');
+        $con_kit = $this->db
+            ->where('delegacion', $delegacion)
+            ->where('kit_entregado', 1)
+            ->count_all_results('participantes');
+        return ['total' => $total, 'con_kit' => $con_kit];
+    }
+
     public function marcar_asistencia_deporte($id_inscripcion, $nuevo_estado = 1) {
         $this->db->where('id_inscripcion', $id_inscripcion);
         $data = [
