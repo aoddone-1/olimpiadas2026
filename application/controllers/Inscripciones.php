@@ -649,6 +649,9 @@ class Inscripciones extends CI_Controller {
         // El select de categorías para GENERAR FIXTURE solo muestra las que
         // todavía NO tienen fixture generado (por eso se calcula aparte).
         $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
+        // El modal de partido del panel Fixture desdobla Deporte -> Categoría:
+        // se le pasan TODAS las categorías (no solo las sin fixture generado).
+        $data['categorias_modal_partido'] = $this->Fixture_model->obtener_categorias_para_fixture();
         // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
         // categorías que YA tienen fixture generado (por orden: tiene sentido
         // cargar resultados únicamente donde ya existe calendario/jornadas).
@@ -660,6 +663,13 @@ class Inscripciones extends CI_Controller {
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
         $data['menu_activo'] = 'control';
+        // Garantizar que el panel Fixture reciba TODAS las categorías para el
+        // desdoblamiento Deporte -> Categoría del modal, incluso si esta vista
+        // se carga desde otro controlador con $data incompleto.
+        if (empty($data['categorias_fixture'])) {
+            $this->load->model('Fixture_model');
+            $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        }
         $this->load->view('admin/control_total', $data);
     }
 
@@ -722,6 +732,25 @@ class Inscripciones extends CI_Controller {
         $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode(array('ok' => true, 'fixtures' => $fixtures, 'utes' => $utes)));
+    }
+
+    /**
+     * Categorías de un deporte (JSON). Alimenta el desdoblamiento
+     * Deporte -> Categoría del modal de partido/jornada del panel Fixture.
+     */
+    public function ajax_categorias_por_deporte($id_deporte) {
+        if (!$this->_fixture_auth_json()) return;
+
+        try {
+            $categorias = $this->Fixture_model->obtener_categorias_para_fixture((int) $id_deporte);
+        } catch (Throwable $e) {
+            $this->_fixture_error_json('Error al consultar las categorías del deporte.', $e->getMessage());
+            return;
+        }
+
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => true, 'categorias' => $categorias)));
     }
 
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
