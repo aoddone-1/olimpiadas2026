@@ -269,9 +269,15 @@ class Inscripciones extends CI_Controller {
         $this->load->view('deslinde_resp_view',$data);
     }
     public function descargar_acreditaciones($delegacion = NULL) {
-        // Aceptamos la delegación también por query string (?delegacion=...)
-        // porque los caracteres acentuados (ej. "Córdoba") no están permitidos
-        // como segmento de URI en CodeIgniter (permitted_uri_chars).
+        // Aceptamos la delegación por POST (formulario oculto desde el modal) y,
+        // como respaldo, también por query string (?delegacion=...).
+        // Los caracteres acentuados (ej. "Córdoba") no están permitidos como
+        // segmento de URI en CodeIgniter (permitted_uri_chars), y además algunos
+        // hosts bloquean con 403 las URLs que llevan parámetros acentuados en el
+        // query string, por eso la vía principal es el POST.
+        if (!$delegacion) {
+            $delegacion = $this->input->post('delegacion');
+        }
         if (!$delegacion) {
             $delegacion = $this->input->get('delegacion');
         }

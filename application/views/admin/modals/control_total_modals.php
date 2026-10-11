@@ -137,12 +137,30 @@ document.addEventListener('DOMContentLoaded', function () {
     btnDescargar.addEventListener('click', function () {
         const delegacion = selDeleg.value;
         if (!delegacion) return;
-        // Se envía por query string (?delegacion=...) porque CodeIgniter filtra
-        // los caracteres permitidos en la URI de segmentos (permitted_uri_chars)
-        // y las vocales acentuadas (ej. "Córdoba") disparan el error
-        // "The URI you submitted has disallowed characters".
-        const url = '<?= base_url('Inscripciones/descargar_acreditaciones') ?>?delegacion=' + encodeURIComponent(delegacion);
-        window.open(url, '_blank');
+        // IMPORTANTE: se envía como POST en un formulario oculto (no por GET).
+        // Razones:
+        //  1) CodeIgniter filtra los caracteres de la URI (permitted_uri_chars),
+        //     por eso "Córdoba" no puede ir como segmento de URL.
+        //  2) En algunos hosts (p. ej. SiteGround con ModSecurity/Anti-Bot System)
+        //     una URL con query string que contiene parámetros "sospechosos"
+        //     devuelve 403 Forbidden antes de llegar a PHP. Con POST en el body
+        //     la URL queda limpia (/index.php/inscripciones/descargar_acreditaciones)
+        //     y no se dispara el filtro.
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<?= base_url('Inscripciones/descargar_acreditaciones') ?>';
+        form.target = '_blank';
+        form.style.display = 'none';
+
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'delegacion';
+        input.value = delegacion;
+        form.appendChild(input);
+
+        document.body.appendChild(form);
+        form.submit();
+        form.remove();
     });
 });
 </script>
