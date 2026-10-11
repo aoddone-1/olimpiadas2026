@@ -169,8 +169,11 @@ class MYPDF extends TCPDF {
         $this->Line($cx, $pie_y, $cx + $cw, $pie_y);
 
         $this->SetTextColor(self::COLOR_GRIS_FRASE[0], self::COLOR_GRIS_FRASE[1], self::COLOR_GRIS_FRASE[2]);
+        // MultiCell con resetp=true (último argumento) para que NO mueva el cursor:
+        // así la frase queda dentro de la credencial y no se amontona en (0,0)
+        // de las páginas siguientes.
         $this->SetXY($cx + 4, $pie_y + 2);
-        $this->MultiCell($cw - 8, 2.8, $frase, 0, 'C', false, 1, false, true, '', '', true);
+        $this->MultiCell($cw - 8, 2.8, $frase, 0, 'C', false, 0, '', '', true, 0, false, false, 0, true);
     }
 
     public function Body() {
