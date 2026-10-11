@@ -674,6 +674,21 @@ class Participante_model extends CI_Model {
     }
     
     /**
+     * Obtiene la lista DISTINCT de delegaciones/provincias con inscriptos.
+     * Se usa para poblar el select del modal "Imprimir Credenciales" (Control Total).
+     */
+    public function obtener_todas_las_delegaciones() {
+        $this->db->distinct();
+        $this->db->select('delegacion');
+        $this->db->where('delegacion IS NOT NULL');
+        $this->db->where('delegacion !=', '');
+        $this->db->order_by('delegacion', 'ASC');
+        $query = $this->db->get('participantes');
+
+        return array_column($query->result_array(), 'delegacion');
+    }
+
+    /**
      * Obtiene todos los participantes de una delegación específica con campo es_competidor
      */
     public function obtener_participantes_por_delegacion_completo($delegacion) {

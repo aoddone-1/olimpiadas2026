@@ -16,7 +16,7 @@
 
 <div class="container mb-5 mt-4">
     
-    <div class="d-flex justify-content-center mb-4">
+    <div class="d-flex flex-column flex-md-row justify-content-center align-items-center gap-3 mb-4">
         <ul class="nav nav-pills bg-white p-2 rounded-pill shadow-sm" id="controlTabs">
             <li class="nav-item">
                 <button class="nav-link active rounded-pill px-4 fw-bold js-tab-btn" data-target="#panel-inscripciones" type="button">
@@ -39,6 +39,12 @@
                 </button>
             </li>
         </ul>
+
+        <!-- Botón Imprimir Credenciales: abre el modal para elegir delegación -->
+        <button type="button" class="btn btn-lg btn-warning fw-bold rounded-pill shadow-sm px-4"
+                data-bs-toggle="modal" data-bs-target="#modalImprimirCredenciales">
+            <i class="bi bi-person-badge-fill me-2"></i>Imprimir Credenciales
+        </button>
     </div>
 
     <div class="tab-content" id="controlTabsContent">

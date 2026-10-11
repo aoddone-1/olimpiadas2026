@@ -81,3 +81,64 @@
         </div>
     </div>
 </div>
+
+<!-- ============================================================ -->
+<!-- MODAL: IMPRIMIR CREDENCIALES (acreditaciones por delegación) -->
+<!-- ============================================================ -->
+<div class="modal fade" id="modalImprimirCredenciales" tabindex="-1" aria-labelledby="modalImprimirCredencialesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+            <div class="modal-header bg-warning text-dark py-3">
+                <h5 class="modal-title fw-bold" id="modalImprimirCredencialesLabel">
+                    <i class="bi bi-person-badge-fill me-2"></i>Imprimir Credenciales
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="text-muted small mb-3">
+                    Seleccioná la delegación para generar el PDF con las acreditaciones
+                    de todos sus participantes (rectángulos de 8.5 × 13 cm listos para recortar).
+                </p>
+                <label for="selDelegacionCredenciales" class="form-label fw-semibold">
+                    <i class="bi bi-geo-alt-fill text-primary me-1"></i>Delegación / Provincia
+                </label>
+                <select id="selDelegacionCredenciales" class="form-select">
+                    <option value="">— Elegí una delegación —</option>
+                    <?php if (!empty($delegaciones)): ?>
+                        <?php foreach ($delegaciones as $deleg): ?>
+                            <option value="<?= htmlspecialchars($deleg, ENT_QUOTES, 'UTF-8') ?>">
+                                <?= htmlspecialchars($deleg, ENT_QUOTES, 'UTF-8') ?>
+                            </option>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </select>
+            </div>
+            <div class="modal-footer bg-light border-top py-2">
+                <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="btnDescargarCredenciales" class="btn btn-warning rounded-pill btn-sm px-4 fw-bold" disabled>
+                    <i class="bi bi-file-earmark-pdf-fill me-1"></i>Descargar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selDeleg = document.getElementById('selDelegacionCredenciales');
+    const btnDescargar = document.getElementById('btnDescargarCredenciales');
+    if (!selDeleg || !btnDescargar) return;
+
+    // Habilitar/deshabilitar el botón según selección
+    selDeleg.addEventListener('change', function () {
+        btnDescargar.disabled = (this.value === '');
+    });
+
+    btnDescargar.addEventListener('click', function () {
+        const delegacion = selDeleg.value;
+        if (!delegacion) return;
+        // Abrir el PDF en una pestaña nueva (descargar_acreditaciones genera el PDF inline)
+        window.open('<?= base_url('Inscripciones/descargar_acreditaciones') ?>/' + encodeURIComponent(delegacion), '_blank');
+    });
+});
+</script>
