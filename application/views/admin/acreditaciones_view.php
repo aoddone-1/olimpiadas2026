@@ -62,42 +62,22 @@ class MYPDF extends TCPDF {
         $ch = $alto - 2;    // alto útil  (~128 mm)
 
         // ---------------------------------------------------------------
-        // HEADER: degradé azul + barra dorada (125px/560px ≈ 28.6 mm)
+        // HEADER: imagen de fondo (assets/img/header.jpg) + barra dorada
         // ---------------------------------------------------------------
         $h_header = 26.5;
-        // Degradé diagonal similar al CSS: linear-gradient(135deg, #1e3c72, #2a5298)
-        $this->LinearGradient($cx, $cy, $cw, $h_header, self::COLOR_AZUL_OSCURO, self::COLOR_AZUL_CLARO, array(0, 0, 1, 1));
+
+        $header_img = FCPATH . 'assets/img/header.jpg';
+        if (file_exists($header_img)) {
+            // JPEG sin canal alfa: no requiere conversión previa
+            $this->Image($header_img, $cx, $cy, $cw, $h_header, 'JPG', '', '', false, 300, '', false, false, 0);
+        } else {
+            // Fallback: degradé azul si no existe la imagen
+            $this->LinearGradient($cx, $cy, $cw, $h_header, self::COLOR_AZUL_OSCURO, self::COLOR_AZUL_CLARO, array(0, 0, 1, 1));
+        }
 
         $h_dorado = 2.1;    // barra dorada (5px/560px)
         $this->SetFillColor(self::COLOR_DORADO[0], self::COLOR_DORADO[1], self::COLOR_DORADO[2]);
         $this->Rect($cx, $cy + $h_header, $cw, $h_dorado, 'F');
-
-        // Icono de las Olimpiadas (65px/380px ≈ 14 mm), centrado verticalmente
-        $logo = FCPATH . 'assets/img/icon.png';
-        $t_logo = 14;
-        $logo_x = $cx + 4;
-        if (file_exists($logo)) {
-            $logo_y = $cy + ($h_header - $t_logo) / 2;
-            $this->Image($logo, $logo_x, $logo_y, $t_logo, $t_logo, 'PNG', '', '', false, 300, '', false, false, 0);
-        } else {
-            $logo_x = $cx; // sin logo: el texto ocupa todo el header
-        }
-
-        // Textos del header (NOMBRE_SITIO en blanco + LUGAR_OLIMPICO en dorado)
-        $txt_x = $logo_x + $t_logo + 3;
-        $txt_w = $cx + $cw - 3 - $txt_x;
-        $sitio = TCPDF_STATIC::cleanHTMLCodes(NOMBRE_SITIO);
-        $lugar = TCPDF_STATIC::cleanHTMLCodes(LUGAR_OLIMPICO2);
-
-        $this->SetTextColor(255, 255, 255);
-        $this->SetFont('helvetica', 'B', 7.5);
-        $this->SetXY($txt_x, $cy + 3);
-        $this->MultiCell($txt_w, 0, mb_strtoupper($sitio), 0, 'L', false, 1);
-
-        $this->SetTextColor(self::COLOR_DORADO[0], self::COLOR_DORADO[1], self::COLOR_DORADO[2]);
-        $this->SetFont('helvetica', 'B', 8);
-        $this->SetXY($txt_x, $cy + $h_header - 9);
-        $this->Cell($txt_w, 6, mb_strtoupper($lugar), 0, 0, 'L', false);
 
         // ---------------------------------------------------------------
         // CUERPO: nombre, DNI, divisor, QR, badge, delegación, tipo
