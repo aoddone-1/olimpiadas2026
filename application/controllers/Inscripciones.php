@@ -1,13 +1,28 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Inscripciones extends CI_Controller {
+class Inscripciones extends OLIM_Controller {
+
+    /** Roles de organizador que pueden modificar datos (todos menos el de sola lectura). */
+    private $roles_escritura = array('superadmin', 'admin', 'staff', 'carga_resultados');
 
     public function __construct() {
         parent::__construct();
         $this->load->library('Pdf');
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
+    }
+
+    /** ¿El usuario actual es un organizador con permisos de escritura? */
+    private function _puede_editar() {
+        return $this->_es_organizador() && !$this->_es_solo_lectura();
+    }
+
+    /** Redirige al login si el rol actual no puede escribir. */
+    private function _requerir_escritura($destino = 'Inscripciones/login') {
+        if (!$this->_puede_editar()) {
+            redirect($destino);
+        }
     }
 
     public function index() {
@@ -338,9 +353,7 @@ class Inscripciones extends CI_Controller {
 
     // --- PROCESAR EL MODAL DE NUEVA CATEGORÍA ---
     public function guardar_categoria() {
-        if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login');
-        }
+        $this->_requerir_escritura();
 
         $this->load->model('Categoria_model');
         
@@ -356,6 +369,8 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/gestion_deportes');
     }
     public function eliminar_categoria($id_categoria) {
+        $this->_requerir_escritura('Inscripciones/gestion_deportes');
+
         if (!empty($id_categoria)) {
             $this->Categoria_model->eliminar_categoria($id_categoria);
             $this->session->set_flashdata('msg_ok', 'Categoría eliminada correctamente.');
@@ -365,6 +380,8 @@ class Inscripciones extends CI_Controller {
 
     // --- EDITAR CATEGORÍA ---
     public function editar_categoria() {
+        $this->_requerir_escritura('Inscripciones/gestion_deportes');
+
         $id_categoria = $this->input->post('id_categoria');
         
         $data = [
@@ -384,9 +401,7 @@ class Inscripciones extends CI_Controller {
     }
 
     public function guardar_lugar() {
-        if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login');
-        }
+        $this->_requerir_escritura();
 
         $this->load->model('Deporte_model');
         
@@ -403,6 +418,8 @@ class Inscripciones extends CI_Controller {
 
     // --- ELIMINAR LUGAR ---
     public function eliminar_lugar($id_lugar) {
+        $this->_requerir_escritura('Inscripciones/gestion_deportes');
+
         if (!empty($id_lugar)) {
             $this->Deporte_model->eliminar_lugar($id_lugar);
             $this->session->set_flashdata('msg_ok', 'Sede/Predio eliminado correctamente.');
@@ -412,6 +429,8 @@ class Inscripciones extends CI_Controller {
 
     // --- EDITAR LUGAR ---
     public function editar_lugar() {
+        $this->_requerir_escritura('Inscripciones/gestion_deportes');
+
         $id_lugar = $this->input->post('id_lugar');
         
         $data = [
@@ -485,7 +504,7 @@ class Inscripciones extends CI_Controller {
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL KIT ENTREGADO A 1 ---
     public function acreditar_kit() {
-        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+        if (!$this->_puede_editar()) { show_error('No autorizado', 403); }
         
         $this->load->model('Participante_model');
         $id_participante = $this->input->post('id_participante');
@@ -503,7 +522,7 @@ class Inscripciones extends CI_Controller {
      * de la delegación del participante escaneado. Solo aplica si es delegado.
      */
     public function acreditar_kit_delegacion() {
-        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+        if (!$this->_puede_editar()) { show_error('No autorizado', 403); }
 
         $this->load->model('Participante_model');
 
@@ -535,7 +554,7 @@ class Inscripciones extends CI_Controller {
 
     // --- NUEVO: ACCIÓN PARA CAMBIAR EL ASISTIO DEL DEPORTE A 1 ---
     public function acreditar_deporte() {
-        if (!$this->session->userdata('is_organizador')) { show_error('No autorizado', 403); }
+        if (!$this->_puede_editar()) { show_error('No autorizado', 403); }
         
         $this->load->model('Participante_model');
         $id_inscripcion = $this->input->post('id_inscripcion');
@@ -588,7 +607,7 @@ class Inscripciones extends CI_Controller {
      * Guarda un nuevo deporte general desde la ventana modal
      */
     public function guardar_deporte() {
-        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
+        $this->_requerir_escritura();
 
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
@@ -601,7 +620,7 @@ class Inscripciones extends CI_Controller {
      * Elimina un deporte y sus categorías asociadas por ID
      */
     public function eliminar_deporte($id_deporte) {
-        if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
+        $this->_requerir_escritura();
 
         if (!empty($id_deporte) && is_numeric($id_deporte)) {
             // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
@@ -612,6 +631,8 @@ class Inscripciones extends CI_Controller {
     }
 
     public function editar_deporte() {
+        $this->_requerir_escritura('Inscripciones/gestion_deportes');
+
         $id_deporte = $this->input->post('id_deporte');
         $data = [
             'nombre_deporte' => $this->input->post('nombre_deporte'),
@@ -1583,8 +1604,8 @@ class Inscripciones extends CI_Controller {
      * Eliminar una inscripción completa (participante y todas sus inscripciones deportivas)
      */
     public function eliminar_inscripcion($id_participante) {
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
             redirect('Inscripciones/control_total');
             return;
@@ -1625,9 +1646,9 @@ class Inscripciones extends CI_Controller {
      */
     public function eliminar_inscripcion_ajax($id_participante) {
         header('Content-Type: application/json');
-        
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             echo json_encode([
                 'success' => false,
                 'error' => 'No tenés permisos para realizar esta acción.'
@@ -1675,8 +1696,8 @@ class Inscripciones extends CI_Controller {
      * Mostrar formulario para modificar una inscripción (staff)
      */
     public function modificar_inscripcion($id_participante) {
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
             redirect('Inscripciones/control_total');
             return;
@@ -1711,8 +1732,8 @@ class Inscripciones extends CI_Controller {
      * Guardar modificaciones de una inscripción
      */
     public function guardar_modificacion() {
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
             redirect('Inscripciones/control_total');
             return;
@@ -1789,8 +1810,8 @@ class Inscripciones extends CI_Controller {
      * Mostrar formulario para nueva inscripción (desde panel-inscripciones)
      */
     public function nueva_inscripcion() {
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
             redirect('Inscripciones/control_total');
             return;
@@ -1809,8 +1830,8 @@ class Inscripciones extends CI_Controller {
      * Guardar nueva inscripción
      */
     public function guardar_nueva_inscripcion() {
-        // Verificar que sea staff/organizador
-        if (!$this->session->userdata('is_organizador')) {
+        // Verificar que sea staff/organizador con permisos de escritura
+        if (!$this->_puede_editar()) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
             redirect('Inscripciones/control_total');
             return;
@@ -1898,8 +1919,9 @@ class Inscripciones extends CI_Controller {
      * Panel principal de gestión de UTEs/Equipos
      */
     public function panel_utes() {
-        // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        // Visible para toda la organización; las acciones de edición
+        // están gateadas aparte y el rol 'solo_lectura' queda afuera.
+        if (!$this->_puede_editar()) {
             redirect('Inscripciones/login');
         }
 

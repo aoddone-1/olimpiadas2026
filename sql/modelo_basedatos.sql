@@ -191,7 +191,7 @@ CREATE TABLE `usuarios` (
   `id_usuario` int NOT NULL AUTO_INCREMENT,
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
-  `rol` enum('superadmin','admin','staff','mesa_control','seguridad_cenas','delegado') NOT NULL,
+  `rol` enum('superadmin','admin','staff','carga_resultados','solo_lectura','delegado') NOT NULL,
   `nombre_usuario` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id_usuario`),
   UNIQUE KEY `username` (`username`)
