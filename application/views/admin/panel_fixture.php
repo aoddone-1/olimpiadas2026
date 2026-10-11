@@ -112,25 +112,51 @@
                     <input type="hidden" name="id_fixture" id="fx_id_fixture">
 
                     <!-- Selección de categoría DEPORTIVA dentro del modal -->
-                    <div class="mb-2">
-                        <label class="form-label small fw-bold">Deporte / Categoría *</label>
-                        <select id="fx_modal_categoria" class="form-select" required>
-                            <option value="">— Elegí una categoría —</option>
-                            <?php
-                            // El modal de partido manual necesita TODAS las categorías
-                            // (no solo las sin fixture, como el selector de generar).
-                            // Se usa la variable que ya envía el controlador para no
-                            // repetir la consulta.
-                            foreach ($categorias_fixture as $cat): ?>
-                                <option value="<?= $cat['id_categoria'] ?>"
-                                        data-modalidad="<?= $cat['modalidad_competencia'] ?>">
-                                    <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
-                                    (<?= htmlspecialchars($cat['genero']) ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <input type="hidden" name="id_categoria" id="fx_cat_hidden">
+                    <?php
+                    // El modal de partido manual necesita TODAS las categorías
+                    // (no solo las sin fixture, como el selector de generar).
+                    // Se usa la variable que ya envía el controlador para no
+                    // repetir la consulta. Además se construye un mapa
+                    // deporte -> categorías para poder DESDOBLAR la búsqueda:
+                    // primero se elige el deporte y luego la categoría filtra.
+                    $catsPorDeporte = array();
+                    foreach ($categorias_fixture as $cat):
+                        $idDep = $cat['id_deporte'];
+                        if (!isset($catsPorDeporte[$idDep])) {
+                            $catsPorDeporte[$idDep] = array(
+                                'nombre' => $cat['nombre_deporte'],
+                                'modalidad' => $cat['modalidad_competencia'],
+                                'cats' => array(),
+                            );
+                        }
+                        $catsPorDeporte[$idDep]['cats'][] = $cat;
+                    endforeach;
+                    ?>
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Deporte *</label>
+                            <select id="fx_modal_deporte" class="form-select" required>
+                                <option value="">— Elegí un deporte —</option>
+                                <?php foreach ($catsPorDeporte as $idDep => $dep): ?>
+                                    <option value="<?= $idDep ?>"><?= htmlspecialchars($dep['nombre']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small fw-bold">Categoría *</label>
+                            <select id="fx_modal_categoria" class="form-select" required disabled>
+                                <option value="">— Primero elegí un deporte —</option>
+                            </select>
+                        </div>
                     </div>
+                    <?php // Datos deporte->categorías para poblar el select dinámicamente con JS ?>
+                    <script type="application/json" id="fx_cats_por_deporte">
+{<?php $primero = true; foreach ($catsPorDeporte as $idDep => $dep): ?><?php if (!$primero) echo ','; $primero = false; ?>
+"<?= (int) $idDep ?>": {"modalidad": <?= json_encode($dep['modalidad']) ?>, "cats": [
+<?php foreach ($dep['cats'] as $i => $c): ?>{"id": <?= (int) $c['id_categoria'] ?>, "nombre": <?= json_encode($c['nombre_categoria']) ?>, "genero": <?= json_encode($c['genero']) ?>}<?= $i ? ',' : '' ?><?php endforeach; ?>
+]}<?php endforeach; ?>}
+                    </script>
+                    <input type="hidden" name="id_categoria" id="fx_cat_hidden">
 
                     <div class="mb-2">
                         <label class="form-label small fw-bold">Nombre de la prueba *</label>
@@ -807,6 +833,64 @@
             });
     }
 
+    // ---------- Desdoblar Deporte -> Categoría dentro del modal ----------
+    // Mapa deporte_id -> { modalidad, cats: [...] } generado en el servidor.
+    const CATS_POR_DEPORTE = (() => {
+        try { return JSON.parse(document.getElementById('fx_cats_por_deporte').textContent); }
+        catch (e) { return {}; }
+    })();
+    const selDeporteModal = document.getElementById('fx_modal_deporte');
+    const selCatModal = document.getElementById('fx_modal_categoria');
+
+    // El navegador valida "required" en ambos selects al enviar el form por
+    // Enter; cuando se resetea o se abre el modal de NUEVO partido hay que
+    // quitarle el required al select de categoría (se habilita al elegir deporte).
+    function setRequiredCategoria(on) {
+        if (on) selCatModal.setAttribute('required', 'required');
+        else selCatModal.removeAttribute('required');
+    }
+
+    function poblarCategoriasDelModal(idDeporte, seleccionarId) {
+        selCatModal.innerHTML = '';
+        const dep = CATS_POR_DEPORTE[idDeporte];
+        if (!dep) {
+            selCatModal.disabled = true;
+            setRequiredCategoria(false);
+            selCatModal.innerHTML = '<option value="">— Primero elegí un deporte —</option>';
+            return;
+        }
+        selCatModal.disabled = false;
+        setRequiredCategoria(true);
+        selCatModal.insertAdjacentHTML('beforeend', '<option value="">— Elegí una categoría —</option>');
+        dep.cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.dataset.modalidad = dep.modalidad || '';
+            opt.textContent = `${c.nombre} (${c.genero})`;
+            selCatModal.appendChild(opt);
+        });
+        if (seleccionarId !== undefined && seleccionarId !== null && seleccionarId !== '') {
+            selCatModal.value = seleccionarId;
+        }
+    }
+
+    // Al elegir el deporte, se filtran las categorías de ese deporte.
+    selDeporteModal.addEventListener('change', function () {
+        poblarCategoriasDelModal(this.value);
+        document.getElementById('fx_cat_hidden').value = '';
+        cargarUtesDelModal('');
+    });
+
+    // Si es un deporte MASIVO, la fase sugerida es JORNADA_UNICA (solo al crear).
+    selCatModal.addEventListener('change', function () {
+        const opt = this.selectedOptions[0];
+        const esMasivo = opt && opt.dataset.modalidad === 'MASIVO_TIEMPO';
+        const faseSel = document.getElementById('fx_fase');
+        if (esMasivo && !document.getElementById('fx_id_fixture').value) {
+            faseSel.value = 'JORNADA_UNICA';
+        }
+    });
+
     // Al cambiar la categoría dentro del modal, recargar los equipos
     document.getElementById('fx_modal_categoria').addEventListener('change', function () {
         document.getElementById('fx_cat_hidden').value = this.value;
@@ -821,8 +905,10 @@
         const selCat = document.getElementById('fx_modal_categoria');
 
         if (f) {
-            // Edición: categoría fija al partido original
+            // Edición: deporte/categoría fijos al partido original
             document.getElementById('fx_id_fixture').value = f.id_fixture;
+            selDeporteModal.value = f.id_deporte || '';
+            poblarCategoriasDelModal(f.id_deporte, f.id_categoria);
             selCat.value = f.id_categoria;
             document.getElementById('fx_cat_hidden').value = f.id_categoria;
             document.getElementById('fx_nombre_prueba').value = f.nombre_prueba || '';
@@ -838,8 +924,9 @@
                 document.getElementById('fx_ute2').value = f.id_ute_2 || '';
             });
         } else {
-            // Nuevo: la categoría se elige ACÁ ADENTRO del modal
-            selCat.value = '';
+            // Nuevo: el deporte y la categoría se eligen ACÁ ADENTRO del modal
+            selDeporteModal.value = '';
+            poblarCategoriasDelModal('');
             document.getElementById('fx_cat_hidden').value = '';
             cargarUtesDelModal('');
         }
@@ -926,8 +1013,12 @@
 
     document.getElementById('fx_btn_guardar').addEventListener('click', () => {
         const datos = Object.fromEntries(new FormData(document.getElementById('form_partido')).entries());
+        if (!selDeporteModal.value) {
+            mensaje('Elegí el deporte dentro del formulario.', 'warning');
+            return;
+        }
         if (!datos.id_categoria) {
-            mensaje('Elegí la categoría/deporte dentro del formulario.', 'warning');
+            mensaje('Elegí la categoría del deporte dentro del formulario.', 'warning');
             return;
         }
         if (!datos.nombre_prueba || !datos.fecha_competencia || !datos.hora_inicio || !datos.hora_fin) {
