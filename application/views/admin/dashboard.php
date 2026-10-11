@@ -21,17 +21,27 @@
         $kits_entregados = isset($total_kits) ? (int) $total_kits : 0;
 
         $delegaciones = array();
-        $hoteles = array();
-        $sin_hotel = 0;
+        $delegaciones_completas = array();
         foreach ($participantes as $p) {
             $del = trim($p['delegacion'] ?? '');
-            if ($del !== '') $delegaciones[$del] = ($delegaciones[$del] ?? 0) + 1;
-
-            $hot = trim($p['hotel_alojamiento'] ?? '');
-            if ($hot === '') { $sin_hotel++; } else { $hoteles[$hot] = ($hoteles[$hot] ?? 0) + 1; }
+            if ($del !== '') {
+                if (!isset($delegaciones[$del])) {
+                    $delegaciones[$del] = ['total' => 0, 'con_kit' => 0];
+                }
+                $delegaciones[$del]['total']++;
+                if (!empty($p['kit_entregado'])) {
+                    $delegaciones[$del]['con_kit']++;
+                }
+            }
+        }
+        // Delegaciones que ya tienen TODOS sus kits entregados (se acreditan por el delegado)
+        foreach ($delegaciones as $del => $d) {
+            if ($d['total'] > 0 && $d['con_kit'] >= $d['total']) {
+                $delegaciones_completas[$del] = $d['total'];
+            }
         }
         arsort($delegaciones);
-        arsort($hoteles);
+        ksort($delegaciones_completas);
         $porc_kits = $total_participantes > 0 ? round(($kits_entregados / $total_participantes) * 100) : 0;
     ?>
 
@@ -81,10 +91,10 @@
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-diagram-3 me-1"></i>Competidores por delegación</h6>
                     <?php if (!empty($delegaciones)): ?>
-                        <?php $i = 0; foreach ($delegaciones as $del => $cant): ?>
+                        <?php $i = 0; foreach ($delegaciones as $del => $d): ?>
                             <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
                                 <span class="text-primary fw-semibold small"><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
-                                <span class="badge bg-light text-dark border"><?= $cant ?></span>
+                                <span class="badge bg-light text-dark border"><?= $d['total'] ?></span>
                             </div>
                             <?php if (++$i >= 8) break; ?>
                         <?php endforeach; ?>
@@ -100,23 +110,27 @@
         <div class="col-md-6">
             <div class="card shadow-sm h-100 border-0 rounded-3">
                 <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-building me-1"></i>Alojamiento</h6>
-                    <?php if (!empty($hoteles)): ?>
-                        <?php $i = 0; foreach ($hoteles as $hot => $cant): ?>
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-box-seam me-1"></i>Delegaciones con kits entregados</h6>
+                    <?php if (!empty($delegaciones_completas)): ?>
+                        <?php $i = 0; foreach ($delegaciones_completas as $del => $cant): ?>
                             <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
-                                <span class="small"><?= htmlspecialchars($hot, ENT_QUOTES, 'UTF-8') ?></span>
-                                <span class="badge bg-light text-dark border"><?= $cant ?></span>
+                                <span class="small text-success fw-semibold"><i class="bi bi-check-circle-fill me-1 text-success"></i><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="badge bg-success-subtle text-success border-0"><?= $cant ?> kit<?= $cant == 1 ? '' : 's' ?></span>
                             </div>
-                            <?php if (++$i >= 6) break; ?>
+                            <?php if (++$i >= 8) break; ?>
                         <?php endforeach; ?>
+                        <?php if (count($delegaciones_completas) > 8): ?>
+                            <small class="text-muted d-block mt-1">...y <?= count($delegaciones_completas) - 8 ?> delegaciones más.</small>
+                        <?php endif; ?>
                     <?php else: ?>
-                        <small class="text-muted">Sin hoteles asignados.</small>
+                        <small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Aún no hay delegaciones con todos los kits entregados.</small>
                     <?php endif; ?>
                     <div class="mt-2 pt-2 border-top">
-                        <?php if ($sin_hotel > 0): ?>
-                            <span class="badge bg-danger-subtle text-danger fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i><?= $sin_hotel ?> sin hotel asignado</span>
+                        <?php $pendientes = count($delegaciones) - count($delegaciones_completas); ?>
+                        <?php if ($pendientes > 0): ?>
+                            <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold"><i class="bi bi-clock-history me-1"></i><?= $pendientes ?> delegaci<?= $pendientes == 1 ? 'ón pendiente' : 'ones pendientes' ?></span>
                         <?php else: ?>
-                            <span class="badge bg-success-subtle text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Todos con hotel asignado</span>
+                            <span class="badge bg-success-subtle text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>¡Todas las delegaciones acreditadas!</span>
                         <?php endif; ?>
                     </div>
                 </div>
