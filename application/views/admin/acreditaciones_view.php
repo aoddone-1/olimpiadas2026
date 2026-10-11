@@ -108,8 +108,13 @@ class MYPDF extends TCPDF {
         $qr_size = 28;
         if (!empty($p['token_qr'])) {
             $url_acreditacion = base_url('Inscripciones/acreditacion/' . $p['token_qr']);
-            $this->SetQRCodeErrorCorrectionLevel('M');
-            $this->writeQRCode($url_acreditacion, $cx + ($cw - $qr_size) / 2, $body_y, $qr_size, $qr_size, 1, [0, 0, 0], false);
+            // write2DBarcode es el método válido de TCPDF para generar QR.
+            // El nivel de corrección ('M') se indica en el tipo: 'QRCODE,M'
+            $qr_opt = array(
+                'align' => 'C',   // centrado dentro del área asignada
+                'mARGIN'=> 0,     // sin margen interno extra
+            );
+            $this->write2DBarcode($url_acreditacion, 'QRCODE,M', $cx + ($cw - $qr_size) / 2, $body_y, $qr_size, $qr_size, $qr_opt, false);
         } else {
             // Placeholder si el participante aún no tiene token generado
             $this->SetDrawColor(self::COLOR_AZUL_OSCURO[0], self::COLOR_AZUL_OSCURO[1], self::COLOR_AZUL_OSCURO[2]);
