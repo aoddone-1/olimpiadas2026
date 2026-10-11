@@ -30,6 +30,32 @@ class MYPDF extends TCPDF {
     public $participantes = [];
     public $nombre_provincia = '';
 
+    /**
+     * Convierte el texto a UTF-8 de forma segura para TCPDF.
+     * Si la base de datos devuelve latin1/Windows-1252, mb_strtoupper y
+     * TCPDF pierden las Ñ y los acentos; esta función normaliza todo a UTF-8.
+     */
+    private function utf8($str) {
+        $str = (string) $str;
+        if (!mb_check_encoding($str, 'UTF-8')) {
+            // Probar conversiones habituales (latin1 -> utf8, cp1252 -> utf8)
+            $utf8 = mb_convert_encoding($str, 'UTF-8', 'ISO-8859-1');
+            if (mb_check_encoding($utf8, 'UTF-8')) {
+                $str = $utf8;
+            } else {
+                $str = mb_convert_encoding($str, 'UTF-8', 'Windows-1252');
+            }
+        }
+        return $str;
+    }
+
+    /**
+     * Mayúsculas seguras: primero pasa a UTF-8 y luego aplica mb_strtoupper.
+     */
+    private function upper($str) {
+        return mb_strtoupper($this->utf8($str), 'UTF-8');
+    }
+
     public function Header() {
         // Sin encabezado: las acreditaciones se imprimen una al lado de otra
     }
@@ -86,16 +112,18 @@ class MYPDF extends TCPDF {
 
         // Nombre completo (centrado, negrita, mayúsculas)
         $this->SetTextColor(0, 0, 0);
-        $this->SetFont('helvetica', 'B', 12);
+        $this->SetFont('dejavusans', 'B', 12);
         $this->SetXY($cx + 2, $body_y);
-        $this->MultiCell($cw - 4, 5.2, mb_strtoupper(trim($p['nombre_completo'])), 0, 'C', false, 1);
+        // upper() normaliza a UTF-8 antes de pasar a mayúsculas: así la Ñ y
+        // los acentos se imprimen correctamente (TCPDF usa fuentes Unicode).
+        $this->MultiCell($cw - 4, 5.2, $this->upper(trim($p['nombre_completo'])), 0, 'C', false, 1);
         $body_y = $this->GetY() + 1.5;
 
         // DNI
         $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
-        $this->SetFont('helvetica', 'B', 8);
+        $this->SetFont('dejavusans', 'B', 8);
         $this->SetXY($cx + 2, $body_y);
-        $this->Cell($cw - 4, 4, 'DNI: ' . $p['dni'], 0, 0, 'C', false);
+        $this->Cell($cw - 4, 4, 'DNI: ' . $this->utf8($p['dni']), 0, 0, 'C', false);
         $body_y += 5;
 
         // Línea divisoria (hr)
@@ -120,7 +148,7 @@ class MYPDF extends TCPDF {
             $this->SetDrawColor(self::COLOR_AZUL_OSCURO[0], self::COLOR_AZUL_OSCURO[1], self::COLOR_AZUL_OSCURO[2]);
             $this->SetLineWidth(0.6);
             $this->Rect($cx + ($cw - $qr_size) / 2, $body_y, $qr_size, $qr_size, 'S');
-            $this->SetFont('helvetica', '', 6);
+            $this->SetFont('dejavusans', '', 6);
             $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
             $this->SetXY($cx + ($cw - $qr_size) / 2, $body_y + $qr_size / 2 - 2);
             $this->Cell($qr_size, 4, 'SIN QR', 0, 0, 'C', false);
@@ -129,7 +157,7 @@ class MYPDF extends TCPDF {
 
         // Badge "Control General de Mesa" (fondo azul primario, texto blanco)
         $badge_txt = 'CONTROL GENERAL DE MESA';
-        $this->SetFont('helvetica', 'B', 6.5);
+        $this->SetFont('dejavusans', 'B', 6.5);
         $badge_w = $this->getStringWidth($badge_txt) + 8;
         $badge_h = 5;
         $this->SetFillColor(13, 110, 253); // bootstrap bg-primary
@@ -141,23 +169,23 @@ class MYPDF extends TCPDF {
 
         // Delegación (destacada) y tipo de empleado
         $this->SetTextColor(0, 0, 0);
-        $this->SetFont('helvetica', 'B', 10);
+        $this->SetFont('dejavusans', 'B', 10);
         $this->SetXY($cx + 2, $body_y);
-        $this->MultiCell($cw - 4, 4.5, mb_strtoupper(trim($p['delegacion'])), 0, 'C', false, 1);
+        $this->MultiCell($cw - 4, 4.5, $this->upper(trim($p['delegacion'])), 0, 'C', false, 1);
         $body_y = $this->GetY() + 0.5;
 
         if (!empty($p['tipo_empleado'])) {
             $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
-            $this->SetFont('helvetica', 'B', 7.5);
+            $this->SetFont('dejavusans', 'B', 7.5);
             $this->SetXY($cx + 2, $body_y);
-            $this->Cell($cw - 4, 4, $p['tipo_empleado'], 0, 0, 'C', false);
+            $this->Cell($cw - 4, 4, $this->utf8($p['tipo_empleado']), 0, 0, 'C', false);
         }
 
         // ---------------------------------------------------------------
         // PIE: franja gris con la leyenda de uso personal (mt-auto)
         // ---------------------------------------------------------------
         $frase = 'Uso Personal: Esta credencial es intransferible y debe ser presentada cada vez que sea requerida.';
-        $this->SetFont('helvetica', '', 5.8);
+        $this->SetFont('dejavusans', '', 5.8);
         $frase_lines = $this->getNumLines($frase, $cw - 8);
         $h_pie = max(11, $frase_lines * 2.8 + 5);
         $pie_y = $cy + $ch - $h_pie;
@@ -235,7 +263,7 @@ if (@file_exists(dirname(__FILE__) . '/lang/es.php')) {
 }
 
 $pdf->setFontSubsetting(true);
-$pdf->SetFont('helvetica', '', 10, '', true);
+$pdf->SetFont('dejavusans', '', 10, '', true);
 
 // Datos
 $pdf->participantes    = isset($participantes) ? $participantes : [];
