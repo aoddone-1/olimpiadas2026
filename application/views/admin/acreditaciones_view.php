@@ -11,7 +11,7 @@ require_once APPPATH . 'libraries/tcpdf/tcpdf.php';
  *   - Franja inferior con el texto de uso personal
  *
  * Cada acreditación es un rectángulo de 8.5 x 13 cm; se imprimen 3 x 2 por
- * hoja A4 horizontal.
+ * hoja A3 horizontal.
  */
 class MYPDF extends TCPDF {
 
@@ -92,7 +92,7 @@ class MYPDF extends TCPDF {
         // ---------------------------------------------------------------
         $h_header = 26.5;
 
-        $header_img = FCPATH . 'assets/img/header.jpg';
+        $header_img = FCPATH . 'assets/img/header2.jpg';
         if (file_exists($header_img)) {
             // JPEG sin canal alfa: no requiere conversión previa
             $this->Image($header_img, $cx, $cy, $cw, $h_header, 'JPG', '', '', false, 300, '', false, false, 0);
@@ -225,7 +225,7 @@ class MYPDF extends TCPDF {
 
             // Nueva página cuando se llena la grilla
             if ($i > 0 && $pos_fila == 0 && $pos_columna == 0) {
-                $this->AddPage('L', 'A4');
+                $this->AddPage('L', 'A3');
             }
 
             $x = $offset_x + $pos_fila * $ancho;
@@ -239,7 +239,7 @@ class MYPDF extends TCPDF {
 // ---------------------------------------------------------
 // Crear el documento PDF
 // ---------------------------------------------------------
-$pdf = new MYPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+$pdf = new MYPDF('P', 'mm', 'A3', true, 'UTF-8', false);
 
 $pdf->SetCreator(PDF_CREATOR);
 $pdf->SetAuthor(NOMBRE_SITIO);
@@ -269,8 +269,8 @@ $pdf->SetFont('dejavusans', '', 10, '', true);
 $pdf->participantes    = isset($participantes) ? $participantes : [];
 $pdf->nombre_provincia = isset($nombre_provincia) ? $nombre_provincia : '';
 
-// Página inicial (A4 horizontal para aprovechar el espacio: 3 x 2 acreditaciones por hoja)
-$pdf->AddPage('L', 'A4');
+// Página inicial (A3 horizontal para aprovechar el espacio: 3 x 2 acreditaciones por hoja)
+$pdf->AddPage('L', 'A3');
 $pdf->Body();
 
 // Salida
