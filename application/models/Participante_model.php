@@ -124,6 +124,7 @@ class Participante_model extends CI_Model {
             inscripciones_deportivas.id_ute,
             categorias.id_categoria,
             deportes.nombre_deporte,
+            deportes.fiscales,
             categorias.nombre_categoria,
             categorias.dia_competencia,
             categorias.hora_competencia,
