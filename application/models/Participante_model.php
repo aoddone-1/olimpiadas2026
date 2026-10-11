@@ -677,7 +677,9 @@ class Participante_model extends CI_Model {
      * Obtiene todos los participantes de una delegación específica con campo es_competidor
      */
     public function obtener_participantes_por_delegacion_completo($delegacion) {
-        $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor, sexo, fecha_nacimiento');
+        // token_qr y tipo_empleado se incluyen porque las acreditaciones (PDF)
+        // los necesitan para el QR de control de mesa y el detalle del empleado.
+        $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor, sexo, fecha_nacimiento, token_qr, tipo_empleado');
         $this->db->where('delegacion', $delegacion);
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');

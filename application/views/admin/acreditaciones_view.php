@@ -1,11 +1,31 @@
 <?php
 require_once APPPATH . 'libraries/tcpdf/tcpdf.php';
 
+/**
+ * Genera las acreditaciones (badgets) en PDF, replicando el diseño de la
+ * credencial oficial de imprimir_credencial.php + css/credencial.css:
+ *   - Header con degradé azul (#1e3c72 -> #2a5298), icono y nombre del sitio
+ *   - Barra dorada inferior (#ffc107)
+ *   - Nombre completo, DNI, código QR de control de mesa, badge "Control
+ *     General de Mesa", delegación y tipo de empleado
+ *   - Franja inferior con el texto de uso personal
+ *
+ * Cada acreditación es un rectángulo de 8.5 x 13 cm; se imprimen 3 x 2 por
+ * hoja A4 horizontal.
+ */
 class MYPDF extends TCPDF {
 
     // Medidas de cada acreditación (badget) en milímetros
     const ANCHO_ACREDITACION = 85;   // 8.5 cm
     const ALTO_ACREDITACION  = 130;  // 13 cm
+
+    // Colores del diseño de la credencial oficial
+    const COLOR_AZUL_OSCURO = [30, 60, 114];    // #1e3c72
+    const COLOR_AZUL_CLARO  = [42, 82, 152];    // #2a5298
+    const COLOR_DORADO      = [255, 193, 7];    // #ffc107
+    const COLOR_GRIS        = [108, 117, 125];  // #6c757d (text-muted)
+    const COLOR_GRIS_FRASE  = [134, 142, 150];  // frase del pie
+    const COLOR_CUADRO      = [221, 221, 221];  // borde exterior
 
     public $participantes = [];
     public $nombre_provincia = '';
@@ -14,36 +34,169 @@ class MYPDF extends TCPDF {
         // Sin encabezado: las acreditaciones se imprimen una al lado de otra
     }
 
-    /**
-     * Dibuja una acreditación (rectángulo de 8.5 x 13 cm) con el nombre
-     * completo del participante centrado, en la posición indicada.
-     */
-    public function dibujar_acreditacion($x, $y, $nombre) {
-        $ancho  = self::ANCHO_ACREDITACION;
-        $alto   = self::ALTO_ACREDITACION;
+    public function Footer() {
+        // Sin pie de página para no interferir con la impresión/recorte
+    }
 
-        // Rectángulo / borde de la acreditación
-        $this->SetLineWidth(0.4);
-        $this->SetDrawColor(30, 60, 114);      // azul oscuro
+    /**
+     * Dibuja una acreditación completa (8.5 x 13 cm) en la posición indicada.
+     * Las proporciones internas reproducen las de css/credencial.css
+     * (credencial de 380 x 560 px).
+     */
+    public function dibujar_acreditacion($x, $y, $p) {
+        $ancho = self::ANCHO_ACREDITACION;
+        $alto  = self::ALTO_ACREDITACION;
+
+        // ---------------------------------------------------------------
+        // Borde exterior de la acreditación (guía de recorte)
+        // ---------------------------------------------------------------
+        $this->SetLineWidth(0.3);
+        $this->SetDrawColor(self::COLOR_CUADRO[0], self::COLOR_CUADRO[1], self::COLOR_CUADRO[2]);
         $this->SetFillColor(255, 255, 255);
         $this->Rect($x, $y, $ancho, $alto, 'DF');
 
-        // Nombre completo del participante, centrado en el recuadro
-        $this->SetFont('dejavusans', 'B', 14);
-        $this->SetXY($x + 3, $y);              // margen interno de 3 mm
-        // ignore_min_height = TRUE para poder usar toda la altura del recuadro
-        $this->Cell($ancho - 6, $alto, mb_strtoupper(trim($nombre)), 0, 0, 'C', false, 0, true, 'M', 'M');
+        // Margen interno de 1 mm: todo el contenido vive dentro de este área
+        $cx = $x + 1;
+        $cy = $y + 1;
+        $cw = $ancho - 2;   // ancho útil (~83 mm)
+        $ch = $alto - 2;    // alto útil  (~128 mm)
+
+        // ---------------------------------------------------------------
+        // HEADER: degradé azul + barra dorada (125px/560px ≈ 28.6 mm)
+        // ---------------------------------------------------------------
+        $h_header = 26.5;
+        // Degradé diagonal similar al CSS: linear-gradient(135deg, #1e3c72, #2a5298)
+        $this->LinearGradient($cx, $cy, $cw, $h_header, self::COLOR_AZUL_OSCURO, self::COLOR_AZUL_CLARO, array(0, 0, 1, 1));
+
+        $h_dorado = 2.1;    // barra dorada (5px/560px)
+        $this->SetFillColor(self::COLOR_DORADO[0], self::COLOR_DORADO[1], self::COLOR_DORADO[2]);
+        $this->Rect($cx, $cy + $h_header, $cw, $h_dorado, 'F');
+
+        // Icono de las Olimpiadas (65px/380px ≈ 14 mm), centrado verticalmente
+        $logo = FCPATH . 'assets/img/icon.png';
+        $t_logo = 14;
+        $logo_x = $cx + 4;
+        if (file_exists($logo)) {
+            $logo_y = $cy + ($h_header - $t_logo) / 2;
+            $this->Image($logo, $logo_x, $logo_y, $t_logo, $t_logo, 'PNG', '', '', false, 300, '', false, false, 0);
+        } else {
+            $logo_x = $cx; // sin logo: el texto ocupa todo el header
+        }
+
+        // Textos del header (NOMBRE_SITIO en blanco + LUGAR_OLIMPICO en dorado)
+        $txt_x = $logo_x + $t_logo + 3;
+        $txt_w = $cx + $cw - 3 - $txt_x;
+        $sitio = TCPDF_STATIC::cleanHTMLCodes(NOMBRE_SITIO);
+        $lugar = TCPDF_STATIC::cleanHTMLCodes(LUGAR_OLIMPICO2);
+
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont('helvetica', 'B', 7.5);
+        $this->SetXY($txt_x, $cy + 3);
+        $this->MultiCell($txt_w, 0, mb_strtoupper($sitio), 0, 'L', false, 1);
+
+        $this->SetTextColor(self::COLOR_DORADO[0], self::COLOR_DORADO[1], self::COLOR_DORADO[2]);
+        $this->SetFont('helvetica', 'B', 8);
+        $this->SetXY($txt_x, $cy + $h_header - 9);
+        $this->Cell($txt_w, 6, mb_strtoupper($lugar), 0, 0, 'L', false);
+
+        // ---------------------------------------------------------------
+        // CUERPO: nombre, DNI, divisor, QR, badge, delegación, tipo
+        // ---------------------------------------------------------------
+        $body_y = $cy + $h_header + $h_dorado + 3;
+
+        // Nombre completo (centrado, negrita, mayúsculas)
+        $this->SetTextColor(0, 0, 0);
+        $this->SetFont('helvetica', 'B', 12);
+        $this->SetXY($cx + 2, $body_y);
+        $this->MultiCell($cw - 4, 5.2, mb_strtoupper(trim($p['nombre_completo'])), 0, 'C', false, 1);
+        $body_y = $this->GetY() + 1.5;
+
+        // DNI
+        $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
+        $this->SetFont('helvetica', 'B', 8);
+        $this->SetXY($cx + 2, $body_y);
+        $this->Cell($cw - 4, 4, 'DNI: ' . $p['dni'], 0, 0, 'C', false);
+        $body_y += 5;
+
+        // Línea divisoria (hr)
+        $this->SetLineWidth(0.2);
+        $this->SetDrawColor(206, 212, 218);
+        $this->Line($cx + 8, $body_y, $cx + $cw - 8, $body_y);
+        $body_y += 3;
+
+        // Código QR de control de mesa (igual que imprimir_credencial.php)
+        $qr_size = 28;
+        if (!empty($p['token_qr'])) {
+            $url_acreditacion = base_url('Inscripciones/acreditacion/' . $p['token_qr']);
+            $this->SetQRCodeErrorCorrectionLevel('M');
+            $this->writeQRCode($url_acreditacion, $cx + ($cw - $qr_size) / 2, $body_y, $qr_size, $qr_size, 1, [0, 0, 0], false);
+        } else {
+            // Placeholder si el participante aún no tiene token generado
+            $this->SetDrawColor(self::COLOR_AZUL_OSCURO[0], self::COLOR_AZUL_OSCURO[1], self::COLOR_AZUL_OSCURO[2]);
+            $this->SetLineWidth(0.6);
+            $this->Rect($cx + ($cw - $qr_size) / 2, $body_y, $qr_size, $qr_size, 'S');
+            $this->SetFont('helvetica', '', 6);
+            $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
+            $this->SetXY($cx + ($cw - $qr_size) / 2, $body_y + $qr_size / 2 - 2);
+            $this->Cell($qr_size, 4, 'SIN QR', 0, 0, 'C', false);
+        }
+        $body_y += $qr_size + 3;
+
+        // Badge "Control General de Mesa" (fondo azul primario, texto blanco)
+        $badge_txt = 'CONTROL GENERAL DE MESA';
+        $this->SetFont('helvetica', 'B', 6.5);
+        $badge_w = $this->getStringWidth($badge_txt) + 8;
+        $badge_h = 5;
+        $this->SetFillColor(13, 110, 253); // bootstrap bg-primary
+        $this->SetTextColor(255, 255, 255);
+        $this->RoundedRect($cx + ($cw - $badge_w) / 2, $body_y, $badge_w, $badge_h, 1.5, 1.5, 'DF', 1.5);
+        $this->SetXY($cx + ($cw - $badge_w) / 2, $body_y);
+        $this->Cell($badge_w, $badge_h, $badge_txt, 0, 0, 'C', false);
+        $body_y += $badge_h + 2;
+
+        // Delegación (destacada) y tipo de empleado
+        $this->SetTextColor(0, 0, 0);
+        $this->SetFont('helvetica', 'B', 10);
+        $this->SetXY($cx + 2, $body_y);
+        $this->MultiCell($cw - 4, 4.5, mb_strtoupper(trim($p['delegacion'])), 0, 'C', false, 1);
+        $body_y = $this->GetY() + 0.5;
+
+        if (!empty($p['tipo_empleado'])) {
+            $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
+            $this->SetFont('helvetica', 'B', 7.5);
+            $this->SetXY($cx + 2, $body_y);
+            $this->Cell($cw - 4, 4, $p['tipo_empleado'], 0, 0, 'C', false);
+        }
+
+        // ---------------------------------------------------------------
+        // PIE: franja gris con la leyenda de uso personal (mt-auto)
+        // ---------------------------------------------------------------
+        $frase = 'Uso Personal: Esta credencial es intransferible y debe ser presentada cada vez que sea requerida.';
+        $this->SetFont('helvetica', '', 5.8);
+        $frase_lines = $this->getNumLines($frase, $cw - 8);
+        $h_pie = max(11, $frase_lines * 2.8 + 5);
+        $pie_y = $cy + $ch - $h_pie;
+
+        $this->SetFillColor(248, 249, 250); // #f8f9fa
+        $this->Rect($cx, $pie_y, $cw, $h_pie, 'F');
+        $this->SetLineWidth(0.2);
+        $this->SetDrawColor(222, 226, 230);
+        $this->Line($cx, $pie_y, $cx + $cw, $pie_y);
+
+        $this->SetTextColor(self::COLOR_GRIS_FRASE[0], self::COLOR_GRIS_FRASE[1], self::COLOR_GRIS_FRASE[2]);
+        $this->SetXY($cx + 4, $pie_y + 2);
+        $this->MultiCell($cw - 8, 2.8, $frase, 0, 'C', false, 1, false, true, '', '', true);
     }
 
     public function Body() {
         $page_w = $this->getPageWidth();       // mm
         $page_h = $this->getPageHeight();      // mm
 
-        $ancho  = self::ANCHO_ACREDITACION;
-        $alto   = self::ALTO_ACREDITACION;
+        $ancho = self::ANCHO_ACREDITACION;
+        $alto  = self::ALTO_ACREDITACION;
 
-        $cols   = max(1, floor(($page_w - 10) / $ancho));   // cuántos entran por fila
-        $rows   = max(1, floor(($page_h - 10) / $alto));    // cuántas filas por página
+        $cols = max(1, floor(($page_w - 10) / $ancho));   // cuántos entran por fila
+        $rows = max(1, floor(($page_h - 10) / $alto));    // cuántas filas por página
 
         // Centrado horizontal del bloque de acreditaciones
         $offset_x = ($page_w - ($cols * $ancho)) / 2;
@@ -51,7 +204,7 @@ class MYPDF extends TCPDF {
 
         $total = count($this->participantes);
         for ($i = 0; $i < $total; $i++) {
-            $pos_fila   = $i % $cols;
+            $pos_fila    = $i % $cols;
             $pos_columna = intdiv($i, $cols) % $rows;
 
             // Nueva página cuando se llena la grilla
@@ -62,12 +215,8 @@ class MYPDF extends TCPDF {
             $x = $offset_x + $pos_fila * $ancho;
             $y = $offset_y + $pos_columna * $alto;
 
-            $this->dibujar_acreditacion($x, $y, $this->participantes[$i]['nombre_completo']);
+            $this->dibujar_acreditacion($x, $y, $this->participantes[$i]);
         }
-    }
-
-    public function Footer() {
-        // Sin pie de página para no interferir con la impresión/recorte
     }
 }
 
@@ -98,10 +247,10 @@ if (@file_exists(dirname(__FILE__) . '/lang/es.php')) {
 }
 
 $pdf->setFontSubsetting(true);
-$pdf->SetFont('dejavusans', '', 14, '', true);
+$pdf->SetFont('helvetica', '', 10, '', true);
 
 // Datos
-$pdf->participantes   = isset($participantes) ? $participantes : [];
+$pdf->participantes    = isset($participantes) ? $participantes : [];
 $pdf->nombre_provincia = isset($nombre_provincia) ? $nombre_provincia : '';
 
 // Página inicial (A4 horizontal para aprovechar el espacio: 3 x 2 acreditaciones por hoja)
