@@ -589,7 +589,8 @@ class Participante_model extends CI_Model {
 
     // Trae el listado completo ordenado por el último inscripto
     public function obtener_todos_los_participantes() {
-        $this->db->order_by('fecha_inscripcion', 'DESC');
+        $this->db->order_by('delegacion', 'ASC');
+        $this->db->order_by('nombre_completo', 'ASC');
         return $this->db->get('participantes')->result_array();
     }
 
