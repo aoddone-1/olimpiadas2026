@@ -10,8 +10,17 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *
  *   - _requerir_organizador() : staff/organizador logueado (redirige a login).
  *   - _requerir_superadmin()  : organizador con rol superadmin.
+ *   - _requerir_roles()       : organizador con uno de los roles permitidos.
  *   - _auth_admin_json()      : gate de autorización para endpoints AJAX
  *                               (responde JSON {ok:false} en lugar de redirigir).
+ *
+ * Roles de `usuarios.rol` y qué pueden hacer:
+ *   superadmin        : acceso total (Control Total, Premiación, usuarios).
+ *   admin             : gestión deportiva completa + fixture/resultados/premiación.
+ *   staff             : acreditación e inscripciones (no toca fixture/premiación).
+ *   carga_resultados  : carga/edita resultados y genera fixture; sin premiación.
+ *   solo_lectura      : consulta paneles y descarga reportes, NO modifica nada.
+ *   delegado          : panel propio de su delegación (sesión is_delegado).
  *
  * Todas las acciones heredadas están disponibles bajo la URL original
  * `Inscripciones/...` gracias a los re-mapeos definidos en config/routes.php,
@@ -21,6 +30,18 @@ class OLIM_Controller extends CI_Controller {
 
     /** Ruta interna a la que se redirige cuando el acceso es denegado. */
     protected $login_url = 'Auth/login';
+
+    /** Roles que pueden gestionar el fixture (ver, generar, editar, borrar). */
+    protected $roles_fixture = array('superadmin', 'admin', 'carga_resultados');
+
+    /** Roles que pueden cargar/editar/borrar resultados. */
+    protected $roles_resultados = array('superadmin', 'admin', 'carga_resultados');
+
+    /** Roles que pueden gestionar la premiación. */
+    protected $roles_premiacion = array('superadmin', 'admin');
+
+    /** Roles que pueden modificar inscripciones/acreditaciones. */
+    protected $roles_edicion_inscripcion = array('superadmin', 'admin', 'staff');
 
     public function __construct() {
         parent::__construct();
@@ -52,6 +73,66 @@ class OLIM_Controller extends CI_Controller {
         if ($this->session->userdata('user_rol') !== 'superadmin') {
             redirect($this->login_url);
         }
+    }
+
+    /** Rol del usuario logueado (o NULL si no hay sesión de organizador). */
+    protected function _rol_actual() {
+        return $this->session->userdata('user_rol');
+    }
+
+    /** ¿El rol actual está en la lista permitida? */
+    protected function _es_rol(array $roles_permitidos) {
+        return in_array($this->_rol_actual(), $roles_permitidos, TRUE);
+    }
+
+    /** ¿El usuario actual solo puede leer (rol 'solo_lectura')? */
+    protected function _es_solo_lectura() {
+        return $this->_rol_actual() === 'solo_lectura';
+    }
+
+    /**
+     * Exige sesión de organizador con uno de los roles permitidos;
+     * si no, redirige al login.
+     */
+    protected function _requerir_roles(array $roles_permitidos) {
+        $this->_requerir_organizador();
+        if (!$this->_es_rol($roles_permitidos)) {
+            redirect($this->login_url);
+        }
+    }
+
+    /**
+     * Gate JSON: exige uno de los roles permitidos. Devuelve TRUE si autoriza;
+     * en caso contrario emite {ok:false, error:'No autorizado'} y devuelve FALSE.
+     */
+    protected function _auth_roles_json(array $roles_permitidos) {
+        if (!$this->_es_organizador() || !$this->_es_rol($roles_permitidos)) {
+            $this->_json_error_gate();
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Gate JSON para escrituras (POST): además de exigir uno de los roles
+     * permitidos, bloquea al rol 'solo_lectura', que únicamente consulta.
+     */
+    protected function _auth_escritura_json(array $roles_permitidos) {
+        if (!$this->_auth_roles_json($roles_permitidos)) {
+            return false;
+        }
+        if ($this->_es_solo_lectura()) {
+            $this->_json_error_gate();
+            return false;
+        }
+        return true;
+    }
+
+    /** Respuesta JSON estándar de "No autorizado" para endpoints AJAX. */
+    private function _json_error_gate() {
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
     }
 
     /**
