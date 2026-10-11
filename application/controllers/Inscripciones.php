@@ -269,11 +269,26 @@ class Inscripciones extends CI_Controller {
         $this->load->view('deslinde_resp_view',$data);
     }
     public function descargar_acreditaciones($delegacion = NULL) {
+        // Aceptamos la delegación también por query string (?delegacion=...)
+        // porque los caracteres acentuados (ej. "Córdoba") no están permitidos
+        // como segmento de URI en CodeIgniter (permitted_uri_chars).
         if (!$delegacion) {
+            $delegacion = $this->input->get('delegacion');
+        }
+
+        if (!$delegacion || !is_string($delegacion)) {
             show_404();
             return;
         }
+
+        // Validar que la delegación exista realmente antes de generar el PDF
         $this->load->model('Participante_model');
+        $delegaciones_validas = $this->Participante_model->obtener_todas_las_delegaciones();
+        if (!in_array($delegacion, $delegaciones_validas)) {
+            show_404();
+            return;
+        }
+
         // Obtenemos los participantes de la delegación/provincia (ordenados por nombre)
         $participantes = $this->Participante_model->obtener_participantes_por_delegacion_completo($delegacion);
 

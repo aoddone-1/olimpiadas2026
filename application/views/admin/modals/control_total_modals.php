@@ -137,8 +137,12 @@ document.addEventListener('DOMContentLoaded', function () {
     btnDescargar.addEventListener('click', function () {
         const delegacion = selDeleg.value;
         if (!delegacion) return;
-        // Abrir el PDF en una pestaña nueva (descargar_acreditaciones genera el PDF inline)
-        window.open('<?= base_url('Inscripciones/descargar_acreditaciones') ?>/' + encodeURIComponent(delegacion), '_blank');
+        // Se envía por query string (?delegacion=...) porque CodeIgniter filtra
+        // los caracteres permitidos en la URI de segmentos (permitted_uri_chars)
+        // y las vocales acentuadas (ej. "Córdoba") disparan el error
+        // "The URI you submitted has disallowed characters".
+        const url = '<?= base_url('Inscripciones/descargar_acreditaciones') ?>?delegacion=' + encodeURIComponent(delegacion);
+        window.open(url, '_blank');
     });
 });
 </script>
