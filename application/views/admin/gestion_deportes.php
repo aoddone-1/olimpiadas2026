@@ -268,6 +268,11 @@
                             <option value="FEMENINO">FEMENINO</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Fiscales</label>
+                        <textarea name="fiscales" id="edit_fiscales_deporte" class="form-control" rows="2" placeholder="Ej: Juan Pérez, María Gómez"></textarea>
+                        <div class="form-text small">Texto libre con los fiscales asignados a este deporte. Se muestra en el fixture, la acreditación y los reportes.</div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light border-0 rounded-bottom-4">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -480,6 +485,10 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_id_deporte').value = boton.getAttribute('data-id');
             document.getElementById('edit_nombre_deporte').value = boton.getAttribute('data-nombre');
             document.getElementById('edit_genero_deporte').value = boton.getAttribute('data-genero');
+            var campoFiscales = document.getElementById('edit_fiscales_deporte');
+            if (campoFiscales) {
+                campoFiscales.value = boton.getAttribute('data-fiscales') || '';
+            }
         });
     }
 
