@@ -15,8 +15,13 @@ class Fixture_model extends CI_Model {
      *  CONSULTAS BÁSICAS
      * ============================================================ */
 
-    /** Categorías con su deporte y lugar (para el selector del panel). */
-    public function obtener_categorias_para_fixture() {
+    /**
+     * Categorías con su deporte y lugar (para el selector del panel).
+     * $id_deporte (>0) filtra a las categorías de un solo deporte: se usa
+     * para el desdoblamiento Deporte -> Categoría del modal de partido y
+     * para el endpoint AJAX ajax_categorias_por_deporte().
+     */
+    public function obtener_categorias_para_fixture($id_deporte = null) {
         $this->db->select('
             c.id_categoria, c.nombre_categoria, c.genero, c.tipo_torneo,
             c.dia_competencia, c.hora_competencia,
@@ -27,6 +32,9 @@ class Fixture_model extends CI_Model {
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
         $this->db->join('lugares l', 'l.id = c.id_lugar', 'left');
+        if (!empty($id_deporte)) {
+            $this->db->where('d.id_deporte', (int) $id_deporte);
+        }
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
         return $this->db->get()->result_array();
     }

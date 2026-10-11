@@ -115,21 +115,17 @@
                     <?php
                     // El modal de partido manual necesita TODAS las categorías
                     // (no solo las sin fixture, como el selector de generar).
-                    // Se usa la variable que ya envía el controlador para no
-                    // repetir la consulta. Además se construye un mapa
-                    // deporte -> categorías para poder DESDOBLAR la búsqueda:
-                    // primero se elige el deporte y luego la categoría filtra.
-                    $catsPorDeporte = array();
-                    foreach ($categorias_fixture as $cat):
-                        $idDep = $cat['id_deporte'];
-                        if (!isset($catsPorDeporte[$idDep])) {
-                            $catsPorDeporte[$idDep] = array(
-                                'nombre' => $cat['nombre_deporte'],
-                                'modalidad' => $cat['modalidad_competencia'],
-                                'cats' => array(),
-                            );
+                    // Se desdobla la búsqueda: primero se elige el DEPORTE y las
+                    // CATEGORÍAS de ese deporte se cargan por AJAX al seleccionar
+                    // (endpoint Inscripciones/ajax_categorias_por_deporte/$id).
+                    $catsModalOrigen = !empty($categorias_modal_partido) ? $categorias_modal_partido
+                        : (isset($categorias_fixture) && is_array($categorias_fixture) ? $categorias_fixture : array());
+                    $deportesDelModal = array();
+                    foreach ($catsModalOrigen as $cat):
+                        $idDep = (int) $cat['id_deporte'];
+                        if (!isset($deportesDelModal[$idDep])) {
+                            $deportesDelModal[$idDep] = $cat['nombre_deporte'];
                         }
-                        $catsPorDeporte[$idDep]['cats'][] = $cat;
                     endforeach;
                     ?>
                     <div class="row g-2 mb-2">
@@ -137,8 +133,8 @@
                             <label class="form-label small fw-bold">Deporte *</label>
                             <select id="fx_modal_deporte" class="form-select" required>
                                 <option value="">— Elegí un deporte —</option>
-                                <?php foreach ($catsPorDeporte as $idDep => $dep): ?>
-                                    <option value="<?= $idDep ?>"><?= htmlspecialchars($dep['nombre']) ?></option>
+                                <?php foreach ($deportesDelModal as $idDep => $nomDep): ?>
+                                    <option value="<?= $idDep ?>"><?= htmlspecialchars($nomDep) ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
@@ -149,13 +145,6 @@
                             </select>
                         </div>
                     </div>
-                    <?php // Datos deporte->categorías para poblar el select dinámicamente con JS ?>
-                    <script type="application/json" id="fx_cats_por_deporte">
-{<?php $primero = true; foreach ($catsPorDeporte as $idDep => $dep): ?><?php if (!$primero) echo ','; $primero = false; ?>
-"<?= (int) $idDep ?>": {"modalidad": <?= json_encode($dep['modalidad']) ?>, "cats": [
-<?php foreach ($dep['cats'] as $i => $c): ?>{"id": <?= (int) $c['id_categoria'] ?>, "nombre": <?= json_encode($c['nombre_categoria']) ?>, "genero": <?= json_encode($c['genero']) ?>}<?= $i ? ',' : '' ?><?php endforeach; ?>
-]}<?php endforeach; ?>}
-                    </script>
                     <input type="hidden" name="id_categoria" id="fx_cat_hidden">
 
                     <div class="mb-2">
@@ -834,13 +823,30 @@
     }
 
     // ---------- Desdoblar Deporte -> Categoría dentro del modal ----------
-    // Mapa deporte_id -> { modalidad, cats: [...] } generado en el servidor.
-    const CATS_POR_DEPORTE = (() => {
-        try { return JSON.parse(document.getElementById('fx_cats_por_deporte').textContent); }
-        catch (e) { return {}; }
-    })();
+    // Las categorías de cada deporte se cargan por AJAX al seleccionar el
+    // deporte (endpoint Inscripciones/ajax_categorias_por_deporte/$id). Se
+    // cachean por deporte para no repetir la consulta al abrir el modal.
+    const CATS_CACHE = {};       // id_deporte -> array de categorías
+    const CATS_PETICION = {};    // id_deporte -> Promise en vuelo / resuelta
     const selDeporteModal = document.getElementById('fx_modal_deporte');
     const selCatModal = document.getElementById('fx_modal_categoria');
+    // Guard: si el HTML del modal no está en la página, no continuar este bloque.
+    if (!selDeporteModal || !selCatModal) { return; }
+
+    function cargarCategoriasDelDeporte(idDeporte) {
+        if (!idDeporte) return Promise.resolve([]);
+        const key = String(idDeporte);
+        if (CATS_PETICION[key]) return CATS_PETICION[key];
+        CATS_PETICION[key] = fetch(BASE + '/ajax_categorias_por_deporte/' + key)
+            .then(r => r.json())
+            .then(res => {
+                const cats = (res && res.ok) ? (res.categorias || []) : [];
+                CATS_CACHE[key] = cats;
+                return cats;
+            })
+            .catch(() => { CATS_CACHE[key] = []; return []; });
+        return CATS_PETICION[key];
+    }
 
     // El navegador valida "required" en ambos selects al enviar el form por
     // Enter; cuando se resetea o se abre el modal de NUEVO partido hay que
@@ -852,26 +858,38 @@
 
     function poblarCategoriasDelModal(idDeporte, seleccionarId) {
         selCatModal.innerHTML = '';
-        const dep = CATS_POR_DEPORTE[idDeporte];
-        if (!dep) {
+        if (!idDeporte) {
             selCatModal.disabled = true;
             setRequiredCategoria(false);
             selCatModal.innerHTML = '<option value="">— Primero elegí un deporte —</option>';
             return;
         }
-        selCatModal.disabled = false;
-        setRequiredCategoria(true);
-        selCatModal.insertAdjacentHTML('beforeend', '<option value="">— Elegí una categoría —</option>');
-        dep.cats.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.dataset.modalidad = dep.modalidad || '';
-            opt.textContent = `${c.nombre} (${c.genero})`;
-            selCatModal.appendChild(opt);
+        // Mientras llega la respuesta, el select muestra "Cargando…" y queda
+        // deshabilitado; al volver el AJAX se habilita recién ahí.
+        selCatModal.disabled = true;
+        setRequiredCategoria(false);
+        selCatModal.innerHTML = '<option value="">Cargando categorías…</option>';
+        cargarCategoriasDelDeporte(idDeporte).then(cats => {
+            // Si el usuario cambió de deporte mientras venía la respuesta, descartar.
+            if (String(selDeporteModal.value) !== String(idDeporte)) return;
+            selCatModal.innerHTML = '<option value="">— Elegí una categoría —</option>';
+            cats.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id_categoria;
+                opt.dataset.modalidad = c.modalidad_competencia || '';
+                opt.textContent = `${c.nombre_categoria} (${c.genero})`;
+                selCatModal.appendChild(opt);
+            });
+            if (cats.length) {
+                selCatModal.disabled = false;
+                setRequiredCategoria(true);
+                if (seleccionarId !== undefined && seleccionarId !== null && seleccionarId !== '') {
+                    selCatModal.value = seleccionarId;
+                }
+            } else {
+                selCatModal.innerHTML = '<option value="">— Este deporte no tiene categorías —</option>';
+            }
         });
-        if (seleccionarId !== undefined && seleccionarId !== null && seleccionarId !== '') {
-            selCatModal.value = seleccionarId;
-        }
     }
 
     // Al elegir el deporte, se filtran las categorías de ese deporte.
@@ -908,9 +926,11 @@
             // Edición: deporte/categoría fijos al partido original
             document.getElementById('fx_id_fixture').value = f.id_fixture;
             selDeporteModal.value = f.id_deporte || '';
-            poblarCategoriasDelModal(f.id_deporte, f.id_categoria);
-            selCat.value = f.id_categoria;
+            // Las categorías llegan por AJAX; fx_cat_hidden se setea igual acá
+            // para que el guardado funcione aunque todavía no haya vuelto la
+            // respuesta (la categoría del partido original nunca cambia).
             document.getElementById('fx_cat_hidden').value = f.id_categoria;
+            poblarCategoriasDelModal(f.id_deporte, f.id_categoria);
             document.getElementById('fx_nombre_prueba').value = f.nombre_prueba || '';
             document.getElementById('fx_fase').value = f.fase;
             document.getElementById('fx_numero_fecha').value = f.numero_fecha;
