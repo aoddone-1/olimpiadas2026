@@ -268,6 +268,19 @@ class Inscripciones extends CI_Controller {
         
         $this->load->view('deslinde_resp_view',$data);
     }
+    public function descargar_acreditaciones($delegacion = NULL) {
+        // VERSIÓN DE PRUEBA: Solo muestra un PDF simple con texto de prueba
+        $this->load->model('Participante_model');
+         //$participantes =obtener las acreditaciones que la provincia
+      /*  if (!$participantes) {
+            show_404();
+            return;
+        }*/
+        $data['nombre_provincia']= $delegacion;
+      //  $data['participantes']= $participantes;
+        
+        $this->load->view('admin/acreditaciones_view',$data);
+    }
 
 
 
