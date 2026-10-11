@@ -375,6 +375,36 @@
         return p[2] + '/' + p[1] + '/' + p[0];
     }
 
+    /* ---------- Estado "en vivo" según fecha/hora del partido ----------
+       Compara la fecha_competencia + hora_inicio/hora_fin contra el reloj actual.
+       Reglas (solo aplica sobre partidos PROGRAMADOS o EN_CURSO; respeta
+       SUSPENDIDO y FINALIZADO con resultado cargado, que son estados "reales"):
+         - ahora > hora_fin  (o hora_inicio si no hay fin)  -> FINALIZADO
+         - ahora >= hora_inicio y <= hora_fin               -> EN_CURSO
+       Devuelve además un badge extra ("auto") para aclarar que el estado es
+       calculado por horario y no lo modificó un usuario en la base de datos. */
+    function estadoEnVivo(f) {
+        const estadoDb = (f.estado || '').toUpperCase();
+        if (estadoDb === 'SUSPENDIDO') return { estado: estadoDb, auto: false };
+        if (estadoDb === 'FINALIZADO') return { estado: estadoDb, auto: false };
+
+        const fecha = (f.fecha_competencia || '').slice(0, 10);
+        if (!fecha) return { estado: estadoDb, auto: false };
+
+        const iniStr = (f.hora_inicio || '').slice(0, 5);
+        const finStr = (f.hora_fin || '').slice(0, 5);
+
+        const inicio = new Date(fecha + 'T' + (iniStr || '00:00') + ':00');
+        const fin = new Date(fecha + 'T' + (finStr || iniStr || '23:59') + ':00');
+        if (isNaN(inicio.getTime())) return { estado: estadoDb, auto: false };
+        if (isNaN(fin.getTime()) || fin < inicio) fin.setTime(inicio.getTime() + 2 * 60 * 60 * 1000); // default 2hs
+
+        const ahora = new Date();
+        if (ahora >= fin) return { estado: 'FINALIZADO', auto: true };
+        if (ahora >= inicio) return { estado: 'EN_CURSO', auto: true };
+        return { estado: estadoDb, auto: false };
+    }
+
     /* ---------- Render por DÍA: muestra solo lo que se juega en la fecha elegida,
                     agrupado por Deporte → Categoría → Jornada ---------- */
     function render() {
@@ -471,7 +501,8 @@
                     jornadas[num].forEach(f => {
                     const esMasivo = f.fase === 'JORNADA_UNICA'
                                   || f.modalidad_competencia === 'MASIVO_TIEMPO';
-                    const badge = BADGES[f.estado] || 'bg-secondary';
+                    const ev = estadoEnVivo(f);
+                    const badge = BADGES[ev.estado] || 'bg-secondary';
 
                     // ---- Podio de deportes masivos (orden de llegada guardado en f.resultado) ----
                     let ordenGuardado = [];
@@ -506,7 +537,8 @@
                             </button>`}
                         </div>
                         <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
+                            <span class="badge ${badge}" ${ev.auto ? 'title="Estado calculado automáticamente según la fecha y hora del partido"' : ''}>${esc(ev.estado.replace('_',' '))}</span>
+                            ${ev.auto ? '<i class="bi bi-clock-history text-muted small" title="Estado en vivo (por horario), no guardado en la base"></i>' : ''}
                             
                             ${(!esMasivo && f.id_ute_1 && f.id_ute_2) ? `
                                 <span class="badge bg-light text-dark border" title="Equipos que se enfrentan">
@@ -650,13 +682,15 @@
                 return;
             }
             const fx = res.fixture;
+            const evFx = estadoEnVivo(fx);
             document.getElementById('fxx_titulo').innerHTML =
                 `<i class="bi bi-trophy-fill me-1"></i>${esc(fx.nombre_deporte)} — ${esc(fx.nombre_categoria)}`;
             document.getElementById('fxx_sub').innerHTML =
                 `<span class="badge bg-info text-dark me-1">${esc((fx.fase || '').replace('_', ' '))}</span>` +
                 `<i class="bi bi-calendar3 me-1"></i>${fechaArma(fx.fecha_competencia)} ${esc((fx.hora_inicio || '').slice(0, 5))}` +
                 ` &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(fx.lugar_nombre || 'Sin lugar')}` +
-                ` &nbsp;<span class="badge ${BADGES[fx.estado] || 'bg-secondary'}">${esc((fx.estado || '').replace('_', ' '))}</span>`;
+                ` &nbsp;<span class="badge ${BADGES[evFx.estado] || 'bg-secondary'}" ${evFx.auto ? 'title="Estado calculado automáticamente según la fecha y hora"' : ''}>${esc((evFx.estado || '').replace('_', ' '))}</span>` +
+                (evFx.auto ? ' <i class="bi bi-clock-history text-muted small" title="Estado en vivo (por horario), no guardado en la base"></i>' : '');
 
             let html = '';
             if (res.es_masivo) {
