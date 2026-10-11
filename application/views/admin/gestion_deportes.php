@@ -45,11 +45,16 @@
                                                     <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size:0.65rem;">
                                                         <i class="bi bi-gender-male me-1"></i><?= intval($d['total_hombres'] ?? 0) ?> Hombres
                                                     </span>
+                                                    <?php if(!empty($d['fiscales'])): ?>
+                                                        <span class="badge bg-info-subtle text-info border border-info-subtle text-truncate" style="font-size:0.65rem; max-width: 320px;" title="<?= htmlspecialchars($d['fiscales'], ENT_QUOTES, 'UTF-8') ?>">
+                                                            <i class="bi bi-person-badge me-1"></i>Fiscales: <?= htmlspecialchars($d['fiscales'], ENT_QUOTES, 'UTF-8') ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </div>
                                             </div>
                                             
                                             <div class="d-flex gap-2">
-                                                <button type="button" class="text-muted btn-accion-panel btn-editar" data-bs-toggle="modal" data-bs-target="#modalEditarDeporte" data-id="<?= $d['id_deporte'] ?>" data-nombre="<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>" data-genero="<?= $d['genero'] ?>" title="Editar Deporte">
+                                                <button type="button" class="text-muted btn-accion-panel btn-editar" data-bs-toggle="modal" data-bs-target="#modalEditarDeporte" data-id="<?= $d['id_deporte'] ?>" data-nombre="<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>" data-genero="<?= $d['genero'] ?>" data-fiscales="<?= htmlspecialchars($d['fiscales'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="Editar Deporte">
                                                     <i class="bi bi-pencil-square fs-6"></i>
                                                 </button>
                                                 <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) ?>" class="text-muted btn-accion-panel btn-eliminar" onclick="return confirm('¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán sus categorías asociadas.');" title="Eliminar Deporte">

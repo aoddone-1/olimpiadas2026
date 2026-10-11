@@ -592,6 +592,7 @@ class Inscripciones extends CI_Controller {
 
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
+        $data['fiscales'] = $this->input->post('fiscales', TRUE);
         $this->Deporte_model->guardar_deporte($data);
         redirect('Inscripciones/gestion_deportes');
     }
@@ -614,7 +615,9 @@ class Inscripciones extends CI_Controller {
         $id_deporte = $this->input->post('id_deporte');
         $data = [
             'nombre_deporte' => $this->input->post('nombre_deporte'),
-            'genero'         => $this->input->post('genero')
+            'genero'         => $this->input->post('genero'),
+            // Fiscales: texto libre (se permite vaciar el campo).
+            'fiscales'       => trim((string) $this->input->post('fiscales', TRUE)) ?: NULL
         ];
         
         // Acá llamas a tu modelo para hacer el update correspondinte, por ej:

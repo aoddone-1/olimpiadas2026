@@ -25,6 +25,7 @@ CREATE TABLE `deportes` (
   `modalidad` enum('INDIVIDUAL','EQUIPO','AMBAS') NOT NULL DEFAULT 'INDIVIDUAL',
   `tipo_duracion` enum('UNICO_DIA','MULTIDIA') NOT NULL DEFAULT 'MULTIDIA' COMMENT 'Indica si requiere 1 sola jornada concentrada o varios días de torneo',
   `modalidad_competencia` enum('ENFRENTAMIENTO','MASIVO_TIEMPO') NOT NULL DEFAULT 'ENFRENTAMIENTO' COMMENT 'ENFRENTAMIENTO = Partidos 1vs1 / Equipo vs Equipo. MASIVO_TIEMPO = Todos compiten juntos en una jornada/largada (Running, Ciclismo, Pesca)',
+  `fiscales` text COMMENT 'Texto libre con los fiscales asignados a la disciplina (se muestra en gestión, fixture, acreditación y credenciales)',
   PRIMARY KEY (`id_deporte`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=latin1;
 

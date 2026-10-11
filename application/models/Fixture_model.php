@@ -21,6 +21,7 @@ class Fixture_model extends CI_Model {
             c.id_categoria, c.nombre_categoria, c.genero, c.tipo_torneo,
             c.dia_competencia, c.hora_competencia,
             d.id_deporte, d.nombre_deporte, d.modalidad_competencia, d.tipo_duracion,
+            d.fiscales,
             l.nombre as nombre_lugar
         ', FALSE);
         $this->db->from('categorias c');
@@ -73,7 +74,8 @@ class Fixture_model extends CI_Model {
             c.genero as genero_categoria,
             d.nombre_deporte,
             d.modalidad_competencia,
-            d.tipo_duracion
+            d.tipo_duracion,
+            d.fiscales
         ', FALSE);
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
@@ -114,7 +116,8 @@ class Fixture_model extends CI_Model {
             c.genero as genero_categoria,
             d.nombre_deporte,
             d.modalidad_competencia,
-            d.tipo_duracion
+            d.tipo_duracion,
+            d.fiscales
         ', FALSE);
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
@@ -431,7 +434,8 @@ class Fixture_model extends CI_Model {
             c.genero as genero_categoria,
             d.nombre_deporte,
             d.modalidad_competencia,
-            d.tipo_duracion
+            d.tipo_duracion,
+            d.fiscales
         ', FALSE);
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
@@ -589,7 +593,8 @@ class Fixture_model extends CI_Model {
             c.genero as genero_categoria,
             d.nombre_deporte,
             d.modalidad_competencia,
-            d.tipo_duracion
+            d.tipo_duracion,
+            d.fiscales
         ', FALSE);
         $this->db->from('fixtures f');
         // Nombres crudos de las UTEs enfrentadas (alias ute_X_nombre_crudo):

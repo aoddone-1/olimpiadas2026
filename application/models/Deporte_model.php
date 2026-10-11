@@ -66,7 +66,9 @@ class Deporte_model extends CI_Model {
         }
         $datos = array(
             'nombre_deporte'  => trim($post_data['nombre_deporte']),
-            'genero'  => trim($post_data['genero'])
+            'genero'  => trim($post_data['genero']),
+            // Fiscales: texto libre con los fiscales de la disciplina.
+            'fiscales' => !empty($post_data['fiscales']) ? trim($post_data['fiscales']) : NULL
         );
 
         return $this->db->insert('deportes', $datos);
