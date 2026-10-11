@@ -15,22 +15,110 @@
 
 <div class="container mb-5">
 
-    <div class="row g-3 mb-4">
-        <div class="col-4 col-md-4">
-            <div class="card card-indicador shadow-sm">
+    <?php
+        // ---- RESUMEN GENERAL DEL DASHBOARD (se calcula desde la lista ya cargada) ----
+        $total_participantes = isset($total_inscriptos) ? (int) $total_inscriptos : count($participantes);
+        $kits_entregados = isset($total_kits) ? (int) $total_kits : 0;
+
+        $delegaciones = array();
+        $hoteles = array();
+        $sin_hotel = 0;
+        foreach ($participantes as $p) {
+            $del = trim($p['delegacion'] ?? '');
+            if ($del !== '') $delegaciones[$del] = ($delegaciones[$del] ?? 0) + 1;
+
+            $hot = trim($p['hotel_alojamiento'] ?? '');
+            if ($hot === '') { $sin_hotel++; } else { $hoteles[$hot] = ($hoteles[$hot] ?? 0) + 1; }
+        }
+        arsort($delegaciones);
+        arsort($hoteles);
+        $porc_kits = $total_participantes > 0 ? round(($kits_entregados / $total_participantes) * 100) : 0;
+    ?>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm h-100">
                 <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Inscriptos</h6>
-                    <h3 class="fw-bold text-dark m-0"><?= $total_inscriptos ?></h3>
+                    <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-people me-1"></i>Inscriptos</h6>
+                    <h3 class="fw-bold text-dark m-0"><?= $total_participantes ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-4 col-md-4">
-            <div class="card card-indicador shadow-sm" style="border-left-color: #03551f;">
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm h-100" style="border-left-color: #6f42c1;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-geo-alt me-1"></i>Delegaciones</h6>
+                    <h3 class="fw-bold text-dark m-0"><?= count($delegaciones) ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm h-100" style="border-left-color: #fd7e14;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-box-seam me-1"></i>Kits entregados</h6>
+                    <h3 class="fw-bold text-dark m-0"><?= $kits_entregados ?><small class="fs-6 text-muted"> / <?= $total_participantes ?></small></h3>
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar bg-warning" role="progressbar" style="width: <?= $porc_kits ?>%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm h-100" style="border-left-color: #03551f;">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Exportar Datos</h6>
                     <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" class="btn btn-success btn-sm w-100 mt-1">
                         <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
                     </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-diagram-3 me-1"></i>Competidores por delegación</h6>
+                    <?php if (!empty($delegaciones)): ?>
+                        <?php $i = 0; foreach ($delegaciones as $del => $cant): ?>
+                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                                <span class="text-primary fw-semibold small"><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="badge bg-light text-dark border"><?= $cant ?></span>
+                            </div>
+                            <?php if (++$i >= 8) break; ?>
+                        <?php endforeach; ?>
+                        <?php if (count($delegaciones) > 8): ?>
+                            <small class="text-muted d-block mt-1">...y <?= count($delegaciones) - 8 ?> delegaciones más.</small>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <small class="text-muted">Sin datos de delegaciones.</small>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-building me-1"></i>Alojamiento</h6>
+                    <?php if (!empty($hoteles)): ?>
+                        <?php $i = 0; foreach ($hoteles as $hot => $cant): ?>
+                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                                <span class="small"><?= htmlspecialchars($hot, ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="badge bg-light text-dark border"><?= $cant ?></span>
+                            </div>
+                            <?php if (++$i >= 6) break; ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <small class="text-muted">Sin hoteles asignados.</small>
+                    <?php endif; ?>
+                    <div class="mt-2 pt-2 border-top">
+                        <?php if ($sin_hotel > 0): ?>
+                            <span class="badge bg-danger-subtle text-danger fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i><?= $sin_hotel ?> sin hotel asignado</span>
+                        <?php else: ?>
+                            <span class="badge bg-success-subtle text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Todos con hotel asignado</span>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
