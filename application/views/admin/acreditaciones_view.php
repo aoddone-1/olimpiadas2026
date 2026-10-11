@@ -174,6 +174,15 @@ class MYPDF extends TCPDF {
         $this->MultiCell($cw - 4, 4.5, $this->upper(trim($p['delegacion'])), 0, 'C', false, 1);
         $body_y = $this->GetY() + 0.5;
 
+        // Si el participante es delegado, se muestra debajo de la delegación
+        if (!empty($p['es_delegado'])) {
+            $this->SetFont('dejavusans', 'B', 7.5);
+            $this->SetTextColor(13, 110, 253); // mismo azul del badge
+            $this->SetXY($cx + 2, $body_y);
+            $this->Cell($cw - 4, 4, $this->upper('DELEGADO DE ' . trim($p['delegacion'])), 0, 0, 'C', false);
+            $body_y += 4.5;
+        }
+
         if (!empty($p['tipo_empleado'])) {
             $this->SetTextColor(self::COLOR_GRIS[0], self::COLOR_GRIS[1], self::COLOR_GRIS[2]);
             $this->SetFont('dejavusans', 'B', 7.5);
