@@ -174,13 +174,42 @@ class MYPDF extends TCPDF {
         $this->MultiCell($cw - 4, 4.5, $this->upper(trim($p['delegacion'])), 0, 'C', false, 1);
         $body_y = $this->GetY() + 0.5;
 
-        // Si el participante es delegado, se muestra debajo de la delegación
+        // Si el participante es delegado: cinta dorada llamativa debajo de la delegación
         if (!empty($p['es_delegado'])) {
-            $this->SetFont('dejavusans', 'B', 7.5);
-            $this->SetTextColor(13, 110, 253); // mismo azul del badge
-            $this->SetXY($cx + 2, $body_y);
-            $this->Cell($cw - 4, 4, $this->upper('DELEGADO DE ' . trim($p['delegacion'])), 0, 0, 'C', false);
-            $body_y += 4.5;
+            $deleg_txt = $this->upper('★ DELEGADO ★');
+            $this->SetFont('dejavusans', 'B', 8.5);
+            $rib_w = max($this->getStringWidth($deleg_txt) + 12, 40);
+            $rib_h = 6.5;
+            $rib_x = $cx + ($cw - $rib_w) / 2;
+            $rib_y = $body_y;
+
+            // Sombra sutil para dar relieve
+            $this->SetFillColor(180, 150, 40);
+            $this->RoundedRect($rib_x + 0.6, $rib_y + 0.6, $rib_w, $rib_h, 1.8, 1.8, 'F', 0);
+
+            // Cinta con degradé dorado (borde rojo exterior, relleno dorado)
+            $this->SetDrawColor(200, 30, 30); // rojo
+            $this->SetLineWidth(0.9);
+            try {
+                // Degradé lineal vertical: dorado claro -> dorado oscuro
+                $this->LinearGradient($rib_x, $rib_y, $rib_w, $rib_h,
+                    array(255, 215, 0), array(212, 160, 15), array(0, 0, 0, 1));
+            } catch (Exception $e) {
+                // Fallback si el degradé falla: color plano
+                $this->SetFillColor(255, 215, 0);
+                $this->RoundedRect($rib_x, $rib_y, $rib_w, $rib_h, 1.8, 1.8, 'DF', 0.9);
+            }
+            // Borde delgado adicional por encima para definir la cinta
+            $this->SetLineWidth(0.4);
+            $this->SetDrawColor(150, 100, 0);
+            $this->RoundedRect($rib_x, $rib_y, $rib_w, $rib_h, 1.8, 1.8, 'S', 0);
+
+            // Texto en negro sobre dorado, centrado
+            $this->SetTextColor(20, 20, 20);
+            $this->SetXY($rib_x, $rib_y);
+            $this->Cell($rib_w, $rib_h, $deleg_txt, 0, 0, 'C', false);
+
+            $body_y += $rib_h + 2;
         }
 
         if (!empty($p['tipo_empleado'])) {
