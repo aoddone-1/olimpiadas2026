@@ -508,11 +508,10 @@
                         <div class="d-flex align-items-center gap-2 flex-wrap">
                             <span class="badge ${badge}">${esc(f.estado.replace('_',' '))}</span>
                             
-                            ${(!esMasivo && f.id_ute_1 && f.id_ute_2 && f.estado !== 'FINALIZADO') ? `
-                                <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_1}" title="Gana: ${esc(f.ute_1_nombre)}">🏆 ${esc(f.ute_1_nombre).slice(0, 14)}</button>
-                                    <button class="btn btn-outline-success fx-ganador" data-id="${f.id_fixture}" data-ute="${f.id_ute_2}" title="Gana: ${esc(f.ute_2_nombre)}">🏆 ${esc(f.ute_2_nombre).slice(0, 14)}</button>
-                                </div>` : ''}
+                            ${(!esMasivo && f.id_ute_1 && f.id_ute_2) ? `
+                                <span class="badge bg-light text-dark border" title="Equipos que se enfrentan">
+                                    <i class="bi bi-person-lines-fill me-1"></i>${esc(f.ute_1_nombre)} vs ${esc(f.ute_2_nombre)}
+                                </span>` : ''}
                             <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
                                 <i class="bi bi-search"></i>
                             </button>
@@ -543,14 +542,6 @@
         });
 
         // Eventos de los botones
-        lista.querySelectorAll('.fx-ganador').forEach(b => b.addEventListener('click', () => {
-            if (!confirm('¿Confirmás el ganador y que clasifica a la siguiente fase?')) return;
-            post('ajax_resultado_partido', { id_fixture: b.dataset.id, id_ganador: b.dataset.ute })
-                .then(res => {
-                    mensaje(res.ok ? res.mensaje : res.error, res.ok ? 'success' : 'danger');
-                    cargarTodo();
-                });
-        }));
         lista.querySelectorAll('.fx-editar').forEach(b => b.addEventListener('click', () => {
             const f = todosFixtures.find(x => x.id_fixture == b.dataset.id);
             abrirModal(f);
