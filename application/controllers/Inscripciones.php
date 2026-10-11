@@ -654,6 +654,10 @@ class Inscripciones extends CI_Controller {
 
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
+        $this->load->model('Participante_model');
+
+        // Delegaciones/provincias para el modal "Imprimir Credenciales"
+        $data['delegaciones'] = $this->Participante_model->obtener_todas_las_delegaciones();
 
         // Datos para la pestaña de Inscripciones
         $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
