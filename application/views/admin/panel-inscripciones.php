@@ -2,22 +2,16 @@
 
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+    <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
 
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-
-            <div class="d-flex align-items-center">
-
-                <i class="bi bi-people-fill text-primary me-2"></i> 
-
-                <span>Padrón de Inscriptos Oficiales</span>
-
-                <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>
-
+            <div class="d-flex align-items-center gap-2">
+                <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
+                    <i class="bi bi-people-fill text-primary me-2"></i> 
+                </span>
+                <span class="fx-header-titulo">Inscriptos Oficiales <u><?= LUGAR_OLIMPICO2 ?></u></span>
+                <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>            
             </div>
-
-            
-
             <div class="d-flex gap-2 align-items-center">
                 <button type="button" class="btn btn-lg  btn-warning"
                         data-bs-toggle="modal" data-bs-target="#modalImprimirCredenciales">
@@ -72,7 +66,15 @@
 
         <!-- Panel de Filtros -->
 
-        <div class="row g-2 align-items-end" id="panelFiltros">
+       
+
+    </div>
+
+    
+
+    <div class="card-body">
+
+         <div class="fx-filtros row g-2 align-items-end mb-3" id="panelFiltros">
 
             <div class="col-md-3">
 
@@ -225,13 +227,6 @@
             </div>
 
         </div>
-
-    </div>
-
-    
-
-    <div class="card-body">
-
         <div class="table-responsive">
 
             <table class="table table-hover align-middle js-tabla-inscripciones" id="tablaInscripciones">
