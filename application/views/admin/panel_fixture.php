@@ -333,7 +333,12 @@
     function post(url, datos) {
         const form = new FormData();
         Object.keys(datos).forEach(k => form.append(k, datos[k]));
-        return fetch(BASE + '/' + url, { method: 'POST', body: form, cache: 'no-store' })
+        // El timestamp en la query es un "cache-buster": algunos proxies y el
+        // propio navegador pueden cachear respuestas POST si la URL no cambia;
+        // con una URL única por petición eso no ocurre nunca más.
+        const sep = url.indexOf('?') === -1 ? '?' : '&';
+        return fetch(BASE + '/' + url + sep + '_=' + Date.now(),
+                     { method: 'POST', body: form, cache: 'no-store' })
             .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
             .then(({ status, txt }) => {
                 try {
@@ -346,9 +351,13 @@
     }
 
     function getJSON(url) {
-        // Se lee el texto primero: si CodeIgniter devolvió un error fatal (HTML),
-        // lo detectamos acá en vez de romper con "Unexpected token <" al parsear JSON.
-        return fetch(BASE + '/' + url, {
+        // Cache-buster en la URL: sin esto, el navegador/proxy puede devolver la
+        // respuesta anterior de ajax_fixture_todo y los cambios (alta/edición)
+        // recién se ven apretando F5. Se lee el texto primero: si CodeIgniter
+        // devolvió un error fatal (HTML), lo detectamos acá en vez de romper con
+        // "Unexpected token <" al parsear JSON.
+        const sep = url.indexOf('?') === -1 ? '?' : '&';
+        return fetch(BASE + '/' + url + sep + '_=' + Date.now(), {
                 headers: { 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' },
                 cache: 'no-store'
             })
@@ -809,8 +818,9 @@
     }
 
     /* ---------- Carga GENERAL (sin filtro de categoría) ---------- */
+    let cargaTodoEnVuelo = null;   // Promise de la última carga (para no pisarse entre sí)
     function cargarTodo() {
-        getJSON('ajax_fixture_todo')
+        const p = getJSON('ajax_fixture_todo')
             .then(res => {
                 if (!res.ok) {
                     lista.innerHTML = '<div class="alert alert-danger py-2 small">' +
@@ -840,7 +850,7 @@
                 if (!idsCats.length) { render(); return; }
 
                 Promise.all(idsCats.map(idCat =>
-                    fetch(BASE + '/ajax_fixture_categoria/' + idCat)
+                    fetch(BASE + '/ajax_fixture_categoria/' + idCat, { cache: 'no-store' })
                         .then(r => r.json())
                         .then(rr => ({ idCat: idCat, utes: rr.ok ? (rr.utes || []) : [] }))
                         .catch(() => ({ idCat: idCat, utes: [] }))
@@ -859,6 +869,8 @@
                     'No se pudo cargar el fixture (' + esc(err.message) + '). ' +
                     'Revisá que tengas sesión iniciada como admin y que existan las tablas <code>fixtures</code> / <code>lugares</code>.</div>';
             });
+        cargaTodoEnVuelo = p;
+        return p;
     }
 
     /* ---------- UTEs según la categoría elegida DENTRO DEL MODAL ---------- */
@@ -871,7 +883,10 @@
             if (cb) cb();
             return;
         }
-        fetch(BASE + '/ajax_fixture_categoria/' + idCategoria)
+        // cache: 'no-store' → los equipos de la categoría se piden SIEMPRE
+        // frescos al servidor (si venía una respuesta cacheada, el modal de
+        // edición mostraba datos viejos y había que hacer F5).
+        fetch(BASE + '/ajax_fixture_categoria/' + idCategoria, { cache: 'no-store' })
             .then(r => r.json())
             .then(res => {
                 const utes = (res.ok ? res.utes : []);
@@ -890,6 +905,10 @@
     // Las categorías de cada deporte se cargan por AJAX al seleccionar el
     // deporte (endpoint Inscripciones/ajax_categorias_por_deporte/$id). Se
     // cachean por deporte para no repetir la consulta al abrir el modal.
+    // OJO: el cache es SOLO en memoria (CATS_CACHE); usamos 'no-store' en la
+    // fetch para que el navegador no devuelva una respuesta HTTP vieja — con
+    // una categoría recién creada, eso hacía que el modal no la mostrara hasta
+    // apretar F5.
     const CATS_CACHE = {};       // id_deporte -> array de categorías
     const CATS_PETICION = {};    // id_deporte -> Promise en vuelo / resuelta
     const selDeporteModal = document.getElementById('fx_modal_deporte');
@@ -901,7 +920,7 @@
         if (!idDeporte) return Promise.resolve([]);
         const key = String(idDeporte);
         if (CATS_PETICION[key]) return CATS_PETICION[key];
-        CATS_PETICION[key] = fetch(BASE + '/ajax_categorias_por_deporte/' + key)
+        CATS_PETICION[key] = fetch(BASE + '/ajax_categorias_por_deporte/' + key, { cache: 'no-store' })
             .then(r => r.json())
             .then(res => {
                 const cats = (res && res.ok) ? (res.categorias || []) : [];
