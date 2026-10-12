@@ -1,13 +1,13 @@
 <!-- PANEL FIXTURE -->
-<div class="card shadow-sm border-0 mb-4 card-inscriptos">
+<div class="card shadow-sm border-0">
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
             <div class="d-flex align-items-center">
-                <i class="bi bi-calendar3 text-primary me-2"></i>
-                <span>Gestión de Fixture</span>
+                <i class="bi bi-calendar3 me-2">
+                <span></i>Gestión de Fixture</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <select id="fx_deporte_reporte" class="form-select form-select-sm rounded-pill bg-light" style="max-width: 210px;"
+                <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 190px;"
                     title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el general)">
                     <option value="">🏆 Todos los deportes</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
@@ -17,15 +17,19 @@
                     <?php endforeach; ?>
                 </select>
                 <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
-                    class="btn fx-btn-round fx-btn-pdf" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
-                    <i class="bi bi-file-earmark-pdf-fill"></i>
-                    <span class="ms-2" id="fx_btn_pdf_txt">Descargar reporte</span>
+                    class="btn btn-lg btn-danger" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>
+                    <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
                 </a>
             </div>
         </div>
-
+        
+        
+        
+    </div>
+    <div class="card-body">
         <!-- Barra de FILTROS: deporte y categoría filtran el listado -->
-        <div class="fx-filtros row g-2 align-items-end">
+        <div class="fx-filtros row g-2 align-items-end mb-3">
             <div class="col-md-4 col-lg-3">
                 <label class="form-label small fw-semibold mb-1"><i class="bi bi-funnel-fill text-primary me-1"></i>Filtrar por deporte</label>
                 <select id="fx_filtro_deporte" class="form-select">
@@ -65,10 +69,6 @@
                 </div>
             </div>
         </div>
-    </div>
-    <div class="card-body">
-        <!-- Toast de mensajes (éxito / error) -->
-        <div id="fx_mensaje" class="alert d-none py-2 small fw-semibold shadow-sm" style="border-radius: 12px;"></div>
 
         <!-- Chips con los filtros activos -->
         <div id="fx_chips_filtros" class="mb-2"></div>
@@ -91,9 +91,9 @@
 <div class="modal fade" id="modalPartido" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header fx-modal-header">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Partido / Jornada</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="form_partido">
@@ -210,7 +210,7 @@
 <div class="modal fade" id="modalDetalle" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-            <div class="modal-header fx-modal-header text-white py-2">
+            <div class="modal-header bg-primary text-white py-2">
                 <div>
                     <h5 class="modal-title mb-0" id="fxx_titulo">Detalle</h5>
                     <div class="small opacity-75" id="fxx_sub"></div>
@@ -235,7 +235,7 @@
         <div class="modal fade" id="modalMasivo" tabindex="-1">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
-                    <div class="modal-header fx-modal-header text-white">
+                    <div class="modal-header bg-primary text-white">
                         <h5 class="modal-title"><i class="bi bi-flag me-2"></i>Resultados — <span id="fxm_titulo"></span></h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
