@@ -764,6 +764,7 @@ class Inscripciones extends CI_Controller {
     /** Devuelve el fixture + las UTEs de una categoría (para pintar la pestaña). */
     public function ajax_fixture_categoria($id_categoria) {
         if (!$this->_fixture_auth_json()) return;
+        $this->_fixture_no_cache_headers();
 
         try {
             $fixtures = $this->Fixture_model->obtener_fixtures_por_categoria((int) $id_categoria);
@@ -797,9 +798,20 @@ class Inscripciones extends CI_Controller {
             ->set_output(json_encode(array('ok' => true, 'categorias' => $categorias)));
     }
 
+    /** Cabeceras anti-cache para endpoints AJAX del fixture: sin esto el
+     *  navegador/proxy puede devolver respuestas viejas (p. ej. el listado
+     *  completo tras agregar/editar un partido recién se ve apretando F5). */
+    private function _fixture_no_cache_headers() {
+        $this->output
+            ->set_header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0')
+            ->set_header('Pragma: no-cache')
+            ->set_header('Expires: 0');
+    }
+
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function ajax_fixture_todo() {
         if (!$this->_fixture_auth_json()) return;
+        $this->_fixture_no_cache_headers();
 
         // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
         // defecto) u 'horario' (Fecha → Hora → Deporte → Categoría).
