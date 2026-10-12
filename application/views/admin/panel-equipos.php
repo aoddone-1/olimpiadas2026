@@ -157,6 +157,16 @@
                                         <i class="bi bi-person-plus-fill"></i>
                                     </button>
                                     <span class="vr mx-1 text-muted opacity-25"></span>
+                                    <button type="button" class="btn btn-sm btn-light text-primary border-0 rounded-circle js-btn-accion btn-editar-ute"
+                                            data-id-ute="<?= $ute['id_ute'] ?>"
+                                            data-nombre-ute="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-genero="<?= htmlspecialchars($ute['genero'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            data-deporte="<?= htmlspecialchars($ute['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-categoria="<?= htmlspecialchars($ute['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>"
+                                            title="Editar UTE (nombre y género)">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </button>
+                                    <span class="vr mx-1 text-muted opacity-25"></span>
                                     <button type="button" class="btn btn-sm btn-light text-danger border-0 rounded-circle js-btn-accion btn-eliminar-ute"
                                             data-id-ute="<?= $ute['id_ute'] ?>"
                                             data-nombre-ute="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>"
@@ -221,12 +231,60 @@
                                placeholder="Ej: Los Pampas FC" required maxlength="150">
                         <div class="form-text">El nombre debe ser único dentro de la categoría seleccionada.</div>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Género de la UTE</label>
+                        <select class="form-select" id="genero-ute-input">
+                            <option value="MIXTO">MIXTO</option>
+                            <option value="MASCULINO">MASCULINO</option>
+                            <option value="FEMENINO">FEMENINO</option>
+                        </select>
+                        <div class="form-text">Podés ajustarlo ahora o más tarde con el botón "Editar UTE".</div>
+                    </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="button" class="btn btn-primary" id="btn-guardar-ute">
                     <i class="bi bi-check-circle me-1"></i> Crear UTE
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Editar UTE -->
+<div class="modal fade" id="modalEditarUTE" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Editar UTE/Equipo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="form-editar-ute">
+                    <input type="hidden" id="editar-id-ute">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Deporte y Categoría</label>
+                        <input type="text" class="form-control" id="editar-info-categoria" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Nombre del Equipo/UTE</label>
+                        <input type="text" class="form-control" id="editar-nombre-ute" required maxlength="150">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Género de la UTE</label>
+                        <select class="form-select" id="editar-genero-ute">
+                            <option value="MIXTO">MIXTO</option>
+                            <option value="MASCULINO">MASCULINO</option>
+                            <option value="FEMENINO">FEMENINO</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btn-guardar-edicion-ute">
+                    <i class="bi bi-check-circle me-1"></i> Guardar cambios
                 </button>
             </div>
         </div>
@@ -310,6 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('btn-guardar-ute').addEventListener('click', function() {
         const idCategoria = document.getElementById('select-categoria-ute').value;
         const nombreUte = document.getElementById('nombre-ute-input').value.trim();
+        const generoUte = document.getElementById('genero-ute-input').value;
         
         if (!idCategoria || !nombreUte) {
             alert('Complete todos los campos');
@@ -319,6 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const formData = new FormData();
         formData.append('id_categoria', idCategoria);
         formData.append('nombre_ute', nombreUte);
+        formData.append('genero', generoUte);
         
         fetch('<?= base_url("Inscripciones/ajax_crear_ute") ?>', {
             method: 'POST',
@@ -336,7 +396,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const optionSeleccionada = selectCategoria.options[selectCategoria.selectedIndex];
                 const nombreDeporte = optionSeleccionada.getAttribute('data-deporte');
                 const nombreCategoria = optionSeleccionada.text.split(' - ')[1].split(' (')[0];
-                const genero = optionSeleccionada.getAttribute('data-genero');
+                // Se usa el género elegido para la UTE (no el de la categoría)
+                const genero = generoUte;
                 
                 // Crear nueva fila en la tabla
                 const tbody = document.getElementById('cuerpo-tabla-utes');
@@ -405,6 +466,16 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <i class="bi bi-person-plus-fill"></i>
                             </button>
                             <span class="vr mx-1 text-muted opacity-25"></span>
+                            <button type="button" class="btn btn-sm btn-light text-primary border-0 rounded-circle js-btn-accion btn-editar-ute"
+                                    data-id-ute="${data.id_ute}"
+                                    data-nombre-ute="${escHtml(nombreUte)}"
+                                    data-genero="${escHtml(genero)}"
+                                    data-deporte="${escHtml(nombreDeporte)}"
+                                    data-categoria="${escHtml(nombreCategoria)}"
+                                    title="Editar UTE (nombre y género)">
+                                <i class="bi bi-pencil-fill"></i>
+                            </button>
+                            <span class="vr mx-1 text-muted opacity-25"></span>
                             <button type="button" class="btn btn-sm btn-light text-danger border-0 rounded-circle js-btn-accion btn-eliminar-ute"
                                     data-id-ute="${data.id_ute}"
                                     data-nombre-ute="${escHtml(nombreUte)}"
@@ -459,8 +530,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(ute => {
                 if (ute && ute.nombre_ute) {
                     document.getElementById('nombre-ute-modal').textContent = ute.nombre_ute;
+                    const generoUteDetalle = (ute.genero || ute.genero_categoria || '').toUpperCase();
                     document.getElementById('info-categoria-modal').textContent = 
-                        ute.nombre_deporte + ' - ' + ute.nombre_categoria + ' (' + ute.genero + ')';
+                        ute.nombre_deporte + ' - ' + ute.nombre_categoria + ' (' + generoUteDetalle + ')';
                     
                     const tbody = document.getElementById('lista-integrantes');
                     tbody.innerHTML = '';
@@ -641,6 +713,107 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // ==========================================
+    // EDITAR UTE (nombre y/o género)
+    // ==========================================
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-editar-ute');
+        if (!btn) return;
+
+        document.getElementById('editar-id-ute').value = btn.getAttribute('data-id-ute');
+        document.getElementById('editar-nombre-ute').value = btn.getAttribute('data-nombre-ute') || '';
+        document.getElementById('editar-info-categoria').value =
+            (btn.getAttribute('data-deporte') || '') + ' - ' + (btn.getAttribute('data-categoria') || '');
+
+        const generoActual = (btn.getAttribute('data-genero') || 'MIXTO').toUpperCase();
+        const selectGenero = document.getElementById('editar-genero-ute');
+        if (['FEMENINO', 'MASCULINO', 'MIXTO'].includes(generoActual)) {
+            selectGenero.value = generoActual;
+        } else {
+            selectGenero.value = 'MIXTO';
+        }
+
+        new bootstrap.Modal(document.getElementById('modalEditarUTE')).show();
+    });
+
+    document.getElementById('btn-guardar-edicion-ute').addEventListener('click', function() {
+        const idUte = document.getElementById('editar-id-ute').value;
+        const nombreNuevo = document.getElementById('editar-nombre-ute').value.trim();
+        const generoNuevo = document.getElementById('editar-genero-ute').value;
+
+        if (!idUte || !nombreNuevo) {
+            alert('Complete el nombre de la UTE');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('id_ute', idUte);
+        formData.append('nombre_ute', nombreNuevo);
+        formData.append('genero', generoNuevo);
+
+        fetch('<?= base_url("Inscripciones/ajax_actualizar_ute") ?>', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Cerrar modal
+                const modalEditar = bootstrap.Modal.getInstance(document.getElementById('modalEditarUTE'));
+                if (modalEditar) modalEditar.hide();
+
+                // Actualizar la fila en la tabla sin recargar la página
+                const fila = document.getElementById('ute-fila-' + idUte);
+                if (fila) {
+                    const escHtml2 = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    const generoLower = generoNuevo.toLowerCase();
+                    const claseBadge = generoLower === 'femenino' ? 'bg-danger-subtle text-danger' : (generoLower === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary');
+                    const icono = generoLower === 'femenino' ? 'bi-gender-female' : (generoLower === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans');
+                    const color = generoLower === 'femenino' ? '#e83e8c' : (generoLower === 'masculino' ? '#2a5298' : '#6c757d');
+
+                    // Badge de género (1er td)
+                    const badgeGenero = fila.querySelector('.js-badge-genero');
+                    if (badgeGenero) {
+                        badgeGenero.className = 'badge rounded-pill border ' + claseBadge + ' js-badge-genero';
+                        badgeGenero.style.fontSize = '0.65rem';
+                        badgeGenero.innerHTML = '<i class="bi ' + icono + ' me-1"></i>' + escHtml2(generoNuevo);
+                    }
+
+                    // Nombre (2do td: div.fw-bold) + avatar con iniciales/color
+                    const celdaNombre = fila.querySelector('td:nth-child(3)');
+                    if (celdaNombre) {
+                        const avatar = celdaNombre.querySelector('.js-avatar-ins');
+                        if (avatar) {
+                            avatar.textContent = nombreNuevo.split(/\s+/).filter(w => w !== '').slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+                            avatar.style.background = 'linear-gradient(135deg, ' + color + ' 0%, ' + color + 'cc 100%)';
+                        }
+                        const divNombre = celdaNombre.querySelector('.fw-bold');
+                        if (divNombre) {
+                            divNombre.textContent = nombreNuevo;
+                            divNombre.setAttribute('title', nombreNuevo);
+                        }
+                    }
+
+                    // Actualizar los data-* del botón editar para la próxima apertura
+                    const btnEditar = fila.querySelector('.btn-editar-ute');
+                    if (btnEditar) {
+                        btnEditar.setAttribute('data-nombre-ute', nombreNuevo);
+                        btnEditar.setAttribute('data-genero', generoNuevo);
+                    }
+                }
+
+                // Reaplicar filtros/búsqueda por si el cambio afecta lo visible
+                aplicarFiltrosEquipos();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error al actualizar la UTE');
+        });
+    });
+
     // ==========================================
     // ELIMINAR UTE
     // ==========================================
