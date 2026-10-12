@@ -325,10 +325,15 @@
         setTimeout(() => msgBox.classList.add('d-none'), 4000);
     }
 
+    // No-cache en las peticiones AJAX: sin esto, el navegador puede servir la
+    // respuesta de ajax_fixture_todo desde el cache (o desde "bfcache" al volver
+    // atrás) y el listado no refleja los cambios hasta apretar F5.
+    const FETCH_NO_CACHE = { cache: 'no-store' };
+
     function post(url, datos) {
         const form = new FormData();
         Object.keys(datos).forEach(k => form.append(k, datos[k]));
-        return fetch(BASE + '/' + url, { method: 'POST', body: form })
+        return fetch(BASE + '/' + url, { method: 'POST', body: form, cache: 'no-store' })
             .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
             .then(({ status, txt }) => {
                 try {
@@ -343,7 +348,10 @@
     function getJSON(url) {
         // Se lee el texto primero: si CodeIgniter devolvió un error fatal (HTML),
         // lo detectamos acá en vez de romper con "Unexpected token <" al parsear JSON.
-        return fetch(BASE + '/' + url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        return fetch(BASE + '/' + url, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' },
+                cache: 'no-store'
+            })
             .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
             .then(({ status, txt }) => {
                 try {
@@ -391,6 +399,22 @@
         if (ahora >= fin) return { estado: 'FINALIZADO', auto: true };
         if (ahora >= inicio) return { estado: 'EN_CURSO', auto: true };
         return { estado: estadoDb, auto: false };
+    }
+
+    function eliminarPartido(idFixture) {
+        return post('ajax_eliminar_partido', { id_fixture: idFixture })
+            .then(res => {
+                if (!res || !res.ok) {
+                    mensaje((res && (res.error || res.mensaje)) || 'No se pudo eliminar el partido.', 'danger');
+                    return false;
+                }
+                // Sacar el partido del estado local AL INSTANTE: así el listado
+                // se actualiza sin necesidad de recargar la página (F5), incluso
+                // si luego la refresca completa falla.
+                todosFixtures = todosFixtures.filter(f => String(f.id_fixture) !== String(idFixture));
+                render();
+                return true;
+            });
     }
 
     /* ---------- Render por DÍA: muestra solo lo que se juega en la fecha elegida,
@@ -594,10 +618,9 @@
         }));
         lista.querySelectorAll('.fx-borrar').forEach(b => b.addEventListener('click', () => {
             if (!confirm('¿Eliminar este partido?')) return;
-            post('ajax_eliminar_partido', { id_fixture: b.dataset.id }).then(res => {
-                mensaje(res.mensaje, 'success');
-                cargarTodo();
-            });
+            eliminarPartido(b.dataset.id)
+                .then(ok => { if (ok) { mensaje('Partido eliminado.', 'success'); cargarTodo(); } })
+                .catch(err => mensaje(err.message, 'danger'));
         }));
         lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
