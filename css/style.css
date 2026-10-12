@@ -127,16 +127,11 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 
 /* ============================================================
    PANEL FIXTURE (Control Total) - Mismo padrón estético que
-   la tabla de inscriptos: degradados azul, badges píldora,
-   botones redondeados con hover elevado y zebra suave.
+   "Inscriptos" y "UTEs/Equipos": card-inscriptos, degradados
+   azul, botones píldora con hover elevado, zebra suave.
    ============================================================ */
-.card:has(.fx-filtros) {
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 4px 18px rgba(30, 60, 114, 0.08);
-}
 
-/* Barra de filtros */
+/* Barra de filtros (integrada al header, como en Equipos) */
 .fx-filtros {
     background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
     border: 1px solid #eef2f7;
@@ -205,6 +200,17 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
 }
 
+.fx-btn-pdf {
+    background: linear-gradient(135deg, #dc3545 0%, #e35d6a 100%);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
+}
+
+.fx-btn-pdf:hover:not(:disabled) {
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+}
+
 .fx-btn-limpiar {
     background: #fff;
     border-color: #dbe3ee;
@@ -234,6 +240,48 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 }
 
 .fx-chip-limpiar { font-size: 0.78rem; padding: 0.2rem 0.4rem; }
+
+/* Header de modales del fixture: degradado azul (padrón Inscriptos/Equipos) */
+#modalPartido .modal-content,
+#modalDetalle .modal-content,
+#modalMasivo .modal-content {
+    border: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 10px 30px rgba(30, 60, 114, 0.25);
+}
+
+.fx-modal-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+    color: #fff;
+    border-bottom: 0;
+}
+
+.fx-modal-header .modal-title i { color: #ffc107; }
+
+#modalPartido .modal-footer,
+#modalDetalle .modal-footer,
+#modalMasivo .modal-footer {
+    background: #f8fafd;
+    border-top: 1px solid #eef2f7;
+}
+
+#fx_btn_guardar,
+#fxm_guardar {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    border: 0;
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.5rem 1.2rem;
+    box-shadow: 0 3px 10px rgba(30, 60, 114, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#fx_btn_guardar:hover,
+#fxm_guardar:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(30, 60, 114, 0.4);
+}
 
 /* Bloques Deporte → Categoría dentro del listado */
 #fx_lista .card {
