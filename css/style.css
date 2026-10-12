@@ -30,3 +30,97 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 .scroll-panel::-webkit-scrollbar { width: 6px; }
 .scroll-panel::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
 .scroll-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
+
+/* ============================================================
+   PADRÓN DE INSCRIPTOS (Control Total) - Formato estético
+   ============================================================ */
+.card-inscriptos {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(30, 60, 114, 0.08);
+}
+
+.card-inscriptos .card-header {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
+    border-bottom: 2px solid #eef2f7;
+}
+
+/* Tabla de inscriptos */
+.js-tabla-inscripciones { margin-bottom: 0; }
+
+.js-tabla-inscripciones thead th {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: rgba(255, 255, 255, 0.92);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    font-size: 0.74rem;
+    padding: 0.8rem 0.9rem;
+    border-bottom: 0;
+    white-space: nowrap;
+}
+
+.js-tabla-inscripciones thead th i { color: #ffc107; }
+
+.js-tabla-inscripciones tbody td {
+    padding: 0.75rem 0.9rem;
+    border-bottom: 1px solid #eef2f7;
+    vertical-align: middle;
+}
+
+/* Zebra suave + transición de hover */
+.js-tabla-inscripciones tbody tr { transition: background-color 0.15s ease; }
+.js-tabla-inscripciones tbody tr.fila-par { background-color: #f8fafd; }
+.js-tabla-inscripciones tbody tr:hover { background-color: #eef4fd; }
+
+/* Botones de acción circulares con efecto */
+.js-tabla-inscripciones .js-btn-accion {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.js-tabla-inscripciones .js-btn-accion:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    background-color: #fff;
+}
+
+.js-tabla-inscripciones .btn-light.text-info-emphasis:hover { color: #0d6efd !important; }
+.js-tabla-inscripciones .btn-light.text-warning-emphasis:hover { color: #b45309 !important; }
+.js-tabla-inscripciones .btn-light.text-danger:hover { color: #dc3545 !important; }
+
+/* Avatar con iniciales */
+.js-avatar-ins {
+    letter-spacing: 0.03em;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+}
+
+/* Utilidad: ancho mínimo para textos truncables */
+.min-w-0 { min-width: 0; }
+
+/* Paginación más moderna */
+#ulPaginacionIns .page-link {
+    border-radius: 8px;
+    margin: 0 2px;
+    border: 1px solid #e3e8f0;
+    color: #1e3c72;
+    font-weight: 600;
+    min-width: 34px;
+    text-align: center;
+}
+
+#ulPaginacionIns .page-item.active .page-link {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    border-color: transparent;
+    box-shadow: 0 2px 6px rgba(30, 60, 114, 0.35);
+}
+
+#ulPaginacionIns .page-link:hover:not(:disabled) {
+    background-color: #eef4fd;
+    color: #1e3c72;
+}
