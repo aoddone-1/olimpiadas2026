@@ -28,6 +28,15 @@
         
     </div>
     <div class="card-body">
+        <!-- CAJA DE MENSAJES (fx_mensaje): sin este elemento, la función mensaje()
+             hacía msgBox.className sobre null y TIRABA TypeError en plena acción
+             AJAX. Como eliminar partido actualiza el listado "optimistamente"
+             (filter + render, sin pedir nada al server), era el único CRUD que
+             se veía; agregar/modificar llamaban a mensaje() ANTES de recargar
+             (cargarTodo) y el error cortaba todo el flujo — por eso solo se
+             veían apretando F5. -->
+        <div id="fx_mensaje" class="alert d-none mb-3" role="alert"></div>
+
         <!-- Barra de FILTROS: deporte y categoría filtran el listado -->
         <div class="fx-filtros row g-2 align-items-end mb-3">
             <div class="col-md-4 col-lg-3">
@@ -320,9 +329,13 @@
     }
 
     function mensaje(texto, tipo) {
+        // Guard: si el elemento #fx_mensaje no existe (o el script corre antes
+        // de que esté en el DOM), NO hay que romper toda la cadena del AJAX.
+        if (!msgBox) { console.warn('[Fixture]', texto); return; }
         msgBox.className = 'alert alert-' + tipo;
         msgBox.textContent = texto;
-        setTimeout(() => msgBox.classList.add('d-none'), 4000);
+        clearTimeout(mensaje._t);
+        mensaje._t = setTimeout(() => msgBox.classList.add('d-none'), 4000);
     }
 
     // No-cache en las peticiones AJAX: sin esto, el navegador puede servir la
