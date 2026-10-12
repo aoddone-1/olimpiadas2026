@@ -178,14 +178,13 @@ CREATE TABLE `utes` (
   `id_ute` int NOT NULL AUTO_INCREMENT,
   `id_categoria` int NOT NULL,
   `nombre_ute` varchar(150) NOT NULL,
+  `genero` enum('FEMENINO','MASCULINO','MIXTO') NOT NULL DEFAULT 'MIXTO',
   `fecha_creacion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `id_grupo` int DEFAULT NULL COMMENT 'NULL = sin grupo (aun no asignado a la fase de grupos)',
   PRIMARY KEY (`id_ute`),
   KEY `fk_ute_categoria` (`id_categoria`),
-  KEY `fk_ute_grupo` (`id_grupo`),
-  CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE,
-  CONSTRAINT `fk_ute_grupo` FOREIGN KEY (`id_grupo`) REFERENCES `grupos` (`id_grupo`) ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=215 DEFAULT CHARSET=latin1;
+  CONSTRAINT `fk_ute_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1;
+
 
 CREATE TABLE `usuarios` (
   `id_usuario` int NOT NULL AUTO_INCREMENT,
