@@ -1,17 +1,18 @@
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+    <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-list-check text-warning me-2"></i>
-                <span>Gestion de UTE/Equipos</span>
+            <!-- Título con ícono suave en lugar de texto plano -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
+                    <i class="bi bi-list-check text-warning me-2"></i>
+                </span>
+                <span class="fx-header-titulo">Gestion de UTE/Equipos</span>
                 <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
             </div>
-            
             <div class="d-flex gap-2 align-items-center">
                 <button class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
                     <i class="bi bi-plus-circle me-1"></i>
                 </button>
-                
                 <div class="position-relative" style="max-width: 300px; width: 100%;">
                     <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                     <input type="text" 
@@ -21,7 +22,6 @@
                 </div>
             </div>
         </div>
-        
         <!-- Panel de Filtros -->
         <div class="row g-2 align-items-end" id="panelFiltrosEquipos">
             <div class="col-md-3">
@@ -100,7 +100,6 @@
                                 }
                             }
                             if ($iniciales_ute === '') $iniciales_ute = '?';
-                            $color_avatar_ute = $genero_ute === 'femenino' ? '#e83e8c' : ($genero_ute === 'masculino' ? '#2a5298' : '#6c757d');
                             $par_ute = (++$idx_ute) % 2 === 0;
                             // Badge "Equipo" o "UTE" según disciplina
                             $es_equipos_deporte = in_array(strtolower(trim($ute['nombre_deporte'])), ['futbol', 'fútbol', 'basquet', 'basquetbol', 'basket', 'handball', 'voley', 'vóley']);
@@ -121,8 +120,6 @@
                             </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="js-avatar-ins d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-bold text-white"
-                                          style="width:38px;height:38px;font-size:0.8rem;background:linear-gradient(135deg, <?= $color_avatar_ute ?> 0%, <?= $color_avatar_ute ?>cc 100%);box-shadow:0 2px 5px rgba(0,0,0,.18);"><?= htmlspecialchars($iniciales_ute, ENT_QUOTES, 'UTF-8') ?></span>
                                     <div class="min-w-0">
                                         <div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>">
                                             <?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>
@@ -404,7 +401,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const fechaActual = new Date().toLocaleDateString('es-AR');
                 
                 const generoLower = (genero || '').toLowerCase();
-                const colorAvatar = generoLower === 'femenino' ? '#e83e8c' : (generoLower === 'masculino' ? '#2a5298' : '#6c757d');
                 const claseBadgeGenero = generoLower === 'femenino' ? 'bg-danger-subtle text-danger' : (generoLower === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary');
                 const iconoGenero = generoLower === 'femenino' ? 'bi-gender-female' : (generoLower === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans');
 
@@ -432,8 +428,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     </td>
                     <td>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="js-avatar-ins d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-bold text-white"
-                                  style="width:38px;height:38px;font-size:0.8rem;background:linear-gradient(135deg, ${colorAvatar} 0%, ${colorAvatar}cc 100%);box-shadow:0 2px 5px rgba(0,0,0,.18);">${escHtml(inicialesUte)}</span>
                             <div class="min-w-0">
                                 <div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="${escHtml(nombreUte)}">${escHtml(nombreUte)}</div>
                                 <small class="text-muted"><i class="bi bi-people me-1"></i>UTE</small>
@@ -782,11 +776,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Nombre (2do td: div.fw-bold) + avatar con iniciales/color
                     const celdaNombre = fila.querySelector('td:nth-child(3)');
                     if (celdaNombre) {
-                        const avatar = celdaNombre.querySelector('.js-avatar-ins');
-                        if (avatar) {
-                            avatar.textContent = nombreNuevo.split(/\s+/).filter(w => w !== '').slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
-                            avatar.style.background = 'linear-gradient(135deg, ' + color + ' 0%, ' + color + 'cc 100%)';
-                        }
+                        
                         const divNombre = celdaNombre.querySelector('.fw-bold');
                         if (divNombre) {
                             divNombre.textContent = nombreNuevo;
