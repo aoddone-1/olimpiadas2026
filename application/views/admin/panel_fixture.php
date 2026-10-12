@@ -1,13 +1,16 @@
 <!-- PANEL FIXTURE -->
-<div class="card shadow-sm border-0">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+<div class="card fx-card shadow-sm border-0">
+    <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-            <div class="d-flex align-items-center">
-                <i class="bi bi-calendar3 me-2">
-                <span></i>Gestión de Fixture</span>
+            <!-- Título con ícono suave en lugar de texto plano -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
+                    <i class="bi bi-calendar3"></i>
+                </span>
+                <span class="fx-header-titulo">Gestión de Fixture</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 190px;"
+                <select id="fx_deporte_reporte" class="form-select form-select-sm fx-select-reporte"
                     title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el general)">
                     <option value="">🏆 Todos los deportes</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
@@ -16,16 +19,15 @@
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <!-- Botón PDF: antes rojo sólido y grande (muy chocante); ahora
+                     outline sutil que solo se "enciende" al pasar el mouse -->
                 <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
-                    class="btn btn-lg btn-danger" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
+                    class="btn fx-btn-pdf" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
                     <i class="bi bi-file-earmark-pdf me-1"></i>
                     <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
                 </a>
             </div>
         </div>
-        
-        
-        
     </div>
     <div class="card-body">
         <!-- CAJA DE MENSAJES (fx_mensaje): sin este elemento, la función mensaje()
@@ -319,8 +321,10 @@
     const MEDALLAS = ['🥇', '🥈', '🥉'];
 
     const BADGES = {
-        PROGRAMADO: 'bg-secondary', EN_CURSO: 'bg-warning text-dark',
-        FINALIZADO: 'bg-success', SUSPENDIDO: 'bg-danger'
+        /* Badges de estado en versión "pastel": el color saturado solo
+           aparece en elementos chicos, sin lastimar la vista */
+        PROGRAMADO: 'fx-badge-programado', EN_CURSO: 'fx-badge-en-curso',
+        FINALIZADO: 'fx-badge-finalizado', SUSPENDIDO: 'fx-badge-suspendido'
     };
 
     function esc(s) {
@@ -510,8 +514,8 @@
             const idDepBlock = 'fxdep_' + encodeURIComponent(deporte).replace(/%/g, '');
 
             html += `<div class="card mb-4 border-primary-subtle shadow-sm">
-                <div class="card-header bg-primary bg-gradient py-2">
-                    <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 text-white fw-bold"
+                <div class="card-header py-2">
+                    <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 fx-deporte-titulo fw-bold"
                             type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="${colapsarPorDefecto ? 'false' : 'true'}">
                         <i class="bi bi-chevron-down fx-chev"></i>
                         <i class="bi bi-trophy-fill"></i>

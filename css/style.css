@@ -80,10 +80,77 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 }
 
 /* ============================================================
-   PANEL FIXTURE (Control Total) - Mismo padrón estético que
-   la tabla de inscriptos: degradados azul, badges píldora,
-   botones redondeados con hover elevado y zebra suave.
+   PANEL FIXTURE (Control Total) — REFRESH ESTÉTICO v2
+   Objetivo: que el panel sea amigable a la vista y NO chocante.
+   Reglas aplicadas:
+     1. Colores saturados solo en elementos PEQUEÑOS (badges/chips).
+        Las superficies grandes usan tintes pastel (#f5f8fd / #eef4fd).
+     2. Un solo degradado fuerte por bloque (antes había varios compitiendo).
+     3. Sombras suaves y difusas, bordes redondeados consistentes.
+     4. Botón "peligroso" (borrar fixture) en estilo outline: se vuelve
+        rojo sólido recién al pasar el mouse → sin alarmas permanentes.
    ============================================================ */
+
+/* Card general del panel */
+.fx-card {
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 6px 24px rgba(30, 60, 114, 0.07);
+    border: 1px solid #eef2f7;
+}
+
+/* Header: fondo pastel muy claro + ícono en cápsula (ya no texto plano) */
+.fx-card-header {
+    background: linear-gradient(180deg, #ffffff 0%, #f5f8fd 100%);
+    border-bottom: 1px solid #e9eff8;
+    padding: 1rem 1.25rem;
+}
+
+.fx-header-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: #eef4fd;
+    color: #2a5298;
+    font-size: 1.1rem;
+}
+
+.fx-header-titulo {
+    color: #1e3c72;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+}
+
+.fx-select-reporte {
+    max-width: 190px;
+    border-radius: 999px;
+    border-color: #dbe3ee;
+    font-weight: 500;
+    color: #1e3c72;
+}
+
+/* Botón PDF: antes btn-danger gigante; ahora outline neutro-cálido que
+   solo se "enciende" al hover. Menos ruido visual, misma funcionalidad. */
+.fx-btn-pdf {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.45rem 1.05rem;
+    background: #fff5f5;
+    border: 1px solid #f3c6ca;
+    color: #b02a37;
+    transition: all 0.18s ease;
+}
+
+.fx-btn-pdf:hover {
+    background: #dc3545;
+    border-color: #dc3545;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+    transform: translateY(-1px);
+}
 .card:has(.fx-filtros) {
     border-radius: 16px;
     overflow: hidden;
@@ -148,15 +215,19 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     box-shadow: 0 6px 16px rgba(30, 60, 114, 0.4);
 }
 
+/* Acción destructiva: en reposo es SOLO contorno (no grita);
+   al acercar el mouse se llena de rojo para dejar clara la intención. */
 .fx-btn-borrar {
-    background: linear-gradient(135deg, #dc3545 0%, #e35d6a 100%);
-    color: #fff;
-    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
+    background: #fff;
+    border: 1px solid #f3c6ca;
+    color: #c0485a;
 }
 
 .fx-btn-borrar:hover:not(:disabled) {
+    background: linear-gradient(135deg, #dc3545 0%, #e35d6a 100%);
+    border-color: #dc3545;
     color: #fff;
-    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.35);
 }
 
 .fx-btn-limpiar {
@@ -196,14 +267,23 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     box-shadow: 0 2px 10px rgba(30, 60, 114, 0.07);
 }
 
+/* Encabezado de deporte: superficie grande → ya NO lleva el degradado
+   azul pleno que competía con todo; usa un tinte pastel con acento. */
 #fx_lista .card-header {
-    background: linear-gradient(135deg, #2a67d7 0%, #0e64fa 100%) !important;
-    border-bottom: 0;
+    background: linear-gradient(180deg, #f7faff 0%, #eef4fd 100%) !important;
+    border-bottom: 1px solid #e3ebf7;
 }
+
+#fx_lista .card-header .btn-link { color: #1e3c72 !important; }
+#fx_lista .card-header .btn-link:hover { color: #2a5298 !important; }
+#fx_lista .card-header .small { color: #6b7a99 !important; }
 
 #fx_lista .card-header .badge.bg-white {
     border-radius: 999px;
     font-weight: 600;
+    background-color: #e3ecfb !important;
+    color: #1e3c72 !important;
+    border: 1px solid #cddcf3;
 }
 
 #fx_lista .border.rounded {
@@ -251,6 +331,13 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     color: #1e3c72;
     border-color: #b9c8e0;
 }
+
+/* Badges de estado "pastel" (reemplazan a bg-secondary / bg-warning /
+   bg-success / bg-danger saturados que competían entre sí en cada fila) */
+.fx-badge-programado { background: #eef1f6; color: #5b6a84; border: 1px solid #dbe3ee; }
+.fx-badge-en-curso   { background: #fff8e6; color: #9a6b00; border: 1px solid #f2e2b3; }
+.fx-badge-finalizado { background: #e9f7ef; color: #2f7a4d; border: 1px solid #c8ead6; }
+.fx-badge-suspendido { background: #fdeeee; color: #b02a37; border: 1px solid #f5cfd2; }
 
 /* Estado vacío del listado */
 .fx-vacio-icon {
