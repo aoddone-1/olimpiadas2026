@@ -124,3 +124,210 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     background-color: #eef4fd;
     color: #1e3c72;
 }
+
+/* ============================================================
+   PANEL FIXTURE (Control Total) - Mismo padrón estético que
+   la tabla de inscriptos: degradados azul, badges píldora,
+   botones redondeados con hover elevado y zebra suave.
+   ============================================================ */
+.card:has(.fx-filtros) {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(30, 60, 114, 0.08);
+}
+
+/* Barra de filtros */
+.fx-filtros {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafd 100%);
+    border: 1px solid #eef2f7;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+}
+
+.fx-filtros .form-select {
+    border-radius: 10px;
+    border-color: #dbe3ee;
+    font-weight: 500;
+    color: #1e3c72;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fx-filtros .form-select:focus {
+    border-color: #2a5298;
+    box-shadow: 0 0 0 0.2rem rgba(42, 82, 152, 0.15);
+}
+
+/* Botones de acción redondeados tipo píldora */
+.fx-btn-round {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid transparent;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.fx-btn-round i { font-size: 1rem; }
+
+.fx-btn-round:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.05);
+}
+
+.fx-btn-round:active:not(:disabled) { transform: translateY(0); }
+
+.fx-btn-round:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.fx-btn-nuevo {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(30, 60, 114, 0.3);
+}
+
+.fx-btn-nuevo:hover:not(:disabled) {
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(30, 60, 114, 0.4);
+}
+
+.fx-btn-borrar {
+    background: linear-gradient(135deg, #dc3545 0%, #e35d6a 100%);
+    color: #fff;
+    box-shadow: 0 3px 10px rgba(220, 53, 69, 0.3);
+}
+
+.fx-btn-borrar:hover:not(:disabled) {
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(220, 53, 69, 0.4);
+}
+
+.fx-btn-limpiar {
+    background: #fff;
+    border-color: #dbe3ee;
+    color: #6b7a99;
+}
+
+.fx-btn-limpiar:hover:not(:disabled) {
+    background: #eef4fd;
+    color: #1e3c72;
+    border-color: #b9c8e0;
+}
+
+/* Chip de filtro activo */
+.fx-chip {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 0.3rem 0.85rem;
+}
+
+.fx-chip-info {
+    background: #eef4fd;
+    border: 1px solid #cddcf3;
+    color: #1e3c72;
+}
+
+.fx-chip-limpiar { font-size: 0.78rem; padding: 0.2rem 0.4rem; }
+
+/* Bloques Deporte → Categoría dentro del listado */
+#fx_lista .card {
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(30, 60, 114, 0.07);
+}
+
+#fx_lista .card-header {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+    border-bottom: 0;
+}
+
+#fx_lista .card-header .badge.bg-white {
+    border-radius: 999px;
+    font-weight: 600;
+}
+
+#fx_lista .border.rounded {
+    border-radius: 12px !important;
+    border-color: #eef2f7 !important;
+    overflow: hidden;
+}
+
+/* Filas de partidos: zebra + hover como la tabla de inscriptos */
+#fx_lista .list-group-item {
+    border-left: 0;
+    border-right: 0;
+    border-color: #eef2f7;
+    padding: 0.7rem 0.75rem;
+    transition: background-color 0.15s ease;
+}
+
+#fx_lista .list-group-item:nth-child(even) { background-color: #f8fafd; }
+
+#fx_lista .list-group-item:hover { background-color: #eef4fd; }
+
+#fx_lista .list-group-item .badge {
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+/* Botones circulares de acción por partido (ver / editar / borrar) */
+#fx_lista .btn-sm.fx-detalle,
+#fx_lista .btn-sm.fx-editar,
+#fx_lista .btn-sm.fx-borrar {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border-radius: 50%;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#fx_lista .btn-sm.fx-detalle:hover,
+#fx_lista .btn-sm.fx-editar:hover,
+#fx_lista .btn-sm.fx-borrar:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+#fx_lista .btn-sm.fx-detalle:hover { background-color: #1e3c72; border-color: #1e3c72; color: #fff; }
+#fx_lista .btn-sm.fx-editar:hover { background-color: #b45309; border-color: #b45309; color: #fff; }
+#fx_lista .btn-sm.fx-borrar:hover { background-color: #dc3545; border-color: #dc3545; color: #fff; }
+
+/* Botones de día de competencia: píldoras */
+#fx_dias_btns .btn {
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.3rem 0.85rem;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+#fx_dias_btns .btn-primary {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    border-color: transparent;
+    box-shadow: 0 2px 6px rgba(30, 60, 114, 0.35);
+}
+
+#fx_dias_btns .btn:hover:not(.btn-primary) {
+    transform: translateY(-1px);
+    background-color: #eef4fd;
+    color: #1e3c72;
+    border-color: #b9c8e0;
+}
+
+/* Estado vacío del listado */
+.fx-vacio-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #eef4fd;
+    color: #2a5298;
+}
