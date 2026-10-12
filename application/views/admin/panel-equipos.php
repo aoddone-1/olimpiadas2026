@@ -22,8 +22,10 @@
                 </div>
             </div>
         </div>
-        <!-- Panel de Filtros -->
-        <div class="row g-2 align-items-end" id="panelFiltrosEquipos">
+    </div>
+    
+    <div class="card-body">
+        <div class="fx-filtros row g-2 align-items-end mb-3" id="panelFiltrosEquipos">
             <div class="col-md-3">
                 <label for="filtroDeporteEquipo" class="form-label small fw-semibold mb-1">
                     <i class="bi bi-trophy-fill text-warning me-1"></i>Deporte
@@ -64,9 +66,6 @@
                 </button>
             </div>
         </div>
-    </div>
-    
-    <div class="card-body">
         <div class="table-responsive">
             <table class="table table-hover align-middle js-tabla-utes" id="tabla-utes">
                 <thead class="small text-uppercase">
