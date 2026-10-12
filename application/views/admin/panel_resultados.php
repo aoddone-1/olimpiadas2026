@@ -6,55 +6,73 @@
 .rs-podio.badge strong,
 .rs-podio.badge span { color: #000 !important; background-color: #fff !important; }
 </style>
-<div class="card shadow-sm border-0">
-    <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
+<div class="card shadow-sm border-0 mb-4 card-inscriptos">
+    <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-            <div class="d-flex align-items-center">
-                 <i class="bi bi-trophy-fill me-2 text-success"></i>
-                <span>Carga de Resultados</span>
+            <div class="d-flex align-items-center gap-2">
+                <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
+                    <i class="bi bi-trophy-fill me-2 text-success"></i>
+                </span>
+                <span class="fx-header-titulo">Carga de Resultados <u><?= LUGAR_OLIMPICO2 ?></u></span>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                <button id="rs_btn_nuevo" class="btn btn-lg btn-primary">
+                    <i class="bi bi-plus-circle me-1"></i>
+                </button>
             </div>
         </div>
     </div>
     <div class="card-body">
+        <div class="fx-filtros row g-2 align-items-end mb-3" id="rs_filtros">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-success me-1"></i>Deporte</label>
+                <select id="rs_filtro_deporte" class="form-select form-select-sm" style="min-width:180px">
+                    <option value="">Todos los Deportes</option>
+                    <?php
+                    // Solo deportes que YA tienen fixture generado.
+                    $deportesVistos = [];
+                    foreach ($categorias_con_fixture as $cat):
+                        if (!in_array($cat['id_deporte'], $deportesVistos)):
+                            $deportesVistos[] = $cat['id_deporte'];
+                    ?>
+                        <option value="<?= (int) $cat['id_deporte'] ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
+                    <?php endif; endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-success me-1"></i>Categoría</label>
+                <select id="rs_filtro_categoria" class="form-select form-select-sm" style="min-width:230px">
+                    <option value="" data-deporte="">Todas las Categorías</option>
+                    <?php foreach ($categorias_con_fixture as $cat): ?>
+                        <option value="<?= (int) $cat['id_categoria'] ?>"
+                                data-deporte="<?= (int) $cat['id_deporte'] ?>">
+                            <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button id="rs_btn_limpiar" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
+                </button>
+            </div>            
+
+        </div>
 
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <!-- Filtros al estilo UTEs/Equipos -->
             <div class="d-flex flex-wrap gap-2 align-items-end" id="rs_filtros">
                 <div>
-                    <label class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-success me-1"></i>Deporte</label>
-                    <select id="rs_filtro_deporte" class="form-select form-select-sm" style="min-width:180px">
-                        <option value="">Todos los Deportes</option>
-                        <?php
-                        // Solo deportes que YA tienen fixture generado.
-                        $deportesVistos = [];
-                        foreach ($categorias_con_fixture as $cat):
-                            if (!in_array($cat['id_deporte'], $deportesVistos)):
-                                $deportesVistos[] = $cat['id_deporte'];
-                        ?>
-                            <option value="<?= (int) $cat['id_deporte'] ?>"><?= htmlspecialchars($cat['nombre_deporte']) ?></option>
-                        <?php endif; endforeach; ?>
-                    </select>
+                    
+                    
                 </div>
                 <div>
-                    <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-success me-1"></i>Categoría</label>
-                    <select id="rs_filtro_categoria" class="form-select form-select-sm" style="min-width:230px">
-                        <option value="" data-deporte="">Todas las Categorías</option>
-                        <?php foreach ($categorias_con_fixture as $cat): ?>
-                            <option value="<?= (int) $cat['id_categoria'] ?>"
-                                    data-deporte="<?= (int) $cat['id_deporte'] ?>">
-                                <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    
                 </div>
-                <button id="rs_btn_limpiar" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
-                </button>
             </div>
 
-            <button id="rs_btn_nuevo" class="btn btn-primary">
-                <i class="bi bi-plus-lg me-1"></i>Cargar resultado
-            </button>
+            
         </div>
 
         <div id="rs_mensaje" class="alert d-none"></div>

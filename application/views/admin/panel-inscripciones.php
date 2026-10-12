@@ -74,7 +74,7 @@
 
     <div class="card-body">
 
-         <div class="fx-filtros row g-2 align-items-end mb-3" id="panelFiltros">
+        <div class="fx-filtros row g-2 align-items-end mb-3" id="panelFiltros">
 
             <div class="col-md-3">
 

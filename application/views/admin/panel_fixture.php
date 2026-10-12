@@ -7,7 +7,7 @@
                 <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
                     <i class="bi bi-calendar3"></i>
                 </span>
-                <span class="fx-header-titulo">Gestión de Fixture</span>
+                <span class="fx-header-titulo">Gestión de Fixture <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
             <div class="d-flex gap-2 align-items-center">
                 <select id="fx_deporte_reporte" class="form-select form-select-sm fx-select-reporte"

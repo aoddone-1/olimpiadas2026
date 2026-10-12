@@ -6,7 +6,7 @@
                 <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
                     <i class="bi bi-list-check text-warning me-2"></i>
                 </span>
-                <span class="fx-header-titulo">Gestion de UTE/Equipos</span>
+                <span class="fx-header-titulo">Gestion de UTE/Equipos <u><?= LUGAR_OLIMPICO2 ?></u></span>
                 <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
