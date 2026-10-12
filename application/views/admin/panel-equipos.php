@@ -61,8 +61,8 @@
             </div>
             
             <div class="col-md-2">
-                <button id="btnLimpiarFiltrosEquipos" class="btn btn-outline-secondary btn-sm w-100">
-                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
+                 <button id="btnLimpiarFiltrosEquipos" class="btn fx-btn-round fx-btn-limpiar" title="Quitar los filtros activos">
+                    <i class="bi bi-x-circle"></i><span class="ms-2">Limpiar filtros</span>
                 </button>
             </div>
         </div>

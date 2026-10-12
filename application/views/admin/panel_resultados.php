@@ -53,8 +53,8 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <button id="rs_btn_limpiar" class="btn btn-outline-secondary btn-sm">
-                    <i class="bi bi-x-circle-fill me-1"></i>Limpiar Filtros
+                <button id="rs_btn_limpiar" class="btn fx-btn-round fx-btn-limpiar" title="Quitar los filtros activos">
+                    <i class="bi bi-x-circle"></i><span class="ms-2">Limpiar filtros</span>
                 </button>
             </div>            
 
