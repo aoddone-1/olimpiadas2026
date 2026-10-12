@@ -1,6 +1,6 @@
  <?php include("modals/control_total_modals.php");?>
 
-<div class="card shadow-sm border-0 mb-4">
+<div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
 
@@ -230,23 +230,23 @@
 
         <div class="table-responsive">
 
-            <table class="table table-hover align-middle" id="tablaInscripciones">
+            <table class="table table-hover align-middle js-tabla-inscripciones" id="tablaInscripciones">
 
-                <thead class="table-light small text-uppercase">
+                <thead class="small text-uppercase">
 
                     <tr>
 
-                        <th>Participante / DNI</th>
+                        <th><i class="bi bi-person-lines-fill me-1"></i>Participante / DNI</th>
 
-                        <th>Delegación</th>
+                        <th><i class="bi bi-geo-alt me-1"></i>Delegación</th>
 
-                        <th>Rol / Asistencia</th>
+                        <th><i class="bi bi-person-badge me-1"></i>Rol / Asistencia</th>
 
-                        <th>Deporte / Categoría</th>
+                        <th><i class="bi bi-trophy me-1"></i>Deporte / Categoría</th>
 
-                        <th>Hotel Alojamiento</th>
+                        <th><i class="bi bi-building me-1"></i>Hotel Alojamiento</th>
 
-                        <th class="text-center">Acciones</th>
+                        <th class="text-center"><i class="bi bi-sliders me-1"></i>Acciones</th>
 
                     </tr>
 
@@ -254,37 +254,77 @@
 
                 <tbody>
 
-                    <?php if(!empty($listado_inscripciones)): foreach($listado_inscripciones as $ins): ?>
+                    <?php if(!empty($listado_inscripciones)): $idx_ins = 0; foreach($listado_inscripciones as $ins): ?>
 
-                    <tr class="js-fila-inscripcion">
+                    <?php
 
-                        <td>
+                        // Datos para la fila (avatar con iniciales y colores según sexo)
 
-                            <div class="fw-bold text-dark">
+                        $sexo_inscrito = trim($ins['sexo'] ?? '');
 
-                                <?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?>
+                        $sx = strtolower($sexo_inscrito);
 
-                                <?php if(($ins['es_delegado'] ?? 0) == 1): ?>
+                        $nombre_ins = trim($ins['nombre_completo'] ?? '');
 
-                                    <span class="badge bg-danger small ms-1" style="font-size:0.65rem;">DELEGADO</span>
+                        $iniciales_ins = '';
 
-                                <?php endif; ?>
+                        foreach(preg_split('/\s+/', $nombre_ins) as $palabra_ins) {
+
+                            if ($palabra_ins !== '' && mb_strlen($iniciales_ins) < 2) {
+
+                                $iniciales_ins .= mb_strtoupper(mb_substr($palabra_ins, 0, 1));
+
+                            }
+
+                        }
+
+                        if ($iniciales_ins === '') $iniciales_ins = '?';
+
+                        $color_avatar = $sx === 'femenino' ? '#e83e8c' : ($sx === 'masculino' ? '#2a5298' : '#6c757d');
+
+                        $par_ins = (++$idx_ins) % 2 === 0;
+
+                    ?>
+
+                    <tr class="js-fila-inscripcion<?= $par_ins ? ' fila-par' : '' ?>">
+
+                        <td class="ps-3">
+
+                            <div class="d-flex align-items-center gap-2">
+
+                                <span class="js-avatar-ins d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-bold text-white"
+
+                                      style="width:38px;height:38px;font-size:0.8rem;background:linear-gradient(135deg, <?= $color_avatar ?> 0%, <?= $color_avatar ?>cc 100%);box-shadow:0 2px 5px rgba(0,0,0,.18);"><?= htmlspecialchars($iniciales_ins, ENT_QUOTES, 'UTF-8') ?></span>
+
+                                <div class="min-w-0">
+
+                                    <div class="fw-bold text-dark text-truncate" style="max-width: 240px;" title="<?= htmlspecialchars($nombre_ins, ENT_QUOTES, 'UTF-8') ?>">
+
+                                        <?= htmlspecialchars($nombre_ins, ENT_QUOTES, 'UTF-8') ?>
+
+                                        <?php if(($ins['es_delegado'] ?? 0) == 1): ?>
+
+                                            <span class="badge bg-danger bg-gradient text-uppercase ms-1 js-badge-delegado" style="font-size:0.6rem;">&#9733; Delegado</span>
+
+                                        <?php endif; ?>
+
+                                    </div>
+
+                                    <small class="text-muted font-monospace">DNI: <?= htmlspecialchars($ins['dni'], ENT_QUOTES, 'UTF-8') ?></small>
+
+                                    <?php if($sexo_inscrito !== ''): ?>
+
+                                        <span class="badge js-badge-sexo ms-1 border <?php echo $sx === 'femenino' ? 'bg-danger-subtle text-danger' : ($sx === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary'); ?>" style="font-size:0.65rem;">
+
+                                            <i class="bi <?= $sx === 'femenino' ? 'bi-gender-female' : ($sx === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans') ?> me-1"></i><?= htmlspecialchars($sexo_inscrito, ENT_QUOTES, 'UTF-8') ?>
+
+                                        </span>
+
+                                    <?php endif; ?>
+
+                                </div>
 
                             </div>
-
-                            <small class="text-muted">DNI: <?= htmlspecialchars($ins['dni'], ENT_QUOTES, 'UTF-8') ?></small>
-
-                                <?php $sexo_inscrito = trim($ins['sexo'] ?? ''); ?>
-
-                                <?php if($sexo_inscrito !== ''): ?>
-
-                                    <span class="badge js-badge-sexo ms-1 border <?php $sx = strtolower($sexo_inscrito); echo $sx === 'femenino' ? 'bg-danger-subtle text-danger' : ($sx === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary'); ?>" style="font-size:0.65rem;">
-
-                                        <i class="bi <?= $sx === 'femenino' ? 'bi-gender-female' : ($sx === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans') ?> me-1"></i><?= htmlspecialchars($sexo_inscrito, ENT_QUOTES, 'UTF-8') ?>
-
-                                    </span>
-
-                                <?php endif; ?>
 
                         </td>
 
@@ -292,9 +332,9 @@
 
                         <td>
 
-                            <span class="badge bg-light text-primary border">
+                            <span class="badge bg-light text-primary border rounded-pill px-2 py-1">
 
-                                <?= htmlspecialchars($ins['delegacion'] ?? 'Sin Especificar', ENT_QUOTES, 'UTF-8') ?>
+                                <i class="bi bi-geo-alt-fill me-1"></i><?= htmlspecialchars($ins['delegacion'] ?? 'Sin Especificar', ENT_QUOTES, 'UTF-8') ?>
 
                             </span>
 
@@ -306,11 +346,15 @@
 
                             <?php if(($ins['es_competidor'] ?? 1) == 0): ?>
 
-                                <span class="badge bg-secondary-subtle text-secondary border small">Acompañante</span>
+                                <span class="badge bg-secondary-subtle text-secondary border rounded-pill small">
+
+                                    <i class="bi bi-person-video3 me-1"></i>Acompañante</span>
 
                             <?php else: ?>
 
-                                <span class="badge bg-primary-subtle text-primary border small">Competidor</span>
+                                <span class="badge bg-primary-subtle text-primary border rounded-pill small">
+
+                                    <i class="bi bi-flag-fill me-1"></i>Competidor</span>
 
                             <?php endif; ?>
 
@@ -330,13 +374,13 @@
 
                                 <div class="text-muted" style="font-size: 0.8rem; max-width: 250px; white-space: normal;">
 
-                                    Cat: <?= htmlspecialchars($ins['categorias_nombres'], ENT_QUOTES, 'UTF-8') ?>
+                                    <i class="bi bi-tag-fill me-1" style="font-size:0.7rem;"></i>Cat: <?= htmlspecialchars($ins['categorias_nombres'], ENT_QUOTES, 'UTF-8') ?>
 
                                 </div>
 
                             <?php else: ?>
 
-                                <span class="text-muted small italic">---</span>
+                                <span class="text-muted small fst-italic">— Sin deporte —</span>
 
                             <?php endif; ?>
 
@@ -346,11 +390,21 @@
 
                         <td>
 
-                            <div class="small fw-semibold text-dark">
+                            <?php if(!empty($ins['hotel_alojamiento'])): ?>
 
-                                <?= !empty($ins['hotel_alojamiento']) ? htmlspecialchars($ins['hotel_alojamiento'], ENT_QUOTES, 'UTF-8') : '<span class="text-danger small fw-bold">SIN ASIGNAR</span>'; ?>
+                                <div class="small fw-semibold text-success">
 
-                            </div>
+                                    <i class="bi bi-buildings me-1"></i><?= htmlspecialchars($ins['hotel_alojamiento'], ENT_QUOTES, 'UTF-8') ?>
+
+                                </div>
+
+                            <?php else: ?>
+
+                                <span class="badge bg-warning-subtle text-warning-emphasis border rounded-pill small fw-bold">
+
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>SIN ASIGNAR</span>
+
+                            <?php endif; ?>
 
                         </td>
 
@@ -358,11 +412,11 @@
 
                         <td class="text-center">
 
-                            <div class="d-flex justify-content-center gap-1">
+                            <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
 
                                 <button type="button" 
 
-                                        class="btn btn-sm btn-outline-info me-1"
+                                        class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle js-btn-accion"
 
                                         title="Ver Detalles Completos"
 
@@ -376,11 +430,11 @@
 
                                 </button>
 
-
+                                <span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
 
-                                   class="btn btn-sm btn-outline-warning me-1" 
+                                   class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion" 
 
                                    title="Modificar Inscripción">
 
@@ -388,11 +442,11 @@
 
                                 </a>
 
-
+                                <span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <button type="button"
 
-                                        class="btn btn-sm btn-outline-danger"
+                                        class="btn btn-sm btn-light text-danger border-0 rounded-circle js-btn-accion js-btn-eliminar"
 
                                         data-id="<?= $ins['id_participante'] ?>"
 
@@ -412,7 +466,13 @@
 
                     <?php endforeach; else: ?>
 
-                        <tr id="filaNoHayDatosIns"><td colspan="6" class="text-center text-muted py-4">No hay inscripciones oficiales registradas todavía.</td></tr>
+                        <tr id="filaNoHayDatosIns"><td colspan="6" class="text-center text-muted py-5">
+
+                            <div class="fs-1 mb-2 opacity-25"><i class="bi bi-inboxes-fill"></i></div>
+
+                            No hay inscripciones oficiales registradas todavía.
+
+                        </td></tr>
 
                     <?php endif; ?>
 
@@ -420,9 +480,11 @@
 
                     <tr id="filaNoResultadosIns" style="display: none;">
 
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-5">
 
-                            <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
+                            <div class="fs-1 mb-2 text-danger opacity-50"><i class="bi bi-search-heart"></i></div>
+
+                            No se encontraron coincidencias para tu búsqueda.
 
                         </td>
 
@@ -1190,7 +1252,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     tablaElemento.addEventListener('click', function(e) {
 
-        const botonEliminar = e.target.closest('.btn-outline-danger[data-id]');
+        const botonEliminar = e.target.closest('.js-btn-eliminar[data-id]');
 
         
 
