@@ -127,7 +127,7 @@
                                         <div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>">
                                             <?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>
                                         </div>
-                                        <small class="text-muted"><i class="bi bi-people me-1"></i><?= $es_equipos_deporte ? 'Equipo' : 'UTE' ?></small>
+                                        
                                     </div>
                                 </div>
                             </td>
