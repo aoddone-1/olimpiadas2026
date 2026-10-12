@@ -28,11 +28,11 @@
         
     </div>
     <div class="card-body">
-        <!-- Barra de acciones: los selectores son solo para generar/borrar, NO para ver -->
-        <div class="row g-2 align-items-end mb-3">
-            <div class="col-md-3">
-                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-danger me-1"></i>Deporte</label>
-                <select id="fx_deporte" class="form-select">
+        <!-- Barra de FILTROS: deporte y categoría filtran el listado -->
+        <div class="fx-filtros row g-2 align-items-end mb-3">
+            <div class="col-md-4 col-lg-3">
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-funnel-fill text-primary me-1"></i>Filtrar por deporte</label>
+                <select id="fx_filtro_deporte" class="form-select">
                     <option value="">— Todos los deportes —</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
                         <option value="<?= $dep['id_deporte'] ?>">
@@ -41,49 +41,37 @@
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-4">
-                <label  class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-danger me-1"></i>Categoría (solo para generar / borrar fixture — el listado se ve por día abajo)</label>
-                <select id="fx_categoria" class="form-select">
-                    <option value="">— Seleccioná una categoría —</option>
-                    <?php
-                    // Para GENERAR fixture solo muestran las categorías que aún
-                    // NO tienen fixture generado.
-                    foreach ($categorias_sin_fixture as $cat): ?>
+            <div class="col-md-5 col-lg-4">
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-primary me-1"></i>Filtrar por categoría</label>
+                <select id="fx_filtro_categoria" class="form-select" disabled>
+                    <option value="">— Todas las categorías —</option>
+                    <?php foreach ($categorias_fixture as $cat): ?>
                         <option value="<?= $cat['id_categoria'] ?>"
-                                data-id-deporte="<?= $cat['id_deporte'] ?>"
-                                data-deporte="<?= htmlspecialchars($cat['nombre_deporte']) ?>"
-                                data-categoria="<?= htmlspecialchars($cat['nombre_categoria']) ?>"
-                                data-modalidad="<?= $cat['modalidad_competencia'] ?>"
-                                data-duracion="<?= $cat['tipo_duracion'] ?>">
+                                data-id-deporte="<?= $cat['id_deporte'] ?>">
                             <?= htmlspecialchars($cat['nombre_deporte']) ?> — <?= htmlspecialchars($cat['nombre_categoria']) ?>
                             (<?= htmlspecialchars($cat['genero']) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-md-5">
-                <label class="form-label small fw-bold">Acciones</label>
-                <div class="d-flex flex-wrap gap-2">
-                    <button id="fx_btn_generar" class="btn btn-primary d-inline-flex align-items-center" disabled>
-                        <i class="bi bi-magic me-2"></i>Generar fixture
+            <div class="col-md-12 col-lg-5">
+                <label class="form-label small fw-bold d-none d-lg-block">&nbsp;</label>
+                <div class="d-flex flex-wrap gap-2 fx-acciones">
+                    <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
+                        <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
-                    <button id="fx_btn_nuevo" class="btn  btn-lg  btn-primary d-inline-flex align-items-center">
-                        <i class="bi bi-plus-circle me-1"></i>
+                    <button id="fx_btn_borrar_todo" class="btn fx-btn-round fx-btn-borrar" disabled title="Borra el fixture del deporte/categoría que estés filtrando">
+                        <i class="bi bi-trash3-fill"></i><span class="ms-2">Borrar fixture</span>
                     </button>
-                    <button id="fx_btn_borrar_todo" class="btn  btn-lg  btn-danger" disabled title="Borra el fixture de la categoría seleccionada">
-                        <i class="bi bi-trash me-1"></i>
+                    <button id="fx_btn_limpiar" class="btn fx-btn-round fx-btn-limpiar d-none" title="Quitar los filtros activos">
+                        <i class="bi bi-x-circle"></i><span class="ms-2">Limpiar filtros</span>
                     </button>
-                    
-                    
                 </div>
             </div>
         </div>
 
-        <!-- Info de la categoría seleccionada -->
-        <div id="fx_info" class="alert alert-info py-2 small d-none"></div>
-
-        <!-- Toast de mensajes -->
-        <div id="fx_mensaje" class="alert d-none"></div>
+        <!-- Chips con los filtros activos -->
+        <div id="fx_chips_filtros" class="mb-2"></div>
 
         <!-- Selector de DÍA de competencia: solo los días del calendario oficial -->
         <div class="mb-3 border-top pt-3">
@@ -269,12 +257,12 @@
         </div>`);
     }
 
-    const selDeporte = document.getElementById('fx_deporte');
-    const selCategoria = document.getElementById('fx_categoria');
-    const btnGenerar = document.getElementById('fx_btn_generar');
+    const selFiltroDeporte = document.getElementById('fx_filtro_deporte');
+    const selFiltroCategoria = document.getElementById('fx_filtro_categoria');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
     const btnBorrarTodo = document.getElementById('fx_btn_borrar_todo');
-    const infoBox = document.getElementById('fx_info');
+    const btnLimpiarFiltros = document.getElementById('fx_btn_limpiar');
+    const chipsFiltros = document.getElementById('fx_chips_filtros');
     const msgBox = document.getElementById('fx_mensaje');
     const lista = document.getElementById('fx_lista');
     const contenedorDias = document.getElementById('fx_dias_btns');
@@ -410,25 +398,45 @@
     function render() {
         const dia = diaActual;
 
-        // Filtrar el fixture del día seleccionado
+        // Filtros activos (los selectores de arriba ahora son solo filtros de vista)
+        const fDep = selFiltroDeporte.value;
+        const fCat = selFiltroCategoria.value;
+        function pasaFiltro(f) {
+            if (fDep && String(f.id_deporte) !== String(fDep)) return false;
+            if (fCat && String(f.id_categoria) !== String(fCat)) return false;
+            return true;
+        }
+        const fixturesFiltrados = todosFixtures.filter(pasaFiltro);
+        renderChipsFiltros(fixturesFiltrados.length);
+
+        // Filtrar el fixture del día seleccionado (ya con deporte/categoría aplicados)
         const fixturesDelDia = dia
-            ? todosFixtures.filter(f => (f.fecha_competencia || '').slice(0, 10) === dia)
-            : todosFixtures.slice();
+            ? fixturesFiltrados.filter(f => (f.fecha_competencia || '').slice(0, 10) === dia)
+            : fixturesFiltrados.slice();
 
         // Botones de día + resumen: "sábado 26/09/2026 — 12 partidos · 4 deportes"
         renderBotonesDias(fixturesDelDia);
 
         if (!todosFixtures.length) {
-            lista.innerHTML = '<div class="text-center text-muted py-4">' +
-                '<i class="bi bi-calendar-x fs-1 d-block mb-2"></i>' +
-                'Todavía no hay ningún partido cargado. Generá un fixture automático o creá uno manual con "+ Partido manual".</div>';
+            lista.innerHTML = '<div class="fx-vacio text-center text-muted py-5">' +
+                '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"><i class="bi bi-calendar-x fs-2"></i></span>' +
+                '<div class="fw-semibold">Todavía no hay ningún partido cargado.</div>' +
+                '<div class="small mt-1">Creá uno manual con el botón <strong>+ Nuevo partido</strong>.</div></div>';
+            return;
+        }
+
+        if (!fixturesFiltrados.length) {
+            lista.innerHTML = '<div class="fx-vacio text-center text-muted py-5">' +
+                '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"><i class="bi bi-funnel fs-2"></i></span>' +
+                '<div class="fw-semibold">No hay partidos con los filtros seleccionados.</div>' +
+                '<div class="small mt-1">Probá con otro deporte/categoría o limpiá los filtros.</div></div>';
             return;
         }
 
         if (!fixturesDelDia.length) {
-            lista.innerHTML = '<div class="text-center text-muted py-4">' +
-                '<i class="bi bi-calendar-day fs-1 d-block mb-2"></i>' +
-                'No hay competencia programada para ' + (dia ? esc(fechaArma(dia)) : 'la fecha seleccionada') + '.' +
+            lista.innerHTML = '<div class="fx-vacio text-center text-muted py-5">' +
+                '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"><i class="bi bi-calendar-day fs-2"></i></span>' +
+                '<div class="fw-semibold">No hay competencia programada para ' + (dia ? esc(fechaArma(dia)) : 'la fecha seleccionada') + '.</div>' +
                 '<div class="small mt-1">Elegí otro día arriba para ver lo que se juega.</div></div>';
             return;
         }
@@ -784,8 +792,10 @@
                 }
                 todosFixtures = res.fixtures || [];
 
-                // Actualizar el select de categorías: solo las que aún no tienen fixture
-                aplicarFiltroSinFixture(res);
+                // Sincronizar los filtros con los datos reales del fixture cargado
+                // (y refrescar el botón "Borrar fixture" según haya o no resultados).
+                actualizarOpcionesFiltroCategoria();
+                actualizarEstadoBtnBorrar();
 
                 // Fallback: si el server no adjuntó las UTEs de cada categoría
                 // (p. ej. BD vieja sin la columna resultado), las pedimos por
@@ -1187,117 +1197,115 @@
         resumenEl.innerHTML = resumen;
     }
 
-    /* ---------- Filtro Deporte → Categoría ---------- */
-    // Al elegir un deporte, la lista de categorías se reduce a las de ese deporte.
-    // Además, solo se muestran las categorías que AÚN NO tienen fixture generado
-    // (la lista llega del server en ajax_fixture_todo → categorias_sin_fixture).
-    const todasLasCategorias = Array.from(selCategoria.options)
-        .filter(o => o.value !== '')
-        .map(o => ({
-            id: o.value,
-            idDeporte: o.dataset.idDeporte,
-            html: o.innerHTML,
-            dataset: Object.assign({}, o.dataset)
-        }));
-
-    let categoriasDisponibles = null; // set de ids sin fixture (null = no filtrar aún)
-
-    function aplicarFiltroSinFixture(res) {
-        if (!res || !Array.isArray(res.categorias_sin_fixture)) return;
-
-        categoriasDisponibles = new Set(res.categorias_sin_fixture.map(c => String(c.id_categoria)));
-
-        // Reconstruir el catálogo dinámico con SOLO las categorías sin fixture
-        todasLasCategorias.length = 0;
-        res.categorias_sin_fixture.forEach(c => {
-            todasLasCategorias.push({
-                id: String(c.id_categoria),
-                idDeporte: String(c.id_deporte),
-                html: `${esc(c.nombre_deporte)} — ${esc(c.nombre_categoria)} (${esc(c.genero)})`,
-                dataset: {
-                    idDeporte: String(c.id_deporte),
-                    deporte: c.nombre_deporte,
-                    categoria: c.nombre_categoria,
-                    modalidad: c.modalidad_competencia,
-                    duracion: c.tipo_duracion
-                }
-            });
-        });
-
-        // Si la categoría seleccionada ya tiene fixture (p. ej. recién generada),
-        // se limpia la selección y se deshabilitan los botones.
-        if (selCategoria.value && !categoriasDisponibles.has(String(selCategoria.value))) {
-            selCategoria.value = '';
-            infoBox.classList.add('d-none');
-            btnGenerar.disabled = true;
-            btnBorrarTodo.disabled = true;
-        }
-
-        filtrarCategoriasPorDeporte();
+    /* ============================================================
+     *  FILTROS DEPORTES / CATEGORÍAS (solo afectan a la visualización)
+     * ============================================================ */
+    function nombreDeporteOpcion(idDep) {
+        const opt = Array.from(selFiltroDeporte.options).find(o => o.value === String(idDep));
+        return opt ? opt.textContent.trim() : ('Deporte #' + idDep);
     }
 
-    function filtrarCategoriasPorDeporte() {
-        const dep = selDeporte.value;
-        const actual = selCategoria.value;
+    function actualizarOpcionesFiltroCategoria() {
+        const dep = selFiltroDeporte.value;
+        const actual = selFiltroCategoria.value;
 
-        selCategoria.innerHTML = '<option value="">— Seleccioná una categoría —</option>';
-
-        todasLasCategorias.forEach(c => {
-            if (dep && c.idDeporte !== dep) return;
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            opt.innerHTML = c.html;
-            Object.keys(c.dataset).forEach(k => opt.dataset[k] = c.dataset[k]);
-            selCategoria.appendChild(opt);
+        // Las categorías disponibles salen del fixture cargado (con sus nombres reales).
+        const mapa = {};
+        todosFixtures.forEach(f => {
+            if (!f.id_categoria) return;
+            if (dep && String(f.id_deporte) !== String(dep)) return;
+            mapa[f.id_categoria] = `${esc(f.nombre_deporte)} — ${esc(f.nombre_categoria)} (${esc(f.genero_categoria || '')})`;
         });
 
-        // Mantener la selección si sigue disponible dentro del nuevo filtro
-        selCategoria.value = actual;
-        if (!selCategoria.value) {
-            infoBox.classList.add('d-none');
-            btnGenerar.disabled = true;
-            btnBorrarTodo.disabled = true;
-        }
+        selFiltroCategoria.disabled = !dep && !Object.keys(mapa).length;
+        selFiltroCategoria.innerHTML = '<option value="">— Todas las categorías —</option>';
+        Object.keys(mapa).sort((a, b) => mapa[a].localeCompare(mapa[b])).forEach(id => {
+            selFiltroCategoria.insertAdjacentHTML('beforeend', `<option value="${esc(id)}">${mapa[id]}</option>`);
+        });
+
+        // Mantener la selección si sigue disponible dentro del filtro de deporte
+        if (actual && mapa[actual]) selFiltroCategoria.value = actual;
+        else selFiltroCategoria.value = '';
     }
 
-    selDeporte.addEventListener('change', filtrarCategoriasPorDeporte);
+    function tieneFiltros() {
+        return !!(selFiltroDeporte.value || selFiltroCategoria.value);
+    }
 
-    /* ---------- Acciones sobre la categoría del selector (solo generar/borrar) ---------- */
-    selCategoria.addEventListener('change', () => {
-        const opt = selCategoria.selectedOptions[0];
-        const activo = !!selCategoria.value;
-        btnGenerar.disabled = !activo;
-        btnBorrarTodo.disabled = !activo;
-
-        if (activo) {
-            infoBox.classList.remove('d-none');
-            const tipo = opt.dataset.modalidad === 'MASIVO_TIEMPO'
-                ? 'Deporte MASIVO de un solo día → se genera una única jornada (largada).'
-                : (opt.dataset.duracion === 'UNICO_DIA'
-                    ? 'Deporte de enfrentamiento en jornada única → eliminatoria concentrada en 1 día.'
-                    : 'Deporte MULTIDIA de enfrentamiento → se genera bracket de eliminatoria por fechas.');
-            infoBox.innerHTML = `<strong>${esc(opt.dataset.deporte)} — ${esc(opt.dataset.categoria)}</strong><br>${tipo}`;
-        } else {
-            infoBox.classList.add('d-none');
+    function actualizarEstadoBtnBorrar() {
+        const dep = selFiltroDeporte.value;
+        const cat = selFiltroCategoria.value;
+        let habilitado = false;
+        if (cat) {
+            habilitado = todosFixtures.some(f => String(f.id_categoria) === String(cat));
+        } else if (dep) {
+            habilitado = todosFixtures.some(f => String(f.id_deporte) === String(dep));
         }
+        btnBorrarTodo.disabled = !habilitado;
+        btnBorrarTodo.title = habilitado
+            ? 'Borra el fixture del deporte/categoría que estés filtrando'
+            : 'Elegí un deporte o una categoría en los filtros para poder borrar su fixture';
+        btnLimpiarFiltros.classList.toggle('d-none', !tieneFiltros());
+    }
+
+    function renderChipsFiltros(cantidad) {
+        if (!tieneFiltros()) { chipsFiltros.innerHTML = ''; return; }
+        const dep = selFiltroDeporte.value;
+        const cat = selFiltroCategoria.value;
+        let html = '<span class="fx-chip fx-chip-info"><i class="bi bi-funnel-fill me-1"></i>Filtrando:' +
+            (dep ? ` <strong>${esc(nombreDeporteOpcion(dep))}</strong>` : '') +
+            (cat ? ` <i class="bi bi-chevron-right mx-1 small"></i><strong>${esc(selFiltroCategoria.options[selFiltroCategoria.selectedIndex].text)}</strong>` : '') +
+            ` <span class="badge rounded-pill ms-1">${cantidad}</span></span>`;
+        html += '<button type="button" class="btn btn-sm btn-link text-danger text-decoration-none fx-chip-limpiar" id="fx_chip_limpiar"><i class="bi bi-x-circle me-1"></i>quitar filtros</button>';
+        chipsFiltros.innerHTML = html;
+        const btnChip = document.getElementById('fx_chip_limpiar');
+        if (btnChip) btnChip.addEventListener('click', limpiarFiltros);
+    }
+
+    function limpiarFiltros() {
+        selFiltroDeporte.value = '';
+        selFiltroCategoria.value = '';
+        actualizarOpcionesFiltroCategoria();
+        actualizarEstadoBtnBorrar();
+        render();
+    }
+
+    selFiltroDeporte.addEventListener('change', () => {
+        selFiltroCategoria.value = '';
+        actualizarOpcionesFiltroCategoria();
+        actualizarEstadoBtnBorrar();
+        render();
     });
 
-    btnGenerar.addEventListener('click', () => {
-        if (!confirm('Se generará el fixture automáticamente con las UTEs existentes (cruces aleatorios). ¿Continuar?')) return;
-        post('ajax_generar_fixture', { id_categoria: selCategoria.value }).then(res => {
-            mensaje(res.ok ? res.mensaje : res.error, res.ok ? 'success' : 'danger');
-            if (res.ok) cargarTodo();
-        });
+    selFiltroCategoria.addEventListener('change', () => {
+        actualizarEstadoBtnBorrar();
+        render();
     });
 
+    btnLimpiarFiltros.addEventListener('click', limpiarFiltros);
+
+    /* ---------- Acciones ---------- */
     btnNuevo.addEventListener('click', () => abrirModal(null));
 
     btnBorrarTodo.addEventListener('click', () => {
-        if (!confirm('¿Seguro? Se eliminarán TODOS los partidos de esta categoría.')) return;
-        post('ajax_eliminar_fixture', { id_categoria: selCategoria.value }).then(res => {
-            mensaje(res.mensaje, 'success');
-            cargarTodo();
-        });
+        const cat = selFiltroCategoria.value;
+        const dep = selFiltroDeporte.value;
+        if (cat) {
+            if (!confirm('¿Seguro? Se eliminarán TODOS los partidos de la categoría filtrada.')) return;
+            post('ajax_eliminar_fixture', { id_categoria: cat }).then(res => {
+                mensaje(res.mensaje, 'success');
+                cargarTodo();
+            });
+        } else if (dep) {
+            const ids = Array.from(new Set(
+                todosFixtures.filter(f => String(f.id_deporte) === String(dep)).map(f => f.id_categoria)
+            ));
+            if (!ids.length) { mensaje('No hay fixture para borrar en ese deporte.', 'warning'); return; }
+            if (!confirm(`¿Seguro? Se eliminarán TODOS los partidos de ${ids.length} categoría/s de ${nombreDeporteOpcion(dep)}.`)) return;
+            Promise.all(ids.map(idCat => post('ajax_eliminar_fixture', { id_categoria: idCat })))
+                .then(() => { mensaje('Fixture eliminado del deporte.', 'success'); cargarTodo(); })
+                .catch(err => mensaje(err.message, 'danger'));
+        }
     });
 
     /* Al iniciar, mostrar TODO el fixture ya cargado */
