@@ -552,15 +552,21 @@
                                 <span class="badge bg-light text-dark border" title="Equipos que se enfrentan">
                                     <i class="bi bi-person-lines-fill me-1"></i>${esc(f.ute_1_nombre)} vs ${esc(f.ute_2_nombre)}
                                 </span>` : ''}
-                            <button class="btn btn-sm btn-outline-primary fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
-                                <i class="bi bi-search"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary fx-editar" data-id="${f.id_fixture}" title="Editar">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
-                                <i class="bi bi-x-lg"></i>
-                            </button>
+                            <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
+                                <button class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                                <span class="vr mx-1 text-muted opacity-25"></span>
+                                <button class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <span class="vr mx-1 text-muted opacity-25"></span>
+                                <button class="btn btn-sm btn-light text-danger border-0 rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
+                                    <i class="bi bi-trash3-fill"></i>
+                                </button>
+                            </div>
+                            
+                            
                         </div>
                     </div>`;
                 });

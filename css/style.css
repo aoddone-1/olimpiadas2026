@@ -45,53 +45,7 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     border-bottom: 2px solid #eef2f7;
 }
 
-/* Tabla de inscriptos */
-.js-tabla-inscripciones { margin-bottom: 0; }
 
-.js-tabla-inscripciones thead th {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-    color: rgba(255, 255, 255, 0.92);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    font-size: 0.74rem;
-    padding: 0.8rem 0.9rem;
-    border-bottom: 0;
-    white-space: nowrap;
-}
-
-.js-tabla-inscripciones thead th i { color: #ffc107; }
-
-.js-tabla-inscripciones tbody td {
-    padding: 0.75rem 0.9rem;
-    border-bottom: 1px solid #eef2f7;
-    vertical-align: middle;
-}
-
-/* Zebra suave + transición de hover */
-.js-tabla-inscripciones tbody tr { transition: background-color 0.15s ease; }
-.js-tabla-inscripciones tbody tr.fila-par { background-color: #f8fafd; }
-.js-tabla-inscripciones tbody tr:hover { background-color: #eef4fd; }
-
-/* Botones de acción circulares con efecto */
-.js-tabla-inscripciones .js-btn-accion {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.js-tabla-inscripciones .js-btn-accion:hover {
-    transform: scale(1.15);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-    background-color: #fff;
-}
-
-.js-tabla-inscripciones .btn-light.text-info-emphasis:hover { color: #0d6efd !important; }
-.js-tabla-inscripciones .btn-light.text-warning-emphasis:hover { color: #b45309 !important; }
-.js-tabla-inscripciones .btn-light.text-danger:hover { color: #dc3545 !important; }
 
 /* Avatar con iniciales */
 .js-avatar-ins {
@@ -243,7 +197,7 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 }
 
 #fx_lista .card-header {
-    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
+    background: linear-gradient(135deg, #2a67d7 0%, #0e64fa 100%) !important;
     border-bottom: 0;
 }
 
@@ -276,31 +230,6 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     font-weight: 600;
     letter-spacing: 0.02em;
 }
-
-/* Botones circulares de acción por partido (ver / editar / borrar) */
-#fx_lista .btn-sm.fx-detalle,
-#fx_lista .btn-sm.fx-editar,
-#fx_lista .btn-sm.fx-borrar {
-    width: 32px;
-    height: 32px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    border-radius: 50%;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-#fx_lista .btn-sm.fx-detalle:hover,
-#fx_lista .btn-sm.fx-editar:hover,
-#fx_lista .btn-sm.fx-borrar:hover {
-    transform: scale(1.15);
-    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-}
-
-#fx_lista .btn-sm.fx-detalle:hover { background-color: #1e3c72; border-color: #1e3c72; color: #fff; }
-#fx_lista .btn-sm.fx-editar:hover { background-color: #b45309; border-color: #b45309; color: #fff; }
-#fx_lista .btn-sm.fx-borrar:hover { background-color: #dc3545; border-color: #dc3545; color: #fff; }
 
 /* Botones de día de competencia: píldoras */
 #fx_dias_btns .btn {
