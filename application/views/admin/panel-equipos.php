@@ -1,8 +1,8 @@
-<div class="card shadow-sm border-0 mb-4">
+<div class="card shadow-sm border-0 mb-4 card-inscriptos">
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
             <div class="d-flex align-items-center">
-                <i class="bi bi-list-check text-warning me-2"></i> 
+                <i class="bi bi-list-check text-warning me-2"></i>
                 <span>Gestion de UTE/Equipos</span>
                 <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
             </div>
@@ -68,62 +68,109 @@
     
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-hover align-middle" id="tabla-utes">
-                <thead class="table-light">
+            <table class="table table-hover align-middle js-tabla-utes" id="tabla-utes">
+                <thead class="small text-uppercase">
                     <tr>
-                        <th>Deporte</th>
-                        <th>Categoría</th>
-                        <th>Nombre UTE</th>
-                        <th>Integrantes</th>
-                        <th>Fecha Creación</th>
-                        <th class="text-end">Acciones</th>
+                        <th><i class="bi bi-trophy me-1"></i>Deporte</th>
+                        <th><i class="bi bi-layers me-1"></i>Categoría</th>
+                        <th><i class="bi bi-people me-1"></i>Nombre UTE</th>
+                        <th><i class="bi bi-people-fill me-1"></i>Integrantes</th>
+                        <th><i class="bi bi-calendar3 me-1"></i>Fecha Creación</th>
+                        <th class="text-center"><i class="bi bi-sliders me-1"></i>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="cuerpo-tabla-utes">
                     <?php if (empty($utes)): ?>
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-muted">
-                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                            No hay UTEs creadas aún
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                            <span class="fw-semibold">No hay UTEs creadas aún</span>
                         </td>
                     </tr>
                     <?php else: ?>
-                        <?php foreach ($utes as $ute): ?>
-                        <tr class="js-fila-equipo" id="ute-fila-<?= $ute['id_ute'] ?>">
+                        <?php $idx_ute = 0; foreach ($utes as $ute): ?>
+                        <?php
+                            // Avatar del equipo: iniciales + color según género de la categoría
+                            $nombre_ute_txt   = trim($ute['nombre_ute'] ?? '');
+                            $genero_ute       = strtolower(trim($ute['genero'] ?? ''));
+                            $iniciales_ute    = '';
+                            foreach (preg_split('/\s+/', $nombre_ute_txt) as $palabra_ute) {
+                                if ($palabra_ute !== '' && mb_strlen($iniciales_ute) < 2) {
+                                    $iniciales_ute .= mb_strtoupper(mb_substr($palabra_ute, 0, 1));
+                                }
+                            }
+                            if ($iniciales_ute === '') $iniciales_ute = '?';
+                            $color_avatar_ute = $genero_ute === 'femenino' ? '#e83e8c' : ($genero_ute === 'masculino' ? '#2a5298' : '#6c757d');
+                            $par_ute = (++$idx_ute) % 2 === 0;
+                            // Badge "Equipo" o "UTE" según disciplina
+                            $es_equipos_deporte = in_array(strtolower(trim($ute['nombre_deporte'])), ['futbol', 'fútbol', 'basquet', 'basquetbol', 'basket', 'handball', 'voley', 'vóley']);
+                        ?>
+                        <tr class="js-fila-equipo<?= $par_ute ? ' fila-par' : '' ?>" id="ute-fila-<?= $ute['id_ute'] ?>">
                             <td>
-                                <span class="fw-semibold"><?= htmlspecialchars($ute['nombre_deporte']) ?></span>
+                                <div class="fw-semibold text-dark text-uppercase small"><?= htmlspecialchars($ute['nombre_deporte']) ?></div>
+                                <?php if (!empty($ute['genero'])): ?>
+                                    <span class="badge rounded-pill border <?= $genero_ute === 'femenino' ? 'bg-danger-subtle text-danger' : ($genero_ute === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary') ?> js-badge-genero" style="font-size:0.65rem;">
+                                        <i class="bi <?= $genero_ute === 'femenino' ? 'bi-gender-female' : ($genero_ute === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans') ?> me-1"></i><?= htmlspecialchars($ute['genero']) ?>
+                                    </span>
+                                <?php endif; ?>
                             </td>
-                            <td><?= htmlspecialchars($ute['nombre_categoria']) ?></td>
-                            <td class="fw-bold text-primary"><?= htmlspecialchars($ute['nombre_ute']) ?></td>
                             <td>
-                                <span class="badge bg-success"><?= $ute['cantidad_integrantes'] ?></span> integrantes
+                                <span class="badge bg-light text-secondary border rounded-pill px-2 py-1">
+                                    <i class="bi bi-tag-fill me-1 text-muted" style="font-size:0.7rem;"></i><?= htmlspecialchars($ute['nombre_categoria']) ?>
+                                </span>
                             </td>
-                            <td class="text-muted small"><?= date('d/m/Y', strtotime($ute['fecha_creacion'])) ?></td>
-                            <td class="text-end">
-                                <button class="btn btn-sm btn-outline-info me-1 btn-ver-integrantes" 
-                                        data-id-ute="<?= $ute['id_ute'] ?>" 
-                                        title="Ver integrantes">
-                                    <i class="bi bi-people"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-warning me-1 btn-agregar-integrante" 
-                                        data-id-ute="<?= $ute['id_ute'] ?>" 
-                                        data-id-categoria="<?= $ute['id_categoria'] ?>"
-                                        title="Agregar integrante">
-                                    <i class="bi bi-person-plus"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-danger btn-eliminar-ute" 
-                                        data-id-ute="<?= $ute['id_ute'] ?>" 
-                                        data-nombre-ute="<?= htmlspecialchars($ute['nombre_ute']) ?>"
-                                        title="Eliminar UTE">
-                                    <i class="bi bi-trash"></i>
-                                </button>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="js-avatar-ins d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-bold text-white"
+                                          style="width:38px;height:38px;font-size:0.8rem;background:linear-gradient(135deg, <?= $color_avatar_ute ?> 0%, <?= $color_avatar_ute ?>cc 100%);box-shadow:0 2px 5px rgba(0,0,0,.18);"><?= htmlspecialchars($iniciales_ute, ENT_QUOTES, 'UTF-8') ?></span>
+                                    <div class="min-w-0">
+                                        <div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>
+                                        </div>
+                                        <small class="text-muted"><i class="bi bi-people me-1"></i><?= $es_equipos_deporte ? 'Equipo' : 'UTE' ?></small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge rounded-pill <?= $ute['cantidad_integrantes'] > 0 ? 'bg-success-subtle text-success border' : 'bg-danger-subtle text-danger border' ?> px-2 py-1 js-badge-integrantes">
+                                    <i class="bi bi-people-fill me-1"></i><?= $ute['cantidad_integrantes'] ?>
+                                </span>
+                                <small class="text-muted ms-1">integrante<?= $ute['cantidad_integrantes'] == 1 ? '' : 's' ?></small>
+                            </td>
+                            <td>
+                                <span class="text-muted small">
+                                    <i class="bi bi-calendar-event me-1"></i><?= date('d/m/Y', strtotime($ute['fecha_creacion'])) ?>
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
+                                    <button type="button" class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle js-btn-accion btn-ver-integrantes"
+                                            data-id-ute="<?= $ute['id_ute'] ?>"
+                                            title="Ver integrantes">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                    <span class="vr mx-1 text-muted opacity-25"></span>
+                                    <button type="button" class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion btn-agregar-integrante"
+                                            data-id-ute="<?= $ute['id_ute'] ?>"
+                                            data-id-categoria="<?= $ute['id_categoria'] ?>"
+                                            title="Agregar integrante">
+                                        <i class="bi bi-person-plus-fill"></i>
+                                    </button>
+                                    <span class="vr mx-1 text-muted opacity-25"></span>
+                                    <button type="button" class="btn btn-sm btn-light text-danger border-0 rounded-circle js-btn-accion btn-eliminar-ute"
+                                            data-id-ute="<?= $ute['id_ute'] ?>"
+                                            data-nombre-ute="<?= htmlspecialchars($ute['nombre_ute'], ENT_QUOTES, 'UTF-8') ?>"
+                                            title="Eliminar UTE">
+                                        <i class="bi bi-trash3-fill"></i>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
-                    
+
                     <tr id="filaNoResultadosEquipos" style="display: none;">
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="6" class="text-center text-muted py-5">
                             <i class="bi bi-exclamation-circle text-danger me-2"></i>No se encontraron coincidencias para tu búsqueda.
                         </td>
                     </tr>
@@ -295,40 +342,76 @@ document.addEventListener('DOMContentLoaded', function() {
                 const tbody = document.getElementById('cuerpo-tabla-utes');
                 const fechaActual = new Date().toLocaleDateString('es-AR');
                 
-                const colorBadge = genero === 'MASCULINO' ? 'primary' : (genero === 'FEMENINO' ? 'danger' : 'info');
-                
+                const generoLower = (genero || '').toLowerCase();
+                const colorAvatar = generoLower === 'femenino' ? '#e83e8c' : (generoLower === 'masculino' ? '#2a5298' : '#6c757d');
+                const claseBadgeGenero = generoLower === 'femenino' ? 'bg-danger-subtle text-danger' : (generoLower === 'masculino' ? 'bg-primary-subtle text-primary' : 'bg-light text-secondary');
+                const iconoGenero = generoLower === 'femenino' ? 'bi-gender-female' : (generoLower === 'masculino' ? 'bi-gender-male' : 'bi-gender-trans');
+
+                // Iniciales del nombre del equipo para el avatar
+                const inicialesUte = nombreUte.split(/\s+/).filter(w => w !== '').slice(0, 2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+                const escHtml = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+                const totalFilas = document.querySelectorAll('#cuerpo-tabla-utes tr.js-fila-equipo').length;
+                const esPar = (totalFilas + 1) % 2 === 0;
+
                 const nuevaFila = document.createElement('tr');
                 nuevaFila.id = 'ute-fila-' + data.id_ute;
-                nuevaFila.className = 'js-fila-equipo';
+                nuevaFila.className = 'js-fila-equipo' + (esPar ? ' fila-par' : '');
                 nuevaFila.innerHTML = `
                     <td>
-                        <span class="fw-semibold">${nombreDeporte}</span>
-                        <span class="badge bg-${colorBadge} ms-1">${genero}</span>
+                        <div class="fw-semibold text-dark text-uppercase small">${escHtml(nombreDeporte)}</div>
+                        <span class="badge rounded-pill border ${claseBadgeGenero} js-badge-genero" style="font-size:0.65rem;">
+                            <i class="bi ${iconoGenero} me-1"></i>${escHtml(genero)}
+                        </span>
                     </td>
-                    <td>${nombreCategoria}</td>
-                    <td class="fw-bold text-primary">${nombreUte}</td>
                     <td>
-                        <span class="badge bg-success">0</span> integrantes
+                        <span class="badge bg-light text-secondary border rounded-pill px-2 py-1">
+                            <i class="bi bi-tag-fill me-1 text-muted" style="font-size:0.7rem;"></i>${escHtml(nombreCategoria)}
+                        </span>
                     </td>
-                    <td class="text-muted small">${fechaActual}</td>
-                    <td class="text-end">
-                        <button class="btn btn-sm btn-outline-info me-1 btn-ver-integrantes" 
-                                data-id-ute="${data.id_ute}" 
-                                title="Ver integrantes">
-                            <i class="bi bi-people"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-warning me-1 btn-agregar-integrante" 
-                                data-id-ute="${data.id_ute}" 
-                                data-id-categoria="${idCategoria}"
-                                title="Agregar integrante">
-                            <i class="bi bi-person-plus"></i>
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger btn-eliminar-ute" 
-                                data-id-ute="${data.id_ute}" 
-                                data-nombre-ute="${nombreUte}"
-                                title="Eliminar UTE">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="js-avatar-ins d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-bold text-white"
+                                  style="width:38px;height:38px;font-size:0.8rem;background:linear-gradient(135deg, ${colorAvatar} 0%, ${colorAvatar}cc 100%);box-shadow:0 2px 5px rgba(0,0,0,.18);">${escHtml(inicialesUte)}</span>
+                            <div class="min-w-0">
+                                <div class="fw-bold text-dark text-truncate" style="max-width: 220px;" title="${escHtml(nombreUte)}">${escHtml(nombreUte)}</div>
+                                <small class="text-muted"><i class="bi bi-people me-1"></i>UTE</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge rounded-pill bg-danger-subtle text-danger border px-2 py-1 js-badge-integrantes">
+                            <i class="bi bi-people-fill me-1"></i>0
+                        </span>
+                        <small class="text-muted ms-1">integrantes</small>
+                    </td>
+                    <td>
+                        <span class="text-muted small">
+                            <i class="bi bi-calendar-event me-1"></i>${fechaActual}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
+                            <button type="button" class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle js-btn-accion btn-ver-integrantes"
+                                    data-id-ute="${data.id_ute}"
+                                    title="Ver integrantes">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <span class="vr mx-1 text-muted opacity-25"></span>
+                            <button type="button" class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion btn-agregar-integrante"
+                                    data-id-ute="${data.id_ute}"
+                                    data-id-categoria="${idCategoria}"
+                                    title="Agregar integrante">
+                                <i class="bi bi-person-plus-fill"></i>
+                            </button>
+                            <span class="vr mx-1 text-muted opacity-25"></span>
+                            <button type="button" class="btn btn-sm btn-light text-danger border-0 rounded-circle js-btn-accion btn-eliminar-ute"
+                                    data-id-ute="${data.id_ute}"
+                                    data-nombre-ute="${escHtml(nombreUte)}"
+                                    title="Eliminar UTE">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>
+                        </div>
                     </td>
                 `;
                 
@@ -443,13 +526,13 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Actualizar contador en la tabla principal si estamos viendo el modal
                         const filaUte = document.getElementById('ute-fila-' + idUte);
                         if (filaUte) {
-                            const celdaIntegrantes = filaUte.querySelector('td:nth-child(4)');
-                            if (celdaIntegrantes) {
-                                const badge = celdaIntegrantes.querySelector('.badge');
-                                if (badge) {
-                                    const cantidadActual = parseInt(badge.textContent);
-                                    badge.textContent = Math.max(0, cantidadActual - 1);
-                                }
+                            const badge = filaUte.querySelector('.js-badge-integrantes');
+                            if (badge) {
+                                const cantidadActual = parseInt(badge.textContent) || 0;
+                                const nuevaCantidad = Math.max(0, cantidadActual - 1);
+                                badge.innerHTML = '<i class="bi bi-people-fill me-1"></i>' + nuevaCantidad;
+                                badge.classList.remove('bg-success-subtle', 'text-success', 'bg-danger-subtle', 'text-danger');
+                                badge.classList.add(nuevaCantidad > 0 ? 'bg-success-subtle' : 'bg-danger-subtle', nuevaCantidad > 0 ? 'text-success' : 'text-danger');
                             }
                         }
                     } else {
@@ -536,13 +619,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Actualizar el contador de integrantes en la fila correspondiente
                 const filaUte = document.getElementById('ute-fila-' + idUte);
                 if (filaUte) {
-                    const celdaIntegrantes = filaUte.querySelector('td:nth-child(4)');
-                    if (celdaIntegrantes) {
-                        const badge = celdaIntegrantes.querySelector('.badge');
-                        if (badge) {
-                            const cantidadActual = parseInt(badge.textContent);
-                            badge.textContent = cantidadActual + 1;
-                        }
+                    const badge = filaUte.querySelector('.js-badge-integrantes');
+                    if (badge) {
+                        const cantidadActual = parseInt(badge.textContent) || 0;
+                        const nuevaCantidad = cantidadActual + 1;
+                        badge.innerHTML = '<i class="bi bi-people-fill me-1"></i>' + nuevaCantidad;
+                        badge.classList.remove('bg-success-subtle', 'text-success', 'bg-danger-subtle', 'text-danger');
+                        badge.classList.add(nuevaCantidad > 0 ? 'bg-success-subtle' : 'bg-danger-subtle', nuevaCantidad > 0 ? 'text-success' : 'text-danger');
                     }
                 }
                 
