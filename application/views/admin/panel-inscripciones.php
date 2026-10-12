@@ -19,6 +19,10 @@
             
 
             <div class="d-flex gap-2 align-items-center">
+                <button type="button" class="btn btn-lg  btn-warning"
+                        data-bs-toggle="modal" data-bs-target="#modalImprimirCredenciales">
+                    <i class="bi bi-person-badge-fill me-1"></i>
+                </button>
 
                 <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
 

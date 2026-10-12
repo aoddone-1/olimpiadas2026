@@ -40,11 +40,7 @@
             </li>
         </ul>
 
-        <!-- Botón Imprimir Credenciales: abre el modal para elegir delegación -->
-        <button type="button" class="btn btn-lg btn-warning fw-bold rounded-pill shadow-sm px-4"
-                data-bs-toggle="modal" data-bs-target="#modalImprimirCredenciales">
-            <i class="bi bi-person-badge-fill me-2"></i>Imprimir Credenciales
-        </button>
+        
     </div>
 
     <div class="tab-content" id="controlTabsContent">
