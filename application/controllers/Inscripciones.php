@@ -2003,6 +2003,7 @@ class Inscripciones extends CI_Controller {
 
         $nombre_ute = $this->input->post('nombre_ute');
         $id_categoria = $this->input->post('id_categoria');
+        $genero = $this->input->post('genero');
 
         if (empty($nombre_ute) || empty($id_categoria)) {
             echo json_encode(['success' => false, 'error' => 'Datos incompletos']);
@@ -2010,12 +2011,52 @@ class Inscripciones extends CI_Controller {
         }
 
         $this->load->model('UTE_model');
-        $id_ute = $this->UTE_model->insertar_ute($nombre_ute, $id_categoria);
+        $id_ute = $this->UTE_model->insertar_ute($nombre_ute, $id_categoria, $genero);
 
         if ($id_ute) {
             echo json_encode(['success' => true, 'id_ute' => $id_ute]);
         } else {
             echo json_encode(['success' => false, 'error' => 'Error al crear la UTE']);
+        }
+    }
+
+    /**
+     * AJAX: Actualizar una UTE (nombre y/o género)
+     */
+    public function ajax_actualizar_ute() {
+        header('Content-Type: application/json');
+
+        if (!$this->session->userdata('is_organizador')) {
+            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            return;
+        }
+
+        $id_ute = $this->input->post('id_ute');
+        $nombre_ute = $this->input->post('nombre_ute');
+        $genero = $this->input->post('genero');
+
+        if (empty($id_ute)) {
+            echo json_encode(['success' => false, 'error' => 'ID de UTE no válido']);
+            return;
+        }
+
+        $generos_validos = array('FEMENINO', 'MASCULINO', 'MIXTO');
+        if ($genero !== null && $genero !== '' && !in_array(strtoupper(trim($genero)), $generos_validos, true)) {
+            echo json_encode(['success' => false, 'error' => 'Género no válido']);
+            return;
+        }
+
+        $this->load->model('UTE_model');
+        $resultado = $this->UTE_model->actualizar_ute(
+            $id_ute,
+            $nombre_ute,
+            ($genero !== null && $genero !== '') ? strtoupper(trim($genero)) : null
+        );
+
+        if ($resultado) {
+            echo json_encode(['success' => true]);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'Error al actualizar la UTE']);
         }
     }
 

@@ -10,12 +10,13 @@ class UTE_model extends CI_Model {
         $this->db->select('
             u.id_ute,
             u.nombre_ute,
+            u.genero,
             u.fecha_creacion,
             c.id_categoria,
             c.nombre_categoria,
             d.id_deporte,
             d.nombre_deporte,
-            d.genero,
+            d.genero AS genero_categoria,
             COUNT(pu.id_participante) as cantidad_integrantes
         ', FALSE);
         
@@ -38,11 +39,12 @@ class UTE_model extends CI_Model {
         $this->db->select('
             u.id_ute,
             u.nombre_ute,
+            u.genero,
             u.id_categoria,
             c.nombre_categoria,
             d.id_deporte,
             d.nombre_deporte,
-            d.genero
+            d.genero AS genero_categoria
         ');
         $this->db->from('utes u');
         $this->db->join('categorias c', 'c.id_categoria = u.id_categoria', 'inner');
@@ -112,24 +114,45 @@ class UTE_model extends CI_Model {
     /**
      * Insertar una nueva UTE
      */
-    public function insertar_ute($nombre_ute, $id_categoria) {
+    public function insertar_ute($nombre_ute, $id_categoria, $genero = null) {
         $datos = array(
             'nombre_ute' => trim($nombre_ute),
             'id_categoria' => $id_categoria
         );
-        
+
+        // Si se envía un género válido, se guarda; si no, la BD usa el default
+        $generos_validos = array('FEMENINO', 'MASCULINO', 'MIXTO');
+        if ($genero !== null && in_array(strtoupper(trim($genero)), $generos_validos, true)) {
+            $datos['genero'] = strtoupper(trim($genero));
+        }
+
         $this->db->insert('utes', $datos);
         return $this->db->insert_id();
     }
 
     /**
-     * Actualizar nombre de una UTE
+     * Actualizar datos de una UTE (nombre y/o género)
      */
-    public function actualizar_ute($id_ute, $nombre_ute) {
-        $datos = array(
-            'nombre_ute' => trim($nombre_ute)
-        );
-        
+    public function actualizar_ute($id_ute, $nombre_ute = null, $genero = null) {
+        $datos = array();
+
+        if ($nombre_ute !== null && trim($nombre_ute) !== '') {
+            $datos['nombre_ute'] = trim($nombre_ute);
+        }
+
+        $generos_validos = array('FEMENINO', 'MASCULINO', 'MIXTO');
+        if ($genero !== null) {
+            $genero = strtoupper(trim($genero));
+            if (!in_array($genero, $generos_validos, true)) {
+                return false; // Género inválido
+            }
+            $datos['genero'] = $genero;
+        }
+
+        if (empty($datos)) {
+            return false; // No hay nada que actualizar
+        }
+
         $this->db->where('id_ute', $id_ute);
         return $this->db->update('utes', $datos);
     }
