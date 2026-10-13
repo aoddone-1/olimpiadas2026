@@ -9,7 +9,7 @@
             <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'inscriptos') ? 'active' : ''; ?>" 
                    href="<?= base_url('Inscripciones/login') ?>">
-                    <i class="bi bi-people-fill me-1"></i> Inscriptos
+                    <i class="bi bi-bar-chart me-1"></i> Resumen
                 </a>
             </li>
             
