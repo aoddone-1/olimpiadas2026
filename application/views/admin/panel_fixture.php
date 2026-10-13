@@ -1,4 +1,13 @@
-<!-- PANEL FIXTURE -->
+<!-- PANEL FIXTURE (vista parcial: se carga dentro de plantilla_panel.php
+     desde Inscripciones::fixture()) -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold text-uppercase m-0">
+        <i class="bi bi-calendar3 me-2 text-primary"></i>Fixture
+    </h2>
+    <a href="<?= base_url('Inscripciones/inscriptos') ?>" class="btn btn-sm btn-outline-secondary rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i> Volver a Inscriptos
+    </a>
+</div>
 <div class="card fx-card shadow-sm border-0">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">

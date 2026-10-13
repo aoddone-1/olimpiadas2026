@@ -1,4 +1,16 @@
- <?php include("modals/control_total_modals.php");?>
+<!-- Vista parcial: se carga dentro de plantilla_panel.php desde
+     Inscripciones::inscriptos(). Los modales que usa (detalle de inscripción
+     e impresión de credenciales) los inyecta el controlador vía $modals,
+     para renderizarlos UNA sola vez al final de la página. -->
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <h2 class="h5 fw-bold text-uppercase m-0">
+        <i class="bi bi-person-check-fill me-2 text-success"></i>Inscriptos
+    </h2>
+    <a href="<?= base_url('Inscripciones/dashboard') ?>" class="btn btn-sm btn-outline-secondary rounded-pill">
+        <i class="bi bi-arrow-left me-1"></i> Volver al Resumen
+    </a>
+</div>
 
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
