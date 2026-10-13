@@ -1,16 +1,21 @@
-<!-- Vista parcial: se carga dentro de plantilla_panel.php desde
-     Inscripciones::inscriptos(). Los modales que usa (detalle de inscripción
-     e impresión de credenciales) los inyecta el controlador vía $modals,
-     para renderizarlos UNA sola vez al final de la página. -->
+ <!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inscriptos - <?= NOMBRE_META; ?></title>
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <h2 class="h5 fw-bold text-uppercase m-0">
-        <i class="bi bi-person-check-fill me-2 text-success"></i>Inscriptos
-    </h2>
-    <a href="<?= base_url('Inscripciones/dashboard') ?>" class="btn btn-sm btn-outline-secondary rounded-pill">
-        <i class="bi bi-arrow-left me-1"></i> Volver al Resumen
-    </a>
-</div>
+<?php $this->load->view('admin/header_admin'); ?>
+<?php include("modals/control_total_modals.php");?>
 
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
@@ -1416,5 +1421,6 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 </script>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

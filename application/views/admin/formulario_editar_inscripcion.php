@@ -387,7 +387,7 @@
                 <i class="bi bi-pencil-square me-2"></i> GUARDAR MODIFICACIONES
             </button>
             
-            <a href="<?= base_url('Inscripciones/inscriptos') ?>" class="btn btn-outline-secondary btn-lg">
+            <a href="<?= base_url('Inscripciones/control_total') ?>" class="btn btn-outline-secondary btn-lg">
                 <i class="bi bi-arrow-left me-2"></i> VOLVER AL PANEL
             </a>
         </div>

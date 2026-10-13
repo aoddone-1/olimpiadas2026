@@ -1,14 +1,20 @@
-<!-- Vista parcial: se carga dentro de plantilla_panel.php desde
-     Inscripciones::panel_utes() (submenú "UTEs / Equipos" de Gestión Deportiva). -->
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <h2 class="h5 fw-bold text-uppercase m-0">
-        <i class="bi bi-people-fill me-2 text-primary"></i>UTEs / Equipos
-    </h2>
-    <a href="<?= base_url('Inscripciones/gestion_deportes') ?>" class="btn btn-sm btn-outline-secondary rounded-pill">
-        <i class="bi bi-arrow-left me-1"></i> Volver a Gestión Deportiva
-    </a>
-</div>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Utes/Equipos - <?= NOMBRE_META; ?></title>
+    <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
 
+<?php $this->load->view('admin/header_admin'); ?>
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
@@ -1047,3 +1053,6 @@ document.addEventListener('DOMContentLoaded', function() {
     actualizarTablaEquipos();
 });
 </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

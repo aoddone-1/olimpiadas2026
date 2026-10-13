@@ -666,108 +666,132 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/gestion_deportes');
     }
 
+    
+    public function inscriptos() {
+        // Misma seguridad que Control Total (solo superadmin)
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
-    /* ============================================================
-     *  HELPERS DE PANELES (reutilizados por inscriptos/fixture/resultados)
-     * ============================================================ */
-
-    /** Datos del panel de Inscriptos (listado + deportes + delegaciones). */
-    private function _datos_inscriptos(&$data) {
         $this->load->model('Deporte_model');
+        $this->load->model('UTE_model');
         $this->load->model('Participante_model');
 
+        // Datos para la pestaña de Inscripciones
         $data['delegaciones'] = $this->Participante_model->obtener_todas_las_delegaciones();
         $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
         $data['deportes_db'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
+        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
+
+        $data['menu_activo'] = 'inscriptos';
+        $this->load->view('admin/inscripciones', $data);
     }
+    public function fixture() {
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
-    /** Datos del panel de Fixture. */
-    private function _datos_fixture(&$data) {
         $this->load->model('Deporte_model');
-        $this->load->model('Fixture_model');
+        $this->load->model('UTE_model');
+        $this->load->model('Participante_model');
+        
+        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
 
+        // Datos para la pestaña de Fixture
+        $this->load->model('Fixture_model');
+        $data['categorias_modal_partido'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
+        $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
+
+        $data['menu_activo'] = 'fixture';
+        
+        if (empty($data['categorias_fixture'])) {
+            $this->load->model('Fixture_model');
+            $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        }
+        $this->load->view('admin/fixture', $data);
+    }
+    public function resultados() {
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Deporte_model');
+        $this->load->model('UTE_model');
+        $this->load->model('Participante_model');
+        $this->load->model('Fixture_model');
+        $this->load->model('Resultado_model');
+        $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
+
+        $data['menu_activo'] = 'resultados';
+        
+        $this->load->view('admin/resultados', $data);
+    }
+    public function utes_equipos() {
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Deporte_model');
+        $this->load->model('UTE_model');
+        $this->load->model('Participante_model');
+
+        // Delegaciones/provincias para el modal "Imprimir Credenciales"
+        $data['delegaciones'] = $this->Participante_model->obtener_todas_las_delegaciones();
+
+        // Datos para la pestaña de Inscripciones
+        $data['listado_inscripciones'] = $this->Deporte_model->obtener_todas_las_inscripciones();
+        $data['deportes_db'] = $this->Deporte_model->obtener_todos_los_deportes();
+        
+        // Datos para la pestaña de UTEs/Equipos
+        $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
+        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
+
+        // Datos para la pestaña de Fixture
+        $this->load->model('Fixture_model');
         // El select de categorías para GENERAR FIXTURE solo muestra las que
         // todavía NO tienen fixture generado (por eso se calcula aparte).
         $data['categorias_sin_fixture'] = $this->Fixture_model->obtener_categorias_sin_fixture();
         // El modal de partido del panel Fixture desdobla Deporte -> Categoría:
         // se le pasan TODAS las categorías (no solo las sin fixture generado).
         $data['categorias_modal_partido'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
+        // categorías que YA tienen fixture generado (por orden: tiene sentido
+        // cargar resultados únicamente donde ya existe calendario/jornadas).
+        $this->load->model('Resultado_model');
+        $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
         // El panel Fixture (modal de partido manual) sigue necesitando TODAS las categorías.
         $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
-    }
 
-    /** Datos del panel de Carga de Resultados. */
-    private function _datos_resultados(&$data) {
-        $this->load->model('Resultado_model');
-
-        // Para los filtros y el modal de CARGA DE RESULTADOS solo hacen falta las
-        // categorías que YA tienen fixture generado (por orden: tiene sentido
-        // cargar resultados únicamente donde ya existe calendario/jornadas).
-        $data['categorias_con_fixture'] = $this->Resultado_model->obtener_categorias_con_fixture();
-    }
-
-    /**
-     * INSCRIPTOS - página propia (antes era una pestaña de "Control Total").
-     */
-    public function inscriptos() {
-        // Seguridad Superadmin (igual que Control Total)
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login');
+        $data['menu_activo'] = 'deportes';
+        // Garantizar que el panel Fixture reciba TODAS las categorías para el
+        // desdoblamiento Deporte -> Categoría del modal, incluso si esta vista
+        // se carga desde otro controlador con $data incompleto.
+        if (empty($data['categorias_fixture'])) {
+            $this->load->model('Fixture_model');
+            $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         }
-
-        $this->_datos_inscriptos($data);
-
-        // Modales compartidos por el panel (se renderizan una sola vez al final).
-        $data['modals'] = array('control_total_modals');
-        $data['titulo_pagina'] = 'Inscriptos';
-        $data['menu_activo'] = 'inscriptos';
-
-        $this->load->view('admin/plantilla_panel', $data);
+        $this->load->view('admin/equipos', $data);
     }
 
+    
     /**
-     * FIXTURE - página propia (antes era una pestaña de "Control Total").
-     */
-    public function fixture() {
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login');
-        }
-
-        $this->_datos_fixture($data);
-
-        $data['titulo_pagina'] = 'Fixture';
-        $data['menu_activo'] = 'fixture';
-        $data['panel'] = 'panel_fixture';
-
-        $this->load->view('admin/plantilla_panel', $data);
-    }
-
-    /**
-     * RESULTADOS - página propia (antes era una pestaña de "Control Total").
-     */
-    public function resultados() {
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login');
-        }
-
-        $this->_datos_fixture($data);
-        $this->_datos_resultados($data);
-
-        $data['titulo_pagina'] = 'Resultados';
-        $data['menu_activo'] = 'resultados';
-        $data['panel'] = 'panel_resultados';
-
-        $this->load->view('admin/plantilla_panel', $data);
-    }
-
-    /**
-     * PREMIACIÓN - sección del menú principal.
+     * PREMIACIÓN - sección del menú principal (independiente de Control Total).
      * Resumen diario de las entregas de premios de las competencias cerradas.
      */
     public function premiacion() {
-        // Misma seguridad que los paneles de superadmin
+        // Misma seguridad que Control Total (solo superadmin)
         if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
             redirect('Inscripciones/login');
         }
@@ -1886,9 +1910,6 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/inscriptos');
     }
 
-    /**
-     * Mostrar formulario para nueva inscripción (desde panel-inscripciones)
-     */
     public function nueva_inscripcion() {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
@@ -1991,30 +2012,7 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/inscriptos');
     }
 
-    // =========================================================================
-    // GESTION DE UTES / EQUIPOS
-    // =========================================================================
-
-    /**
-     * Panel principal de gestión de UTEs/Equipos
-     * (submenú "UTEs / Equipos" dentro de Gestión Deportiva).
-     */
-    public function panel_utes() {
-        // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
-            redirect('Inscripciones/login');
-        }
-
-        $this->load->model('UTE_model');
-        
-        $data['utes'] = $this->UTE_model->obtener_todas_las_utes();
-        $data['categorias'] = $this->UTE_model->obtener_categorias_con_deportes();
-        $data['titulo_pagina'] = 'UTEs / Equipos';
-        $data['menu_activo'] = 'utes';
-        $data['panel'] = 'panel-equipos';
-        
-        $this->load->view('admin/plantilla_panel', $data);
-    }
+    
 
     /**
      * AJAX: Obtener participantes disponibles para una categoría
