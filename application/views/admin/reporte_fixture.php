@@ -494,19 +494,46 @@ class MYPDF extends TCPDF {
                     break;
                 }
             }
+            /**
+             * IMPORTANTE (causa del HTTP 500 en jornadas únicas): esta vista se
+             * renderiza DENTRO del flujo de Output() de TCPDF. Cualquier echo /
+             * warning / fatal generado acá queda embebido en el stream binario
+             * del PDF y rompe el render ('D' entrega basura → error del navegador).
+             * Por eso todo el tramo de models va envuelto en try/catch y con los
+             * errores de display desactivados: si algo falla, la planilla igual
+             * se imprime usando los participantes que traen las filas del fixture.
+             */
             if ($id_categoria_planilla > 0) {
-                $this->load->model('Resultado_model');
-                $met = 'obtener_competidores_por_categoria';
-                if (method_exists($this->Resultado_model, $met)) {
-                    foreach ((array) $this->Resultado_model->$met($id_categoria_planilla) as $c) {
-                        $nombre = trim((string) ($c['nombre'] ?? ''));
-                        if ($nombre === '') continue;
-                        $clave = (int) ($c['id'] ?? 0);
-                        if (!$clave) $clave = 'n:' . mb_strtolower($nombre, 'UTF-8');
-                        $participantes[$clave] = $nombre;
+                $_display_errors_prev = @ini_set('display_errors', '0');
+                $_error_reporting_prev = error_reporting(0);
+                try {
+                    // OJO: MYPDF extiende TCPDF, NO CI_Controller — `$this->load`
+                    // no existe acá y provocaba error fatal (HTTP 500). Los
+                    // modelos se toman del controller instance. Además pueden
+                    // venir YA cargados por el controlador: cargarlos de nuevo
+                    // en CI3 emitía "Duplicate property" (ruido que corrompía el
+                    // PDF), así que solo se carga si falta.
+                    $CI =& get_instance();
+                    if (!isset($CI->Resultado_model)) {
+                        $CI->load->model('Resultado_model');
                     }
-                    $competidores_resueltos = TRUE;
+                    $met = 'obtener_competidores_por_categoria';
+                    if (isset($CI->Resultado_model) && method_exists($CI->Resultado_model, $met)) {
+                        foreach ((array) $CI->Resultado_model->$met($id_categoria_planilla) as $c) {
+                            $nombre = trim((string) ($c['nombre'] ?? ''));
+                            if ($nombre === '') continue;
+                            $clave = (int) ($c['id'] ?? 0);
+                            if (!$clave) $clave = 'n:' . mb_strtolower($nombre, 'UTF-8');
+                            $participantes[$clave] = $nombre;
+                        }
+                        $competidores_resueltos = TRUE;
+                    }
+                } catch (Throwable $e) {
+                    // Silencioso a propósito: la planilla no debe morir por esto.
+                    $competidores_resueltos = FALSE;
                 }
+                error_reporting($_error_reporting_prev);
+                @ini_set('display_errors', $_display_errors_prev);
             }
 
             // Fallback / consolidación con lo que trae cada fila del fixture.
@@ -521,19 +548,28 @@ class MYPDF extends TCPDF {
                     $participantes[(int) $f['id_ute_2']] = $f['ute_2_nombre'];
                 }
             }
-            // Si el modelo no devolvió nada pero las filas sí traen competidores
-            // (utes populated o slots), recién ahí puede haber quedado vacío.
-            if (!$participantes && !$competidores_resueltos) {
-                // Última chance: individuales de la categoría vía Fixture_model.
-                if ($id_categoria_planilla > 0) {
-                    $this->load->model('Fixture_model');
-                    if (method_exists($this->Fixture_model, 'individuales_de_categoria')) {
-                        foreach ((array) $this->Fixture_model->individuales_de_categoria($id_categoria_planilla) as $p) {
+            // Si el modelo no devolvió nada y las filas tampoco traen competidores
+            // (jornada masiva con id_ute_1/id_ute_2 en NULL), última chance:
+            // individuales de la categoría vía Fixture_model.
+            if (!$participantes && !$competidores_resueltos && $id_categoria_planilla > 0) {
+                $_display_errors_prev = @ini_set('display_errors', '0');
+                $_error_reporting_prev = error_reporting(0);
+                try {
+                    $CI =& get_instance();
+                    if (!isset($CI->Fixture_model)) {
+                        $CI->load->model('Fixture_model');
+                    }
+                    if (isset($CI->Fixture_model) && method_exists($CI->Fixture_model, 'individuales_de_categoria')) {
+                        foreach ((array) $CI->Fixture_model->individuales_de_categoria($id_categoria_planilla) as $p) {
                             $nombre = trim((string) ($p['nombre_completo'] ?? ''));
                             if ($nombre !== '') $participantes['p:' . $nombre] = $nombre;
                         }
                     }
+                } catch (Throwable $e) {
+                    // Sin individuales disponibles: igual se imprime la planilla vacía.
                 }
+                error_reporting($_error_reporting_prev);
+                @ini_set('display_errors', $_display_errors_prev);
             }
             asort($participantes);
 
