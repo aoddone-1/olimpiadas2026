@@ -495,10 +495,14 @@ class MYPDF extends TCPDF {
                 }
             }
             if ($id_categoria_planilla > 0) {
-                $this->load->model('Resultado_model');
+                // OJO: MYPDF extiende TCPDF, NO CI_Controller — `$this->load` no
+                // existe acá y provocaban un error fatal (HTTP 500) en las
+                // jornadas únicas. Los modelos se toman del controller instance.
+                $CI =& get_instance();
+                $CI->load->model('Resultado_model');
                 $met = 'obtener_competidores_por_categoria';
-                if (method_exists($this->Resultado_model, $met)) {
-                    foreach ((array) $this->Resultado_model->$met($id_categoria_planilla) as $c) {
+                if (method_exists($CI->Resultado_model, $met)) {
+                    foreach ((array) $CI->Resultado_model->$met($id_categoria_planilla) as $c) {
                         $nombre = trim((string) ($c['nombre'] ?? ''));
                         if ($nombre === '') continue;
                         $clave = (int) ($c['id'] ?? 0);
@@ -526,9 +530,9 @@ class MYPDF extends TCPDF {
             if (!$participantes && !$competidores_resueltos) {
                 // Última chance: individuales de la categoría vía Fixture_model.
                 if ($id_categoria_planilla > 0) {
-                    $this->load->model('Fixture_model');
-                    if (method_exists($this->Fixture_model, 'individuales_de_categoria')) {
-                        foreach ((array) $this->Fixture_model->individuales_de_categoria($id_categoria_planilla) as $p) {
+                    $CI->load->model('Fixture_model');
+                    if (method_exists($CI->Fixture_model, 'individuales_de_categoria')) {
+                        foreach ((array) $CI->Fixture_model->individuales_de_categoria($id_categoria_planilla) as $p) {
                             $nombre = trim((string) ($p['nombre_completo'] ?? ''));
                             if ($nombre !== '') $participantes['p:' . $nombre] = $nombre;
                         }
