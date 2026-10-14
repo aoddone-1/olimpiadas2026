@@ -401,6 +401,42 @@ document.addEventListener('DOMContentLoaded', function() {
         return Promise.resolve(window.alert(titulo + '\n\n' + texto));
     }
 
+    /* ---------- Limpieza anti-"pantalla gris bloqueada" ----------
+       Al encadenar Bootstrap modal + SweetAlert2 pueden quedar rezagados
+       el backdrop de Bootstrap (.modal-backdrop), el overlay de Swal o las
+       clases modal-open / swal2-shown en <body>, dejando la página "gris"
+       e inservible tras cerrar todo. Se limpia luego de cada alerta/confirm. */
+    function limpiarOverlaysResiduales() {
+        // 1) Si quedó algún modal de Bootstrap visible, no tocar nada
+        //    (el backdrop le pertenece).
+        var modalAbierto = document.querySelector('.modal.show');
+        if (modalAbierto) return;
+
+        // 2) Backdrops huérfanos de Bootstrap
+        document.querySelectorAll('.modal-backdrop').forEach(function (b) { b.remove(); });
+
+        // 3) Overlay/backdrop propio de SweetAlert2 si no hay ningún Swal visible
+        if (!document.querySelector('.swal2-container .swal2-popup')) {
+            document.querySelectorAll('.swal2-container, .swal2-backdrop-show').forEach(function (o) { o.remove(); });
+        }
+
+        // 4) Clases y estilos de bloqueo que quedan en <body>
+        document.body.classList.remove('modal-open', 'swal2-shown', 'swal2-toast-shown', 'swal2-height-auto');
+        document.body.removeAttribute('style'); // quita padding-right/overflow del scrollbar-lock
+        document.documentElement.classList.remove('swal2-height-auto');
+
+        // 5) Por las dudas: devolver foco al documento
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    }
+
+    // Barrido preventivo: cubre los casos donde un Swal se cierra por fuera
+    // de nuestro código (click en el fondo, tecla Esc, etc.)
+    ['mouseup', 'keydown'].forEach(function (evt) {
+        document.addEventListener(evt, function () {
+            setTimeout(limpiarOverlaysResiduales, 400);
+        });
+    });
+
     // Actualizar contador
     actualizarContadorEquipos();
     
@@ -429,9 +465,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Cerrar modal
+                // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
                 const modalCrear = bootstrap.Modal.getInstance(document.getElementById('modalCrearUTE'));
                 if (modalCrear) modalCrear.hide();
+                setTimeout(limpiarOverlaysResiduales, 400);
                 
                 // Obtener información de la categoría seleccionada
                 const selectCategoria = document.getElementById('select-categoria-ute');
@@ -725,9 +762,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Cerrar modal
+                // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
                 const modalAgregar = bootstrap.Modal.getInstance(document.getElementById('modalAgregarIntegrante'));
                 if (modalAgregar) modalAgregar.hide();
+                setTimeout(limpiarOverlaysResiduales, 400);
                 
                 // Actualizar el contador de integrantes en la fila correspondiente
                 const filaUte = document.getElementById('ute-fila-' + idUte);
@@ -799,9 +837,10 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Cerrar modal
+                // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
                 const modalEditar = bootstrap.Modal.getInstance(document.getElementById('modalEditarUTE'));
                 if (modalEditar) modalEditar.hide();
+                setTimeout(limpiarOverlaysResiduales, 400);
 
                 // Actualizar la fila en la tabla sin recargar la página
                 const fila = document.getElementById('ute-fila-' + idUte);
