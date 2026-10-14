@@ -1439,31 +1439,35 @@ class Inscripciones extends CI_Controller {
         $pdf->AddPage();
         $pdf->Cell(0, 10, '.............................................', 0, 1, 'C', FALSE, 0, 0, 0, FALSE);
         $pdf->Ln(6);
-        $pdf->writeHTMLTable(
-            '<table border="1" cellpadding="6">'
-            . '<tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
-            . '<td width="8%">N°</td>'
-            . '<td width="62%">PARTICIPANTE</td>'
-            . '<td width="30%">TIEMPO / PUNTAJE</td>'
-            . '</tr>',
-            array(), TRUE, FALSE, FALSE, TRUE
+        $pdf->writeHTML(
+            '<table border="1" cellpadding="6" cellspacing="0">'
+            . '<thead><tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
+            . '<th width="8%">N°</th>'
+            . '<th width="62%">PARTICIPANTE</th>'
+            . '<th width="30%">TIEMPO / PUNTAJE</th>'
+            . '</tr></thead>'
+            . '<tbody></tbody>'
+            . '</table>',
+            TRUE, FALSE, FALSE, FALSE
         );
 
         // ---- Página 2: planilla de partidos ----
         $pdf->AddPage();
         $pdf->Cell(0, 10, '.............................................', 0, 1, 'C', FALSE, 0, 0, 0, FALSE);
         $pdf->Ln(6);
-        $pdf->writeHTMLTable(
-            '<table border="1" cellpadding="6">'
-            . '<tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
-            . '<td width="6%">Nº</td>'
-            . '<td width="18%">FASE / JORNADA</td>'
-            . '<td width="18%">DÍA / HORA</td>'
-            . '<td width="20%">EQUIPO A</td>'
-            . '<td width="20%">EQUIPO B</td>'
-            . '<td width="18%">MARCADOR / GANADOR</td>'
-            . '</tr>',
-            array(), TRUE, FALSE, FALSE, TRUE
+        $pdf->writeHTML(
+            '<table border="1" cellpadding="6" cellspacing="0">'
+            . '<thead><tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
+            . '<th width="6%">Nº</th>'
+            . '<th width="18%">FASE / JORNADA</th>'
+            . '<th width="18%">DÍA / HORA</th>'
+            . '<th width="20%">EQUIPO A</th>'
+            . '<th width="20%">EQUIPO B</th>'
+            . '<th width="18%">MARCADOR / GANADOR</th>'
+            . '</tr></thead>'
+            . '<tbody></tbody>'
+            . '</table>',
+            TRUE, FALSE, FALSE, FALSE
         );
 
         $pdf->Output('planillas_vacias.pdf', 'D');
