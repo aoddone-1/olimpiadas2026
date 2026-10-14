@@ -372,6 +372,35 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    /* ---------- Confirmación estilizada (SweetAlert2 si está cargado) ---------- */
+    function confirmarAccion(texto, icono, btnOk, btnCancelar) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: '¿Confirmás?',
+                text: texto,
+                icon: icono || 'question',
+                showCancelButton: true,
+                confirmButtonText: btnOk || 'Sí, confirmar',
+                cancelButtonText: btnCancelar || 'Cancelar',
+                reverseButtons: true
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(texto));
+    }
+
+    /* ---------- Alertas estilizadas (SweetAlert2 con fallback a native) ---------- */
+    function alertar(titulo, texto, icono) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: icono || 'info',
+                confirmButtonText: 'Entendido'
+            });
+        }
+        return Promise.resolve(window.alert(titulo + '\n\n' + texto));
+    }
+
     // Actualizar contador
     actualizarContadorEquipos();
     
@@ -384,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const generoUte = document.getElementById('genero-ute-input').value;
         
         if (!idCategoria || !nombreUte) {
-            alert('Complete todos los campos');
+            alertar('Faltan datos', 'Complete todos los campos', 'warning');
             return;
         }
         
@@ -519,12 +548,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mantenerse en la pestaña de UTEs (no hacer refresh)
                 // La página ya se mantiene en la misma pestaña por defecto
             } else {
-                alert('Error: ' + data.error);
+                alertar('Error', 'Error: ' + data.error, 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error al crear la UTE');
+            alertar('Error', 'Error al crear la UTE', 'error');
         });
     });
     
@@ -575,7 +604,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error al cargar los integrantes');
+                alertar('Error', 'Error al cargar los integrantes', 'error');
             });
         });
     });
@@ -589,7 +618,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const idUte = btn.getAttribute('data-id-ute');
             const idParticipante = btn.getAttribute('data-id-participante');
             
-            if (confirm('¿Está seguro de quitar este participante de la UTE?')) {
+            confirmarAccion('¿Está seguro de quitar este participante de la UTE?', 'warning', 'Sí, quitar', 'Cancelar')
+            .then(function(confirmado) {
+                if (!confirmado) return;
                 const formData = new FormData();
                 formData.append('id_ute', idUte);
                 formData.append('id_participante', idParticipante);
@@ -618,14 +649,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         }
                     } else {
-                        alert('Error: ' + data.error);
+                        alertar('Error', 'Error: ' + data.error, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error al quitar el participante');
+                    alertar('Error', 'Error al quitar el participante', 'error');
                 });
-            }
+            });
         }
     });
     
@@ -679,7 +710,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const idParticipante = document.getElementById('select-participante-disponible').value;
         
         if (!idParticipante) {
-            alert('Seleccione un participante');
+            alertar('Atención', 'Seleccione un participante', 'warning');
             return;
         }
         
@@ -714,12 +745,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Limpiar formulario
                 document.getElementById('select-participante-disponible').innerHTML = '<option value="">Cargando participantes...</option>';
             } else {
-                alert('Error: ' + data.error);
+                alertar('Error', 'Error: ' + data.error, 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error al agregar el participante');
+            alertar('Error', 'Error al agregar el participante', 'error');
         });
     });
     
@@ -752,7 +783,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const generoNuevo = document.getElementById('editar-genero-ute').value;
 
         if (!idUte || !nombreNuevo) {
-            alert('Complete el nombre de la UTE');
+            alertar('Falta el nombre', 'Complete el nombre de la UTE', 'warning');
             return;
         }
 
@@ -811,12 +842,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Reaplicar filtros/búsqueda por si el cambio afecta lo visible
                 aplicarFiltrosEquipos();
             } else {
-                alert('Error: ' + data.error);
+                alertar('Error', 'Error: ' + data.error, 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error al actualizar la UTE');
+            alertar('Error', 'Error al actualizar la UTE', 'error');
         });
     });
 
@@ -828,7 +859,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const idUte = this.getAttribute('data-id-ute');
             const nombreUte = this.getAttribute('data-nombre-ute');
             
-            if (confirm(`¿Está SEGURO que desea eliminar la UTE "${nombreUte}"?\n\nEsta acción eliminará también todos sus integrantes.`)) {
+            confirmarAccion(`¿Está SEGURO que desea eliminar la UTE "${nombreUte}"?\n\nEsta acción eliminará también todos sus integrantes.`, 'warning', 'Sí, eliminar', 'Cancelar')
+            .then(function(confirmado) {
+                if (!confirmado) return;
                 const formData = new FormData();
                 formData.append('id_ute', idUte);
                 
@@ -850,14 +883,14 @@ document.addEventListener('DOMContentLoaded', function() {
                             }, 300);
                         }
                     } else {
-                        alert('Error: ' + data.error);
+                        alertar('Error', 'Error: ' + data.error, 'error');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error al eliminar la UTE');
+                    alertar('Error', 'Error al eliminar la UTE', 'error');
                 });
-            }
+            });
         });
     });
     
