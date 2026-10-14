@@ -239,11 +239,17 @@ class Resultado_model extends CI_Model {
         // ---------- el TIPO de resultado lo define la modalidad del deporte ----------
         // ENFRENTAMIENTO -> MARCADOR (goles/tantos por equipo)
         // MASIVO_TIEMPO  -> TIEMPO   (posición + tiempo por participante inscripto)
+        //                 -> PUNTAJE (posición + puntaje: gana el MAYOR), si el
+        //                   formulario lo indica explícitamente ("¿Qué cargás?")
         $modalidad = $this->modalidad_de_categoria($id_cat);
         if ($modalidad === null) {
             throw new Exception('La categoría seleccionada no existe.');
         }
         $tipo = ($modalidad === 'MASIVO_TIEMPO') ? 'TIEMPO' : 'MARCADOR';
+        if ($modalidad === 'MASIVO_TIEMPO' && isset($datos['tipo_resultado'])
+            && $datos['tipo_resultado'] === 'PUNTAJE') {
+            $tipo = 'PUNTAJE';
+        }
 
         $nombre = trim(isset($datos['nombre_evento']) ? $datos['nombre_evento'] : '');
         if ($nombre === '') throw new Exception('Poné un nombre para el partido/prueba.');
@@ -313,7 +319,8 @@ class Resultado_model extends CI_Model {
                 'marcador_local' => (int) $datos['goles_2'],
                 'marcador_visita' => (int) $datos['goles_1'],
             );
-        } else { // TIEMPO (deporte MASIVO_TIEMPO): posiciones de los participantes inscriptos
+        } else { // TIEMPO / PUNTAJE (deporte MASIVO_TIEMPO): posiciones de los participantes inscriptos
+            $es_puntaje = ($tipo === 'PUNTAJE');
             $nombres = isset($datos['comp_nombre']) ? (array) $datos['comp_nombre'] : array();
             $posiciones = isset($datos['comp_posicion']) ? (array) $datos['comp_posicion'] : array();
             $ids = isset($datos['comp_id']) ? (array) $datos['comp_id']
@@ -352,10 +359,19 @@ class Resultado_model extends CI_Model {
 
                 $tie_limpio = preg_replace('/\s+/', '', $tie);
 
-                if ($tie_limpio !== '') {
+                if ($es_puntaje) {
+                    // PUNTAJE: número (admite decimales). Gana el MAYOR.
+                    if ($tie_limpio !== '' && !is_numeric($tie_limpio)) {
+                        throw new Exception('Puntaje inválido para "' . $nom . '" (usá un número, ej: 8500). Recibido: ' . $tie);
+                    }
+                    $orden_valor = ($tie_limpio !== '') ? (float) $tie_limpio : null;
+                } else if ($tie_limpio !== '') {
                     if (!preg_match('/^(?:(?:\d{1,2}:)?\d{1,2}:\d{2}|\d{1,2})(?:\.\d{1,6})?$/', $tie_limpio)) {
                         throw new Exception('Tiempo inválido para "' . $nom . '" (usá mm:ss o hh:mm:ss). Recibido: ' . $tie);
                     }
+                    $orden_valor = $a_segundos($tie_limpio);
+                } else {
+                    $orden_valor = null;
                 }
 
                 $detalle[] = array(
@@ -363,21 +379,29 @@ class Resultado_model extends CI_Model {
                     'nombre_libre' => $nom,
                     'posicion' => 0, // Se recalculará tras el ordenamiento
                     'tiempo' => $tie_limpio !== '' ? $tie_limpio : null,
-                    '_segundos' => $a_segundos($tie_limpio) // Clave auxiliar para ordenar
+                    '_orden' => $orden_valor // Clave auxiliar para ordenar
                 );
             }
 
-            if (!$detalle) throw new Exception('Cargá al menos un tiempo.');
+            if (!$detalle) throw new Exception('Cargá al menos un tiempo/puntaje.');
 
-            // --- REORDENAR DETALLE POR TIEMPO Y ASIGNAR POSICIONES ---
-            usort($detalle, function($a, $b) {
-                if ($a['_segundos'] == $b['_segundos']) return 0;
-                return ($a['_segundos'] < $b['_segundos']) ? -1 : 1;
+            // --- REORDENAR DETALLE Y ASIGNAR POSICIONES ---
+            // TIEMPO: gana el MENOR tiempo; PUNTAJE: gana el MAYOR puntaje.
+            // Los que no cargaron valor quedan al final (en el orden original).
+            usort($detalle, function ($a, $b) use ($es_puntaje) {
+                if ($a['_orden'] === null && $b['_orden'] === null) return 0;
+                if ($a['_orden'] === null) return 1;
+                if ($b['_orden'] === null) return -1;
+                if ($a['_orden'] == $b['_orden']) return 0;
+                if ($es_puntaje) {
+                    return ($a['_orden'] > $b['_orden']) ? -1 : 1;
+                }
+                return ($a['_orden'] < $b['_orden']) ? -1 : 1;
             });
 
             foreach ($detalle as $idx => &$d) {
-                $d['posicion'] = $idx + 1; // Asigna 1 al más rápido, 2 al segundo, etc.
-                unset($d['_segundos']);    // Limpiamos la propiedad auxiliar antes de insertar
+                $d['posicion'] = $idx + 1; // Asigna 1 al mejor, 2 al segundo, etc.
+                unset($d['_orden']);       // Limpiamos la propiedad auxiliar antes de insertar
             }
             unset($d); // Romper referencia
         }
@@ -671,6 +695,11 @@ class Resultado_model extends CI_Model {
                 ? $por_res[(int) $r['id_resultado']] : array();
             if ($r['tipo_resultado'] === 'MARCADOR') {
                 $det = $this->_reparar_marcador_espejado((int) $r['id_resultado'], $det);
+            } else {
+                // TIEMPO / PUNTAJE: ordenar por posición asignada al guardar.
+                usort($det, function ($a, $b) {
+                    return (int) $a['posicion'] - (int) $b['posicion'];
+                });
             }
             $r['detalle'] = $det;
             if (!$con_desempate) {
