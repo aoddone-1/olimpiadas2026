@@ -92,14 +92,14 @@
                     <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-diagram-3 me-1"></i>Competidores por delegación</h6>
                     <?php if (!empty($delegaciones)): ?>
                         <?php $i = 0; foreach ($delegaciones as $del => $d): ?>
-                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?> <?= $i >= 8 ? 'd-none delegacion-extra' : '' ?>">
                                 <span class="text-primary fw-semibold small"><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
                                 <span class="badge bg-light text-dark border"><?= $d['total'] ?></span>
                             </div>
-                            <?php if (++$i >= 8) break; ?>
+                            <?php $i++; ?>
                         <?php endforeach; ?>
-                        <?php if (count($delegaciones) > 8): ?>
-                            <small class="text-muted d-block mt-1">...y <?= count($delegaciones) - 8 ?> delegaciones más.</small>
+                        <?php if ($i > 8): ?>
+                            <a href="#" class="ver-mas-delegaciones small text-decoration-none d-block mt-1" data-total="<?= $i ?>" data-visibles="8">Ver más (+<?= $i - 8 ?> delegaciones)</a>
                         <?php endif; ?>
                     <?php else: ?>
                         <small class="text-muted">Sin datos de delegaciones.</small>
@@ -113,14 +113,14 @@
                     <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-box-seam me-1"></i>Delegaciones con kits entregados</h6>
                     <?php if (!empty($delegaciones_completas)): ?>
                         <?php $i = 0; foreach ($delegaciones_completas as $del => $cant): ?>
-                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?> <?= $i >= 8 ? 'd-none delegacion-extra' : '' ?>">
                                 <span class="small text-success fw-semibold"><i class="bi bi-check-circle-fill me-1 text-success"></i><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
                                 <span class="badge bg-success-subtle text-success border-0"><?= $cant ?> kit<?= $cant == 1 ? '' : 's' ?></span>
                             </div>
-                            <?php if (++$i >= 8) break; ?>
+                            <?php $i++; ?>
                         <?php endforeach; ?>
-                        <?php if (count($delegaciones_completas) > 8): ?>
-                            <small class="text-muted d-block mt-1">...y <?= count($delegaciones_completas) - 8 ?> delegaciones más.</small>
+                        <?php if ($i > 8): ?>
+                            <a href="#" class="ver-mas-delegaciones small text-decoration-none d-block mt-1" data-total="<?= $i ?>" data-visibles="8">Ver más (+<?= $i - 8 ?> delegaciones)</a>
                         <?php endif; ?>
                     <?php else: ?>
                         <small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Aún no hay delegaciones con todos los kits entregados.</small>
@@ -187,6 +187,28 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Ver más / Ver menos en listas de delegaciones
+    document.querySelectorAll('.ver-mas-delegaciones').forEach(function(enlace) {
+        enlace.addEventListener('click', function(e) {
+            e.preventDefault();
+            const card = this.closest('.card-body');
+            const extras = card.querySelectorAll('.delegacion-extra');
+            const expandido = this.classList.contains('expandido');
+            extras.forEach(function(fila) {
+                fila.classList.toggle('d-none', expandido);
+            });
+            if (!expandido) {
+                this.textContent = 'Ver menos';
+                this.classList.add('expandido');
+            } else {
+                const total = parseInt(this.dataset.total, 10);
+                const visibles = parseInt(this.dataset.visibles, 10);
+                this.textContent = 'Ver más (+' + (total - visibles) + ' delegaciones)';
+                this.classList.remove('expandido');
+            }
+        });
+    });
+
     const buscador = document.getElementById('buscador');
     const filas = document.querySelectorAll('.fila-participante');
     const sinResultados = document.getElementById('sin-resultados');
