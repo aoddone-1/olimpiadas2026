@@ -88,8 +88,8 @@
                     <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
                         <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
-                    <button id="fx_btn_borrar_todo" class="btn fx-btn-round fx-btn-borrar" disabled title="Borra el fixture del deporte/categoría que estés filtrando">
-                        <i class="bi bi-trash3-fill"></i><span class="ms-2">Borrar fixture</span>
+                    <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF con una planilla de mesa de control EN BLANCO por categoría (si estás filtrando, solo del deporte/categoría filtrada)">
+                        <i class="bi bi-file-earmark-arrow-down-fill"></i><span class="ms-2">Descargar planillas vacías</span>
                     </button>
                     <button id="fx_btn_limpiar" class="btn fx-btn-round fx-btn-limpiar d-none" title="Quitar los filtros activos">
                         <i class="bi bi-x-circle"></i><span class="ms-2">Limpiar filtros</span>
@@ -288,7 +288,7 @@
     const selFiltroDeporte = document.getElementById('fx_filtro_deporte');
     const selFiltroCategoria = document.getElementById('fx_filtro_categoria');
     const btnNuevo = document.getElementById('fx_btn_nuevo');
-    const btnBorrarTodo = document.getElementById('fx_btn_borrar_todo');
+    const btnPlanillasVacias = document.getElementById('fx_btn_planillas_vacias');
     const btnLimpiarFiltros = document.getElementById('fx_btn_limpiar');
     const chipsFiltros = document.getElementById('fx_chips_filtros');
     const msgBox = document.getElementById('fx_mensaje');
@@ -1367,18 +1367,19 @@
     }
 
     function actualizarEstadoBtnBorrar() {
+        // El botón ya NO borra nada: ahora descarga PLANILLAS VACÍAS. Queda
+        // siempre habilitado; el título solo se ajusta según el filtro activo
+        // para aclarar qué hojas va a incluir el PDF.
         const dep = selFiltroDeporte.value;
         const cat = selFiltroCategoria.value;
-        let habilitado = false;
-        if (cat) {
-            habilitado = todosFixtures.some(f => String(f.id_categoria) === String(cat));
-        } else if (dep) {
-            habilitado = todosFixtures.some(f => String(f.id_deporte) === String(dep));
+        if (btnPlanillasVacias) {
+            btnPlanillasVacias.disabled = false;
+            btnPlanillasVacias.title = cat
+                ? 'Descarga una planilla de mesa de control EN BLANCO para la categoría filtrada'
+                : (dep
+                    ? 'Descarga una planilla de mesa de control EN BLANCO por categoría de ' + nombreDeporteOpcion(dep)
+                    : 'Descarga un PDF con una planilla de mesa de control EN BLANCO por cada categoría');
         }
-        btnBorrarTodo.disabled = !habilitado;
-        btnBorrarTodo.title = habilitado
-            ? 'Borra el fixture del deporte/categoría que estés filtrando'
-            : 'Elegí un deporte o una categoría en los filtros para poder borrar su fixture';
         btnLimpiarFiltros.classList.toggle('d-none', !tieneFiltros());
     }
 
@@ -1421,31 +1422,36 @@
     /* ---------- Acciones ---------- */
     btnNuevo.addEventListener('click', () => abrirModal(null));
 
-    btnBorrarTodo.addEventListener('click', () => {
+    btnPlanillasVacias.addEventListener('click', () => {
+        // Descarga el PDF de planillas de mesa de control EN BLANCO (una hoja
+        // por categoría). Respeta los filtros activos: con deporte filtrado se
+        // pasa ?deporte=id; con categoría filtrada se arma un link temporal a
+        // la URL del filtro por categoría.
         const cat = selFiltroCategoria.value;
         const dep = selFiltroDeporte.value;
+
         if (cat) {
-            confirmarAccion('¿Seguro? Se eliminarán TODOS los partidos de la categoría filtrada.', 'warning', 'Sí, eliminar todo', 'Cancelar')
-                .then(ok => {
-                    if (!ok) return;
-                    post('ajax_eliminar_fixture', { id_categoria: cat }).then(res => {
-                        mensaje(res.mensaje, 'success');
-                        cargarTodo();
-                    });
-                });
-        } else if (dep) {
-            const ids = Array.from(new Set(
-                todosFixtures.filter(f => String(f.id_deporte) === String(dep)).map(f => f.id_categoria)
-            ));
-            if (!ids.length) { mensaje('No hay fixture para borrar en ese deporte.', 'warning'); return; }
-            confirmarAccion(`¿Seguro? Se eliminarán TODOS los partidos de ${ids.length} categoría/s de ${nombreDeporteOpcion(dep)}.`, 'warning', 'Sí, eliminar todo', 'Cancelar')
-                .then(ok => {
-                    if (!ok) return;
-                    Promise.all(ids.map(idCat => post('ajax_eliminar_fixture', { id_categoria: idCat })))
-                        .then(() => { mensaje('Fixture eliminado del deporte.', 'success'); cargarTodo(); })
-                        .catch(err => mensaje(err.message, 'danger'));
-                });
+            // Filtro por categoría: buscar el nombre del deporte de esa
+            // categoría para armar la URL con ?deporte=.
+            const opt = selFiltroCategoria.querySelector('option[value="' + cat + '"]');
+            const idDep = opt ? (opt.dataset.idDeporte || '') : '';
+            if (!idDep) {
+                mensaje('No se pudo determinar el deporte de la categoría filtrada.', 'danger');
+                return;
+            }
+            window.open(BASE + '/descargar_planillas_vacias?deporte=' + encodeURIComponent(idDep), '_blank');
+            return;
         }
+
+        const url = BASE + '/descargar_planillas_vacias'
+            + (dep ? '?deporte=' + encodeURIComponent(dep) : '');
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     });
 
     /* Al iniciar, mostrar TODO el fixture ya cargado */

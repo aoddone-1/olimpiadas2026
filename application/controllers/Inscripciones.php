@@ -1404,6 +1404,81 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/reporte_fixture');
     }
 
+    /**
+     * Descarga las PLANILLAS VACÍAS de mesa de control: PDF con UNA HOJA POR
+     * CATEGORÍA, sin partidos ni participantes cargados — solo la planilla en
+     * blanco lista para imprimir y completar a mano en la mesa. Es la que
+     * dispara el botón "Descargar planillas vacías" del panel de fixture
+     * (antes "Borrar fixture").
+     *
+     * Acepta ?deporte=<id> opcional para limitar las hojas a un deporte.
+     * Reutiliza la plantilla admin/reporte_fixture con formato='planilla' y
+     * el flag nuevo 'planilla_vacia', que hace que cada hoja salga con sus
+     * filas en blanco (en lugar de los partidos/participantes reales).
+     */
+    public function descargar_planillas_vacias() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Fixture_model');
+
+        // Categorías a incluir (una hoja por categoría), opcionalemente
+        // filtradas por deporte.
+        $id_deporte = (int) $this->input->get('deporte');
+        $categorias = $this->Fixture_model->obtener_categorias_para_fixture(
+            $id_deporte > 0 ? $id_deporte : null
+        );
+        if (!$categorias) {
+            show_error('No hay categorías cargadas.', 404);
+            return;
+        }
+
+        // Una fila "esqueleto" por categoría: es lo mínimo que necesita la
+        // vista para armar la hoja (título, modalidad enfrentamiento/masivo,
+        // lugar) sin imprimir partidos ni participantes.
+        $datos = array();
+        foreach ($categorias as $c) {
+            $fecha = trim((string) ($c['dia_competencia'] ?? ''));
+            $datos[] = array(
+                'id_categoria'           => $c['id_categoria'],
+                'id_deporte'             => $c['id_deporte'],
+                'nombre_categoria'       => $c['nombre_categoria'],
+                'nombre_deporte'         => $c['nombre_deporte'],
+                'genero'                 => $c['genero'] ?? null,
+                'modalidad_competencia'  => $c['modalidad_competencia'] ?? null,
+                'tipo_duracion'          => $c['tipo_duracion'] ?? null,
+                'fiscales'               => $c['fiscales'] ?? null,
+                'lugar_nombre'           => $c['nombre_lugar'] ?? null,
+                'fase'                   => null,
+                'fecha_competencia'      => $fecha !== '' ? substr($fecha, 0, 10) : null,
+                'hora_inicio'            => $c['hora_competencia'] ?? null,
+                'nombre_prueba'          => null,
+            );
+        }
+
+        $nombre_archivo = 'planillas_vacias_' . date('Y-m-d') . '.pdf';
+
+        $this->load->vars(array(
+            'datos'             => $datos,
+            'formato'           => 'planilla',
+            'dia_filtro'        => NULL,
+            'ancho_franja'      => 1,
+            'nombre_archivo'    => $nombre_archivo,
+            'deporte_filtro'    => $id_deporte > 0 ? $this->_nombre_deporte($id_deporte) : NULL,
+            'orden_reporte'     => 'deporte',
+            'delegacion_filtro' => NULL,
+            'nombres_completos' => TRUE,
+            'modo_delegado'     => FALSE,
+            'titulo_planilla'   => NULL,
+            'deporte_planilla'  => NULL,
+            // Flag nuevo: planillas EN BLANCO (sin partidos ni participantes).
+            'planilla_vacia'    => TRUE,
+        ));
+        $this->load->view('admin/reporte_fixture');
+    }
+
     /** Nombre de un deporte por id (NULL si no existe). */
     private function _nombre_deporte($id_deporte) {
         $this->load->model('Deporte_model');
