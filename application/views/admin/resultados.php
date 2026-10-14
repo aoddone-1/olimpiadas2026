@@ -148,9 +148,17 @@
                         </div>
                     </div>
                     <div class="row g-2 mt-0">
-                        <!-- El tipo de resultado NO se elige: lo define la modalidad
-                             del deporte (ENFRENTAMIENTO = marcador, MASIVO_TIEMPO = posiciones/tiempos) -->
+                        <!-- El tipo de resultado lo define la modalidad del deporte
+                             (ENFRENTAMIENTO = marcador). En MASIVO_TIEMPO se puede
+                             elegir qué se carga: TIEMPOS (mm:ss) o PUNTAJE (número). -->
                         <input type="hidden" id="rs_modal_tipo" name="tipo_resultado" value="MARCADOR">
+                        <div class="col-md-6 d-none" id="rs_wrap_tipo_masivo">
+                            <label class="form-label small fw-bold">¿Qué cargás?</label>
+                            <select id="rs_tipo_carga" class="form-select">
+                                <option value="TIEMPO">⏱ Tiempos (mm:ss — gana el menor)</option>
+                                <option value="PUNTAJE">🎯 Puntaje (número — gana el mayor)</option>
+                            </select>
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label small fw-bold">Nombre del partido / prueba *</label>
                             <input type="text" name="nombre_evento" readonly id="rs_modal_nombre" class="form-control"
@@ -235,8 +243,8 @@
 
                     <!-- BLOQUE TIEMPO (deportes MASIVO_TIEMPO) -->
                     <div id="rs_bloque_tiempo" class="d-none">
-                        <h6 class="fw-bold small mb-1"><i class="bi bi-stopwatch me-1"></i>Tiempos de los participantes</h6>
-                        <p class="text-muted small mb-2">La posición se asigna automáticamente según el orden de carga.</p>
+                        <h6 class="fw-bold small mb-1" id="rs_titulo_bloque_masivo"><i class="bi bi-stopwatch me-1"></i>Tiempos de los participantes</h6>
+                        <p class="text-muted small mb-2" id="rs_hint_bloque_masivo">La posición se asigna automáticamente: gana el MEJOR tiempo (menor).</p>
                         <div class="alert alert-warning py-2 small d-none" id="rs_sin_participantes">
                             <i class="bi bi-exclamation-triangle me-1"></i>
                             No hay participantes inscriptos en esta categoría todavía.
@@ -246,7 +254,7 @@
                                 <tr class="small fw-bold">
                                     <th style="width:50px">#</th>
                                     <th>Participante</th>
-                                    <th style="width:170px">Tiempo (mm:ss)</th>
+                                    <th style="width:170px" id="rs_col_valor">Tiempo (mm:ss)</th>
                                 </tr>
                             </thead>
                             <tbody></tbody>
@@ -283,7 +291,9 @@
     const BASE = '<?= base_url("Inscripciones") ?>';
 
     const MEDALLAS = ['🥇', '🥈', '🥉'];
-    const BADGE_TIPO = { MARCADOR: 'bg-primary', TIEMPO: 'bg-info text-dark' };
+    const BADGE_TIPO = { MARCADOR: 'bg-primary', TIEMPO: 'bg-info text-dark', PUNTAJE: 'bg-warning text-dark' };
+    // El detalle de MASIVO usa la misma columna "tiempo" para tiempos y puntajes.
+    const esMasivo = (t) => (t === 'TIEMPO' || t === 'PUNTAJE');
 
     const lista = document.getElementById('rs_lista');
     const msgBox = document.getElementById('rs_mensaje');
@@ -489,7 +499,7 @@
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0">
                         <thead class="table-light small fw-bold">
-                            <tr><th style="width:80px">Posición</th><th>Participante</th><th style="width:140px">Tiempo</th></tr>
+                            <tr><th style="width:80px">Posición</th><th>Participante</th><th style="width:140px">${r.tipo_resultado === 'PUNTAJE' ? 'Puntaje' : 'Tiempo'}</th></tr>
                         </thead>
                         <tbody>`;
             if (!ordenados.length) {
@@ -596,7 +606,7 @@
                         const pos = parseInt(d.posicion, 10);
                         const medalla = MEDALLAS[pos - 1] || (pos + 'º');
                         return `<span class="badge rounded-pill bg-white border text-dark rs-podio">
-                                    ${medalla} <strong>${esc(nombreDet(d, ''))}</strong>${d.tiempo ? ' · <span class="font-monospace">' + esc(d.tiempo) + '</span>' : ''}
+                                    ${medalla} <strong>${esc(nombreDet(d, ''))}</strong>${d.tiempo ? ' · <span class="font-monospace">' + (r.tipo_resultado === 'PUNTAJE' ? 'Pts: ' : '') + esc(d.tiempo) + '</span>' : ''}
                                 </span>`;
                     }).join('') +
                     (resto > 0
@@ -711,6 +721,8 @@
     const selFixture = document.getElementById('rs_modal_fixture');
     const bloqueMarcador = document.getElementById('rs_bloque_marcador');
     const bloqueTiempo = document.getElementById('rs_bloque_tiempo');
+    const wrapTipoMasivo = document.getElementById('rs_wrap_tipo_masivo');
+    const selTipoCarga = document.getElementById('rs_tipo_carga');
     const tbodyTiempos = document.querySelector('#rs_tabla_tiempos tbody');
     const datalistUtes = document.getElementById('rs_lista_utes');
     const hintModalidad = document.getElementById('rs_modal_modalidad_hint');
@@ -724,8 +736,19 @@
     function mostrarBloqueSegunTipo() {
         const t = selTipo.value;
         bloqueMarcador.classList.toggle('d-none', t !== 'MARCADOR');
-        bloqueTiempo.classList.toggle('d-none', t !== 'TIEMPO');
+        bloqueTiempo.classList.toggle('d-none', !esMasivo(t));
         if (t !== 'MARCADOR') resetearDesempate();
+
+        // Textos dinámicos del bloque masivo según se carguen tiempos o puntajes.
+        const esPuntaje = (t === 'PUNTAJE');
+        document.getElementById('rs_titulo_bloque_masivo').innerHTML = esPuntaje
+            ? '<i class="bi bi-star-fill me-1"></i>Puntajes de los participantes'
+            : '<i class="bi bi-stopwatch me-1"></i>Tiempos de los participantes';
+        document.getElementById('rs_hint_bloque_masivo').textContent = esPuntaje
+            ? 'La posición se asigna automáticamente: gana el MAYOR puntaje.'
+            : 'La posición se asigna automáticamente: gana el MEJOR tiempo (menor).';
+        document.getElementById('rs_col_valor').textContent = esPuntaje
+            ? 'Puntaje' : 'Tiempo (mm:ss)';
     }
 
     /* ---------- DESEMPATE en el modal ----------
@@ -810,16 +833,32 @@
     function aplicarModalidad(modalidad) {
         modalidadActual = modalidad || '';
         if (modalidadActual === 'MASIVO_TIEMPO') {
-            selTipo.value = 'TIEMPO';
+            // El usuario elige si carga tiempos o puntajes.
+            wrapTipoMasivo.classList.remove('d-none');
+            selTipo.value = selTipoCarga.value || 'TIEMPO';
             hintModalidad.innerHTML = '<span class="badge bg-warning text-dark">Masivo / Tiempo</span> ' +
-                'Cargá la posición y el tiempo de cada participante inscripto.';
+                (selTipo.value === 'PUNTAJE'
+                    ? 'Cargá el puntaje de cada participante inscripto (gana el mayor).'
+                    : 'Cargá el tiempo de cada participante inscripto (gana el menor).');
         } else {
+            wrapTipoMasivo.classList.add('d-none');
             selTipo.value = 'MARCADOR';
             hintModalidad.innerHTML = '<span class="badge bg-primary">Enfrentamiento</span> ' +
                 'Cargá los goles/tantos de cada equipo.';
         }
         mostrarBloqueSegunTipo();
     }
+
+    // Al cambiar "¿Qué cargás?" se refresca el tipo, los textos y la planilla
+    // (los inputs pasan de mm:ss a numéricos o viceversa).
+    selTipoCarga.addEventListener('change', function () {
+        if (modalidadActual !== 'MASIVO_TIEMPO') return;
+        selTipo.value = this.value;
+        aplicarModalidad('MASIVO_TIEMPO');
+        if (competidoresDisponibles.length || Object.keys(participantesPorFixture).length) {
+            repoblarPlanillaTiempos();
+        }
+    });
 
     /* ---------- Cascada del modal: Deporte -> Categoría -> Jornada ---------- */
     // Al elegir deporte, habilitar el select de categorías mostrando solo las
@@ -855,7 +894,7 @@
         limpiarPlanillaTiempos();
         cargarFixturesDelModal(this.value);
         cargarUtesDelModal(this.value);
-        if (selTipo.value === 'TIEMPO') cargarCompetidoresDelModal(this.value);
+        if (esMasivo(selTipo.value)) cargarCompetidoresDelModal(this.value);
     });
 
     function cargarFixturesDelModal(idCategoria) {
@@ -888,7 +927,7 @@
         const inpFecha = document.querySelector('#form_resultado input[name="fecha_resultado"]');
         if (inpFecha && f.fecha_competencia) inpFecha.value = f.fecha_competencia;
 
-        if (selTipo.value === 'TIEMPO' || f.fase === 'JORNADA_UNICA') {
+        if (esMasivo(selTipo.value) || f.fase === 'JORNADA_UNICA') {
             if (competidoresDisponibles.length) {
                 repoblarPlanillaTiempos();
             } else if (selCatModal.value) {
@@ -974,7 +1013,7 @@
     }
 
     function repoblarPlanillaTiempos() {
-        if (selTipo.value !== 'TIEMPO') return;
+        if (!esMasivo(selTipo.value)) return;
         tbodyTiempos.innerHTML = '';
         const deJornada = participantesDeFixtureActual();
         const lista = deJornada.length ? deJornada : competidoresDisponibles;
@@ -998,6 +1037,7 @@
     function agregarFila(pos, competidor) {
         const tr = document.createElement('tr');
         const c = competidor || null;
+        const esPuntaje = (selTipo.value === 'PUNTAJE');
         const nombreTxt = c
             ? esc(c.nombre)
               + (c.integrantes ? ' <span class="text-muted small fw-normal">(' + esc(c.integrantes) + ')</span>' : '')
@@ -1009,7 +1049,9 @@
             <td>
                 <input type="hidden" name="comp_id[]" value="${c ? esc(String(c.id)) : ''}">
                 <input type="hidden" name="comp_nombre[]" value="${c ? esc(c.nombre || '') : ''}">
-                <input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42">
+                ${esPuntaje
+                    ? '<input type="number" step="any" min="0" inputmode="decimal" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 8500">'
+                    : '<input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42">'}
             </td>`;
         tbodyTiempos.appendChild(tr);
     }
@@ -1019,6 +1061,8 @@
         selDeporteModal.value = '';
         selCatModal.value = '';
         selTipo.value = 'MARCADOR';
+        selTipoCarga.value = 'TIEMPO'; // cada carga nueva arranca en tiempos
+        wrapTipoMasivo.classList.add('d-none');
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
         datalistUtes.innerHTML = '';
         tbodyTiempos.innerHTML = '';
