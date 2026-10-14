@@ -99,7 +99,7 @@
                             <?php $i++; ?>
                         <?php endforeach; ?>
                         <?php if ($i > 8): ?>
-                            <a href="#" class="ver-mas-delegaciones small text-decoration-none d-block mt-1" data-total="<?= $i ?>" data-visibles="8">Ver más (+<?= $i - 8 ?> delegaciones)</a>
+                            <a href="#" class="ver-mas-delegaciones small text-decoration-none d-block mt-1 text-danger" data-total="<?= $i ?>" data-visibles="8">Ver más (+<?= $i - 8 ?> delegaciones)</a>
                         <?php endif; ?>
                     <?php else: ?>
                         <small class="text-muted">Sin datos de delegaciones.</small>

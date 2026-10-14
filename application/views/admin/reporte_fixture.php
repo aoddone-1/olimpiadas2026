@@ -35,51 +35,11 @@ class MYPDF extends TCPDF {
      *  delegado, que es el único que lista participantes. */
     public $nombres_completos = TRUE;
     /**
-     * Filas en blanco del pie de cada planilla (partidos o participantes),
-     * para anotar cruces o inscriptos de último momento. Solo afecta a
-     * formato='planilla'. Con valores grandes (p. ej. 99) el cálculo dinámico
-     * las recorta automáticamente a las que entran en la hoja; con 0 se
-     * desactivan.
+     * Filas en blanco extra que se agregan al pie de cada planilla (partidos o
+     * participantes) por si en la mesa de control hay que anotar cruces o
+     * inscriptos de último momento. Solo afecta a formato='planilla'.
      */
-    public static $filas_vacias_planilla = 99;
-    /** Altura aproximada (en mm) de una fila de planilla con cellpadding=4 y fuente 8/8.5pt. */
-    public static $alto_fila_planilla = 7;
-
-    /**
-     * Cantidad de filas vacías que realmente CABEN en la hoja antes de que
-     * TCPDF corte con una página nueva. Se calcula comparando la altura del
-     * HTML ya generado (writeHTMLCell con $leavecell=TRUE, que mide sin
-     * dibujar) contra el alto útil de la página (entre el margen del header y
-     * el auto page break), descontando además $extra_mm (p. ej. el bloque de
-     * firmas que va debajo de la tabla). Devuelve como mínimo 1 fila, y nunca
-     * más que self::$filas_vacias_planilla.
-     */
-    protected function _filas_vacias_que_caben($html_tabla, $extra_mm = 0) {
-        $max = max(0, (int) self::$filas_vacias_planilla);
-        if ($max <= 0) return 0;
-
-        // Alto útil de la hoja (en mm): h/tMargin/bMargin están en las unidades
-        // internas del documento (PDF_UNIT, normalmente 'pt': 72 pt/pulg,
-        // 25.4 mm/pulg → dividir por 72/25.4 ≈ 2.8346). Si PDF_UNIT fuese 'mm'
-        // la conversión se omite.
-        try {
-            $a_px = $this->h - $this->tMargin - $this->bMargin;
-            $alto_util_mm = (defined('PDF_UNIT') && strtolower((string) PDF_UNIT) === 'mm')
-                ? (float) $a_px
-                : $a_px / (72 / 25.4);
-            // Medir el bloque ya armado SIN dibujarlo (lasth devuelve la altura).
-            $alto_usado_mm = $this->writeHTMLCell(
-                0, 0, $this->lMargin, '', $html_tabla, 0, 1, 0, true, 'L', true
-            );
-            if (!is_numeric($alto_usado_mm) || $alto_usado_mm <= 0) return min($max, 4);
-            $espacio_restante_mm = $alto_util_mm - (float) $alto_usado_mm - (float) $extra_mm;
-            $caben = (int) floor($espacio_restante_mm / self::$alto_fila_planilla);
-            return max(1, min($max, $caben));
-        } catch (Throwable $e) {
-            // Ante cualquier falla, comportamiento fijo clásico.
-            return min($max, 4);
-        }
-    }
+    public static $filas_vacias_planilla = 20;
 
     /** Nombre corto (pila + iniciales): "María Paula Gómez" → "María P. G.". */
     public static function _nombre_corto($n) {
@@ -352,7 +312,10 @@ class MYPDF extends TCPDF {
                         . '</div>'
                         . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">' 
                         . $esc($rango_txt) .'</div>';
+              
+            $this->writeHTMLCell(0, 70, 300, 15, $html_bloque, 0, 1, 0, true, 'J', true);
 
+            $html_bloque ="";
             if ($n_dias > $por_bloque) {
                 $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
                             . 'Página ' . ($bi + 1) . ' de ' . count($bloques) 
@@ -572,28 +535,13 @@ class MYPDF extends TCPDF {
                 ? strtoupper($titulo_cat)
                 : ('PLANILLA DE MESA DE CONTROL — ' . NOMBRE_META);
         }
-        $html_titulo = '<div style="text-align:right; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
+        $html = '<div style="text-align:right; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
               . $esc($titulo) . '</div>';
               
-        $this->writeHTMLCell(0, 70, 300, 15, $html_titulo, 0, 1, 0, true, 'J', true);
+        $this->writeHTMLCell(0, 70, 300, 15, $html, 0, 1, 0, true, 'J', true);
 
         $borde = 'border:1px solid #bdc3c7;';
         $c_head = '#1e3a5f';
-
-        // Altura del bloque de firmas (se mide antes, con la hoja todavía
-        // limpia) para descontarla del espacio disponible de la tabla.
-        $html_firmas = '<br/><br/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-top:14px;">'
-               . '<tr>'
-               . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">Mesa de control (firma)</td>'
-               . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">árbitro / supervisor (firma)</td>'
-               . '</tr></table>';
-
-        $alto_firmas_mm = 0;
-        try {
-            $alto_firmas_mm = max(0, (float) $this->writeHTMLCell(0, 0, $this->lMargin, '', $html_firmas, 0, 1, 0, true, 'L', true));
-        } catch (Throwable $e) {
-            $alto_firmas_mm = 0;
-        }
 
         if ($es_masivo) {
             // ---- Planilla de participantes (una sola jornada) ----
@@ -787,16 +735,9 @@ class MYPDF extends TCPDF {
             if (!$i) {
                 $html .= '<tr><td colspan="3" style="' . $borde . ' text-align:center; color:#7f8c8d;">No hay participantes inscriptos en esta categoría.</td></tr>';
             }
-            // Filas vacías al pie: por si en la mesa hay que anotar inscriptos
-            // de último momento. La cantidad se calcula DINÁMICAMENTE: se mide
-            // cuánto ocupa la tabla completa (incluida una fila de muestra) y
-            // se agregan las filas que caben hasta llenar la hoja, para que la
-            // planilla siempre cierre como una página completa sin cortes.
-            $fila_prueba = '<tr><td style="' . $borde . ' text-align:center; width:8%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:50%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:42%;">&nbsp;</td></tr>';
-            $n_vacias = $this->_filas_vacias_que_caben($html . $fila_prueba . '</tbody></table>', $alto_firmas_mm);
-            for ($v = 0; $v < $n_vacias; $v++) {
+            // Filas vacías extra: por si en la mesa hay que anotar inscriptos
+            // de último momento (no modifica el reporte, solo la planilla).
+            for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
                 $bg = (($i + $v) % 2) ? '#ffffff' : '#f8f9fa';
                 $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center; width:8%;"></td>'
@@ -886,7 +827,7 @@ class MYPDF extends TCPDF {
             }
 
             if ($equipos_tabla) {
-                $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+                $html = '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                        . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
                        . '<th style="' . $borde . ' text-align:center; width:30%;">EQUIPO</th>'
                        . '<th style="' . $borde . ' text-align:center; width:70%;">INTEGRANTES</th>'
@@ -905,10 +846,9 @@ class MYPDF extends TCPDF {
             }
             // Nota: se CONCATENA ($html .=) para no borrar la mini tabla de
             // equipos que va antes del encabezado de la planilla.
-            $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+            $html .= '<br/><hr/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
                    . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
-                   . '<td style="width:50%;"><b>Fecha/Hora:</b> ' . $esc(date('d/m/Y', strtotime((string) ($fila_partido['fecha_competencia'] ?? 'now'))) . ' · ' . substr((string) ($fila_partido['hora_inicio'] ?? ''), 0, 5)) . '</td>'
                    . '</tr><tr>'
                    . '<td><b>Lugar:</b> ' . $esc($fila_partido['lugar_nombre'] ?? 'A confirmar') . '</td>'
                    . '<td><b>Partidos:</b> ' . count($this->datos) . '</td>'
@@ -987,25 +927,11 @@ class MYPDF extends TCPDF {
                        . '<td style="' . $borde . ' width:20%;"></td>'
                        . '</tr>';
             }
-            // Filas vacías al pie: por si en la mesa hay que anotar partidos
-            // que se agregan en el momento. La cantidad se calcula
-            // DINÁMICAMENTE (mide la tabla completa con writeHTMLCell en modo
-            // "solo medir" y agrega las filas que caben hasta llenar la hoja),
-            // de forma que cada categoría cierre como una página completa sin
-            // cortes ni páginas extra.
-            $GLOBALS['planilla_equipos_map'] = NULL;
-            $html .= '</tbody></table>';
-            $fila_prueba = '<tr><td style="' . $borde . ' text-align:center;width:5%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:14%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:13%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:24%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:24%;">&nbsp;</td>'
-                         . '<td style="' . $borde . ' width:20%;">&nbsp;</td></tr>';
-            $n_vacias = $this->_filas_vacias_que_caben($html . $fila_prueba, $alto_firmas_mm);
-            $html_tabla_final = substr($html, 0, -strlen('</tbody></table>'));
-            for ($v = 0; $v < $n_vacias; $v++) {
+            // Filas vacías extra: por si en la mesa hay que anotar partidos
+            // que se agregan en el momento (no modifica el reporte, solo la planilla).
+            for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
                 $bg = (($n + $v) % 2) ? '#ffffff' : '#f8f9fa';
-                $html_tabla_final .= '<tr style="background-color:' . $bg . ';">'
+                $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center;width:5%;">&nbsp;</td>'
                        . '<td style="' . $borde . ' width:14%;"></td>'
                        . '<td style="' . $borde . ' width:13%;"></td>'
@@ -1014,7 +940,8 @@ class MYPDF extends TCPDF {
                        . '<td style="' . $borde . ' width:20%;"></td>'
                        . '</tr>';
             }
-            $html = $html_tabla_final . '</tbody></table>';
+            $GLOBALS['planilla_equipos_map'] = NULL;
+            $html .= '</tbody></table>';
         }
 
         // Espacio de firma para la mesa de control
