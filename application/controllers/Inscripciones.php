@@ -1405,16 +1405,13 @@ class Inscripciones extends CI_Controller {
     }
 
     /**
-     * Descarga las PLANILLAS VACÍAS de mesa de control: PDF con UNA HOJA POR
-     * CATEGORÍA, sin partidos ni participantes cargados — solo la planilla en
-     * blanco lista para imprimir y completar a mano en la mesa. Es la que
-     * dispara el botón "Descargar planillas vacías" del panel de fixture
-     * (antes "Borrar fixture").
-     *
-     * Acepta ?deporte=<id> opcional para limitar las hojas a un deporte.
-     * Reutiliza la plantilla admin/reporte_fixture con formato='planilla' y
-     * el flag nuevo 'planilla_vacia', que hace que cada hoja salga con sus
-     * filas en blanco (en lugar de los partidos/participantes reales).
+     * Descarga las PLANILLAS VACÍAS: PDF simple de 2 páginas totalmente en
+     * blanco, con un título de puntos ("....................") para
+     * completar a mano y una tabla por página:
+     *   - Página 1: N° | PARTICIPANTE | TIEMPO / PUNTAJE
+     *   - Página 2: Nº | FASE / JORNADA | DÍA / HORA | EQUIPO A | EQUIPO B | MARCADOR / GANADOR
+     * Es el PDF que dispara el botón "Descargar planillas vacías" del panel
+     * de fixture (antes "Borrar fixture"). No depende de datos de BD.
      */
     public function descargar_planillas_vacias() {
         if (!$this->session->userdata('is_organizador')
@@ -1422,61 +1419,54 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        $this->load->model('Fixture_model');
+        // TCPDF ya está disponible vía la librería 'Pdf' cargada en el
+        // constructor del controlador; el require es solo por si acaso.
+        if (!class_exists('TCPDF')) {
+            require_once APPPATH . 'libraries/tcpdf/tcpdf.php';
+        }
 
-        // Categorías a incluir (una hoja por categoría), opcionalemente
-        // filtradas por deporte.
-        $id_deporte = (int) $this->input->get('deporte');
-        $categorias = $this->Fixture_model->obtener_categorias_para_fixture(
-            $id_deporte > 0 ? $id_deporte : null
+        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('TCPDF');
+        $pdf->SetTitle('Planillas vacías');
+        $pdf->SetMargins(15, 15, 15);
+        $pdf->SetHeaderData('', 0, '', '');
+        $pdf->setPrintHeader(FALSE);
+        $pdf->setPrintFooter(FALSE);
+        $pdf->SetFontSubsetting(TRUE);
+        $pdf->SetFont('dejavusans', '', 11, '', true);
+
+        // ---- Página 1: planilla de participantes ----
+        $pdf->AddPage();
+        $pdf->Cell(0, 10, '.............................................', 0, 1, 'C', FALSE, 0, 0, 0, FALSE);
+        $pdf->Ln(6);
+        $pdf->writeHTMLTable(
+            '<table border="1" cellpadding="6">'
+            . '<tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
+            . '<td width="8%">N°</td>'
+            . '<td width="62%">PARTICIPANTE</td>'
+            . '<td width="30%">TIEMPO / PUNTAJE</td>'
+            . '</tr>',
+            array(), TRUE, FALSE, FALSE, TRUE
         );
-        if (!$categorias) {
-            show_error('No hay categorías cargadas.', 404);
-            return;
-        }
 
-        // Una fila "esqueleto" por categoría: es lo mínimo que necesita la
-        // vista para armar la hoja (título, modalidad enfrentamiento/masivo,
-        // lugar) sin imprimir partidos ni participantes.
-        $datos = array();
-        foreach ($categorias as $c) {
-            $fecha = trim((string) ($c['dia_competencia'] ?? ''));
-            $datos[] = array(
-                'id_categoria'           => $c['id_categoria'],
-                'id_deporte'             => $c['id_deporte'],
-                'nombre_categoria'       => $c['nombre_categoria'],
-                'nombre_deporte'         => $c['nombre_deporte'],
-                'genero'                 => $c['genero'] ?? null,
-                'modalidad_competencia'  => $c['modalidad_competencia'] ?? null,
-                'tipo_duracion'          => $c['tipo_duracion'] ?? null,
-                'fiscales'               => $c['fiscales'] ?? null,
-                'lugar_nombre'           => $c['nombre_lugar'] ?? null,
-                'fase'                   => null,
-                'fecha_competencia'      => $fecha !== '' ? substr($fecha, 0, 10) : null,
-                'hora_inicio'            => $c['hora_competencia'] ?? null,
-                'nombre_prueba'          => null,
-            );
-        }
+        // ---- Página 2: planilla de partidos ----
+        $pdf->AddPage();
+        $pdf->Cell(0, 10, '.............................................', 0, 1, 'C', FALSE, 0, 0, 0, FALSE);
+        $pdf->Ln(6);
+        $pdf->writeHTMLTable(
+            '<table border="1" cellpadding="6">'
+            . '<tr style="background-color:#f0f0f0;font-weight:bold;text-align:center;">'
+            . '<td width="6%">Nº</td>'
+            . '<td width="18%">FASE / JORNADA</td>'
+            . '<td width="18%">DÍA / HORA</td>'
+            . '<td width="20%">EQUIPO A</td>'
+            . '<td width="20%">EQUIPO B</td>'
+            . '<td width="18%">MARCADOR / GANADOR</td>'
+            . '</tr>',
+            array(), TRUE, FALSE, FALSE, TRUE
+        );
 
-        $nombre_archivo = 'planillas_vacias_' . date('Y-m-d') . '.pdf';
-
-        $this->load->vars(array(
-            'datos'             => $datos,
-            'formato'           => 'planilla',
-            'dia_filtro'        => NULL,
-            'ancho_franja'      => 1,
-            'nombre_archivo'    => $nombre_archivo,
-            'deporte_filtro'    => $id_deporte > 0 ? $this->_nombre_deporte($id_deporte) : NULL,
-            'orden_reporte'     => 'deporte',
-            'delegacion_filtro' => NULL,
-            'nombres_completos' => TRUE,
-            'modo_delegado'     => FALSE,
-            'titulo_planilla'   => NULL,
-            'deporte_planilla'  => NULL,
-            // Flag nuevo: planillas EN BLANCO (sin partidos ni participantes).
-            'planilla_vacia'    => TRUE,
-        ));
-        $this->load->view('admin/reporte_fixture');
+        $pdf->Output('planillas_vacias.pdf', 'D');
     }
 
     /** Nombre de un deporte por id (NULL si no existe). */
