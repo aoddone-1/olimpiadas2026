@@ -468,11 +468,10 @@ class MYPDF extends TCPDF {
         $titulo = $this->titulo_planilla
             ? $this->titulo_planilla
             : ('PLANILLA DE MESA DE CONTROL — ' . NOMBRE_META);
-        $html = '<div style="text-align:center; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
-              . $esc($titulo) . '</div>'
-              . '<div style="text-align:center; font-size:9pt; color:#7f8c8d; padding-bottom:8px;">'
-              . ($es_masivo ? 'Deporte masivo — participantes y planilla de llegada' : 'Partidos de la categoría')
-              . '</div>';
+        $html = '<div style="text-align:right; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
+              . $esc($titulo) . '</div>';
+              
+        $this->writeHTMLCell(0, 70, 300, 15, $html, 0, 1, 0, true, 'J', true);
 
         $borde = 'border:1px solid #bdc3c7;';
         $c_head = '#1e3a5f';
@@ -633,7 +632,7 @@ class MYPDF extends TCPDF {
                 @ini_set('display_errors', $_display_errors_prev);
             }
 
-            $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+            $html = '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
                    . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
                    . '<td style="width:50%;"><b>Fecha/Hora:</b> ' . $esc(date('d/m/Y', strtotime((string) ($fila_partido['fecha_competencia'] ?? 'now'))) . ' · ' . substr((string) ($fila_partido['hora_inicio'] ?? ''), 0, 5)) . '</td>'
@@ -644,9 +643,9 @@ class MYPDF extends TCPDF {
 
             $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8.5pt; color:#2c3e50;">'
                    . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
-                   . '<th style="' . $borde . ' width:8%;">POSICIÓN</th>'
-                   . '<th style="' . $borde . '">PARTICIPANTE</th>'
-                   . '<th style="' . $borde . ' width:16%;">TIEMPO / PUNTAJE</th>'
+                   . '<th style="' . $borde . ' text-align:center; width:8%;">N°</th>'
+                   . '<th style="' . $borde . ' text-align:center; width:50%;">PARTICIPANTE</th>'
+                   . '<th style="' . $borde . ' text-align:center; width:42%;">TIEMPO / PUNTAJE</th>'
                    . '</tr></thead><tbody>';
             $i = 0;
             foreach ($participantes as $clave => $nombre) {
@@ -660,9 +659,9 @@ class MYPDF extends TCPDF {
                               . $esc(implode(', ', $integrantes_map[$clave])) . ')</span>';
                 }
                 $html .= '<tr style="background-color:' . $bg . ';">'
-                       . '<td style="' . $borde . ' text-align:center; height:22px;">' . ($i + 1) . 'º</td>'
-                       . '<td style="' . $borde . '">' . $celular . '</td>'
-                       . '<td style="' . $borde . '"></td>'
+                       . '<td style="' . $borde . ' text-align:center; width:8%;"></td>'
+                       . '<td style="' . $borde . ' width:50%;">' . $celular . '</td>'
+                       . '<td style="' . $borde . ' width:42%;"></td>'
                        . '</tr>';
                 $i++;
             }
@@ -671,16 +670,24 @@ class MYPDF extends TCPDF {
             }
             $html .= '</tbody></table>';
         } else {
+            $fila_partido = $this->datos[0];
+            $html = '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+                   . '<tr>'
+                   . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
+                   . '<td style="width:50%;"><b>Fecha/Hora:</b> ' . $esc(date('d/m/Y', strtotime((string) ($fila_partido['fecha_competencia'] ?? 'now'))) . ' · ' . substr((string) ($fila_partido['hora_inicio'] ?? ''), 0, 5)) . '</td>'
+                   . '</tr><tr>'
+                   . '<td><b>Lugar:</b> ' . $esc($fila_partido['lugar_nombre'] ?? 'A confirmar') . '</td>'
+                   . '<td><b>Partidos:</b> ' . count($this->datos) . '</td>'
+                   . '</tr></table>';
             // ---- Planilla de partidos ----
             $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
                    . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
                    . '<th style="' . $borde . ' width:5%;">Nº</th>'
                    . '<th style="' . $borde . ' width:14%;">FASE / JORNADA</th>'
                    . '<th style="' . $borde . ' width:13%;">DÍA / HORA</th>'
-                   . '<th style="' . $borde . ' width:10%;">LUGAR</th>'
                    . '<th style="' . $borde . ' width:24%;">EQUIPO A</th>'
                    . '<th style="' . $borde . ' width:24%;">EQUIPO B</th>'
-                   . '<th style="' . $borde . ' width:10%;">MARCADOR / GANADOR</th>'
+                   . '<th style="' . $borde . ' width:20%;">MARCADOR / GANADOR</th>'
                    . '</tr></thead><tbody>';
 
             $n = 0;
@@ -723,22 +730,21 @@ class MYPDF extends TCPDF {
                 $bg = ($n % 2) ? '#ffffff' : '#f8f9fa';
 
                 $html .= '<tr style="background-color:' . $bg . ';">'
-                       . '<td style="' . $borde . ' text-align:center;">' . $n . '</td>'
-                       . '<td style="' . $borde . '">' . $esc($fase)
+                       . '<td style="' . $borde . ' text-align:center;width:5%;">' . $n . '</td>'
+                       . '<td style="' . $borde . ' width:14%;">' . $esc($fase)
                        . (!empty($f['nombre_prueba']) ? '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc($f['nombre_prueba']) . '</span>' : '')
                        . '</td>'
-                       . '<td style="' . $borde . ' text-align:center;">' . $esc($horario) . '</td>'
-                       . '<td style="' . $borde . '">' . $esc($f['lugar_nombre'] ?? '—') . '</td>'
-                       . '<td style="' . $borde . '">' . $lado_html('ute_1_nombre', 1) . '</td>'
-                       . '<td style="' . $borde . '">' . $lado_html('ute_2_nombre', 2) . '</td>'
-                       . '<td style="' . $borde . '"></td>'
+                       . '<td style="' . $borde . ' text-align:center;width:13%;">' . $esc($horario) . '</td>'
+                       . '<td style="' . $borde . ' width:24%;">' . $lado_html('ute_1_nombre', 1) . '</td>'
+                       . '<td style="' . $borde . ' width:24%;">' . $lado_html('ute_2_nombre', 2) . '</td>'
+                       . '<td style="' . $borde . ' width:20%;"></td>'
                        . '</tr>';
             }
             $html .= '</tbody></table>';
         }
 
         // Espacio de firma para la mesa de control
-        $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-top:14px;">'
+        $html .= '<br/><br/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-top:14px;">'
                . '<tr>'
                . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">Mesa de control (firma)</td>'
                . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">árbitro / supervisor (firma)</td>'
@@ -794,9 +800,9 @@ $pdf->SetKeywords('TCPDF, PDF, OLIMPIADAS, VIVIENDAS');
 $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
 
 // set margins
-$pdf->SetMargins(25, 28, 25);
+$pdf->SetMargins(25, 100, 25);
 $pdf->SetHeaderMargin(5);
-$pdf->SetFooterMargin(14);
+$pdf->SetFooterMargin(30);
 
 // set auto page breaks: margen inferior amplio para que la tabla nunca toque el footer
 $pdf->SetAutoPageBreak(TRUE, 28);

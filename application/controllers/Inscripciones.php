@@ -1341,7 +1341,7 @@ class Inscripciones extends CI_Controller {
             'delegacion_filtro' => NULL,
             'nombres_completos' => TRUE,
             'modo_delegado'     => FALSE,
-            'titulo_planilla'   => 'PLANILLA DE MESA DE CONTROL — ' . strtoupper($nombre_cat),
+            'titulo_planilla'   => strtoupper($nombre_cat),
         ));
         $this->load->view('admin/reporte_fixture');
     }
