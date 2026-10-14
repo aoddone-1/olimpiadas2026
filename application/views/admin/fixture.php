@@ -359,6 +359,35 @@
         mensaje._t = setTimeout(() => msgBox.classList.add('d-none'), 4000);
     }
 
+    /* ---------- Confirmaciones estilizadas (SweetAlert2 con fallback a native) ---------- */
+    function confirmarAccion(texto, icono, btnOk, btnCancelar) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: '¿Confirmás?',
+                text: texto,
+                icon: icono || 'question',
+                showCancelButton: true,
+                confirmButtonText: btnOk || 'Sí, confirmar',
+                cancelButtonText: btnCancelar || 'Cancelar',
+                reverseButtons: true
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(texto));
+    }
+
+    /* ---------- Alertas estilizadas (SweetAlert2 con fallback a native) ---------- */
+    function alertar(titulo, texto, icono) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: titulo,
+                text: texto,
+                icon: icono || 'info',
+                confirmButtonText: 'Entendido'
+            });
+        }
+        return Promise.resolve(window.alert(titulo + '\n\n' + texto));
+    }
+
     // No-cache en las peticiones AJAX: sin esto, el navegador puede servir la
     // respuesta de ajax_fixture_todo desde el cache (o desde "bfcache" al volver
     // atrás) y el listado no refleja los cambios hasta apretar F5.
@@ -660,10 +689,13 @@
             abrirModal(f);
         }));
         lista.querySelectorAll('.fx-borrar').forEach(b => b.addEventListener('click', () => {
-            if (!confirm('¿Eliminar este partido?')) return;
-            eliminarPartido(b.dataset.id)
-                .then(ok => { if (ok) { mensaje('Partido eliminado.', 'success'); cargarTodo(); } })
-                .catch(err => mensaje(err.message, 'danger'));
+            confirmarAccion('¿Eliminar este partido?', 'warning', 'Sí, eliminar', 'Cancelar')
+                .then(ok => {
+                    if (!ok) return;
+                    eliminarPartido(b.dataset.id)
+                        .then(ok2 => { if (ok2) { mensaje('Partido eliminado.', 'success'); cargarTodo(); } })
+                        .catch(err => mensaje(err.message, 'danger'));
+                });
         }));
         lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
@@ -1373,20 +1405,26 @@
         const cat = selFiltroCategoria.value;
         const dep = selFiltroDeporte.value;
         if (cat) {
-            if (!confirm('¿Seguro? Se eliminarán TODOS los partidos de la categoría filtrada.')) return;
-            post('ajax_eliminar_fixture', { id_categoria: cat }).then(res => {
-                mensaje(res.mensaje, 'success');
-                cargarTodo();
-            });
+            confirmarAccion('¿Seguro? Se eliminarán TODOS los partidos de la categoría filtrada.', 'warning', 'Sí, eliminar todo', 'Cancelar')
+                .then(ok => {
+                    if (!ok) return;
+                    post('ajax_eliminar_fixture', { id_categoria: cat }).then(res => {
+                        mensaje(res.mensaje, 'success');
+                        cargarTodo();
+                    });
+                });
         } else if (dep) {
             const ids = Array.from(new Set(
                 todosFixtures.filter(f => String(f.id_deporte) === String(dep)).map(f => f.id_categoria)
             ));
             if (!ids.length) { mensaje('No hay fixture para borrar en ese deporte.', 'warning'); return; }
-            if (!confirm(`¿Seguro? Se eliminarán TODOS los partidos de ${ids.length} categoría/s de ${nombreDeporteOpcion(dep)}.`)) return;
-            Promise.all(ids.map(idCat => post('ajax_eliminar_fixture', { id_categoria: idCat })))
-                .then(() => { mensaje('Fixture eliminado del deporte.', 'success'); cargarTodo(); })
-                .catch(err => mensaje(err.message, 'danger'));
+            confirmarAccion(`¿Seguro? Se eliminarán TODOS los partidos de ${ids.length} categoría/s de ${nombreDeporteOpcion(dep)}.`, 'warning', 'Sí, eliminar todo', 'Cancelar')
+                .then(ok => {
+                    if (!ok) return;
+                    Promise.all(ids.map(idCat => post('ajax_eliminar_fixture', { id_categoria: idCat })))
+                        .then(() => { mensaje('Fixture eliminado del deporte.', 'success'); cargarTodo(); })
+                        .catch(err => mensaje(err.message, 'danger'));
+                });
         }
     });
 
