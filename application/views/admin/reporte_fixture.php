@@ -34,6 +34,12 @@ class MYPDF extends TCPDF {
      *  nombres completos ("María Paula Gómez"). Solo aplica al reporte del
      *  delegado, que es el único que lista participantes. */
     public $nombres_completos = TRUE;
+    /**
+     * Filas en blanco extra que se agregan al pie de cada planilla (partidos o
+     * participantes) por si en la mesa de control hay que anotar cruces o
+     * inscriptos de último momento. Solo afecta a formato='planilla'.
+     */
+    public static $filas_vacias_planilla = 4;
 
     /** Nombre corto (pila + iniciales): "María Paula Gómez" → "María P. G.". */
     public static function _nombre_corto($n) {
@@ -726,10 +732,118 @@ class MYPDF extends TCPDF {
             if (!$i) {
                 $html .= '<tr><td colspan="3" style="' . $borde . ' text-align:center; color:#7f8c8d;">No hay participantes inscriptos en esta categoría.</td></tr>';
             }
+            // Filas vacías extra: por si en la mesa hay que anotar inscriptos
+            // de último momento (no modifica el reporte, solo la planilla).
+            for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
+                $bg = (($i + $v) % 2) ? '#ffffff' : '#f8f9fa';
+                $html .= '<tr style="background-color:' . $bg . ';">'
+                       . '<td style="' . $borde . ' text-align:center; width:8%;"></td>'
+                       . '<td style="' . $borde . ' width:50%;">&nbsp;</td>'
+                       . '<td style="' . $borde . ' width:42%;"></td>'
+                       . '</tr>';
+            }
             $html .= '</tbody></table>';
         } else {
             $fila_partido = $this->datos[0];
-            $html = '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+
+            // ---- Mini tabla de equipos de la categoría (solo deportes de
+            // enfrentamiento de EQUIPOS). Se imprime ANTES del encabezado de la
+            // planilla, con dos columnas (EQUIPO / INTEGRANTES), para ahorrar
+            // espacio: así las celdas EQUIPO A / EQUIPO B de abajo llevan solo
+            // el nombre del equipo, sin repetir los integrantes en cada fila.
+            $modalidad_ref = strtoupper(trim((string) ($fila_partido['modalidad_competencia'] ?? '')));
+            $equipos_tabla = array();   // clave => nombre del equipo
+            $integrantes_eq = array();   // clave => array de nombres
+            if ($modalidad_ref === 'ENFRENTAMIENTO') {
+                $id_cat_equipos = 0;
+                foreach ($this->datos as $chk) {
+                    if (!empty($chk['id_categoria'])) {
+                        $id_cat_equipos = (int) $chk['id_categoria'];
+                        break;
+                    }
+                }
+                // Fuente principal: los equipos de la categoría ya resueltos por
+                // Resultado_model (mismo criterio que usa la planilla masiva).
+                // Todo protegido igual que allí: cualquier salida/ruido dentro
+                // del render de TCPDF corrompería el PDF.
+                if ($id_cat_equipos > 0) {
+                    $_display_errors_prev = @ini_set('display_errors', '0');
+                    $_error_reporting_prev = error_reporting(0);
+                    try {
+                        $CI =& get_instance();
+                        if (!isset($CI->Resultado_model)) {
+                            $CI->load->model('Resultado_model');
+                        }
+                        if (isset($CI->Resultado_model) && method_exists($CI->Resultado_model, 'obtener_competidores_por_categoria')) {
+                            foreach ((array) $CI->Resultado_model->obtener_competidores_por_categoria($id_cat_equipos) as $c) {
+                                if (strtoupper(trim((string) ($c['tipo'] ?? ''))) !== 'EQUIPO') continue;
+                                $nombre_eq = trim((string) ($c['nombre'] ?? ''));
+                                if ($nombre_eq === '') continue;
+                                $clave_eq = (int) ($c['id'] ?? 0) ?: ('n:' . mb_strtolower($nombre_eq, 'UTF-8'));
+                                $equipos_tabla[$clave_eq] = $nombre_eq;
+                                $miembros_raw = $c['integrantes'] ?? '';
+                                $miembros = array();
+                                if (is_array($miembros_raw)) {
+                                    foreach ($miembros_raw as $m) {
+                                        $mn = trim((string) (is_array($m) ? ($m['nombre_completo'] ?? '') : $m));
+                                        if ($mn !== '') $miembros[] = $mn;
+                                    }
+                                } elseif (trim((string) $miembros_raw) !== '') {
+                                    foreach (explode(',', (string) $miembros_raw) as $mn) {
+                                        $mn = trim($mn);
+                                        if ($mn !== '') $miembros[] = $mn;
+                                    }
+                                }
+                                if ($miembros) $integrantes_eq[$clave_eq] = $miembros;
+                            }
+                        }
+                    } catch (Throwable $e) {
+                        // Silencioso a propósito: la planilla no debe morir por esto.
+                    }
+                    error_reporting($_error_reporting_prev);
+                    @ini_set('display_errors', $_display_errors_prev);
+                }
+                // Fallback: equipos que aparecen en las filas del fixture y no
+                // estaban en el mapa (con integrantes desde jugadores_ute_X).
+                foreach ($this->datos as $f) {
+                    foreach (array(1, 2) as $lado) {
+                        $eq = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
+                        if ($eq === '') continue;
+                        $clave_eq = !empty($f['id_ute_' . $lado]) ? (int) $f['id_ute_' . $lado] : 'n:' . mb_strtolower($eq, 'UTF-8');
+                        if (isset($equipos_tabla[$clave_eq])) continue;
+                        $equipos_tabla[$clave_eq] = $eq;
+                        $miembros = array();
+                        foreach ((array) ($f['jugadores_ute_' . $lado] ?? array()) as $j) {
+                            $j = trim((string) $j);
+                            if ($j !== '') $miembros[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
+                        }
+                        if ($miembros) $integrantes_eq[$clave_eq] = $miembros;
+                    }
+                }
+                asort($equipos_tabla);
+            }
+
+            if ($equipos_tabla) {
+                $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+                       . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
+                       . '<th style="' . $borde . ' text-align:center; width:30%;">EQUIPO</th>'
+                       . '<th style="' . $borde . ' text-align:center; width:70%;">INTEGRANTES</th>'
+                       . '</tr></thead><tbody>';
+                $k = 0;
+                foreach ($equipos_tabla as $clave_eq => $nombre_eq) {
+                    $bg = ($k % 2) ? '#ffffff' : '#f8f9fa';
+                    $html .= '<tr style="background-color:' . $bg . ';">'
+                           . '<td style="' . $borde . ' width:30%;"><b>' . $esc($nombre_eq) . '</b></td>'
+                           . '<td style="' . $borde . ' width:70%;">'
+                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(', ', $integrantes_eq[$clave_eq])) : '&nbsp;')
+                           . '</td></tr>';
+                    $k++;
+                }
+                $html .= '</tbody></table>';
+            }
+            // Nota: se CONCATENA ($html .=) para no borrar la mini tabla de
+            // equipos que va antes del encabezado de la planilla.
+            $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
                    . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
                    . '<td style="width:50%;"><b>Fecha/Hora:</b> ' . $esc(date('d/m/Y', strtotime((string) ($fila_partido['fecha_competencia'] ?? 'now'))) . ' · ' . substr((string) ($fila_partido['hora_inicio'] ?? ''), 0, 5)) . '</td>'
@@ -750,6 +864,9 @@ class MYPDF extends TCPDF {
 
             $n = 0;
             $dia_actual = null;
+            // Mapa de equipos listados arriba: se expone al closure $integrantes
+            // para que las celdas EQUIPO A/B omitan los integrantes repetidos.
+            $GLOBALS['planilla_equipos_map'] = $equipos_tabla;
             foreach ($this->datos as $f) {
                 $n++;
                 $fecha = substr((string) ($f['fecha_competencia'] ?? ''), 0, 10);
@@ -761,6 +878,16 @@ class MYPDF extends TCPDF {
                 }
 
                 $integrantes = function ($lado) use ($f) {
+                    // Con la mini tabla de equipos arriba ya no se repiten los
+                    // integrantes en cada celda: solo se listan cuando el equipo
+                    // NO está en esa tabla (p. ej. "Cruce pendiente" o equipos
+                    // que llegaron por fuera del padrón de la categoría).
+                    if (!empty($GLOBALS['planilla_equipos_map'])) {
+                        $uid = !empty($f['id_ute_' . $lado]) ? (int) $f['id_ute_' . $lado] : 0;
+                        $eq = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
+                        $clave = $uid ?: ('n:' . mb_strtolower($eq, 'UTF-8'));
+                        if (isset($GLOBALS['planilla_equipos_map'][$clave])) return array();
+                    }
                     $lista = array();
                     foreach ((array) ($f['jugadores_ute_' . $lado] ?? array()) as $j) {
                         $j = trim((string) $j);
@@ -798,6 +925,20 @@ class MYPDF extends TCPDF {
                        . '<td style="' . $borde . ' width:20%;"></td>'
                        . '</tr>';
             }
+            // Filas vacías extra: por si en la mesa hay que anotar partidos
+            // que se agregan en el momento (no modifica el reporte, solo la planilla).
+            for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
+                $bg = (($n + $v) % 2) ? '#ffffff' : '#f8f9fa';
+                $html .= '<tr style="background-color:' . $bg . ';">'
+                       . '<td style="' . $borde . ' text-align:center;width:5%;">&nbsp;</td>'
+                       . '<td style="' . $borde . ' width:14%;"></td>'
+                       . '<td style="' . $borde . ' width:13%;"></td>'
+                       . '<td style="' . $borde . ' width:24%;"></td>'
+                       . '<td style="' . $borde . ' width:24%;"></td>'
+                       . '<td style="' . $borde . ' width:20%;"></td>'
+                       . '</tr>';
+            }
+            $GLOBALS['planilla_equipos_map'] = NULL;
             $html .= '</tbody></table>';
         }
 
