@@ -544,24 +544,28 @@
         fixturesDelDia.forEach(f => {
             const dep = f.nombre_deporte || '?';
             const cat = f.nombre_categoria || '?';
-            if (!deportes[dep]) deportes[dep] = {};
-            (deportes[dep][cat] = deportes[dep][cat] || []).push(f);
+            if (!deportes[dep]) deportes[dep] = { id: '', cats: {} };
+            // Guardar el id_deporte apenas venga en una fila: si alguna fila
+            // no lo trae (p. ej. fixture sin categoría), igual queda disponible.
+            if (!deportes[dep].id && f.id_deporte) deportes[dep].id = f.id_deporte;
+            (deportes[dep].cats[cat] = deportes[dep].cats[cat] || []).push(f);
         });
 
         // ¿Cuántos bloques de categoría hay abiertos? Si son muchos, arrancan
         // cerrados para que la página sea navegable de un vistazo.
-        const totalCats = Object.values(deportes).reduce((n, cats) => n + Object.keys(cats).length, 0);
+        const totalCats = Object.values(deportes).reduce((n, d) => n + Object.keys(d.cats).length, 0);
         const colapsarPorDefecto = totalCats > 4;
 
         let html = '';
         Object.keys(deportes).sort().forEach(deporte => {
-            const cats = deportes[deporte];
+            const bloque = deportes[deporte];
+            const cats = bloque.cats;
             const partidosDelDeporte = Object.values(cats).reduce((n, items) => n + items.length, 0);
             const idDepBlock = 'fxdep_' + encodeURIComponent(deporte).replace(/%/g, '');
             // El botón de planilla ahora es POR DEPORTE: un solo PDF con una
-            // hoja por categoría. Se toma el id_deporte de cualquiera de sus
-            // filas (todas pertenecen al mismo deporte).
-            const idDep = Object.values(cats)[0]?.id_deporte || '';
+            // hoja por categoría. El id_deporte se guarda al agrupar (ver above),
+            // tomando el primero que venga en cualquier fila del deporte.
+            const idDep = bloque.id || '';
 
             html += `<div class="card mb-4 border-primary-subtle shadow-sm">
                 <div class="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-1">
@@ -710,7 +714,9 @@
         // Descargar planilla de mesa de control (PDF) POR DEPORTE:
         // un PDF con una hoja por categoría.
         lista.querySelectorAll('.fx-planilla').forEach(b => b.addEventListener('click', () => {
-            window.open(BASE + '/descargar_planilla_deporte/' + encodeURIComponent(b.dataset.dep), '_blank');
+            const idDep = b.dataset.dep || '';
+            if (!idDep) { mensaje('No se pudo determinar el deporte de este bloque.', 'danger'); return; }
+            window.open(BASE + '/descargar_planilla_deporte/' + encodeURIComponent(idDep), '_blank');
         }));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
     }
