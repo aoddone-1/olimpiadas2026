@@ -230,6 +230,20 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     box-shadow: 0 6px 16px rgba(220, 53, 69, 0.35);
 }
 
+/* Descarga de planillas vacías: contorno azul, se rellena al hover. */
+.fx-btn-descargar {
+    background: #fff;
+    border: 1px solid #bcd4ee;
+    color: #1e3c72;
+}
+
+.fx-btn-descargar:hover:not(:disabled) {
+    background: linear-gradient(135deg, #1e3c72 0%, #2b5aa0 100%);
+    border-color: #1e3c72;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(30, 60, 114, 0.35);
+}
+
 .fx-btn-limpiar {
     background: #fff;
     border-color: #dbe3ee;

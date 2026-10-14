@@ -29,14 +29,6 @@ class MYPDF extends TCPDF {
      * del PDF; cada categoría igual imprime su propio título en su hoja.
      */
     public $deporte_planilla = null;
-    /**
-     * TRUE cuando el controlador pide PLANILLAS VACÍAS (botón "Descargar
-     * planillas vacías" del panel de fixture →
-     * Inscripciones/descargar_planillas_vacias). En ese caso cada hoja sale
-     * SIN partidos ni participantes impresos: solo las filas en blanco
-     * (cantidad MYPDF::$filas_vacias_planilla) listas para completar a mano.
-     */
-    public $planilla_vacia = FALSE;
     /** Con ?nombres=cortos se abrevian los integrantes con iniciales
      *  ("María P. G."); por defecto (y con ?nombres=completos) se imprimen los
      *  nombres completos ("María Paula Gómez"). Solo aplica al reporte del
@@ -512,36 +504,6 @@ class MYPDF extends TCPDF {
             }
         }
 
-        /**
-         * PLANILLA VACÍA (botón "Descargar planillas vacías"): si la categoría
-         * del esqueleto no define modalidad, se decide por la cantidad de
-         * equipos inscriptos — con más de 2 es una planilla de PARTICIPANTES
-         * (masiva); con 2 o menos, una planilla de PARTIDOS.
-         */
-        $_vacia_es_masivo_por_equipos = function ($id_cat) {
-            if ($id_cat <= 0) return FALSE;
-            $equipos = 0;
-            $_de = @ini_set('display_errors', '0');
-            $_er = error_reporting(0);
-            try {
-                $CI =& get_instance();
-                if (!isset($CI->Resultado_model)) {
-                    $CI->load->model('Resultado_model');
-                }
-                if (isset($CI->Resultado_model)
-                    && method_exists($CI->Resultado_model, 'obtener_competidores_por_categoria')) {
-                    foreach ((array) $CI->Resultado_model->obtener_competidores_por_categoria($id_cat) as $c) {
-                        if (strtoupper(trim((string) ($c['tipo'] ?? ''))) === 'EQUIPO') $equipos++;
-                    }
-                }
-            } catch (Throwable $e) {
-                // Sin datos: sale como planilla de partidos.
-            }
-            error_reporting($_er);
-            @ini_set('display_errors', $_de);
-            return $equipos > 2;
-        };
-
         $fase_bonito = function ($fase) {
             $map = array(
                 'GRUPO' => 'Fase de Grupos', '16AVOS' => '16avos de Final', 'OCTAVOS' => 'Octavos de Final',
@@ -580,88 +542,6 @@ class MYPDF extends TCPDF {
 
         $borde = 'border:1px solid #bdc3c7;';
         $c_head = '#1e3a5f';
-
-        /**
-         * ===== PLANILLA VACÍA =====
-         * Botón "Descargar planillas vacías" (antes "Borrar fixture") →
-         * Inscripciones/descargar_planillas_vacias. Se imprime solo la
-         * estructura de la planilla con todas sus filas EN BLANCO
-         * ($filas_vacias_planilla), sin partidos ni participantes: sirve para
-         * llevar hojas genéricas a las mesas de control y completarlas a mano.
-         */
-        if ($this->planilla_vacia) {
-            $fila_ref_planilla = !empty($this->datos) ? $this->datos[0] : array();
-            // Si la categoría no define modalidad, se decide por los equipos
-            // inscriptos (>2 equipos ⇒ planilla de participantes).
-            if (!$es_masivo) {
-                $id_cat_vacia = 0;
-                foreach ($this->datos as $chk) {
-                    if (!empty($chk['id_categoria'])) {
-                        $id_cat_vacia = (int) $chk['id_categoria'];
-                        break;
-                    }
-                }
-                $es_masivo = $_vacia_es_masivo_por_equipos($id_cat_vacia);
-            }
-
-            $html = '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
-                   . '<tr>'
-                   . '<td style="width:50%;"><b>Lugar:</b> ' . $esc($fila_ref_planilla['lugar_nombre'] ?? 'A confirmar') . '</td>'
-                   . '<td style="width:50%;"><b>Categoría:</b> ' . $esc($fila_ref_planilla['nombre_categoria'] ?? '') . '</td>'
-                   . '</tr></table>';
-
-            if ($es_masivo) {
-                // Planilla de PARTICIPANTES en blanco (N° / nombre / tiempo).
-                $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8.5pt; color:#2c3e50;">'
-                       . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
-                       . '<th style="' . $borde . ' text-align:center; width:8%;">N°</th>'
-                       . '<th style="' . $borde . ' text-align:center; width:50%;">PARTICIPANTE</th>'
-                       . '<th style="' . $borde . ' text-align:center; width:42%;">TIEMPO / PUNTAJE</th>'
-                       . '</tr></thead><tbody>';
-                for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
-                    $bg = ($v % 2) ? '#ffffff' : '#f8f9fa';
-                    $html .= '<tr style="background-color:' . $bg . ';">'
-                           . '<td style="' . $borde . ' text-align:center; width:8%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:50%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:42%;">&nbsp;</td>'
-                           . '</tr>';
-                }
-            } else {
-                // Planilla de PARTIDOS en blanco (fase / día / equipos / marcador).
-                $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
-                       . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
-                       . '<th style="' . $borde . ' width:5%;">Nº</th>'
-                       . '<th style="' . $borde . ' width:14%;">FASE / JORNADA</th>'
-                       . '<th style="' . $borde . ' width:13%;">DÍA / HORA</th>'
-                       . '<th style="' . $borde . ' width:24%;">EQUIPO A</th>'
-                       . '<th style="' . $borde . ' width:24%;">EQUIPO B</th>'
-                       . '<th style="' . $borde . ' width:20%;">MARCADOR / GANADOR</th>'
-                       . '</tr></thead><tbody>';
-                for ($v = 0; $v < self::$filas_vacias_planilla; $v++) {
-                    $bg = ($v % 2) ? '#ffffff' : '#f8f9fa';
-                    $html .= '<tr style="background-color:' . $bg . ';">'
-                           . '<td style="' . $borde . ' text-align:center;width:5%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:14%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:13%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:24%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:24%;">&nbsp;</td>'
-                           . '<td style="' . $borde . ' width:20%;">&nbsp;</td>'
-                           . '</tr>';
-                }
-            }
-            $html .= '</tbody></table>';
-
-            // Espacio de firma para la mesa de control (igual que la llena).
-            $html .= '<br/><br/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-top:14px;">'
-                   . '<tr>'
-                   . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">Mesa de control (firma)</td>'
-                   . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">árbitro / supervisor (firma)</td>'
-                   . '</tr></table>';
-
-            $this->writeHTML($html, true, false, true, false, '');
-            $this->datos = $datos_prev;
-            return;
-        }
 
         if ($es_masivo) {
             // ---- Planilla de participantes (una sola jornada) ----
@@ -1112,7 +992,6 @@ $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 $pdf->titulo_planilla = isset($titulo_planilla) ? $titulo_planilla : null;
 $pdf->deporte_planilla = isset($deporte_planilla) ? $deporte_planilla : null;
-$pdf->planilla_vacia = !empty($planilla_vacia);
 
 // set document information
 $pdf->SetCreator(PDF_CREATOR);

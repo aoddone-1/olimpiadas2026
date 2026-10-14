@@ -88,7 +88,7 @@
                     <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
                         <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
-                    <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF con una planilla de mesa de control EN BLANCO por categoría (si estás filtrando, solo del deporte/categoría filtrada)">
+                    <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF de 2 páginas en blanco para completar a mano (planilla de participantes y planilla de partidos)">
                         <i class="bi bi-file-earmark-arrow-down-fill"></i><span class="ms-2">Descargar planillas vacías</span>
                     </button>
                     <button id="fx_btn_limpiar" class="btn fx-btn-round fx-btn-limpiar d-none" title="Quitar los filtros activos">
@@ -1367,19 +1367,9 @@
     }
 
     function actualizarEstadoBtnBorrar() {
-        // El botón ya NO borra nada: ahora descarga PLANILLAS VACÍAS. Queda
-        // siempre habilitado; el título solo se ajusta según el filtro activo
-        // para aclarar qué hojas va a incluir el PDF.
-        const dep = selFiltroDeporte.value;
-        const cat = selFiltroCategoria.value;
-        if (btnPlanillasVacias) {
-            btnPlanillasVacias.disabled = false;
-            btnPlanillasVacias.title = cat
-                ? 'Descarga una planilla de mesa de control EN BLANCO para la categoría filtrada'
-                : (dep
-                    ? 'Descarga una planilla de mesa de control EN BLANCO por categoría de ' + nombreDeporteOpcion(dep)
-                    : 'Descarga un PDF con una planilla de mesa de control EN BLANCO por cada categoría');
-        }
+        // El botón ya NO borra nada: descarga un PDF fijo de planillas vacías
+        // (2 páginas en blanco), siempre disponible, sin depender de filtros.
+        if (btnPlanillasVacias) btnPlanillasVacias.disabled = false;
         btnLimpiarFiltros.classList.toggle('d-none', !tieneFiltros());
     }
 
@@ -1423,30 +1413,13 @@
     btnNuevo.addEventListener('click', () => abrirModal(null));
 
     btnPlanillasVacias.addEventListener('click', () => {
-        // Descarga el PDF de planillas de mesa de control EN BLANCO (una hoja
-        // por categoría). Respeta los filtros activos: con deporte filtrado se
-        // pasa ?deporte=id; con categoría filtrada se arma un link temporal a
-        // la URL del filtro por categoría.
-        const cat = selFiltroCategoria.value;
-        const dep = selFiltroDeporte.value;
-
-        if (cat) {
-            // Filtro por categoría: buscar el nombre del deporte de esa
-            // categoría para armar la URL con ?deporte=.
-            const opt = selFiltroCategoria.querySelector('option[value="' + cat + '"]');
-            const idDep = opt ? (opt.dataset.idDeporte || '') : '';
-            if (!idDep) {
-                mensaje('No se pudo determinar el deporte de la categoría filtrada.', 'danger');
-                return;
-            }
-            window.open(BASE + '/descargar_planillas_vacias?deporte=' + encodeURIComponent(idDep), '_blank');
-            return;
-        }
-
-        const url = BASE + '/descargar_planillas_vacias'
-            + (dep ? '?deporte=' + encodeURIComponent(dep) : '');
+        // Descarga el PDF de planillas VACÍAS: 2 páginas en blanco, con título
+        // de puntos para completar. Página 1 = participantes
+        // (N° / PARTICIPANTE / TIEMPO-PUNTAJE), página 2 = partidos
+        // (Nº / FASE-JORNADA / DÍA-HORA / EQUIPO A / EQUIPO B / MARCADOR).
+        // Es un PDF fijo, no depende de los filtros ni de la BD.
         const a = document.createElement('a');
-        a.href = url;
+        a.href = BASE + '/descargar_planillas_vacias';
         a.target = '_blank';
         a.rel = 'noopener';
         document.body.appendChild(a);
