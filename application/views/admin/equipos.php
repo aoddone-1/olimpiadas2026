@@ -425,14 +425,26 @@ document.addEventListener('DOMContentLoaded', function() {
         document.body.removeAttribute('style'); // quita padding-right/overflow del scrollbar-lock
         document.documentElement.classList.remove('swal2-height-auto');
 
-        // 5) Por las dudas: devolver foco al documento
-        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        // 5) Por las dudas: devolver foco al documento.
+        //    Se evita quitarle el foco a un <select> activo, porque eso
+        //    cierra el desplegable nativo del filtro mientras se está usando.
+        var activo = document.activeElement;
+        if (activo && activo.blur && activo.tagName !== 'SELECT' && activo.tagName !== 'OPTION') {
+            activo.blur();
+        }
     }
 
     // Barrido preventivo: cubre los casos donde un Swal se cierra por fuera
     // de nuestro código (click en el fondo, tecla Esc, etc.)
+    // IMPORTANTE: se excluye a los <select> y sus opciones. Si no, al abrir el
+    // desplegable de un filtro, el "mouseup" que se produce al elegir una opción
+    // dispara la limpieza y termina cerrando el select de golpe (y el blur()
+    // final también interfiere con la interacción nativa del desplegable).
     ['mouseup', 'keydown'].forEach(function (evt) {
-        document.addEventListener(evt, function () {
+        document.addEventListener(evt, function (e) {
+            var t = e.target;
+            if (t && (t.closest && (t.closest('select') || t.closest('.modal')))) return;
+            if (t && (t.tagName === 'SELECT' || t.tagName === 'OPTION')) return;
             setTimeout(limpiarOverlaysResiduales, 400);
         });
     });
