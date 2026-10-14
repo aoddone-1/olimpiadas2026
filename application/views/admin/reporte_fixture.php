@@ -23,6 +23,12 @@ class MYPDF extends TCPDF {
     public $modo_delegado = FALSE;
     /** Título alternativo para formato 'planilla' (mesas de control). */
     public $titulo_planilla = null;
+    /**
+     * Nombre del deporte cuando la planilla se descarga POR DEPORTE
+     * (Inscripciones/descargar_planilla_deporte). Sirve como título general
+     * del PDF; cada categoría igual imprime su propio título en su hoja.
+     */
+    public $deporte_planilla = null;
     /** Con ?nombres=cortos se abrevian los integrantes con iniciales
      *  ("María P. G."); por defecto (y con ?nombres=completos) se imprimen los
      *  nombres completos ("María Paula Gómez"). Solo aplica al reporte del
@@ -413,15 +419,16 @@ class MYPDF extends TCPDF {
 
     /**
      * ===== FORMATO PLANILLA (mesas de control) =====
-     * Una fila por partido con espacio para anotar el resultado en papel:
+     * UNA CATEGORÍA POR HOJA: las filas llegan agrupadas por categoría (puede
+     * venir más de una cuando la planilla se descarga por deporte, desde
+     * Inscripciones/descargar_planilla_deporte). Para cada categoría se abre
+     * una hoja nueva (AddPage) con su propio título y su planilla:
      *   - Deportes de enfrentamiento: "Equipo A (integrantes) vs Equipo B
      *     (integrantes)" + casilleros GANADOR / MARCADOR.
      *   - Deportes masivos (JORNADA_UNICA): lista de PARTICIPANTES con
      *     casilleros POS / TIEMPO o PUNTAJE.
      */
     public function _body_planilla() {
-        $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
-
         // Orden cronológico: fecha → hora → jornada
         usort($this->datos, function ($a, $b) {
             return [
@@ -437,13 +444,46 @@ class MYPDF extends TCPDF {
             ];
         });
 
+        // Agrupar las filas por categoría conservando el orden cronológico
+        // (primera aparición = orden de las hojas del PDF).
+        $grupos = array();
+        foreach ($this->datos as $f) {
+            $clave = (int) ($f['id_categoria'] ?? 0) ?: ('nom:' . strtolower((string) ($f['nombre_categoria'] ?? '')));
+            if (!isset($grupos[$clave])) $grupos[$clave] = array();
+            $grupos[$clave][] = $f;
+        }
+        if (!$grupos) $grupos = array(array());
+
+        $_primero = TRUE;
+        foreach ($grupos as $filas) {
+            if (!$_primero) {
+                // Cada categoría arranca en una hoja nueva.
+                $this->AddPage('P', 'A4');
+            }
+            $_primero = FALSE;
+            $this->_planilla_categoria($filas);
+        }
+    }
+
+    /**
+     * Planilla de mesa de control de UNA categoría (una hoja del PDF).
+     * Contenido idéntico al que antes generaba _body_planilla() para una sola
+     * categoría; ahora recibe solo las filas de esa categoría en $datos.
+     */
+    public function _planilla_categoria($datos_categoria) {
+        $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+
+        $datos_prev = $this->datos;
+        $this->datos = $datos_categoria;
+
         /**
-         * ¿Planilla de deporte MASIVO? Se decide mirando TODAS las filas, no
-         * solo la primera: basta que una jornada sea JORNADA_UNICA o que el
-         * deporte sea MASIVO_TIEMPO. Antes se leía únicamente $datos[0], y si
-         * el orden cronológico ponía adelante otra fila (o el campo llegaba
-         * con otro formato), la planilla masiva caía al formato de partidos y
-         * NO imprimía la lista de participantes para cargar tiempo/puntaje.
+         * ¿Planilla de deporte MASIVO? Se decide mirando TODAS las filas de la
+         * categoría, no solo la primera: basta que una jornada sea
+         * JORNADA_UNICA o que el deporte sea MASIVO_TIEMPO. Antes se leía
+         * únicamente $datos[0], y si el orden cronológico ponía adelante otra
+         * fila (o el campo llegaba con otro formato), la planilla masiva caía
+         * al formato de partidos y NO imprimía la lista de participantes para
+         * cargar tiempo/puntaje.
          */
         $es_masivo = FALSE;
         foreach ($this->datos as $f) {
@@ -464,10 +504,28 @@ class MYPDF extends TCPDF {
             return isset($map[$fase]) ? $map[$fase] : (string) $fase;
         };
 
-        // Título del reporte
-        $titulo = $this->titulo_planilla
-            ? $this->titulo_planilla
-            : ('PLANILLA DE MESA DE CONTROL — ' . NOMBRE_META);
+        // Título de la hoja: nombre de la categoría (Deporte Categoría). Si el
+        // controlador lo proveyó se usa titulo_planilla (caso histórico de
+        // planilla descargada por categoría); en la planilla por deporte se
+        // compone una etiqueta por categoría, prefijada con el nombre del
+        // deporte cuando viene en $this->deporte_planilla.
+        $fila_ref = !empty($this->datos) ? $this->datos[0] : array();
+        $titulo_cat = trim(($fila_ref['nombre_deporte'] ?? '') . ' ' . ($fila_ref['nombre_categoria'] ?? ''));
+        if ($titulo_cat === '' && $this->deporte_planilla) {
+            $titulo_cat = trim((string) $this->deporte_planilla);
+        }
+        if ($this->titulo_planilla) {
+            $titulo = $this->titulo_planilla;
+        } elseif ($this->deporte_planilla) {
+            // Planilla por deporte: una hoja por categoría con su propio título.
+            $titulo = $titulo_cat !== ''
+                ? strtoupper($titulo_cat)
+                : ('PLANILLA — ' . strtoupper((string) $this->deporte_planilla));
+        } else {
+            $titulo = $titulo_cat !== ''
+                ? strtoupper($titulo_cat)
+                : ('PLANILLA DE MESA DE CONTROL — ' . NOMBRE_META);
+        }
         $html = '<div style="text-align:right; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
               . $esc($titulo) . '</div>';
               
@@ -751,6 +809,10 @@ class MYPDF extends TCPDF {
                . '</tr></table>';
 
         $this->writeHTML($html, true, false, true, false, '');
+
+        // Restaurar los datos completos (el bucle de _body_planilla recorre
+        // todas las categorías del deporte).
+        $this->datos = $datos_prev;
     }
 
     public function Footer() {
@@ -786,6 +848,7 @@ $pdf->nombres_completos = !empty($nombres_completos);
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 $pdf->titulo_planilla = isset($titulo_planilla) ? $titulo_planilla : null;
+$pdf->deporte_planilla = isset($deporte_planilla) ? $deporte_planilla : null;
 
 // set document information
 $pdf->SetCreator(PDF_CREATOR);
