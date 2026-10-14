@@ -595,14 +595,19 @@ class Inscripciones extends CI_Controller {
 
         $this->load->model('Participante_model');
         // Buscamos al participante por su token QR
-        $data['participante'] = $this->Participante_model->obtener_por_token($token);
+        $participante = $this->Participante_model->obtener_por_token($token);
 
-        if (empty($data['participante'])) {
+        if (empty($participante)) {
             show_error('Participante no encontrado', 404);
         }
 
-        // Cargamos la vista especial de impresión
-        $this->load->view('admin/imprimir_credencial', $data);
+        // El reporte de acreditaciones (acreditaciones_view.php) espera un ARRAY
+        // de participantes; le pasamos solo la credencial del inscripto pulsado.
+        $data['participantes'] = array($participante);
+        $data['nombre_provincia'] = !empty($participante['delegacion']) ? $participante['delegacion'] : 'Credencial';
+
+        // Genera el PDF con la acreditación individual (8.5 x 13 cm)
+        $this->load->view('admin/acreditaciones_view', $data);
     }
 
     /**
