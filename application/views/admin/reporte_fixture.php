@@ -486,6 +486,10 @@ class MYPDF extends TCPDF {
             //     salían nunca porque solo se leía $f['utes_categoria'], siempre
             //     vacío en ese caso, y la jornada masiva no tiene slots id_ute).
             $participantes = array();
+            // Integrantes de cada competidor, para mostrar "Equipo X (Ana Pérez,
+            // Juan Gómez)" en deportes por equipos como pesca. Clave = misma que
+            // la de $participantes.
+            $integrantes_map = array();
             $competidores_resueltos = FALSE;
             $id_categoria_planilla = 0;
             foreach ($this->datos as $chk) {
@@ -525,6 +529,25 @@ class MYPDF extends TCPDF {
                             $clave = (int) ($c['id'] ?? 0);
                             if (!$clave) $clave = 'n:' . mb_strtolower($nombre, 'UTF-8');
                             $participantes[$clave] = $nombre;
+                            // Equipos/duplicas (EQUIPO): traer los integrantes ya
+                            // resueltos por el modelo ('integrantes' como string
+                            // 'Ana, Juan', o como array de filas con nombre_completo).
+                            if (($c['tipo'] ?? '') === 'EQUIPO' || !empty($c['cantidad'])) {
+                                $miembros_raw = $c['integrantes'] ?? '';
+                                $miembros = array();
+                                if (is_array($miembros_raw)) {
+                                    foreach ($miembros_raw as $m) {
+                                        $mn = trim((string) (is_array($m) ? ($m['nombre_completo'] ?? '') : $m));
+                                        if ($mn !== '') $miembros[] = $mn;
+                                    }
+                                } elseif (trim((string) $miembros_raw) !== '') {
+                                    foreach (explode(',', (string) $miembros_raw) as $mn) {
+                                        $mn = trim($mn);
+                                        if ($mn !== '') $miembros[] = $mn;
+                                    }
+                                }
+                                if ($miembros) $integrantes_map[$clave] = $miembros;
+                            }
                         }
                         $competidores_resueltos = TRUE;
                     }
@@ -574,6 +597,42 @@ class MYPDF extends TCPDF {
             asort($participantes);
 
             $fila_partido = $this->datos[0];
+
+            // --- Integrantes pendientes de resolver (equipos que llegaron por el
+            // fallback del fixture y no tienen integrantes en el mapa). Se resuelven
+            // con Fixture_model::integrantes_de_ute(), igual que la planilla de
+            // partidos. Todo protegido: si falla, se imprime sin los () igualmente.
+            $utas_sin_integrantes = array();
+            foreach ($participantes as $clave => $_n) {
+                if (is_int($clave) && $clave > 0 && !isset($integrantes_map[$clave])) {
+                    $utas_sin_integrantes[] = $clave;
+                }
+            }
+            if ($utas_sin_integrantes) {
+                $_display_errors_prev = @ini_set('display_errors', '0');
+                $_error_reporting_prev = error_reporting(0);
+                try {
+                    $CI =& get_instance();
+                    if (!isset($CI->Fixture_model)) {
+                        $CI->load->model('Fixture_model');
+                    }
+                    if (isset($CI->Fixture_model) && method_exists($CI->Fixture_model, 'integrantes_de_ute')) {
+                        foreach (array_unique($utas_sin_integrantes) as $uid) {
+                            $miembros = array();
+                            foreach ((array) $CI->Fixture_model->integrantes_de_ute($uid) as $m) {
+                                $mn = trim((string) (is_array($m) ? ($m['nombre_completo'] ?? '') : $m));
+                                if ($mn !== '') $miembros[] = $mn;
+                            }
+                            if ($miembros) $integrantes_map[$uid] = $miembros;
+                        }
+                    }
+                } catch (Throwable $e) {
+                    // Sin integrantes: la planilla sale igual, solo con el nombre del equipo.
+                }
+                error_reporting($_error_reporting_prev);
+                @ini_set('display_errors', $_display_errors_prev);
+            }
+
             $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
                    . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
@@ -590,11 +649,19 @@ class MYPDF extends TCPDF {
                    . '<th style="' . $borde . ' width:16%;">TIEMPO / PUNTAJE</th>'
                    . '</tr></thead><tbody>';
             $i = 0;
-            foreach ($participantes as $nombre) {
+            foreach ($participantes as $clave => $nombre) {
                 $bg = ($i % 2) ? '#ffffff' : '#f8f9fa';
+                // Equipos/duplicas: integrantes entre paréntesis debajo del nombre
+                // ("Los Pescadores" / "Ana Pérez, Juan Gómez"), como en la planilla
+                // de partidos. Los individuales salen sin nada extra.
+                $celular = $esc($nombre);
+                if (!empty($integrantes_map[$clave])) {
+                    $celular .= '<br><span style="font-size:7.5pt; color:#7f8c8d;">('
+                              . $esc(implode(', ', $integrantes_map[$clave])) . ')</span>';
+                }
                 $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center; height:22px;">' . ($i + 1) . 'º</td>'
-                       . '<td style="' . $borde . '">' . $esc($nombre) . '</td>'
+                       . '<td style="' . $borde . '">' . $celular . '</td>'
                        . '<td style="' . $borde . '"></td>'
                        . '</tr>';
                 $i++;
