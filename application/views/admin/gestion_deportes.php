@@ -8,6 +8,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
 
@@ -57,7 +59,7 @@
                                                 <button type="button" class="text-muted btn-accion-panel btn-editar" data-bs-toggle="modal" data-bs-target="#modalEditarDeporte" data-id="<?= $d['id_deporte'] ?>" data-nombre="<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>" data-genero="<?= $d['genero'] ?>" data-fiscales="<?= htmlspecialchars($d['fiscales'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="Editar Deporte">
                                                     <i class="bi bi-pencil-square fs-6"></i>
                                                 </button>
-                                                <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) ?>" class="text-muted btn-accion-panel btn-eliminar" onclick="return confirm('¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán sus categorías asociadas.');" title="Eliminar Deporte">
+                                                <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán sus categorías asociadas." title="Eliminar Deporte">
                                                     <i class="bi bi-trash3-fill fs-6"></i>
                                                 </a>
                                             </div>
@@ -150,7 +152,7 @@
                                                                     title="Editar Categoría">
                                                                 <i class="bi bi-pencil-square fs-6"></i>
                                                             </button>
-                                                            <a href="<?= base_url('Inscripciones/eliminar_categoria/'.$c['id_categoria']) ?>" class="text-muted btn-accion-panel btn-eliminar" onclick="return confirm('¿Eliminar la categoría «<?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>»?');" title="Eliminar Categoría">
+                                                            <a href="<?= base_url('Inscripciones/eliminar_categoria/'.$c['id_categoria']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Eliminar la categoría «<?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>»?" title="Eliminar Categoría">
                                                                 <i class="bi bi-trash3 fs-6"></i>
                                                             </a>
                                                         </div>
@@ -198,7 +200,7 @@
                                                 title="Editar Predio">
                                             <i class="bi bi-pencil-square fs-6"></i>
                                         </button>
-                                        <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) ?>" class="text-muted btn-accion-panel btn-eliminar" onclick="return confirm('¿Seguro que querés quitar este predio?');" title="Eliminar Predio">
+                                        <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Seguro que querés quitar este predio?" title="Eliminar Predio">
                                             <i class="bi bi-x-circle fs-6"></i>
                                         </a>
                                     </div>
@@ -477,6 +479,32 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     
+    /* ---------- Confirmación estilizada (SweetAlert2 si está cargado) ---------- */
+    function confirmarAccion(texto, icono, btnOk, btnCancelar) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: '¿Confirmás?',
+                text: texto,
+                icon: icono || 'question',
+                showCancelButton: true,
+                confirmButtonText: btnOk || 'Sí, confirmar',
+                cancelButtonText: btnCancelar || 'Cancelar',
+                reverseButtons: true
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(texto));
+    }
+
+    // Enlaces de eliminación: reemplazan el confirm() nativo por SweetAlert2
+    document.querySelectorAll('a[data-confirm]').forEach(function (enlace) {
+        enlace.addEventListener('click', function (e) {
+            e.preventDefault();
+            var href = this.getAttribute('href');
+            confirmarAccion(this.getAttribute('data-confirm'), 'warning', 'Sí, eliminar', 'Cancelar')
+                .then(ok => { if (ok) window.location.href = href; });
+        });
+    });
+
     // --- Lógica del Modal Editar Deporte ---
     var modalEditar = document.getElementById('modalEditarDeporte');
     if (modalEditar) {
