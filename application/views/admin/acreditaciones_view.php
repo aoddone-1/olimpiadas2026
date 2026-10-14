@@ -311,8 +311,17 @@ $pdf->nombre_provincia = isset($nombre_provincia) ? $nombre_provincia : '';
 $pdf->AddPage('L', 'A3');
 $pdf->Body();
 
-// Salida
-$pdf->Output('acreditaciones_' . str_replace(' ', '_', $nombre_provincia) . '.pdf', 'I');
+// Salida: si es una sola acreditación (credencial individual), usamos un
+// nombre basado en el apellido del participante; si no, el de la delegación.
+if (count($pdf->participantes) === 1) {
+    $p_unico     = $pdf->participantes[0];
+    $nombre_md   = str_replace(' ', '_', trim($p_unico['nombre_completo'] ?? 'credencial'));
+    $archivo_pdf = 'credencial_' . preg_replace('/[^A-Za-z0-9_]/', '', $nombre_md) . '.pdf';
+} else {
+    $archivo_pdf = 'acreditaciones_' . str_replace(' ', '_', $nombre_provincia) . '.pdf';
+}
+
+$pdf->Output($archivo_pdf, 'I');
 
 //============================================================+
 // END OF FILE
