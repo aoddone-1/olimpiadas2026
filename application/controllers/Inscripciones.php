@@ -1288,6 +1288,64 @@ class Inscripciones extends CI_Controller {
         $this->_emitir_pdf_fixture($datos, $nombre_deporte_filtro, $delegacion);
     }
 
+    /**
+     * Descarga la PLANILLA DE MESA DE CONTROL de una categoría: PDF con todos
+     * los partidos de esa categoría (deportes de enfrentamiento) o con los
+     * participantes de la jornada (deportes masivos), pensado para imprimir y
+     * llevar a las mesas de control. Reutiliza la plantilla admin/reporte_fixture
+     * con formato='planilla'.
+     */
+    public function descargar_planilla_categoria($id_categoria = null) {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $id_categoria = (int) ($id_categoria !== null ? $id_categoria : $this->input->get('categoria'));
+        if ($id_categoria <= 0) {
+            show_error('Categoría inválida.', 400);
+            return;
+        }
+
+        $this->load->model('Fixture_model');
+        $datos = $this->Fixture_model->obtener_fixtures_por_categoria($id_categoria);
+        if (!$datos) {
+            show_error('La categoría no tiene fixture cargado todavía.', 404);
+            return;
+        }
+
+        // Datos de la categoría (para el título/nombre del archivo)
+        $categoria_info = null;
+        foreach ($this->Fixture_model->obtener_categorias_para_fixture() as $c) {
+            if ((int) $c['id_categoria'] === $id_categoria) {
+                $categoria_info = $c;
+                break;
+            }
+        }
+        $nombre_cat = $categoria_info
+            ? trim(($categoria_info['nombre_deporte'] ?? '') . ' ' . ($categoria_info['nombre_categoria'] ?? ''))
+            : 'categoria_' . $id_categoria;
+
+        $nombre_archivo = 'planilla_'
+            . preg_replace('/[^a-zA-Z0-9]+/', '_', $nombre_cat)
+            . '_' . date('Y-m-d') . '.pdf';
+
+        $this->load->vars(array(
+            'datos'             => $datos,
+            'formato'           => 'planilla',
+            'dia_filtro'        => NULL,
+            'ancho_franja'      => 1,
+            'nombre_archivo'    => $nombre_archivo,
+            'deporte_filtro'    => $categoria_info['nombre_deporte'] ?? NULL,
+            'orden_reporte'     => 'deporte',
+            'delegacion_filtro' => NULL,
+            'nombres_completos' => TRUE,
+            'modo_delegado'     => FALSE,
+            'titulo_planilla'   => 'PLANILLA DE MESA DE CONTROL — ' . strtoupper($nombre_cat),
+        ));
+        $this->load->view('admin/reporte_fixture');
+    }
+
     /** Nombre de un deporte por id (NULL si no existe). */
     private function _nombre_deporte($id_deporte) {
         $this->load->model('Deporte_model');

@@ -21,6 +21,8 @@ class MYPDF extends TCPDF {
     public $orden_reporte = 'deporte';
     /** Flag del controlador: TRUE cuando el reporte lo descarga un delegado. */
     public $modo_delegado = FALSE;
+    /** Título alternativo para formato 'planilla' (mesas de control). */
+    public $titulo_planilla = null;
     /** Con ?nombres=cortos se abrevian los integrantes con iniciales
      *  ("María P. G."); por defecto (y con ?nombres=completos) se imprimen los
      *  nombres completos ("María Paula Gómez"). Solo aplica al reporte del
@@ -221,6 +223,12 @@ class MYPDF extends TCPDF {
             . ($this->delegacion_filtro ? ' — DELEGACIÓN ' . strtoupper((string) $this->delegacion_filtro) : '')
             . ($this->deporte_filtro ? ' — ' . strtoupper((string) $this->deporte_filtro) : '');
 
+        // ====== FORMATO PLANILLA (mesas de control): reporte propio, no cuadro ======
+        if ($this->formato === 'planilla') {
+            $this->_body_planilla();
+            return;
+        }
+
         // ====== COLORES ======
         $c_primary   = '#1e3a5f';
         $c_secondary = '#3498db';
@@ -403,6 +411,182 @@ class MYPDF extends TCPDF {
         }
     }
 
+    /**
+     * ===== FORMATO PLANILLA (mesas de control) =====
+     * Una fila por partido con espacio para anotar el resultado en papel:
+     *   - Deportes de enfrentamiento: "Equipo A (integrantes) vs Equipo B
+     *     (integrantes)" + casilleros GANADOR / MARCADOR.
+     *   - Deportes masivos (JORNADA_UNICA): lista de PARTICIPANTES con
+     *     casilleros POS / TIEMPO o PUNTAJE.
+     */
+    public function _body_planilla() {
+        $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+
+        // Orden cronológico: fecha → hora → jornada
+        usort($this->datos, function ($a, $b) {
+            return [
+                (string) ($a['fecha_competencia'] ?? ''),
+                (string) ($a['hora_inicio'] ?? ''),
+                (int) ($a['numero_fecha'] ?? 0),
+                (int) ($a['id_fixture'] ?? 0),
+            ] <=> [
+                (string) ($b['fecha_competencia'] ?? ''),
+                (string) ($b['hora_inicio'] ?? ''),
+                (int) ($b['numero_fecha'] ?? 0),
+                (int) ($b['id_fixture'] ?? 0),
+            ];
+        });
+
+        $primera = !empty($this->datos) ? $this->datos[0] : array();
+        $es_masivo = strtoupper(trim((string) ($primera['modalidad_competencia'] ?? ''))) === 'MASIVO_TIEMPO';
+
+        $fase_bonito = function ($fase) {
+            $map = array(
+                'GRUPO' => 'Fase de Grupos', '16AVOS' => '16avos de Final', 'OCTAVOS' => 'Octavos de Final',
+                'CUARTOS' => 'Cuartos de Final', 'SEMIFINAL' => 'Semifinal', 'TERCER_PUESTO' => '3er Puesto',
+                'FINAL' => 'Final', 'JORNADA_UNICA' => 'Jornada Única'
+            );
+            return isset($map[$fase]) ? $map[$fase] : (string) $fase;
+        };
+
+        // Título del reporte
+        $titulo = $this->titulo_planilla
+            ? $this->titulo_planilla
+            : ('PLANILLA DE MESA DE CONTROL — ' . NOMBRE_META);
+        $html = '<div style="text-align:center; font-size:15pt; font-weight:bold; color:#1e3a5f; padding:2px 0 4px 0;">'
+              . $esc($titulo) . '</div>'
+              . '<div style="text-align:center; font-size:9pt; color:#7f8c8d; padding-bottom:8px;">'
+              . ($es_masivo ? 'Deporte masivo — participantes y planilla de llegada' : 'Partidos de la categoría')
+              . '</div>';
+
+        $borde = 'border:1px solid #bdc3c7;';
+        $c_head = '#1e3a5f';
+
+        if ($es_masivo) {
+            // ---- Planilla de participantes (una sola jornada) ----
+            // Unir los participantes de todas las filas (JORNADA_UNICA suele
+            // ser una fila por categoría; si hay más, se consolidan).
+            $participantes = array();
+            foreach ($this->datos as $f) {
+                foreach ((array) ($f['utes_categoria'] ?? array()) as $u) {
+                    if (!empty($u['id_ute'])) $participantes[(int) $u['id_ute']] = $u['nombre_ute'];
+                }
+                if (!empty($f['id_ute_1']) && !empty($f['ute_1_nombre'])) {
+                    $participantes[(int) $f['id_ute_1']] = $f['ute_1_nombre'];
+                }
+                if (!empty($f['id_ute_2']) && !empty($f['ute_2_nombre'])) {
+                    $participantes[(int) $f['id_ute_2']] = $f['ute_2_nombre'];
+                }
+            }
+            asort($participantes);
+
+            $fila_partido = $this->datos[0];
+            $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
+                   . '<tr>'
+                   . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
+                   . '<td style="width:50%;"><b>Fecha/Hora:</b> ' . $esc(date('d/m/Y', strtotime((string) ($fila_partido['fecha_competencia'] ?? 'now'))) . ' · ' . substr((string) ($fila_partido['hora_inicio'] ?? ''), 0, 5)) . '</td>'
+                   . '</tr><tr>'
+                   . '<td><b>Lugar:</b> ' . $esc($fila_partido['lugar_nombre'] ?? 'A confirmar') . '</td>'
+                   . '<td><b>Participantes:</b> ' . count($participantes) . '</td>'
+                   . '</tr></table>';
+
+            $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8.5pt; color:#2c3e50;">'
+                   . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
+                   . '<th style="' . $borde . ' width:8%;">POSICIÓN</th>'
+                   . '<th style="' . $borde . '">PARTICIPANTE</th>'
+                   . '<th style="' . $borde . ' width:16%;">TIEMPO / PUNTAJE</th>'
+                   . '</tr></thead><tbody>';
+            $i = 0;
+            foreach ($participantes as $nombre) {
+                $bg = ($i % 2) ? '#ffffff' : '#f8f9fa';
+                $html .= '<tr style="background-color:' . $bg . ';">'
+                       . '<td style="' . $borde . ' text-align:center; height:22px;">' . ($i + 1) . 'º</td>'
+                       . '<td style="' . $borde . '">' . $esc($nombre) . '</td>'
+                       . '<td style="' . $borde . '"></td>'
+                       . '</tr>';
+                $i++;
+            }
+            if (!$i) {
+                $html .= '<tr><td colspan="3" style="' . $borde . ' text-align:center; color:#7f8c8d;">No hay participantes inscriptos en esta categoría.</td></tr>';
+            }
+            $html .= '</tbody></table>';
+        } else {
+            // ---- Planilla de partidos ----
+            $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
+                   . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
+                   . '<th style="' . $borde . ' width:5%;">Nº</th>'
+                   . '<th style="' . $borde . ' width:14%;">FASE / JORNADA</th>'
+                   . '<th style="' . $borde . ' width:13%;">DÍA / HORA</th>'
+                   . '<th style="' . $borde . ' width:10%;">LUGAR</th>'
+                   . '<th style="' . $borde . ' width:24%;">EQUIPO A</th>'
+                   . '<th style="' . $borde . ' width:24%;">EQUIPO B</th>'
+                   . '<th style="' . $borde . ' width:10%;">MARCADOR / GANADOR</th>'
+                   . '</tr></thead><tbody>';
+
+            $n = 0;
+            $dia_actual = null;
+            foreach ($this->datos as $f) {
+                $n++;
+                $fecha = substr((string) ($f['fecha_competencia'] ?? ''), 0, 10);
+                // Subencabezado por día cuando hay más de uno
+                if ($fecha !== $dia_actual) {
+                    $dia_actual = $fecha;
+                    $html .= '<tr><td colspan="7" style="' . $borde . ' background-color:#ecf0f1; font-weight:bold; color:#1e3a5f; text-align:center;">'
+                           . $esc($fecha !== '' ? date('d/m/Y', strtotime($fecha)) : 'Sin fecha') . '</td></tr>';
+                }
+
+                $integrantes = function ($lado) use ($f) {
+                    $lista = array();
+                    foreach ((array) ($f['jugadores_ute_' . $lado] ?? array()) as $j) {
+                        $j = trim((string) $j);
+                        if ($j !== '') $lista[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
+                    }
+                    return $lista;
+                };
+                $lado_html = function ($campo_nombre, $lado) use ($f, $integrantes, $esc) {
+                    $equipo = trim((string) ($f[$campo_nombre] ?? ''));
+                    if ($equipo === '' && !empty($f['id_ute_' . $lado])) $equipo = 'Cruce pendiente';
+                    $out = '<b>' . ($equipo !== '' ? $esc($equipo) : '&nbsp;') . '</b>';
+                    $jug = $integrantes($lado);
+                    if ($jug) {
+                        $out .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc(implode(', ', $jug)) . '</span>';
+                    }
+                    return $out;
+                };
+
+                $fase = $fase_bonito($f['fase'] ?? '');
+                if (!empty($f['numero_fecha']) && stripos($fase, 'grupo') !== false) {
+                    $fase .= ' · F' . (int) $f['numero_fecha'];
+                }
+                $horario = substr((string) ($f['hora_inicio'] ?? ''), 0, 5)
+                         . '–' . substr((string) ($f['hora_fin'] ?? ''), 0, 5);
+                $bg = ($n % 2) ? '#ffffff' : '#f8f9fa';
+
+                $html .= '<tr style="background-color:' . $bg . ';">'
+                       . '<td style="' . $borde . ' text-align:center;">' . $n . '</td>'
+                       . '<td style="' . $borde . '">' . $esc($fase)
+                       . (!empty($f['nombre_prueba']) ? '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc($f['nombre_prueba']) . '</span>' : '')
+                       . '</td>'
+                       . '<td style="' . $borde . ' text-align:center;">' . $esc($horario) . '</td>'
+                       . '<td style="' . $borde . '">' . $esc($f['lugar_nombre'] ?? '—') . '</td>'
+                       . '<td style="' . $borde . '">' . $lado_html('ute_1_nombre', 1) . '</td>'
+                       . '<td style="' . $borde . '">' . $lado_html('ute_2_nombre', 2) . '</td>'
+                       . '<td style="' . $borde . '"></td>'
+                       . '</tr>';
+            }
+            $html .= '</tbody></table>';
+        }
+
+        // Espacio de firma para la mesa de control
+        $html .= '<table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-top:14px;">'
+               . '<tr>'
+               . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">Mesa de control (firma)</td>'
+               . '<td style="width:50%; text-align:center; border-top:1px solid #2c3e50;">árbitro / supervisor (firma)</td>'
+               . '</tr></table>';
+
+        $this->writeHTML($html, true, false, true, false, '');
+    }
+
     public function Footer() {
         // Pie de página: separador, nombre del sitio a la izquierda y paginación a la derecha
         $this->SetY(-16);
@@ -435,6 +619,7 @@ $pdf->modo_delegado = !empty($modo_delegado);
 $pdf->nombres_completos = !empty($nombres_completos);
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
+$pdf->titulo_planilla = isset($titulo_planilla) ? $titulo_planilla : null;
 
 // set document information
 $pdf->SetCreator(PDF_CREATOR);
@@ -473,8 +658,12 @@ $pdf->setFontSubsetting(true);
 // Set font
 $pdf->SetFont('dejavusans', '', 14, '', true);
 
-// Add a page
-$pdf->AddPage('L','LEGAL');
+// Add a page (la planilla de mesa de control se imprime en A4 vertical)
+if ($formato === 'planilla') {
+    $pdf->AddPage('P', 'A4');
+} else {
+    $pdf->AddPage('L','LEGAL');
+}
 
 // Generar el contenido del cuerpo (aquí se ejecuta toda la lógica HTML)
 $pdf->Body();

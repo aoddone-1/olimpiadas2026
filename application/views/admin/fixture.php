@@ -590,6 +590,9 @@
                             ${tipoTag}
                             <span class="small text-muted ms-2">(${items.length} partido/s)</span>
                         </span>
+                        <button type="button" class="btn btn-sm btn-outline-dark fx-planilla" data-cat="${idCat}" title="Descargar planilla para mesa de control (participantes o enfrentamientos)">
+                            <i class="bi bi-file-earmark-text-fill me-1"></i>Planilla mesa de control
+                        </button>
                     </div>
                     <div class="p-2">`;
 
@@ -698,6 +701,11 @@
                 });
         }));
         lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
+
+        // Descargar planilla de mesa de control (PDF) por categoría
+        lista.querySelectorAll('.fx-planilla').forEach(b => b.addEventListener('click', () => {
+            window.open(BASE + '/descargar_planilla_categoria/' + encodeURIComponent(b.dataset.cat), '_blank');
+        }));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
     }
 

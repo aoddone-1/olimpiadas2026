@@ -106,6 +106,55 @@ class Fixture_model extends CI_Model {
         }
         unset($f);
 
+        // Integrantes de cada lado del enfrentamiento (jugadores_ute_X), en el
+        // mismo formato que usa obtener_todo_el_fixture(). Lo necesita la vista
+        // admin/reporte_fixture.php para la "planilla de mesas de control" por
+        // categoría (Inscripciones/descargar_planilla_categoria): sin estos
+        // campos, los equipos saldrían vacíos en el PDF.
+        $ids_ute = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0) $ids_ute[] = $idl;
+            }
+        }
+        $integrantes_por_ute = $this->_integrantes_de_utes(array_unique($ids_ute));
+        // UTEs sin integrantes en participantes_utes: se resuelven por las
+        // inscripciones de la categoría (mismo fallback que el reporte general).
+        $pendientes = array();
+        foreach ($fixtures as $fx) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                if ($idl > 0 && empty($integrantes_por_ute[$idl])) {
+                    $pendientes[$idl][] = (int) $fx['id_categoria'];
+                }
+            }
+        }
+        foreach ($pendientes as $idl => $cats) {
+            $lista = $this->_inscriptos_de_ute_por_categoria($idl, array_unique($cats));
+            if ($lista) $integrantes_por_ute[$idl] = $lista;
+        }
+        // Slots negativos (-id_inscripcion) = competidores individuales: su
+        // nombre ya viene en ute_X_nombre o se resuelve acá.
+        $nombres_ind = $this->_nombres_individuales_en_fixtures($fixtures);
+        foreach ($fixtures as &$f) {
+            if (empty($f['ute_1_nombre']) && !empty($f['id_ute_1'])) {
+                $f['ute_1_nombre'] = isset($nombres_ind[(int) $f['id_ute_1']])
+                    ? $nombres_ind[(int) $f['id_ute_1']] : null;
+            }
+            if (empty($f['ute_2_nombre']) && !empty($f['id_ute_2'])) {
+                $f['ute_2_nombre'] = isset($nombres_ind[(int) $f['id_ute_2']])
+                    ? $nombres_ind[(int) $f['id_ute_2']] : null;
+            }
+            $idl1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $idl2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+            $f['jugadores_ute_1'] = ($idl1 > 0 && isset($integrantes_por_ute[$idl1]))
+                ? $integrantes_por_ute[$idl1] : array();
+            $f['jugadores_ute_2'] = ($idl2 > 0 && isset($integrantes_por_ute[$idl2]))
+                ? $integrantes_por_ute[$idl2] : array();
+        }
+        unset($f);
+
         return $fixtures;
     }
 
