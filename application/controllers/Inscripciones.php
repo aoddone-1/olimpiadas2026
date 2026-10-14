@@ -1346,6 +1346,64 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/reporte_fixture');
     }
 
+    /**
+     * Descarga la PLANILLA DE MESA DE CONTROL de un DEPORTE: PDF con una hoja
+     * (página) por categoría —cada una con los partidos de esa categoría
+     * (deportes de enfrentamiento) o con los participantes de la jornada
+     * (deportes masivos)—, pensado para imprimir y llevar a las mesas de
+     * control. Reutiliza la plantilla admin/reporte_fixture con
+     * formato='planilla'; el agrupado "una categoría por hoja" lo hace la
+     * propia vista (MYPDF::_body_planilla).
+     */
+    public function descargar_planilla_deporte($id_deporte = null) {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $id_deporte = (int) ($id_deporte !== null ? $id_deporte : $this->input->get('deporte'));
+        if ($id_deporte <= 0) {
+            show_error('Deporte inválido.', 400);
+            return;
+        }
+
+        $nombre_deporte = $this->_nombre_deporte($id_deporte);
+        if ($nombre_deporte === NULL) {
+            show_error('El deporte no existe.', 404);
+            return;
+        }
+
+        $this->load->model('Fixture_model');
+        // Fixture completo del deporte: todas sus categorías con fixture, con
+        // los integrantes de cada equipo resueltos (jugadores_ute_X).
+        $datos = $this->Fixture_model->obtener_todo_el_fixture($id_deporte);
+        if (!$datos) {
+            show_error('El deporte no tiene fixture cargado todavía.', 404);
+            return;
+        }
+
+        $nombre_archivo = 'planillas_'
+            . preg_replace('/[^a-zA-Z0-9]+/', '_', $nombre_deporte)
+            . '_' . date('Y-m-d') . '.pdf';
+
+        $this->load->vars(array(
+            'datos'             => $datos,
+            'formato'           => 'planilla',
+            'dia_filtro'        => NULL,
+            'ancho_franja'      => 1,
+            'nombre_archivo'    => $nombre_archivo,
+            'deporte_filtro'    => $nombre_deporte,
+            'orden_reporte'     => 'deporte',
+            'delegacion_filtro' => NULL,
+            'nombres_completos' => TRUE,
+            'modo_delegado'     => FALSE,
+            // Sin título fijo: la vista arma uno por categoría en cada hoja.
+            'titulo_planilla'   => NULL,
+            'deporte_planilla'  => $nombre_deporte,
+        ));
+        $this->load->view('admin/reporte_fixture');
+    }
+
     /** Nombre de un deporte por id (NULL si no existe). */
     private function _nombre_deporte($id_deporte) {
         $this->load->model('Deporte_model');

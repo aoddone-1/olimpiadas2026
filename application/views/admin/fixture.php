@@ -558,17 +558,26 @@
             const cats = deportes[deporte];
             const partidosDelDeporte = Object.values(cats).reduce((n, items) => n + items.length, 0);
             const idDepBlock = 'fxdep_' + encodeURIComponent(deporte).replace(/%/g, '');
+            // El botón de planilla ahora es POR DEPORTE: un solo PDF con una
+            // hoja por categoría. Se toma el id_deporte de cualquiera de sus
+            // filas (todas pertenecen al mismo deporte).
+            const idDep = Object.values(cats)[0]?.id_deporte || '';
 
             html += `<div class="card mb-4 border-primary-subtle shadow-sm">
-                <div class="card-header py-2">
-                    <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 fx-deporte-titulo fw-bold"
-                            type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="${colapsarPorDefecto ? 'false' : 'true'}">
-                        <i class="bi bi-chevron-down fx-chev"></i>
-                        <i class="bi bi-trophy-fill"></i>
-                        <span>${esc(deporte)}</span>
+                <div class="card-header py-2 d-flex flex-wrap justify-content-between align-items-center gap-1">
+                    <span class="d-flex align-items-center flex-wrap gap-1">
+                        <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 fx-deporte-titulo fw-bold"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="${colapsarPorDefecto ? 'false' : 'true'}">
+                            <i class="bi bi-chevron-down fx-chev"></i>
+                            <i class="bi bi-trophy-fill"></i>
+                            <span>${esc(deporte)}</span>
+                        </button>
+                        <span class="badge bg-white text-primary ms-2">${Object.keys(cats).length} categoría/s</span>
+                        <span class="small opacity-75 ms-1">(${partidosDelDeporte} partido/s)</span>
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-dark fx-planilla" data-dep="${idDep}" title="Descargar planillas para mesa de control de todas las categorías de este deporte (una hoja por categoría)">
+                        <i class="bi bi-file-earmark-text-fill me-1"></i>Planilla mesa de control
                     </button>
-                    <span class="badge bg-white text-primary ms-2">${Object.keys(cats).length} categoría/s</span>
-                    <span class="small opacity-75 ms-1">(${partidosDelDeporte} partido/s)</span>
                 </div>
                 <div class="collapse${colapsarPorDefecto ? '' : ' show'}" id="${idDepBlock}">
                 <div class="card-body py-2">`;
@@ -581,7 +590,6 @@
                     : (primera.tipo_duracion === 'UNICO_DIA'
                         ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
                         : '<span class="badge bg-primary ms-2">Multidía</span>');
-                const idCat = primera.id_categoria;
 
                 html += `<div class="border rounded bg-light-subtle mb-3">
                     <div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
@@ -590,9 +598,6 @@
                             ${tipoTag}
                             <span class="small text-muted ms-2">(${items.length} partido/s)</span>
                         </span>
-                        <button type="button" class="btn btn-sm btn-outline-dark fx-planilla" data-cat="${idCat}" title="Descargar planilla para mesa de control (participantes o enfrentamientos)">
-                            <i class="bi bi-file-earmark-text-fill me-1"></i>Planilla mesa de control
-                        </button>
                     </div>
                     <div class="p-2">`;
 
@@ -702,9 +707,10 @@
         }));
         lista.querySelectorAll('.fx-detalle').forEach(b => b.addEventListener('click', () => abrirDetallePartido(b.dataset.id)));
 
-        // Descargar planilla de mesa de control (PDF) por categoría
+        // Descargar planilla de mesa de control (PDF) POR DEPORTE:
+        // un PDF con una hoja por categoría.
         lista.querySelectorAll('.fx-planilla').forEach(b => b.addEventListener('click', () => {
-            window.open(BASE + '/descargar_planilla_categoria/' + encodeURIComponent(b.dataset.cat), '_blank');
+            window.open(BASE + '/descargar_planilla_deporte/' + encodeURIComponent(b.dataset.dep), '_blank');
         }));
         lista.querySelectorAll('.fx-cat-participantes').forEach(b => b.addEventListener('click', () => abrirInscriptosCategoria(b.dataset.cat, b.dataset.nombre)));
     }
