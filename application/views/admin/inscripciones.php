@@ -544,6 +544,38 @@
 
 document.addEventListener('DOMContentLoaded', function () {
 
+    // ==========================================
+    // HELPERS SWEETALERT2 (con fallback nativo)
+    // ==========================================
+    
+    function confirmarAccion(texto, icono, btnOk, btnCancelar) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: '¿Confirmás?',
+                text: texto,
+                icon: icono || 'question',
+                showCancelButton: true,
+                confirmButtonText: btnOk || 'Sí, confirmar',
+                cancelButtonText: btnCancelar || 'Cancelar',
+                reverseButtons: true
+            }).then(r => r.isConfirmed);
+        }
+        return Promise.resolve(window.confirm(texto));
+    }
+
+    function alertar(mensaje, icono, titulo) {
+        if (window.Swal && typeof window.Swal.fire === 'function') {
+            return window.Swal.fire({
+                title: titulo || 'Atención',
+                text: mensaje,
+                icon: icono || 'info',
+                confirmButtonText: 'OK'
+            });
+        }
+        window.alert(mensaje);
+        return Promise.resolve();
+    }
+
     const inputBuscarIns = document.getElementById('inputBuscarInscripcion');
 
     const filtroDelegacion = document.getElementById('filtroDelegacion');
@@ -1010,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     if(data.error) {
 
-                        alert("Error del sistema: " + data.error);
+                        alertar("Error del sistema: " + data.error, 'error', 'Error');
 
                         return;
 
@@ -1236,7 +1268,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     console.error("❌ ERROR AJAX DETECTADO:", error);
 
-                    alert("Ocurrió un error al obtener el detalle: " + error.message);
+                    alertar("Ocurrió un error al obtener el detalle: " + error.message, 'error', 'Error');
 
                 })
 
@@ -1298,119 +1330,116 @@ document.addEventListener('DOMContentLoaded', function () {
 
         
 
-        // Confirmación personalizada
-
-        if (!confirm(`¿Estás SEGURO que deseas eliminar a ${nombreParticipante}?\n\nEsta acción borrará:\n- Todos sus datos personales\n- Sus inscripciones deportivas\n- No se podrá deshacer`)) {
-
-            return;
-
-        }
-
+        // Confirmación con SweetAlert2
         
+        confirmarAccion(
+            `¿Estás SEGURO que deseas eliminar a ${nombreParticipante}? Esta acción borrará todos sus datos personales y sus inscripciones deportivas. No se podrá deshacer.`,
+            'warning',
+            'Sí, eliminar',
+            'Cancelar'
+        ).then(function (confirmado) {
 
-        // Bloqueo visual del botón
+            if (!confirmado) return;
 
-        const iconoOriginal = botonEliminar.innerHTML;
+            // Bloqueo visual del botón
 
-        botonEliminar.disabled = true;
+            const iconoOriginal = botonEliminar.innerHTML;
+            botonEliminar.disabled = true;
+            botonEliminar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
 
-        botonEliminar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+            const urlPeticion = `<?= base_url('Inscripciones/eliminar_inscripcion_ajax/') ?>${idParticipante}`;
 
-        
+            fetch(urlPeticion, {
 
-        const urlPeticion = `<?= base_url('Inscripciones/eliminar_inscripcion_ajax/') ?>${idParticipante}`;
+                method: 'POST',
 
-        
+                headers: {
 
-        fetch(urlPeticion, {
-
-            method: 'POST',
-
-            headers: {
-
-                'Content-Type': 'application/json'
-
-            }
-
-        })
-
-        .then(response => {
-
-            if (!response.ok) {
-
-                throw new Error(`Error HTTP: ${response.status}`);
-
-            }
-
-            return response.json();
-
-        })
-
-        .then(data => {
-
-            if (data.success) {
-
-                // Buscar la fila y eliminarla con animación
-
-                const fila = botonEliminar.closest('.js-fila-inscripcion');
-
-                if (fila) {
-
-                    fila.style.transition = 'all 0.3s ease';
-
-                    fila.style.opacity = '0';
-
-                    fila.style.transform = 'translateX(-100%)';
-
-                    
-
-                    setTimeout(() => {
-
-                        fila.remove();
-
-                        
-
-                        // Recalcular paginación y filtro
-
-                        paginaActualIns = 1;
-
-                        filasFiltradasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
-
-                        filasIns = filasFiltradasIns;
-
-                        actualizarTablaInscripciones();
-
-                        
-
-                        // Mostrar mensaje de éxito
-
-                        alert('✅ ' + data.mensaje);
-
-                    }, 300);
+                    'Content-Type': 'application/json'
 
                 }
 
-            } else {
+            })
 
-                alert('❌ Error: ' + (data.error || 'No se pudo eliminar la inscripción'));
+            .then(response => {
+
+                if (!response.ok) {
+
+                    throw new Error(`Error HTTP: ${response.status}`);
+
+                }
+
+                return response.json();
+
+            })
+
+            .then(data => {
+
+                if (data.success) {
+
+                    // Buscar la fila y eliminarla con animación
+
+                    const fila = botonEliminar.closest('.js-fila-inscripcion');
+
+                    if (fila) {
+
+                        fila.style.transition = 'all 0.3s ease';
+
+                        fila.style.opacity = '0';
+
+                        fila.style.transform = 'translateX(-100%)';
+
+                        
+
+                        setTimeout(() => {
+
+                            fila.remove();
+
+                            
+
+                            // Recalcular paginación y filtro
+
+                            paginaActualIns = 1;
+
+                            filasFiltradasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
+
+                            filasIns = filasFiltradasIns;
+
+                            actualizarTablaInscripciones();
+
+                            
+
+                            // Mostrar mensaje de éxito
+
+                            alertar(data.mensaje || 'Inscripción eliminada correctamente', 'success', '¡Listo!');
+
+                        }, 300);
+
+                    }
+
+                } else {
+
+                    alertar('Error: ' + (data.error || 'No se pudo eliminar la inscripción'), 'error', 'Error');
+
+                    botonEliminar.disabled = false;
+
+                    botonEliminar.innerHTML = iconoOriginal;
+
+                }
+
+            })
+
+            .catch(error => {
+
+                console.error("❌ ERROR EN FETCH:", error);
+
+                alertar('Ocurrió un error al eliminar: ' + error.message, 'error', 'Error');
 
                 botonEliminar.disabled = false;
 
                 botonEliminar.innerHTML = iconoOriginal;
 
-            }
-
-        })
-
-        .catch(error => {
-
-            console.error("❌ ERROR EN FETCH:", error);
-
-            alert('❌ Ocurrió un error al eliminar: ' + error.message);
-
-            botonEliminar.disabled = false;
-
-            botonEliminar.innerHTML = iconoOriginal;
+            });
 
         });
 
