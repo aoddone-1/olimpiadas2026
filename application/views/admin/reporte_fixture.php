@@ -437,8 +437,23 @@ class MYPDF extends TCPDF {
             ];
         });
 
-        $primera = !empty($this->datos) ? $this->datos[0] : array();
-        $es_masivo = strtoupper(trim((string) ($primera['modalidad_competencia'] ?? ''))) === 'MASIVO_TIEMPO';
+        /**
+         * ¿Planilla de deporte MASIVO? Se decide mirando TODAS las filas, no
+         * solo la primera: basta que una jornada sea JORNADA_UNICA o que el
+         * deporte sea MASIVO_TIEMPO. Antes se leía únicamente $datos[0], y si
+         * el orden cronológico ponía adelante otra fila (o el campo llegaba
+         * con otro formato), la planilla masiva caía al formato de partidos y
+         * NO imprimía la lista de participantes para cargar tiempo/puntaje.
+         */
+        $es_masivo = FALSE;
+        foreach ($this->datos as $f) {
+            $modalidad = strtoupper(trim((string) ($f['modalidad_competencia'] ?? '')));
+            $fase      = strtoupper(trim((string) ($f['fase'] ?? '')));
+            if ($modalidad === 'MASIVO_TIEMPO' || $fase === 'JORNADA_UNICA') {
+                $es_masivo = TRUE;
+                break;
+            }
+        }
 
         $fase_bonito = function ($fase) {
             $map = array(
@@ -464,9 +479,37 @@ class MYPDF extends TCPDF {
 
         if ($es_masivo) {
             // ---- Planilla de participantes (una sola jornada) ----
-            // Unir los participantes de todas las filas (JORNADA_UNICA suele
-            // ser una fila por categoría; si hay más, se consolidan).
+            // Fuente principal: Resultado_model::obtener_competidores_por_categoria,
+            // el MISMO criterio que usa la carga de resultados en pantalla:
+            //   - si la categoría tiene UTEs/equipos → los equipos;
+            //   - si NO tiene UTEs → los inscriptos individuales (que antes no
+            //     salían nunca porque solo se leía $f['utes_categoria'], siempre
+            //     vacío en ese caso, y la jornada masiva no tiene slots id_ute).
             $participantes = array();
+            $competidores_resueltos = FALSE;
+            $id_categoria_planilla = 0;
+            foreach ($this->datos as $chk) {
+                if (!empty($chk['id_categoria'])) {
+                    $id_categoria_planilla = (int) $chk['id_categoria'];
+                    break;
+                }
+            }
+            if ($id_categoria_planilla > 0) {
+                $this->load->model('Resultado_model');
+                $met = 'obtener_competidores_por_categoria';
+                if (method_exists($this->Resultado_model, $met)) {
+                    foreach ((array) $this->Resultado_model->$met($id_categoria_planilla) as $c) {
+                        $nombre = trim((string) ($c['nombre'] ?? ''));
+                        if ($nombre === '') continue;
+                        $clave = (int) ($c['id'] ?? 0);
+                        if (!$clave) $clave = 'n:' . mb_strtolower($nombre, 'UTF-8');
+                        $participantes[$clave] = $nombre;
+                    }
+                    $competidores_resueltos = TRUE;
+                }
+            }
+
+            // Fallback / consolidación con lo que trae cada fila del fixture.
             foreach ($this->datos as $f) {
                 foreach ((array) ($f['utes_categoria'] ?? array()) as $u) {
                     if (!empty($u['id_ute'])) $participantes[(int) $u['id_ute']] = $u['nombre_ute'];
@@ -476,6 +519,20 @@ class MYPDF extends TCPDF {
                 }
                 if (!empty($f['id_ute_2']) && !empty($f['ute_2_nombre'])) {
                     $participantes[(int) $f['id_ute_2']] = $f['ute_2_nombre'];
+                }
+            }
+            // Si el modelo no devolvió nada pero las filas sí traen competidores
+            // (utes populated o slots), recién ahí puede haber quedado vacío.
+            if (!$participantes && !$competidores_resueltos) {
+                // Última chance: individuales de la categoría vía Fixture_model.
+                if ($id_categoria_planilla > 0) {
+                    $this->load->model('Fixture_model');
+                    if (method_exists($this->Fixture_model, 'individuales_de_categoria')) {
+                        foreach ((array) $this->Fixture_model->individuales_de_categoria($id_categoria_planilla) as $p) {
+                            $nombre = trim((string) ($p['nombre_completo'] ?? ''));
+                            if ($nombre !== '') $participantes['p:' . $nombre] = $nombre;
+                        }
+                    }
                 }
             }
             asort($participantes);
