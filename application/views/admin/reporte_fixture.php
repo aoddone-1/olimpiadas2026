@@ -438,20 +438,51 @@ class MYPDF extends TCPDF {
      *     casilleros POS / TIEMPO o PUNTAJE.
      */
     public function _body_planilla() {
-        // Orden cronológico: fecha → hora → jornada
-        usort($this->datos, function ($a, $b) {
-            return [
-                (string) ($a['fecha_competencia'] ?? ''),
-                (string) ($a['hora_inicio'] ?? ''),
-                (int) ($a['numero_fecha'] ?? 0),
-                (int) ($a['id_fixture'] ?? 0),
-            ] <=> [
-                (string) ($b['fecha_competencia'] ?? ''),
-                (string) ($b['hora_inicio'] ?? ''),
-                (int) ($b['numero_fecha'] ?? 0),
-                (int) ($b['id_fixture'] ?? 0),
-            ];
-        });
+        // Orden de la planilla. En deportes de ENFRENTAMIENTO DE EQUIPOS la
+        // unidad de agrupamiento es la JORNADA (numero_fecha): las filas se
+        // ordenan primero por número de jornada y, dentro de cada una, por
+        // fecha/hora — así el subencabezado "Jornada N" agrupa TODOS sus
+        // partidos aunque ocurran en días distintos o a horas intercaladas
+        // con otras jornadas (p. ej. Grupo C en CANCHA 4 y CANCHA 5).
+        // Para el resto de los deportes se conserva el orden cronológico
+        // (fecha → hora → jornada).
+        $_es_enfrentamiento = FALSE;
+        foreach ($this->datos as $f) {
+            if (strtoupper(trim((string) ($f['modalidad_competencia'] ?? ''))) === 'ENFRENTAMIENTO') {
+                $_es_enfrentamiento = TRUE;
+                break;
+            }
+        }
+        if ($_es_enfrentamiento) {
+            usort($this->datos, function ($a, $b) {
+                return [
+                    (int) ($a['numero_fecha'] ?? 0),
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    (int) ($a['id_fixture'] ?? 0),
+                ] <=> [
+                    (int) ($b['numero_fecha'] ?? 0),
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    (int) ($b['id_fixture'] ?? 0),
+                ];
+            });
+        } else {
+            // Orden cronológico: fecha → hora → jornada
+            usort($this->datos, function ($a, $b) {
+                return [
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    (int) ($a['numero_fecha'] ?? 0),
+                    (int) ($a['id_fixture'] ?? 0),
+                ] <=> [
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    (int) ($b['numero_fecha'] ?? 0),
+                    (int) ($b['id_fixture'] ?? 0),
+                ];
+            });
+        }
 
         // Agrupar las filas por categoría conservando el orden cronológico
         // (primera aparición = orden de las hojas del PDF).
@@ -865,18 +896,52 @@ class MYPDF extends TCPDF {
                    . '</tr></thead><tbody>';
 
             $n = 0;
-            $dia_actual = null;
+            $jornada_actual = null;
+            // En enfrentamiento de equipos las filas ya vienen ordenadas por
+            // numero_fecha (ver _body_planilla), así que se agrupa por JORNADA:
+            // el subencabezado dice "Jornada N" y debajo quedan TODOS los
+            // partidos de esa jornada, aunque se jueguen en días/canchas
+            // distintos. Si además la jornada abarca más de un día, se aclara
+            // el rango de fechas entre paréntesis.
+            $modalidad_equipos = strtoupper(trim((string) ($fila_partido['modalidad_competencia'] ?? ''))) === 'ENFRENTAMIENTO';
             // Mapa de equipos listados arriba: se expone al closure $integrantes
             // para que las celdas EQUIPO A/B omitan los integrantes repetidos.
             $GLOBALS['planilla_equipos_map'] = $equipos_tabla;
             foreach ($this->datos as $f) {
                 $n++;
                 $fecha = substr((string) ($f['fecha_competencia'] ?? ''), 0, 10);
-                // Subencabezado por día cuando hay más de uno
-                if ($fecha !== $dia_actual) {
-                    $dia_actual = $fecha;
-                    $html .= '<tr><td colspan="7" style="' . $borde . ' background-color:#ecf0f1; font-weight:bold; color:#1e3a5f; text-align:center;">'
-                           . $esc($fecha !== '' ? date('d/m/Y', strtotime($fecha)) : 'Sin fecha') . '</td></tr>';
+                $num_jornada = (int) ($f['numero_fecha'] ?? 0);
+                // Clave de agrupamiento: jornada (enfrentamiento de equipos) o día (resto).
+                if ($modalidad_equipos) {
+                    $clave_grupo = 'J' . $num_jornada;
+                } else {
+                    $clave_grupo = $fecha;
+                }
+                // Subencabezado cada vez que cambia la jornada / el día
+                if ($clave_grupo !== $jornada_actual) {
+                    $jornada_actual = $clave_grupo;
+                    if ($modalidad_equipos) {
+                        // Fechas distintas dentro de esta jornada (para aclarar
+                        // en el subencabezado cuando la jornada juega en 2 días).
+                        $fechas_jornada = array();
+                        foreach ($this->datos as $fx) {
+                            if ((int) ($fx['numero_fecha'] ?? 0) === $num_jornada) {
+                                $fj = substr((string) ($fx['fecha_competencia'] ?? ''), 0, 10);
+                                if ($fj !== '') $fechas_jornada[$fj] = date('d/m/Y', strtotime($fj));
+                            }
+                        }
+                        $etiqueta_jornada = $num_jornada > 0 ? 'Jornada ' . $num_jornada : 'Jornada';
+                        if (count($fechas_jornada) > 1) {
+                            $etiqueta_jornada .= ' (' . implode(' · ', array_values($fechas_jornada)) . ')';
+                        } elseif (count($fechas_jornada) === 1) {
+                            $etiqueta_jornada .= ' (' . reset($fechas_jornada) . ')';
+                        }
+                        $html .= '<tr><td colspan="7" style="' . $borde . ' background-color:#ecf0f1; font-weight:bold; color:#1e3a5f; text-align:center;">'
+                               . $esc($etiqueta_jornada) . '</td></tr>';
+                    } else {
+                        $html .= '<tr><td colspan="7" style="' . $borde . ' background-color:#ecf0f1; font-weight:bold; color:#1e3a5f; text-align:center;">'
+                               . $esc($fecha !== '' ? date('d/m/Y', strtotime($fecha)) : 'Sin fecha') . '</td></tr>';
+                    }
                 }
 
                 $integrantes = function ($lado) use ($f) {
