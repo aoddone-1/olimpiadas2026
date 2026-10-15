@@ -17,8 +17,59 @@ class MYPDF extends TCPDF {
     public $titulo_encabezado = 'FIXTURE DE COMPETENCIA';
     /** Delegación cuando el reporte lo descarga un delegado (null = reporte general). */
     public $delegacion_filtro = null;
-    /** 'deporte' (Deporte → Categoría → Fecha → Hora) u 'horario' (Fecha → Hora → Deporte). */
+    /**
+     * Orden del reporte:
+     *   - 'deporte'  : Deporte → Categoría → Fecha → Hora (por defecto).
+     *   - 'horario'  : Fecha → Hora → Deporte → Categoría.
+     *   - 'jornada'  : Jornada (número de fecha/etapa del torneo) → Fecha → Hora.
+     */
     public $orden_reporte = 'deporte';
+
+    /** Orden deportivo de las etapas del torneo (FASE_TORNEO). */
+    public static $orden_fases = array(
+        'JORNADA_UNICA'  => 5,
+        'GRUPO'          => 10,
+        '16AVOS'         => 30,
+        'OCTAVOS'        => 40,
+        'CUARTOS'        => 50,
+        'SEMIFINAL'      => 60,
+        'TERCER_PUESTO'  => 70,
+        'FINAL'          => 80,
+    );
+
+    /**
+     * Clave "de torneo" para ordenar por JORNADA: etapa (fase) → numero_fecha
+     * (jornada dentro de la fase) → fecha → hora. Primero se compara por la
+     * etapa del torneo (p. ej. GRUPO antes que FINAL), luego por el N° de
+     * jornada y recién después por la fecha/hora del calendario; así las
+     * jornadas tienen prioridad aunque estén desalineadas con las fechas.
+     * Si la fila no trae etapa cargada, se deduce de numero_fecha:
+     * 1 = Fase de Grupos, 2 = Octavos, 3 = Cuartos, 4 = Semifinal,
+     * 5 = Tercer Puesto, 6 o más = Final. Devuelve un arreglo comparable con <=>.
+     */
+    public static function _clave_jornada($f) {
+        // Etapa real del torneo (si el fixture la tiene: playoffs/eliminación).
+        $fase = strtoupper(trim((string) ($f['fase'] ?? '')));
+        if ($fase !== '' && isset(self::$orden_fases[$fase])) {
+            $orden_fase = self::$orden_fases[$fase];
+        } else {
+            // Sin etapa explícita: se deduce de la jornada (numero_fecha).
+            switch ((int) ($f['numero_fecha'] ?? 0)) {
+                case 1:  $orden_fase = 10; break; // Fase de Grupos
+                case 2:  $orden_fase = 40; break; // Octavos de Final
+                case 3:  $orden_fase = 50; break; // Cuartos de Final
+                case 4:  $orden_fase = 60; break; // Semifinal
+                case 5:  $orden_fase = 70; break; // Tercer Puesto
+                default: $orden_fase = 80;        // Final / jornadas siguientes
+            }
+        }
+        return array(
+            $orden_fase,
+            (int) ($f['numero_fecha'] ?? 0),
+            (string) ($f['fecha_competencia'] ?? ''),
+            (string) ($f['hora_inicio'] ?? ''),
+        );
+    }
     /** Flag del controlador: TRUE cuando el reporte lo descarga un delegado. */
     public $modo_delegado = FALSE;
     /** Título alternativo para formato 'planilla' (mesas de control). */
@@ -67,22 +118,60 @@ class MYPDF extends TCPDF {
         $html = "";
         $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
 
-        /** Orden garantizado: Deporte → Categoría → Fecha → Hora. */
-        usort($this->datos, function ($a, $b) {
-            return [
-                strtolower($a['nombre_deporte'] ?? ''),
-                strtolower($a['nombre_categoria'] ?? ''),
-                (string) ($a['fecha_competencia'] ?? ''),
-                (string) ($a['hora_inicio'] ?? ''),
-                (int) ($a['numero_fecha'] ?? 0)
-            ] <=> [
-                strtolower($b['nombre_deporte'] ?? ''),
-                strtolower($b['nombre_categoria'] ?? ''),
-                (string) ($b['fecha_competencia'] ?? ''),
-                (string) ($b['hora_inicio'] ?? ''),
-                (int) ($b['numero_fecha'] ?? 0)
-            ];
-        });
+        /** Orden del listado según $orden_reporte:
+         *   - 'deporte' (por defecto): Deporte → Categoría → Fecha → Hora.
+         *   - 'horario': Fecha → Hora → Deporte → Categoría.
+         *   - 'jornada': Jornada (etapa + número de fecha) → Fecha → Hora. */
+        if ($this->orden_reporte === 'jornada') {
+            // Prioridad a la JORNADA del torneo: primero todas las filas de la
+            // jornada 1, luego jornada 2, etc.; dentro de cada jornada se
+            // ordena por fecha y hora. Desempate final por deporte/categoría
+            // para que el resultado sea determinístico.
+            usort($this->datos, function ($a, $b) {
+                return [
+                    self::_clave_jornada($a),
+                    strtolower((string) ($a['nombre_deporte'] ?? '')),
+                    strtolower((string) ($a['nombre_categoria'] ?? '')),
+                ] <=> [
+                    self::_clave_jornada($b),
+                    strtolower((string) ($b['nombre_deporte'] ?? '')),
+                    strtolower((string) ($b['nombre_categoria'] ?? '')),
+                ];
+            });
+        } elseif ($this->orden_reporte === 'horario') {
+            usort($this->datos, function ($a, $b) {
+                return [
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    strtolower((string) ($a['nombre_deporte'] ?? '')),
+                    strtolower((string) ($a['nombre_categoria'] ?? '')),
+                    (int) ($a['numero_fecha'] ?? 0)
+                ] <=> [
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    strtolower((string) ($b['nombre_deporte'] ?? '')),
+                    strtolower((string) ($b['nombre_categoria'] ?? '')),
+                    (int) ($b['numero_fecha'] ?? 0)
+                ];
+            });
+        } else {
+            /** Orden garantizado: Deporte → Categoría → Fecha → Hora. */
+            usort($this->datos, function ($a, $b) {
+                return [
+                    strtolower($a['nombre_deporte'] ?? ''),
+                    strtolower($a['nombre_categoria'] ?? ''),
+                    (string) ($a['fecha_competencia'] ?? ''),
+                    (string) ($a['hora_inicio'] ?? ''),
+                    (int) ($a['numero_fecha'] ?? 0)
+                ] <=> [
+                    strtolower($b['nombre_deporte'] ?? ''),
+                    strtolower($b['nombre_categoria'] ?? ''),
+                    (string) ($b['fecha_competencia'] ?? ''),
+                    (string) ($b['hora_inicio'] ?? ''),
+                    (int) ($b['numero_fecha'] ?? 0)
+                ];
+            });
+        }
 
         /** Filtrar por día si corresponde */
         if (!empty($this->dia_filtro)) {

@@ -888,8 +888,11 @@ class Inscripciones extends CI_Controller {
         $this->_fixture_no_cache_headers();
 
         // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
-        // defecto) u 'horario' (Fecha → Hora → Deporte → Categoría).
-        $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
+        // defecto), 'horario' (Fecha → Hora → Deporte → Categoría) o 'jornada'
+        // (Jornada → Fecha → Hora).
+        $orden_get = $this->input->get('orden');
+        $orden = in_array($orden_get, array('horario', 'jornada'), TRUE)
+            ? $orden_get : 'deporte';
 
         try {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
@@ -1471,8 +1474,11 @@ class Inscripciones extends CI_Controller {
         if ($ancho_franja > 12) $ancho_franja = 12;
 
         // Orden del listado: con ?orden=horario las filas salen por Fecha → Hora
-        // (en vez de Deporte → Categoría → Fecha → Hora).
-        $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
+        // y con ?orden=jornada por Jornada → Fecha → Hora (en vez del orden
+        // por defecto Deporte → Categoría → Fecha → Hora).
+        $orden_get = $this->input->get('orden');
+        $orden_reporte = in_array($orden_get, array('horario', 'jornada'), TRUE)
+            ? $orden_get : 'deporte';
 
         // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
         // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),
