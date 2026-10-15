@@ -361,3 +361,37 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     background: #eef4fd;
     color: #2a5298;
 }
+
+/* Estado "cargando" del panel de fixture (spinner + skeleton) */
+.fx-loading { min-height: 220px; }
+.fx-loading .fx-vacio-icon {
+    width: 56px;
+    height: 56px;
+    border: 3px solid #eef4fd;
+    border-top-color: #2a5298;
+    background: transparent;
+    animation: fx-spin 0.8s linear infinite;
+}
+@keyframes fx-spin { to { transform: rotate(360deg); } }
+.fx-skeleton {
+    position: relative;
+    overflow: hidden;
+    height: 46px;
+    border-radius: 10px;
+    background: #eef1f6;
+}
+.fx-skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .75), transparent);
+    animation: fx-shimmer 1.2s infinite;
+}
+@keyframes fx-shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .fx-loading .fx-vacio-icon { animation-duration: 1.6s; }
+    .fx-skeleton::after { animation: none; }
+}
