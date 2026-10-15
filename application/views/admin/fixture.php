@@ -1417,9 +1417,11 @@
         // de puntos para completar. Página 1 = participantes
         // (N° / PARTICIPANTE / TIEMPO-PUNTAJE), página 2 = partidos
         // (Nº / FASE-JORNADA / DÍA-HORA / EQUIPO A / EQUIPO B / MARCADOR).
-        // Es un PDF fijo, no depende de los filtros ni de la BD.
+        // Es un PDF fijo (assets/docs/planillas_vacias.pdf) que sirve el
+        // controlador Inscripciones/descargar_planillas_vacias; no depende de
+        // los filtros ni de la BD.
         const a = document.createElement('a');
-        a.href = BASE + '/descargar_planillas_vacias';
+        a.href = '<?= base_url('Inscripciones/descargar_planillas_vacias') ?>';
         a.target = '_blank';
         a.rel = 'noopener';
         document.body.appendChild(a);
