@@ -3,7 +3,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 // TCPDF ya viene cargado por la librería 'Pdf' del controlador; por si acaso:
 if (!class_exists('TCPDF')) {
-    require_once APPPATH . 'libraries/tcpdf/tcpdf.php';
+    require_once APPPATH . 'libraries' . DIRECTORY_SEPARATOR . 'tcpdf' . DIRECTORY_SEPARATOR . 'tcpdf.php';
 }
 
 class MYPDF extends TCPDF {
@@ -355,11 +355,15 @@ class MYPDF extends TCPDF {
             return;
         }
 
-        // ====== LISTADO AGRUPADO POR JORNADA (orden 'jornada', formato lista) ======
+        // ====== AGRUPADO POR JORNADA (orden 'jornada', TODOS los formatos) ======
         // El pedido del reporte es: "Jornada 1" y abajo TODOS sus partidos
         // (ordenados por fecha y hora), después "Jornada 2", etc. Se imprime
         // una sección con título de jornada por cada numero_fecha presente.
-        if ($this->orden_reporte === 'jornada' && $this->formato !== 'cuadro') {
+        // Aplica tanto al listado (?formato=lista) como al cuadro por defecto:
+        // el cuadro horario mezclaba jornadas dentro del mismo día (por eso el
+        // reporte salía "ordenado por horario"), así que ahora SIEMPRE que el
+        // orden sea 'jornada' se dibuja el agrupado por jornada.
+        if ($this->orden_reporte === 'jornada') {
             $html_j = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . '#1e3a5f; padding:5px 0 8px 0;">'
                     . 'Fixture de Competencia — Ordenado por Jornada'
                     . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
