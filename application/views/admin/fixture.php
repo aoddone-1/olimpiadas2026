@@ -372,6 +372,11 @@
            "Jornada" por "Eliminatorias".
          - Si la jornada tiene GRUPO mezclado con otras fases, conserva la
            etiqueta clásica "Jornada N".
+         - EXTRA (solo en esta vista): si el deporte de la categoría es
+           MASIVO / UN DIA (modalidad_competencia 'MASIVO_TIEMPO', fase
+           'JORNADA_UNICA' o tipo_duracion 'UNICO_DIA'), NO hace falta el
+           juego de palabras: toda la categoría se juega en un solo día, así
+           que el encabezado dice directamente "Jornada Única".
        En esta vista el agrupamiento es Deporte → Categoría → Jornada, así que
        el análisis se hace SOLO dentro de la categoría (los items del bloque),
        que es lo mismo que hace la planilla: _planilla_categoria() recorta
@@ -388,6 +393,13 @@
 
     function etiquetaJornada(items, numJornada) {
         const num = parseInt(numJornada, 10) || 0;
+        // Atajo MASIVO / UN DIA: si la categoría se juega en un solo día no hay
+        // trampita que hacer — la etiqueta es siempre "Jornada Única".
+        const esMasivoODia = (items || []).some(f =>
+            f.fase === 'JORNADA_UNICA'
+            || f.modalidad_competencia === 'MASIVO_TIEMPO'
+            || f.tipo_duracion === 'UNICO_DIA');
+        if (esMasivoODia) return 'Jornada Única';
         let hayGrupo = false, todasGrupo = true, vistas = 0;
         (items || []).forEach(f => {
             if ((parseInt(f.numero_fecha, 10) || 0) !== num) return;
@@ -672,9 +684,11 @@
                     // Etiqueta "mágica" de la jornada: Grupo X / Eliminatorias N / Jornada N
                     const etiqueta = etiquetaJornada(items, num);
                     const claseJornada = etiqueta.indexOf('Grupo') === 0 ? 'fx-jornada-grupo'
-                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'fx-jornada-elim' : 'fx-jornada-clasica');
+                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'fx-jornada-elim'
+                            : (etiqueta.indexOf('Jornada Única') === 0 ? 'fx-jornada-unica' : 'fx-jornada-clasica'));
                     const iconoJornada = etiqueta.indexOf('Grupo') === 0 ? 'bi-diagram-3'
-                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'bi-braces' : 'bi-calendar-week');
+                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'bi-braces'
+                            : (etiqueta.indexOf('Jornada Única') === 0 ? 'bi-sun' : 'bi-calendar-week'));
                     // Subencabezado destacado: banner de color según el tipo de
                     // jornada (así no queda "perdido" entre muchos partidos).
                     html += `<div class="fx-jornada-header ${claseJornada}">` +
