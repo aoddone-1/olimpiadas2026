@@ -571,6 +571,46 @@ class MYPDF extends TCPDF {
               
         $this->writeHTMLCell(0, 70, 300, 15, $html, 0, 1, 0, true, 'J', true);
 
+        /**
+         * TRAMPITA DE LAS JORNADAS (solo planillas de mesa de control):
+         * numero_fecha se usa como divisor de grupos. La regla es:
+         *   - Si TODOS los partidos de la jornada están en fase 'GRUPO', el
+         *     subencabezado dice "Grupo A" (jornada 1), "Grupo B" (jornada 2),
+         *     ... (con letras sucesivas).
+         *   - Si en esa jornada NO hay ningún partido en fase 'GRUPO' (o sea,
+         *     arrancaron cruces de eliminación directa), se reemplaza la
+         *     palabra "Jornada" por "Eliminatorias".
+         *   - Si la jornada tiene GRUPO mezclado con otras fases, conserva la
+         *     etiqueta clásica "Jornada N".
+         */
+        $_etiqueta_jornada = function ($num_jornada) {
+            $hay_grupo = FALSE;
+            $todas_grupo = TRUE;
+            foreach ($this->datos as $fx) {
+                if ((int) ($fx['numero_fecha'] ?? 0) !== $num_jornada) continue;
+                if (strtoupper(trim((string) ($fx['fase'] ?? ''))) === 'GRUPO') {
+                    $hay_grupo = TRUE;
+                } else {
+                    $todas_grupo = FALSE;
+                }
+            }
+            // Jornada 1 → Grupo A, 2 → B, ... (si se agotan las Z, sigue AA...).
+            $letra_grupo = function ($n) {
+                static $abecedario = array('A','B','C','D','E','F','G','H','I','J','K','L','M',
+                                           'N','O','P','Q','R','S','T','U','V','W','X','Y','Z');
+                if ($n >= 1 && $n <= count($abecedario)) return $abecedario[$n - 1];
+                return chr(64 + intdiv($n - 1, 26)) . '-' . $abecedario[($n - 1) % 26];
+            };
+            if ($todas_grupo && $hay_grupo && $num_jornada > 0) {
+                return 'Grupo ' . $letra_grupo($num_jornada);
+            }
+            if (!$hay_grupo && !$todas_grupo) {
+                // Ningún partido de esta jornada es de fase GRUPOS.
+                return $num_jornada > 0 ? 'Eliminatorias ' . $num_jornada : 'Eliminatorias';
+            }
+            return $num_jornada > 0 ? 'Jornada ' . $num_jornada : 'Jornada';
+        };
+
         $borde = 'border:1px solid #bdc3c7;';
         $c_head = '#1e3a5f';
 
@@ -888,7 +928,7 @@ class MYPDF extends TCPDF {
             $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
                    . '<thead><tr style="background-color:' . $c_head . '; color:#ffffff;">'
                    . '<th style="' . $borde . ' width:5%;">Nº</th>'
-                   . '<th style="' . $borde . ' width:14%;">FASE / JORNADA</th>'
+                   . '<th style="' . $borde . ' width:14%;">FASE / GRUPO</th>'
                    . '<th style="' . $borde . ' width:13%;">DÍA / HORA</th>'
                    . '<th style="' . $borde . ' width:24%;">EQUIPO A</th>'
                    . '<th style="' . $borde . ' width:24%;">EQUIPO B</th>'
@@ -930,7 +970,7 @@ class MYPDF extends TCPDF {
                                 if ($fj !== '') $fechas_jornada[$fj] = date('d/m/Y', strtotime($fj));
                             }
                         }
-                        $etiqueta_jornada = $num_jornada > 0 ? 'Jornada ' . $num_jornada : 'Jornada';
+                        $etiqueta_jornada = $_etiqueta_jornada($num_jornada);
                         if (count($fechas_jornada) > 1) {
                             $etiqueta_jornada .= ' (' . implode(' · ', array_values($fechas_jornada)) . ')';
                         } elseif (count($fechas_jornada) === 1) {
