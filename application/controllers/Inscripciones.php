@@ -888,11 +888,8 @@ class Inscripciones extends CI_Controller {
         $this->_fixture_no_cache_headers();
 
         // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
-        // defecto), 'horario' (Fecha → Hora → Deporte → Categoría) o 'jornada'
-        // (Jornada → Fecha → Hora).
-        $orden_get = $this->input->get('orden');
-        $orden = in_array($orden_get, array('horario', 'jornada'), TRUE)
-            ? $orden_get : 'deporte';
+        // defecto) u 'horario' (Fecha → Hora → Deporte → Categoría).
+        $orden = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
         try {
             // Auto-crear la jornada de los deportes masivos que aún no tienen
@@ -1473,14 +1470,9 @@ class Inscripciones extends CI_Controller {
         if ($ancho_franja < 1) $ancho_franja = 1;
         if ($ancho_franja > 12) $ancho_franja = 12;
 
-        // Orden del reporte: POR DEFECTO 'jornada' → el fixture se agrupa por
-        // JORNADA ("Jornada 1" y todos sus partidos, después "Jornada 2", …) y
-        // dentro de cada jornada se ordena por fecha y hora. Con ?orden=horario
-        // sale por Fecha → Hora, y con ?orden=deporte por Deporte → Categoría →
-        // Fecha → Hora (comportamientos anteriores, siguen disponibles).
-        $orden_get = $this->input->get('orden');
-        $orden_reporte = in_array($orden_get, array('horario', 'deporte'), TRUE)
-            ? $orden_get : 'jornada';
+        // Orden del listado: con ?orden=horario las filas salen por Fecha → Hora
+        // (en vez de Deporte → Categoría → Fecha → Hora).
+        $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
         // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
         // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),

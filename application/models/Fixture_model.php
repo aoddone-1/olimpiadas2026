@@ -478,15 +478,12 @@ class Fixture_model extends CI_Model {
      * Devuelve TODO el fixture de todas las categorías (vista general sin filtros).
      * Opciones:
      *  - $id_deporte (> 0): filtra por deporte.
-     *  - $orden ('horario' | 'jornada' | 'deporte'): cómo se agrupa/ordena el listado.
-     *    'jornada' (POR DEFECTO) ordena por Jornada (numero_fecha) → Fecha →
-     *    Hora: primero TODOS los partidos de la jornada 1, después los de la
-     *    jornada 2, etc.; la jornada manda siempre sobre la fecha del
-     *    calendario; 'horario' ordena por Fecha → Hora → Deporte → Categoría
-     *    (para ver el día a día cronológicamente); 'deporte' mantiene el
-     *    orden Deporte → Categoría → Fecha → Hora.
+     *  - $orden ('horario' | 'deporte'): cómo se agrupa/ordena el listado.
+     *    'horario' ordena por Fecha → Hora → Deporte → Categoría (para ver el
+     *    día a día cronológicamente); 'deporte' (por defecto) mantiene el orden
+     *    Deporte → Categoría → Fecha → Hora.
      */
-    public function obtener_todo_el_fixture($id_deporte = null, $orden = 'jornada') {
+    public function obtener_todo_el_fixture($id_deporte = null, $orden = 'deporte') {
         $this->db->select('
             f.*,
             u1.nombre_ute as ute_1_nombre,
@@ -532,25 +529,6 @@ class Fixture_model extends CI_Model {
                     strtolower((string) ($b['nombre_categoria'] ?? '')),
                     (int) ($b['numero_fecha'] ?? 0),
                 ];
-            });
-        } elseif ($orden === 'jornada') {
-            // Orden por JORNADA del torneo: numero_fecha → fecha → hora. La
-            // jornada manda SIEMPRE sobre la fecha del calendario y sobre la
-            // etapa (fase): primero TODOS los partidos de la Jornada 1, después
-            // los de la Jornada 2, etc.; dentro de cada jornada se ordena por
-            // fecha y hora (mismo criterio que _clave_jornada_simple de la
-            // vista admin/reporte_fixture.php).
-            $clave = function ($f) {
-                return array(
-                    (int) ($f['numero_fecha'] ?? 0),
-                    (string) ($f['fecha_competencia'] ?? ''),
-                    (string) ($f['hora_inicio'] ?? ''),
-                    strtolower((string) ($f['nombre_deporte'] ?? '')),
-                    strtolower((string) ($f['nombre_categoria'] ?? '')),
-                );
-            };
-            usort($fixtures, function ($a, $b) use ($clave) {
-                return $clave($a) <=> $clave($b);
             });
         }
 
