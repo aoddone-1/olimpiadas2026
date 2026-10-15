@@ -370,18 +370,23 @@ class MYPDF extends TCPDF {
         // El pedido del reporte es: "Jornada 1" y abajo TODOS sus partidos
         // (ordenados por fecha y hora), después "Jornada 2", etc. Se imprime
         // una sección con título de jornada por cada numero_fecha presente.
-        // Este bloque atiende el listado (?formato=lista) y cualquier orden
-        // alternativo; el cuadro por defecto (?orden=jornada sin más) se dibuja
-        // más abajo con columnas por JORNADA (la celda que antes mostraba la
-        // fecha ahora muestra la jornada y debajo se agrupan sus partidos).
-        if ($this->orden_reporte === 'jornada' && $this->formato !== 'cuadro') {
+        // Este bloque atiende el listado (?formato=lista) y CUALQUIER cuadro
+        // pedido por jornada —incluido el predeterminado y el que sale cuando
+        // el usuario baja el PDF con un día filtrado (?dia=...), donde las
+        // columnas serían días—: si $orden_reporte sigue siendo 'jornada' y
+        // no se pidió explícitamente el horario alternativo, SIEMPRE gana la
+        // agrupación por jornada (nunca se cae al viejo cuadro de columnas
+        // por fecha, que era el motivo por el que seguía apareciendo la fila
+        // con la fecha en lugar de "Jornada N").
+        if ($this->orden_reporte === 'jornada'
+            && !in_array($this->formato, array('horario', 'franja'), TRUE)) {
             $html_j = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . '#1e3a5f; padding:5px 0 8px 0;">'
                     . 'Fixture de Competencia — Ordenado por Jornada'
                     . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
                     . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
                     . '</div>'
                     . '<div style="text-align:center; font-size:9pt; color:#7f8c8d; padding-bottom:12px;">'
-                    . $esc($rango_txt) . '</div>';
+                    . $esc($rango_txt) . ' &nbsp;·&nbsp; [PLANTILLA JORNADAS v2]</div>';
             $this->writeHTML($html_j, true, false, true, false, '');
 
             $_primera_j = TRUE;
@@ -453,6 +458,12 @@ class MYPDF extends TCPDF {
             return;
         }
 
+        // Blindaje anti-caché: si el navegador trae una versión vieja del PDF
+        // (o el servidor sirve una plantilla cacheada), el título permite
+        // verificar de un vistazo qué código se está ejecutando realmente.
+        $this->titulo_encabezado .= ' | PLANTILLA JORNADAS v2';
+        $marca_version = ' &nbsp;·&nbsp; [PLANTILLA JORNADAS v2]';
+
         // ====== COLORES ======
         $c_primary   = '#1e3a5f';
         $c_secondary = '#3498db';
@@ -475,7 +486,7 @@ class MYPDF extends TCPDF {
                      . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
                      . '</div>'
                      . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">'
-                     . $esc($rango_txt) . '</div>';
+                     . $esc($rango_txt) . ' &nbsp;·&nbsp; [PLANTILLA JORNADAS v2]</div>';
             $this->writeHTML($html_jc, true, false, true, false, '');
 
             // Partidos de cada jornada, ordenados por fecha → hora.
@@ -686,7 +697,7 @@ class MYPDF extends TCPDF {
             
             // Encabezado
             $html_bloque = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
-                        . 'Fixture de Competencia — Cuadro General'
+                        . 'Fixture de Competencia — Cuadro General [PLANTILLA JORNADAS v2]'
                         . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
                         . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
                         . '</div>'
