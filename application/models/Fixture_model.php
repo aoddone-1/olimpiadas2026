@@ -478,10 +478,12 @@ class Fixture_model extends CI_Model {
      * Devuelve TODO el fixture de todas las categorías (vista general sin filtros).
      * Opciones:
      *  - $id_deporte (> 0): filtra por deporte.
-     *  - $orden ('horario' | 'deporte'): cómo se agrupa/ordena el listado.
+     *  - $orden ('horario' | 'jornada' | 'deporte'): cómo se agrupa/ordena el listado.
      *    'horario' ordena por Fecha → Hora → Deporte → Categoría (para ver el
-     *    día a día cronológicamente); 'deporte' (por defecto) mantiene el orden
-     *    Deporte → Categoría → Fecha → Hora.
+     *    día a día cronológicamente); 'jornada' ordena por Jornada (etapa del
+     *    torneo + numero_fecha) → Fecha → Hora, priorizando las jornadas aunque
+     *    estén desalineadas con las fechas; 'deporte' (por defecto) mantiene el
+     *    orden Deporte → Categoría → Fecha → Hora.
      */
     public function obtener_todo_el_fixture($id_deporte = null, $orden = 'deporte') {
         $this->db->select('
@@ -529,6 +531,41 @@ class Fixture_model extends CI_Model {
                     strtolower((string) ($b['nombre_categoria'] ?? '')),
                     (int) ($b['numero_fecha'] ?? 0),
                 ];
+            });
+        } elseif ($orden === 'jornada') {
+            // Orden por JORNADA del torneo: etapa (fase) → numero_fecha →
+            // fecha → hora. Las jornadas tienen prioridad sobre las fechas del
+            // calendario (mismo criterio que la clave _clave_jornada de la
+            // vista admin/reporte_fixture.php).
+            static $orden_fases = array(
+                'JORNADA_UNICA' => 5, 'GRUPO' => 10, '16AVOS' => 30, 'OCTAVOS' => 40,
+                'CUARTOS' => 50, 'SEMIFINAL' => 60, 'TERCER_PUESTO' => 70, 'FINAL' => 80,
+            );
+            $clave = function ($f) use ($orden_fases) {
+                $fase = strtoupper(trim((string) ($f['fase'] ?? '')));
+                if ($fase !== '' && isset($orden_fases[$fase])) {
+                    $orden_fase = $orden_fases[$fase];
+                } else {
+                    switch ((int) ($f['numero_fecha'] ?? 0)) {
+                        case 1:  $orden_fase = 10; break; // Fase de Grupos
+                        case 2:  $orden_fase = 40; break; // Octavos de Final
+                        case 3:  $orden_fase = 50; break; // Cuartos de Final
+                        case 4:  $orden_fase = 60; break; // Semifinal
+                        case 5:  $orden_fase = 70; break; // Tercer Puesto
+                        default: $orden_fase = 80;        // Final / jornadas siguientes
+                    }
+                }
+                return array(
+                    $orden_fase,
+                    (int) ($f['numero_fecha'] ?? 0),
+                    (string) ($f['fecha_competencia'] ?? ''),
+                    (string) ($f['hora_inicio'] ?? ''),
+                    strtolower((string) ($f['nombre_deporte'] ?? '')),
+                    strtolower((string) ($f['nombre_categoria'] ?? '')),
+                );
+            };
+            usort($fixtures, function ($a, $b) use ($clave) {
+                return $clave($a) <=> $clave($b);
             });
         }
 
