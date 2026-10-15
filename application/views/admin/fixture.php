@@ -363,6 +363,49 @@
         return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
+    /* ---------- TRAMPITA DE LAS JORNADAS (espejo de reporte_fixture.php) ----------
+       numero_fecha se usa como divisor de grupos. La regla es:
+         - Si TODOS los partidos de la jornada están en fase 'GRUPO', el título
+           dice "Grupo A" (jornada 1), "Grupo B" (jornada 2), ... (letras sucesivas).
+         - Si en esa jornada NO hay ningún partido en fase 'GRUPO' (o sea,
+           arrancaron cruces de eliminación directa), se reemplaza la palabra
+           "Jornada" por "Eliminatorias".
+         - Si la jornada tiene GRUPO mezclado con otras fases, conserva la
+           etiqueta clásica "Jornada N".
+       En esta vista el agrupamiento es Deporte → Categoría → Jornada, así que
+       el análisis se hace SOLO dentro de la categoría (los items del bloque),
+       que es lo mismo que hace la planilla: _planilla_categoria() recorta
+       $this->datos a las filas de una categoría antes de llamar al juego de
+       palabras. */
+    function letraGrupo(n) {
+        // Jornada 1 → A, 2 → B, ... (si se agotan las Z, sigue AA...).
+        const abecedario = ['A','B','C','D','E','F','G','H','I','J','K','L','M',
+                            'N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
+        n = Math.floor(Number(n));
+        if (n >= 1 && n <= abecedario.length) return abecedario[n - 1];
+        return String.fromCharCode(64 + Math.floor((n - 1) / 26)) + '-' + abecedario[(n - 1) % 26];
+    }
+
+    function etiquetaJornada(items, numJornada) {
+        const num = parseInt(numJornada, 10) || 0;
+        let hayGrupo = false, todasGrupo = true, vistas = 0;
+        (items || []).forEach(f => {
+            if ((parseInt(f.numero_fecha, 10) || 0) !== num) return;
+            vistas++;
+            if (String(f.fase == null ? '' : f.fase).trim().toUpperCase() === 'GRUPO') {
+                hayGrupo = true;
+            } else {
+                todasGrupo = false;
+            }
+        });
+        if (todasGrupo && hayGrupo && num > 0) return 'Grupo ' + letraGrupo(num);
+        // Ninguna fila de la jornada está en fase GRUPOS (hay filas para poder afirmarlo).
+        if (!hayGrupo && !todasGrupo && vistas > 0) {
+            return num > 0 ? 'Eliminatorias ' + num : 'Eliminatorias';
+        }
+        return num > 0 ? 'Jornada ' + num : 'Jornada';
+    }
+
     function mensaje(texto, tipo) {
         // Guard: si el elemento #fx_mensaje no existe (o el script corre antes
         // de que esté en el DOM), NO hay que romper toda la cadena del AJAX.
@@ -626,7 +669,11 @@
                 });
 
                 Object.keys(jornadas).sort((a, b) => a - b).forEach(num => {
-                    html += `<h6 class="fw-bold mt-1 mb-1 small"><i class="bi bi-calendar-week me-1"></i>Jornada ${esc(num)}</h6>`;
+                    // Etiqueta "mágica" de la jornada: Grupo X / Eliminatorias N / Jornada N
+                    const etiqueta = etiquetaJornada(items, num);
+                    const iconoJornada = etiqueta.indexOf('Grupo') === 0 ? 'bi-diagram-3'
+                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'bi-braces' : 'bi-calendar-week');
+                    html += `<h6 class="fw-bold mt-1 mb-1 small"><i class="bi ${iconoJornada} me-1"></i>${esc(etiqueta)}</h6>`;
                     html += '<div class="list-group mb-2">';
                     jornadas[num].forEach(f => {
                     const esMasivo = f.fase === 'JORNADA_UNICA'
