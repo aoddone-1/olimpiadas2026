@@ -458,6 +458,13 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     border-left-color: #2a5298;
 }
 .fx-jornada-clasica .fx-jornada-icon { color: #2a5298; }
+/* Jornada Única (deporte MASIVO / UN DIA): ámbar/dorado */
+.fx-jornada-unica {
+    background: linear-gradient(90deg, #fdf6e3 0%, #fbf9f2 100%);
+    color: #7d5c14;
+    border-left-color: #d9a520;
+}
+.fx-jornada-unica .fx-jornada-icon { color: #d9a520; }
 /* La primera jornada del bloque no necesita tanto aire arriba */
 .fx-jornada-header:first-child { margin-top: .25rem; }
 @media (max-width: 576px) {
