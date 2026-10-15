@@ -41,6 +41,16 @@
                                                     <span class="badge bg-dark border-0" style="font-size:0.65rem;">
                                                         <i class="bi bi-people-fill me-1"></i><?= intval($d['total_inscriptos'] ?? 0) ?> Inscriptos
                                                     </span>
+                                                    <?php $tot_fx = intval($d['total_fixtures'] ?? 0); ?>
+                                                    <?php if ($tot_fx > 0): ?>
+                                                        <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size:0.65rem;" title="Este deporte tiene cronograma cargado">
+                                                            <i class="bi bi-calendar-check-fill me-1"></i>Fixture cargado (<?= $tot_fx ?>)
+                                                        </span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" style="font-size:0.65rem;" title="Este deporte aún no tiene partidos en el fixture">
+                                                            <i class="bi bi-calendar-x-fill me-1"></i>Sin fixture
+                                                        </span>
+                                                    <?php endif; ?>
                                                     <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:0.65rem;">
                                                         <i class="bi bi-gender-female me-1"></i><?= intval($d['total_mujeres'] ?? 0) ?> Mujeres
                                                     </span>
