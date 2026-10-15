@@ -1405,6 +1405,42 @@ class Inscripciones extends CI_Controller {
     }
 
 
+    /**
+     * Descarga las planillas VACÍAS (PDF fijo de assets/docs/planillas_vacias.pdf):
+     * 2 páginas para completar a mano (participantes / partidos). No depende de
+     * filtros ni de la BD; se sirve con readfile() para que quede dentro del
+     * controlador y funcione aunque los assets estáticos no sean accesibles.
+     */
+    public function descargar_planillas_vacias() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $ruta_archivo = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'planillas_vacias.pdf';
+
+        if (!is_file($ruta_archivo) || !is_readable($ruta_archivo)) {
+            show_error('No se encontró el archivo de planillas vacías.', 404);
+            return;
+        }
+
+        // Evitar que el output previo (buffers de CI) corrompa el PDF.
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        $nombre_archivo = 'planillas_vacias_' . date('Y-m-d') . '.pdf';
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $nombre_archivo . '"');
+        header('Content-Length: ' . filesize($ruta_archivo));
+        header('Cache-Control: public, must-revalidate');
+        header('Pragma: public');
+
+        readfile($ruta_archivo);
+        exit;
+    }
+
     /** Nombre de un deporte por id (NULL si no existe). */
     private function _nombre_deporte($id_deporte) {
         $this->load->model('Deporte_model');
