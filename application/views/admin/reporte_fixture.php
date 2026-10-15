@@ -321,8 +321,10 @@ class MYPDF extends TCPDF {
         $dias = array_keys($dias);
         sort($dias);
 
-        /** Jornadas presentes (numero_fecha), en orden ascending. Solo se usan
-         *  como agrupamiento visible cuando el reporte sale por JORNADA. */
+        /** Jornadas presentes (numero_fecha), en orden ascending. Son el único
+         *  criterio de agrupamiento visible del reporte: la celda que antes
+         *  mostraba la fecha del calendario ahora muestra "JORNADA N" y todos
+         *  los partidos de esa jornada quedan agrupados debajo. */
         $jornadas = array();
         foreach ($this->datos as $fila) {
             $jf = (int) ($fila['numero_fecha'] ?? 0);
@@ -330,6 +332,15 @@ class MYPDF extends TCPDF {
         }
         $jornadas = array_keys($jornadas);
         sort($jornadas);
+
+        /** Fechas de calendario de cada jornada (para el subtítulo de la
+         *  sección, p. ej. "JORNADA 1 — 02/11/2026"). */
+        $fechas_por_jornada = array();
+        foreach ($this->datos as $fila) {
+            $jn = (int) ($fila['numero_fecha'] ?? 0);
+            $fd = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
+            if ($fd !== '') $fechas_por_jornada[$jn][$fd] = true;
+        }
 
         $fase_bonito = function ($fase) {
             $map = array(
@@ -355,15 +366,15 @@ class MYPDF extends TCPDF {
             return;
         }
 
-        // ====== AGRUPADO POR JORNADA (orden 'jornada', TODOS los formatos) ======
+        // ====== LISTADO AGRUPADO POR JORNADA (orden 'jornada', ?formato=lista) ======
         // El pedido del reporte es: "Jornada 1" y abajo TODOS sus partidos
         // (ordenados por fecha y hora), después "Jornada 2", etc. Se imprime
         // una sección con título de jornada por cada numero_fecha presente.
-        // Aplica tanto al listado (?formato=lista) como al cuadro por defecto:
-        // el cuadro horario mezclaba jornadas dentro del mismo día (por eso el
-        // reporte salía "ordenado por horario"), así que ahora SIEMPRE que el
-        // orden sea 'jornada' se dibuja el agrupado por jornada.
-        if ($this->orden_reporte === 'jornada') {
+        // Este bloque atiende el listado (?formato=lista) y cualquier orden
+        // alternativo; el cuadro por defecto (?orden=jornada sin más) se dibuja
+        // más abajo con columnas por JORNADA (la celda que antes mostraba la
+        // fecha ahora muestra la jornada y debajo se agrupan sus partidos).
+        if ($this->orden_reporte === 'jornada' && $this->formato !== 'cuadro') {
             $html_j = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . '#1e3a5f; padding:5px 0 8px 0;">'
                     . 'Fixture de Competencia — Ordenado por Jornada'
                     . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
@@ -387,8 +398,17 @@ class MYPDF extends TCPDF {
                 $_primera_j = FALSE;
 
                 $titulo_j = $jn > 0 ? ('JORNADA ' . $jn) : 'SIN JORNADA';
+                // Subtítulo con las fechas de calendario que caen en la jornada
+                // (p. ej. "02/11/2026"), para no perder ese dato ahora que la
+                // celda que mostraba la fecha pasó a mostrar la jornada.
+                $fj = isset($fechas_por_jornada[$jn]) ? array_keys($fechas_por_jornada[$jn]) : array();
+                sort($fj);
+                $fechas_txt = $fj
+                    ? implode(' · ', array_map(function ($x) { return date('d/m/Y', strtotime($x)); }, $fj))
+                    : '';
                 $html = '<div style="font-size:14pt; font-weight:bold; color:#ffffff; background-color:#1e3a5f;'
                       . ' padding:6px 10px; margin-bottom:8px;">' . $esc($titulo_j)
+                      . ($fechas_txt !== '' ? ' <span style="font-size:9pt; font-weight:normal;">— ' . $esc($fechas_txt) . '</span>' : '')
                       . ' <span style="font-size:9pt; font-weight:normal;">(' . count($filas_j) . ' partido/s)</span></div>';
 
                 $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
@@ -443,16 +463,175 @@ class MYPDF extends TCPDF {
         $c_white     = '#ffffff';
         $c_alt       = '#f8f9fa';
 
+        /** Cuadro por jornada: cada COLUMNA es una JORNADA ("Jornada 1",
+         *  "Jornada 2", …) y debajo se agrupan TODOS sus partidos, ordenados
+         *  por fecha y hora. Reemplaza al cuadro de columnas por día del
+         *  calendario (antes la celda mostraba "2026-11-02" y los partidos se
+         *  mezclaban por hora dentro del día). */
+        if ($this->formato === 'cuadro') {
+            $html_jc = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . $c_primary . '; padding:5px 0 8px 0;">'
+                     . 'Fixture de Competencia — Ordenado por Jornada'
+                     . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
+                     . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
+                     . '</div>'
+                     . '<div style="text-align:center; font-size:9pt; color:' . $c_muted . '; padding-bottom:12px;">'
+                     . $esc($rango_txt) . '</div>';
+            $this->writeHTML($html_jc, true, false, true, false, '');
+
+            // Partidos de cada jornada, ordenados por fecha → hora.
+            $filas_por_jornada = array();
+            foreach ($jornadas as $jn) {
+                $fs = array_values(array_filter($this->datos, function ($f) use ($jn) {
+                    return (int) ($f['numero_fecha'] ?? 0) === $jn;
+                }));
+                usort($fs, function ($a, $b) {
+                    return self::_clave_jornada_simple($a) <=> self::_clave_jornada_simple($b);
+                });
+                $filas_por_jornada[$jn] = $fs;
+            }
+
+            // Hasta 5 jornadas por página (hoja horizontal), como el cuadro anterior.
+            $por_bloque = 5;
+            $bloques = array();
+            for ($b = 0; $b < count($jornadas); $b += $por_bloque) {
+                $bloques[] = array_slice($jornadas, $b, $por_bloque);
+            }
+            if (!$bloques) $bloques = array(array());
+
+            $dias_cortos = array('DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB');
+            $w_col = 100 / max(1, $por_bloque);
+
+            foreach ($bloques as $bi => $bloque) {
+                if ($bi > 0) {
+                    $this->AddPage('L', 'A4');
+                }
+
+                $html_bloque = '';
+                if (count($bloques) > 1) {
+                    $html_bloque .= '<div style="text-align:right; font-size:8pt; color:' . $c_muted . '; padding-bottom:8px;">'
+                                . 'Página ' . ($bi + 1) . ' de ' . count($bloques)
+                                . ' &nbsp;·&nbsp; Jornadas ' . ($bi * $por_bloque + 1) . '–'
+                                . ($bi * $por_bloque + count($bloque)) . ' de ' . count($jornadas) . '</div>';
+                }
+
+                if (!$bloque) {
+                    $html_bloque .= '<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>';
+                    $this->writeHTML($html_bloque, true, false, true, false, '');
+                    continue;
+                }
+
+                // Completar con columnas vacías si hay menos de 5 jornadas.
+                while (count($bloque) < $por_bloque) {
+                    $bloque[] = null;
+                }
+
+                $html_bloque .= '<table cellpadding="3" cellspacing="0" border="1" style="border-color:' . $c_border . '; border-collapse:collapse; width:100%; font-size:7pt; color:' . $c_text . ';">';
+
+                // Encabezado: una columna por JORNADA (la celda que antes tenía
+                // la fecha del calendario ahora dice "Jornada N").
+                $html_bloque .= '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">';
+                foreach ($bloque as $jn) {
+                    if ($jn === null) {
+                        $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . '; background-color:' . $c_light . ';"></th>';
+                        continue;
+                    }
+                    $titulo_col = $jn > 0 ? ('Jornada ' . $jn) : 'Sin jornada';
+                    $fj = isset($fechas_por_jornada[$jn]) ? array_keys($fechas_por_jornada[$jn]) : array();
+                    sort($fj);
+                    $sub_col = $fj
+                        ? implode(' · ', array_map(function ($x) {
+                            $ts = strtotime($x);
+                            return $dias_cortos[(int) date('w', $ts)] . ' ' . date('d/m', $ts);
+                          }, $fj))
+                        : '';
+                    $html_bloque .= '<th style="width:' . $w_col . '%; padding:6px 4px; text-align:center; border:1px solid ' . $c_border . ';">'
+                                . '<div style="font-size:11pt; font-weight:bold; letter-spacing:1px;">' . $esc($titulo_col) . '</div>'
+                                . ($sub_col !== '' ? '<div style="font-size:8pt; opacity:0.9;">' . $esc($sub_col) . '</div>' : '')
+                                . '<div style="font-size:7pt; opacity:0.8;">' . count($filas_por_jornada[$jn]) . ' partido/s</div>'
+                                . '</th>';
+                }
+                $html_bloque .= '</tr></thead><tbody><tr>';
+
+                // Cuerpo: en cada celda, TODOS los partidos de esa jornada
+                // agrupados y ordenados por fecha → hora.
+                foreach ($bloque as $jn) {
+                    if ($jn === null) {
+                        $html_bloque .= '<td style="background-color:' . $c_light . '; border:1px solid ' . $c_border . ';">&nbsp;</td>';
+                        continue;
+                    }
+                    $partidos = $filas_por_jornada[$jn];
+                    if (empty($partidos)) {
+                        $html_bloque .= '<td style="background-color:' . $c_white . '; border:1px solid ' . $c_border . '; color:' . $c_muted . '; text-align:center; font-style:italic; font-size:6pt;">—</td>';
+                        continue;
+                    }
+
+                    $cel = '';
+                    $fecha_actual = null;
+                    $n = 0;
+                    foreach ($partidos as $p) {
+                        $n++;
+                        $fecha = substr((string) ($p['fecha_competencia'] ?? ''), 0, 10);
+                        // Subtítulo de día cuando cambia dentro de la jornada
+                        // (una jornada puede jugarse en más de un día).
+                        if ($fecha !== '' && $fecha !== $fecha_actual) {
+                            $fecha_actual = $fecha;
+                            $ts = strtotime($fecha);
+                            $cel .= '<div style="font-size:7.5pt; font-weight:bold; color:' . $c_primary . '; background-color:' . $c_light . '; padding:1px 4px; margin:2px 0;">'
+                                 . $esc($dias_cortos[(int) date('w', $ts)] . ' ' . date('d/m/Y', $ts))
+                                 . '</div>';
+                        }
+
+                        if ($n > 1) {
+                            $cel .= '<hr style="border:none; border-top:1px dashed ' . $c_border . '; margin:4px 0;"/>';
+                        }
+
+                        $dc = trim(($p['nombre_deporte'] ?? '') . ' - Cat.' . ($p['nombre_categoria'] ?? ''));
+                        $cel .= '<div style="margin-bottom:2px;">'
+                            . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">'
+                            . $n . '. ' . $esc($horario($p))
+                            . ($dc !== '' && $dc !== 'Cat.' ? ' · ' . $esc($dc) : '')
+                            . '</div>';
+
+                        $vs_html = $equipos($p);
+                        if ($vs_html === NULL || trim((string) $vs_html) === '') {
+                            $vs_texto = $equipos_texto($p);
+                            $vs_html = ($vs_texto !== NULL && trim((string) $vs_texto) !== '')
+                                ? $esc($vs_texto) : NULL;
+                        }
+                        if ($vs_html != null) {
+                            $cel .= '<div style="font-size:7pt; margin:2px 0;">' . $vs_html . '</div>';
+                        }
+
+                        $fase_txt = $fase_bonito(strtoupper(trim((string) ($p['fase'] ?? ''))));
+                        if ($fase_txt !== '') {
+                            $cel .= '<div style="font-size:6pt; color:' . $c_muted . '; font-style:italic;">' . $esc($fase_txt) . '</div>';
+                        }
+
+                        if (!empty($p['lugar_nombre'])) {
+                            $cel .= '<div style="font-size:6pt; color:' . $c_muted . ';"> Lugar: ' . $esc($p['lugar_nombre']) . '</div>';
+                        }
+
+                        $cel .= '</div>';
+                    }
+                    $html_bloque .= '<td style="padding:3px; border:1px solid ' . $c_border . '; vertical-align:top;">' . $cel . '</td>';
+                }
+                $html_bloque .= '</tr></tbody></table>';
+
+                $this->writeHTML($html_bloque, true, false, true, false, '');
+            }
+            return;
+        }
+
         /** Etiqueta legible de la jornada de una fila ("Jornada 3"); en el
-         *  cuadro general se imprime dentro de cada celda para que, al estar
-         *  los partidos ordenados por jornada, se vean bloques "Jornada 1",
-         *  "Jornada 2", … tanto vertical como horizontalmente. */
+         *  listado alternativo se imprime dentro de cada celda para que, al
+         *  estar los partidos ordenados por jornada, se vean bloques
+         *  "Jornada 1", "Jornada 2", … tanto vertical como horizontalmente. */
         $etiqueta_jornada = function ($p) {
             $jn = (int) ($p['numero_fecha'] ?? 0);
             return $jn > 0 ? ('Jornada ' . $jn) : '';
         };
 
-        // ====== FORMATO CUADRO - EXACTAMENTE 5 DÍAS ======
+        // ====== CUADRO HORARIO ALTERNATIVO (solo con ?orden=horario o ?orden=deporte) ======
         $ancho = max(1, (int) $this->ancho_franja);
         $min_hora = null;
         $max_hora = null;
