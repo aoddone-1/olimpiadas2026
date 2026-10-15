@@ -471,3 +471,10 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     .fx-jornada-header { font-size: .88rem; padding: .35rem .6rem; }
     .fx-jornada-icon { width: 24px; height: 24px; font-size: .85rem; }
 }
+
+/* ============================================================
+   Título colapsable del deporte (fixture.php)
+   La flechita rota suavemente al abrir/cerrar el bloque.
+   ============================================================ */
+.fx-deporte-titulo { cursor: pointer; }
+.fx-chev { transition: transform .15s ease-in-out; }
