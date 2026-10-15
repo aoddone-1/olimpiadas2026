@@ -1473,12 +1473,14 @@ class Inscripciones extends CI_Controller {
         if ($ancho_franja < 1) $ancho_franja = 1;
         if ($ancho_franja > 12) $ancho_franja = 12;
 
-        // Orden del listado: con ?orden=horario las filas salen por Fecha → Hora
-        // y con ?orden=jornada por Jornada → Fecha → Hora (en vez del orden
-        // por defecto Deporte → Categoría → Fecha → Hora).
+        // Orden del reporte: POR DEFECTO 'jornada' → el fixture se agrupa por
+        // JORNADA ("Jornada 1" y todos sus partidos, después "Jornada 2", …) y
+        // dentro de cada jornada se ordena por fecha y hora. Con ?orden=horario
+        // sale por Fecha → Hora, y con ?orden=deporte por Deporte → Categoría →
+        // Fecha → Hora (comportamientos anteriores, siguen disponibles).
         $orden_get = $this->input->get('orden');
-        $orden_reporte = in_array($orden_get, array('horario', 'jornada'), TRUE)
-            ? $orden_get : 'deporte';
+        $orden_reporte = in_array($orden_get, array('horario', 'deporte'), TRUE)
+            ? $orden_get : 'jornada';
 
         // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
         // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),
