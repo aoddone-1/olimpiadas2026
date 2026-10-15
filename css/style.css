@@ -395,3 +395,72 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     .fx-loading .fx-vacio-icon { animation-duration: 1.6s; }
     .fx-skeleton::after { animation: none; }
 }
+
+/* ============================================================
+   Subencabezados de JORNADA destacados (fixture.php)
+   Antes eran un <h6 small> que quedaba "perdido" entre listas
+   largas de partidos; ahora son banners de color según el tipo
+   de jornada (Grupo / Eliminatorias / Jornada clásica).
+   ============================================================ */
+.fx-jornada-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: .9rem 0 .5rem;
+    padding: .4rem .75rem;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: .95rem;
+    letter-spacing: .02em;
+    border-left: 5px solid transparent;
+    box-shadow: 0 1px 3px rgba(30, 60, 114, .12);
+}
+.fx-jornada-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .85);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.fx-jornada-texto { flex: 1 1 auto; }
+.fx-jornada-cuenta {
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .15rem .5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .8);
+    color: inherit;
+    opacity: .9;
+    white-space: nowrap;
+}
+/* Grupo: verde (fase de grupos de la planilla) */
+.fx-jornada-grupo {
+    background: linear-gradient(90deg, #e3f6ea 0%, #f2fbf5 100%);
+    color: #1e6b3c;
+    border-left-color: #2f9e57;
+}
+.fx-jornada-grupo .fx-jornada-icon { color: #2f9e57; }
+/* Eliminatorias: rojo/orange (eliminación directa) */
+.fx-jornada-elim {
+    background: linear-gradient(90deg, #fdeaea 0%, #fdf4f2 100%);
+    color: #a03123;
+    border-left-color: #d9534f;
+}
+.fx-jornada-elim .fx-jornada-icon { color: #d9534f; }
+/* Jornada clásica (mezcla o sin fase GRUPO identificable): azul */
+.fx-jornada-clasica {
+    background: linear-gradient(90deg, #e7f0fd 0%, #f3f8fe 100%);
+    color: #1e3c72;
+    border-left-color: #2a5298;
+}
+.fx-jornada-clasica .fx-jornada-icon { color: #2a5298; }
+/* La primera jornada del bloque no necesita tanto aire arriba */
+.fx-jornada-header:first-child { margin-top: .25rem; }
+@media (max-width: 576px) {
+    .fx-jornada-header { font-size: .88rem; padding: .35rem .6rem; }
+    .fx-jornada-icon { width: 24px; height: 24px; font-size: .85rem; }
+}

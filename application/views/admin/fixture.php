@@ -671,9 +671,17 @@
                 Object.keys(jornadas).sort((a, b) => a - b).forEach(num => {
                     // Etiqueta "mágica" de la jornada: Grupo X / Eliminatorias N / Jornada N
                     const etiqueta = etiquetaJornada(items, num);
+                    const claseJornada = etiqueta.indexOf('Grupo') === 0 ? 'fx-jornada-grupo'
+                        : (etiqueta.indexOf('Eliminatorias') === 0 ? 'fx-jornada-elim' : 'fx-jornada-clasica');
                     const iconoJornada = etiqueta.indexOf('Grupo') === 0 ? 'bi-diagram-3'
                         : (etiqueta.indexOf('Eliminatorias') === 0 ? 'bi-braces' : 'bi-calendar-week');
-                    html += `<h6 class="fw-bold mt-1 mb-1 small"><i class="bi ${iconoJornada} me-1"></i>${esc(etiqueta)}</h6>`;
+                    // Subencabezado destacado: banner de color según el tipo de
+                    // jornada (así no queda "perdido" entre muchos partidos).
+                    html += `<div class="fx-jornada-header ${claseJornada}">` +
+                        `<span class="fx-jornada-icon"><i class="bi ${iconoJornada}"></i></span>` +
+                        `<span class="fx-jornada-texto">${esc(etiqueta)}</span>` +
+                        `<span class="fx-jornada-cuenta">${jornadas[num].length} partido/s</span>` +
+                        `</div>`;
                     html += '<div class="list-group mb-2">';
                     jornadas[num].forEach(f => {
                     const esMasivo = f.fase === 'JORNADA_UNICA'
