@@ -641,7 +641,7 @@
                     <span class="d-flex align-items-center flex-wrap gap-1">
                         <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 fx-deporte-titulo fw-bold"
                                 type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="${colapsarPorDefecto ? 'false' : 'true'}">
-                            <i class="bi bi-chevron-down fx-chev"></i>
+                            <i class="bi bi-chevron-right fx-chev"></i>
                             <i class="bi bi-trophy-fill"></i>
                             <span>${esc(deporte)}</span>
                         </button>
@@ -771,11 +771,26 @@
         });
         lista.innerHTML = html;
 
-        // Rotar la flechita del header del deporte al abrir/cerrar
+        // Rotar la flechita del header del deporte al abrir/cerrar.
+        // Además, se arma un "acordeón" a mano: al abrir un deporte se cierran
+        // los demás (y su flecha vuelve sola gracias a hidden.bs.collapse).
+        // Se hace así, y no con data-bs-parent, porque el contenedor (#fx_lista)
+        // también tiene bloques .collapse de otros modales; si no filtramos,
+        // Bootstrap intenta cerrarlos y lanza errores que rompen el handler del
+        // botón — por eso antes "tocás y no se cierra".
         lista.querySelectorAll('.collapse[id^="fxdep_"]').forEach(col => {
             const chev = col.parentElement.querySelector('.fx-chev');
-            col.addEventListener('shown.bs.collapse', () => chev && chev.classList.replace('bi-chevron-right', 'bi-chevron-down'));
-            col.addEventListener('hidden.bs.collapse', () => chev && chev.classList.replace('bi-chevron-down', 'bi-chevron-right'));
+            col.addEventListener('shown.bs.collapse', () => {
+                if (chev) chev.classList.replace('bi-chevron-right', 'bi-chevron-down');
+                lista.querySelectorAll('.collapse.show[id^="fxdep_"]').forEach(otro => {
+                    if (otro !== col && window.bootstrap && bootstrap.Collapse) {
+                        bootstrap.Collapse.getOrCreateInstance(otro).hide();
+                    }
+                });
+            });
+            col.addEventListener('hidden.bs.collapse', () => {
+                if (chev) chev.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
         });
 
         // Eventos de los botones
