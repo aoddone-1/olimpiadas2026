@@ -479,13 +479,14 @@ class Fixture_model extends CI_Model {
      * Opciones:
      *  - $id_deporte (> 0): filtra por deporte.
      *  - $orden ('horario' | 'jornada' | 'deporte'): cómo se agrupa/ordena el listado.
-     *    'horario' ordena por Fecha → Hora → Deporte → Categoría (para ver el
-     *    día a día cronológicamente); 'jornada' ordena por Jornada (etapa del
-     *    torneo + numero_fecha) → Fecha → Hora, priorizando las jornadas aunque
-     *    estén desalineadas con las fechas; 'deporte' (por defecto) mantiene el
+     *    'jornada' (POR DEFECTO) ordena por Jornada (numero_fecha) → Fecha →
+     *    Hora: primero TODOS los partidos de la jornada 1, después los de la
+     *    jornada 2, etc.; la jornada manda siempre sobre la fecha del
+     *    calendario; 'horario' ordena por Fecha → Hora → Deporte → Categoría
+     *    (para ver el día a día cronológicamente); 'deporte' mantiene el
      *    orden Deporte → Categoría → Fecha → Hora.
      */
-    public function obtener_todo_el_fixture($id_deporte = null, $orden = 'deporte') {
+    public function obtener_todo_el_fixture($id_deporte = null, $orden = 'jornada') {
         $this->db->select('
             f.*,
             u1.nombre_ute as ute_1_nombre,

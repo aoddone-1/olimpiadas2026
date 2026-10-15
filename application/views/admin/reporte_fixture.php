@@ -9,7 +9,7 @@ if (!class_exists('TCPDF')) {
 class MYPDF extends TCPDF {
     // Propiedades para recibir los datos desde el controlador
     public $datos = [];
-    public $formato = 'lista';
+    public $formato = 'cuadro';
     public $dia_filtro = null;
     public $deporte_filtro = null; // nombre del deporte si el reporte está filtrado (null = todos)
     public $ancho_franja = 1;
@@ -23,7 +23,22 @@ class MYPDF extends TCPDF {
      *   - 'horario'  : Fecha → Hora → Deporte → Categoría.
      *   - 'jornada'  : Jornada (número de fecha/etapa del torneo) → Fecha → Hora.
      */
-    public $orden_reporte = 'deporte';
+    public $orden_reporte = 'jornada';
+
+    /**
+     * Clave de JORNADA de una fila: numero_fecha → fecha → hora. La jornada
+     * manda SIEMPRE sobre la fecha del calendario (no se mezcla con la etapa
+     * del torneo): el reporte agrupa por "Jornada N" y dentro de cada jornada
+     * ordena por fecha y hora. Único criterio de agrupamiento en todo el
+     * reporte (vista, modelo y CSV comparten este criterio).
+     */
+    public static function _clave_jornada_simple($f) {
+        return array(
+            (int) ($f['numero_fecha'] ?? 0),
+            (string) ($f['fecha_competencia'] ?? ''),
+            (string) ($f['hora_inicio'] ?? ''),
+        );
+    }
 
     /** Orden deportivo de las etapas del torneo (FASE_TORNEO). */
     public static $orden_fases = array(
@@ -38,11 +53,9 @@ class MYPDF extends TCPDF {
     );
 
     /**
-     * Clave "de torneo" para ordenar por JORNADA: etapa (fase) → numero_fecha
-     * (jornada dentro de la fase) → fecha → hora. Primero se compara por la
-     * etapa del torneo (p. ej. GRUPO antes que FINAL), luego por el N° de
-     * jornada y recién después por la fecha/hora del calendario; así las
-     * jornadas tienen prioridad aunque estén desalineadas con las fechas.
+     * Clave "de torneo" para el orden alternativo 'jornada' (fase → numero_fecha
+     * → fecha → hora). Se conserva por compatibilidad; el orden POR DEFECTO del
+     * reporte usa _clave_jornada_simple() (jornada pura, sin mezclar la etapa).
      * Si la fila no trae etapa cargada, se deduce de numero_fecha:
      * 1 = Fase de Grupos, 2 = Octavos, 3 = Cuartos, 4 = Semifinal,
      * 5 = Tercer Puesto, 6 o más = Final. Devuelve un arreglo comparable con <=>.
@@ -119,21 +132,23 @@ class MYPDF extends TCPDF {
         $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
 
         /** Orden del listado según $orden_reporte:
-         *   - 'deporte' (por defecto): Deporte → Categoría → Fecha → Hora.
-         *   - 'horario': Fecha → Hora → Deporte → Categoría.
-         *   - 'jornada': Jornada (etapa + número de fecha) → Fecha → Hora. */
+         *   - 'jornada' (POR DEFECTO): Jornada N → Fecha → Hora. El reporte se
+         *     agrupa por jornada: primero TODOS los partidos de la Jornada 1
+         *     (ordenados por fecha y hora), después los de la Jornada 2, etc.
+         *   - 'deporte': Deporte → Categoría → Fecha → Hora.
+         *   - 'horario': Fecha → Hora → Deporte → Categoría. */
         if ($this->orden_reporte === 'jornada') {
-            // Prioridad a la JORNADA del torneo: primero todas las filas de la
-            // jornada 1, luego jornada 2, etc.; dentro de cada jornada se
-            // ordena por fecha y hora. Desempate final por deporte/categoría
-            // para que el resultado sea determinístico.
+            // Prioridad ABSOLUTA a la JORNADA (numero_fecha): todas las filas
+            // de la jornada 1 primero, luego jornada 2, etc.; dentro de cada
+            // jornada se ordena por fecha y hora. Desempate final por
+            // deporte/categoría para que el resultado sea determinístico.
             usort($this->datos, function ($a, $b) {
                 return [
-                    self::_clave_jornada($a),
+                    self::_clave_jornada_simple($a),
                     strtolower((string) ($a['nombre_deporte'] ?? '')),
                     strtolower((string) ($a['nombre_categoria'] ?? '')),
                 ] <=> [
-                    self::_clave_jornada($b),
+                    self::_clave_jornada_simple($b),
                     strtolower((string) ($b['nombre_deporte'] ?? '')),
                     strtolower((string) ($b['nombre_categoria'] ?? '')),
                 ];
@@ -306,6 +321,16 @@ class MYPDF extends TCPDF {
         $dias = array_keys($dias);
         sort($dias);
 
+        /** Jornadas presentes (numero_fecha), en orden ascending. Solo se usan
+         *  como agrupamiento visible cuando el reporte sale por JORNADA. */
+        $jornadas = array();
+        foreach ($this->datos as $fila) {
+            $jf = (int) ($fila['numero_fecha'] ?? 0);
+            $jornadas[$jf] = true;
+        }
+        $jornadas = array_keys($jornadas);
+        sort($jornadas);
+
         $fase_bonito = function ($fase) {
             $map = array(
                 'GRUPO' => 'Fase de Grupos', '16AVOS' => '16avos de Final', 'OCTAVOS' => 'Octavos de Final',
@@ -330,6 +355,80 @@ class MYPDF extends TCPDF {
             return;
         }
 
+        // ====== LISTADO AGRUPADO POR JORNADA (orden 'jornada', formato lista) ======
+        // El pedido del reporte es: "Jornada 1" y abajo TODOS sus partidos
+        // (ordenados por fecha y hora), después "Jornada 2", etc. Se imprime
+        // una sección con título de jornada por cada numero_fecha presente.
+        if ($this->orden_reporte === 'jornada' && $this->formato !== 'cuadro') {
+            $html_j = '<div style="text-align:center; font-size:16pt; font-weight:bold; color:' . '#1e3a5f; padding:5px 0 8px 0;">'
+                    . 'Fixture de Competencia — Ordenado por Jornada'
+                    . ($this->delegacion_filtro ? ' — Delegación ' . $esc($this->delegacion_filtro) : '')
+                    . ($this->deporte_filtro ? ' — ' . $esc($this->deporte_filtro) : '')
+                    . '</div>'
+                    . '<div style="text-align:center; font-size:9pt; color:#7f8c8d; padding-bottom:12px;">'
+                    . $esc($rango_txt) . '</div>';
+            $this->writeHTML($html_j, true, false, true, false, '');
+
+            $_primera_j = TRUE;
+            foreach ($jornadas as $jn) {
+                $filas_j = array_values(array_filter($this->datos, function ($f) use ($jn) {
+                    return (int) ($f['numero_fecha'] ?? 0) === $jn;
+                }));
+                if (!$filas_j) continue;
+
+                // Cada jornada arranca en hoja nueva (menos la primera).
+                if (!$_primera_j) {
+                    $this->AddPage('L', 'LEGAL');
+                }
+                $_primera_j = FALSE;
+
+                $titulo_j = $jn > 0 ? ('JORNADA ' . $jn) : 'SIN JORNADA';
+                $html = '<div style="font-size:14pt; font-weight:bold; color:#ffffff; background-color:#1e3a5f;'
+                      . ' padding:6px 10px; margin-bottom:8px;">' . $esc($titulo_j)
+                      . ' <span style="font-size:9pt; font-weight:normal;">(' . count($filas_j) . ' partido/s)</span></div>';
+
+                $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:#bdc3c7; border-collapse:collapse; width:100%; font-size:8pt; color:#2c3e50;">'
+                       . '<thead><tr style="background-color:#3498db; color:#ffffff;">'
+                       . '<th style="width:4%;">Nº</th>'
+                       . '<th style="width:13%;">DÍA / HORA</th>'
+                       . '<th style="width:20%;">DEPORTE / CATEGORÍA</th>'
+                       . '<th style="width:12%;">FASE</th>'
+                       . '<th style="width:31%;">ENFRENTAMIENTO</th>'
+                       . '<th style="width:20%;">LUGAR</th>'
+                       . '</tr></thead><tbody>';
+
+                $n = 0;
+                foreach ($filas_j as $p) {
+                    $n++;
+                    $fecha = substr((string) ($p['fecha_competencia'] ?? ''), 0, 10);
+                    $fecha_bonita = $fecha !== '' ? date('D d/m/Y', strtotime($fecha)) : 'Sin fecha';
+                    $dc = trim(($p['nombre_deporte'] ?? '') . ' — Cat. ' . ($p['nombre_categoria'] ?? ''));
+                    $vs_html = $equipos($p);
+                    if ($vs_html === NULL || trim((string) $vs_html) === '') {
+                        $vs_texto = $equipos_texto($p);
+                        $vs_html = ($vs_texto !== NULL && trim((string) $vs_texto) !== '') ? $esc($vs_texto) : '&nbsp;';
+                    }
+                    $bg = ($n % 2) ? '#ffffff' : '#f8f9fa';
+
+                    $html .= '<tr style="background-color:' . $bg . ';">'
+                           . '<td style="text-align:center;">' . $n . '</td>'
+                           . '<td style="text-align:center;"><b>' . $esc($fecha_bonita) . '</b><br/>'
+                           . '<span style="color:#7f8c8d;">' . $esc($horario($p)) . '</span></td>'
+                           . '<td><b>' . $esc($dc) . '</b>'
+                           . (!empty($p['nombre_prueba']) ? '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc($p['nombre_prueba']) . '</span>' : '')
+                           . '</td>'
+                           . '<td style="text-align:center;">' . $esc($fase_bonito(strtoupper(trim((string) ($p['fase'] ?? ''))))) . '</td>'
+                           . '<td>' . $vs_html . '</td>'
+                           . '<td>' . $esc($p['lugar_nombre'] ?? 'A confirmar') . '</td>'
+                           . '</tr>';
+                }
+                $html .= '</tbody></table>';
+
+                $this->writeHTML($html, true, false, true, false, '');
+            }
+            return;
+        }
+
         // ====== COLORES ======
         $c_primary   = '#1e3a5f';
         $c_secondary = '#3498db';
@@ -339,6 +438,15 @@ class MYPDF extends TCPDF {
         $c_muted     = '#7f8c8d';
         $c_white     = '#ffffff';
         $c_alt       = '#f8f9fa';
+
+        /** Etiqueta legible de la jornada de una fila ("Jornada 3"); en el
+         *  cuadro general se imprime dentro de cada celda para que, al estar
+         *  los partidos ordenados por jornada, se vean bloques "Jornada 1",
+         *  "Jornada 2", … tanto vertical como horizontalmente. */
+        $etiqueta_jornada = function ($p) {
+            $jn = (int) ($p['numero_fecha'] ?? 0);
+            return $jn > 0 ? ('Jornada ' . $jn) : '';
+        };
 
         // ====== FORMATO CUADRO - EXACTAMENTE 5 DÍAS ======
         $ancho = max(1, (int) $this->ancho_franja);
@@ -472,6 +580,7 @@ class MYPDF extends TCPDF {
                         $html_bloque .= '<td style="background-color:' . $c_white . '; border:1px solid ' . $c_border . '; color:' . $c_muted . '; text-align:center; font-style:italic; font-size:6pt;">—</td>';
                     } else {
                         $cel = '';
+                        $j_actual = null;
                         foreach ($partidos as $idx_p => $p) {
                             $dc = trim(($p['nombre_deporte'] ?? '') . ' - Cat.' . ($p['nombre_categoria'] ?? '') );
                             $sub_info = "Hora de Inicio: ".sprintf('%02d:00 hrs', $p['hora_inicio']);//trim($fase_bonito($p['fase'] ?? '') . (!empty($p['numero_fecha']) ? ' · F' . (int) $p['numero_fecha'] : ''));
@@ -480,6 +589,15 @@ class MYPDF extends TCPDF {
                                 $cel .= '<hr style="border:none; border-top:1px dashed ' . $c_border . '; margin:4px 0;"/>';
                             }
                             
+                            // Subtítulo de JORNADA cuando cambia dentro de la celda
+                            // (los partidos vienen ordenados por jornada → fecha → hora).
+                            $et_j = $etiqueta_jornada($p);
+                            if ($this->orden_reporte === 'jornada' && $et_j !== '' && $et_j !== $j_actual) {
+                                $j_actual = $et_j;
+                                $cel .= '<div style="font-size:7.5pt; font-weight:bold; color:' . $c_primary . '; background-color:' . $c_light . '; padding:1px 4px; margin-bottom:2px;">'
+                                     . $esc($et_j) . '</div>';
+                            }
+
                             $cel .= '<div style="margin-bottom:2px;">'
                                 . '<div style="font-size:7pt; font-weight:bold; color:' . $c_secondary . ';">' . $esc($dc) . '</div>';
                             // Enfrentamiento. En modo delegado muestra los PARTICIPANTES
