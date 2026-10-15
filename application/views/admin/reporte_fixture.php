@@ -848,8 +848,6 @@ class MYPDF extends TCPDF {
             // equipos que va antes del encabezado de la planilla.
             $html .= '<br/><hr/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
-                   . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
-                   . '</tr><tr>'
                    . '<td><b>Lugar:</b> ' . $esc($fila_partido['lugar_nombre'] ?? 'A confirmar') . '</td>'
                    . '<td><b>Partidos:</b> ' . count($this->datos) . '</td>'
                    . '</tr></table>';
@@ -1043,7 +1041,7 @@ $pdf->Body();
 // ---------------------------------------------------------
 
 // Close and output PDF document
-$pdf->Output($pdf->nombre_archivo, 'D');
+$pdf->Output($pdf->nombre_archivo, 'I');
 
 //============================================================+
 // END OF FILE
