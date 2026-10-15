@@ -3,7 +3,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 // TCPDF ya viene cargado por la librería 'Pdf' del controlador; por si acaso:
 if (!class_exists('TCPDF')) {
-    require_once APPPATH . 'libraries/tcpdf/tcpdf.php';
+    require_once APPPATH . 'libraries' . DIRECTORY_SEPARATOR . 'tcpdf' . DIRECTORY_SEPARATOR . 'tcpdf.php';
 }
 
 class MYPDF extends TCPDF {
