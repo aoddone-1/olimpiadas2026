@@ -111,7 +111,21 @@
         </div>
 
         <!-- Listado del día seleccionado -->
-        <div id="fx_lista"></div>
+        <div id="fx_lista">
+            <!-- Estado "cargando" inicial: se reemplaza en cuanto llega la respuesta
+                 de ajax_fixture_todo (ver mostrarCargando() / render() en el JS) -->
+            <div class="fx-loading text-center text-muted py-5">
+                <span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"></span>
+                <div class="fw-semibold">Cargando fixture…</div>
+                <div class="small mt-1">Un ratito, estamos trayendo los partidos.</div>
+                <div class="mt-4 px-2 px-md-5 text-start">
+                    <div class="fx-skeleton mb-2"></div>
+                    <div class="fx-skeleton mb-2" style="height: 30px;"></div>
+                    <div class="fx-skeleton mb-2" style="height: 30px; width: 85%;"></div>
+                    <div class="fx-skeleton mb-2" style="height: 30px; width: 70%;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -903,9 +917,26 @@
         });
     }
 
+    /* ---------- Estado "cargando" con animación (spinner + skeleton) ---------- */
+    function mostrarCargando(msg) {
+        lista.innerHTML = '<div class="fx-loading text-center text-muted py-5">' +
+            '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"></span>' +
+            '<div class="fw-semibold">' + esc(msg || 'Cargando fixture…') + '</div>' +
+            '<div class="small mt-1">Un ratito, estamos trayendo los partidos.</div>' +
+            '<div class="mt-4 px-2 px-md-5 text-start">' +
+                '<div class="fx-skeleton mb-2"></div>' +
+                '<div class="fx-skeleton mb-2" style="height: 30px;"></div>' +
+                '<div class="fx-skeleton mb-2" style="height: 30px; width: 85%;"></div>' +
+                '<div class="fx-skeleton mb-2" style="height: 30px; width: 70%;"></div>' +
+            '</div></div>';
+    }
+
     /* ---------- Carga GENERAL (sin filtro de categoría) ---------- */
     let cargaTodoEnVuelo = null;   // Promise de la última carga (para no pisarse entre sí)
     function cargarTodo() {
+        // Si todavía no hay datos en pantalla (primer ingreso al menú), mostrar
+        // el spinner "Cargando…" mientras llega la respuesta del servidor.
+        if (!todosFixtures.length) mostrarCargando();
         const p = getJSON('ajax_fixture_todo')
             .then(res => {
                 if (!res.ok) {
