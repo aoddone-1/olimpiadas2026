@@ -11,6 +11,21 @@ class Deporte_model extends CI_Model {
         $this->db->order_by('nombre_deporte', 'ASC');
         $deportes = $this->db->get('deportes')->result_array();
 
+        // Contamos las filas de fixtures por deporte (fixtures -> categorias.id_deporte)
+        // para poder mostrar si cada disciplina tiene o no cronograma cargado.
+        $this->db->select('c.id_deporte, COUNT(f.id_fixture) as total_fixtures', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->group_by('c.id_deporte');
+        $filas_fixture = $this->db->get()->result_array();
+
+        $fixtures_por_deporte = array();
+        foreach ($filas_fixture as $fx) {
+            if (!empty($fx['id_deporte'])) {
+                $fixtures_por_deporte[intval($fx['id_deporte'])] = intval($fx['total_fixtures']);
+            }
+        }
+
         // A cada deporte le buscamos sus categorías haciendo un JOIN con lugares
         foreach ($deportes as $key => $d) {
             $this->db->select('c.*, l.nombre as nombre_lugar');
@@ -49,6 +64,9 @@ class Deporte_model extends CI_Model {
             $deportes[$key]['total_inscriptos'] = $total_inscriptos;
             $deportes[$key]['total_mujeres']    = $total_mujeres;
             $deportes[$key]['total_hombres']    = $total_hombres;
+
+            // Cantidad de partidos/jornadas del fixture cargados para este deporte
+            $deportes[$key]['total_fixtures'] = intval($fixtures_por_deporte[intval($d['id_deporte'])] ?? 0);
         }
 
         return $deportes;
