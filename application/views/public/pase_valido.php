@@ -429,10 +429,32 @@
 </div>
 
 <script>
-    // Cerrar esta pantalla automáticamente después de 1 minuto
-    setTimeout(function() {
-        window.close();
-    }, 60000);
+    // Cierre automático de la pantalla del pase después de 1 minuto.
+    // Nota: por seguridad, el navegador solo permite window.close() si la
+    // pestaña fue abierta desde un script (QR-reader/app con window.open) o
+    // en una ventana popup. Si se abrió como pestaña normal, redirigimos a
+    // la página principal para "vaciar" la pantalla.
+    (function () {
+        var SEISENTA_SEG = 60000;
+
+        function cerrarOAbrirPaginaPrincipal() {
+            // Intentamos cerrar la ventana/pestaña
+            try {
+                window.opener = null; // evita el bloqueo "no es permitted to close..."
+                window.close();
+            } catch (e) {}
+
+            // Si seguimos acá es porque el navegador no permitió cerrarla:
+            // esperamos un instante y redirigimos a la home.
+            setTimeout(function () {
+                if (!window.closed) {
+                    window.location.href = '<?= base_url() ?>';
+                }
+            }, 500);
+        }
+
+        setTimeout(cerrarOAbrirPaginaPrincipal, SEISENTA_SEG);
+    })();
 </script>
 </body>
 </html>
