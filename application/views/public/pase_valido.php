@@ -335,7 +335,7 @@
                                                     <div class="mt-1 small text-muted">
                                                         <i class="bi bi-vs2 me-1"></i>
                                                         <?php if(!empty($fx['rival_nombre'])): ?>
-                                                            <?= htmlspecialchars($fx['rival_nombre']) ?>
+                                                            Rival: <?= htmlspecialchars($fx['rival_nombre']) ?>
                                                         <?php else: ?>
                                                             Rival por definir
                                                         <?php endif; ?>
