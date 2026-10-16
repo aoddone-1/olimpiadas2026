@@ -1752,6 +1752,8 @@ class Inscripciones extends CI_Controller {
                     'podio'         => $it['podio'],
                     'entregados'    => $entregados,
                     'atraso'        => !empty($it['atraso']),
+                    // Tabla de puntos (deportes ENFRENTAMIENTO por puntaje 3/1/0)
+                    'tabla_puntaje' => isset($it['tabla_puntaje']) ? $it['tabla_puntaje'] : null,
                 );
                 $puestos_esperados = array_keys($it['podio']);
                 $completa = !empty($puestos_esperados);
