@@ -34,7 +34,18 @@ class Deporte_model extends CI_Model {
             $this->db->where('c.id_deporte', $d['id_deporte']);
             
             $categorias = $this->db->get()->result_array();
-            
+
+            // Defaults del sistema de definición POR CATEGORÍA para bases que
+            // aún no tienen el ALTER (sql/migracion_puntaje_categoria.sql).
+            if (!empty($categorias) && !array_key_exists('sistema_definicion', $categorias[0])) {
+                foreach ($categorias as &$_c) {
+                    $_c['sistema_definicion'] = 'FASE_FINAL';
+                    $_c['puntosVictoria'] = 3;
+                    $_c['puntosEmpate'] = 1;
+                }
+                unset($_c);
+            }
+
             $total_inscriptos = 0;
             $total_mujeres = 0;
             $total_hombres = 0;
