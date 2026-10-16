@@ -123,6 +123,37 @@
         .turno-item.en-curso { border-left-color: #fd7e14; }
         .turno-item.en-curso .badge-fase { background: #fd7e14; }
 
+        /* Rival confirmado (destacado) */
+        .rival-box {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #ff9a3d 0%, #ff6b35 100%);
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.8rem;
+            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+            animation: rival-pulse 1.6s ease-in-out infinite;
+        }
+        .rival-box .rival-nombre {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        @keyframes rival-pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4); }
+            50%       { transform: scale(1.03); box-shadow: 0 3px 12px rgba(255, 107, 53, 0.6); }
+        }
+        .rival-por-definir {
+            margin-top: 6px;
+            font-size: 0.75rem;
+            font-style: italic;
+            color: #6c757d;
+        }
+
         /* Resultados ya cargados */
         .resultado-item {
             background: linear-gradient(135deg, #f1f8f3 0%, #ffffff 100%);
@@ -332,14 +363,15 @@
                                                     <?php endif; ?>
                                                 </div>
                                                 <?php if(!$fx['es_masivo']): ?>
-                                                    <div class="mt-1 small text-muted">
-                                                        <i class="bi bi-vs2 me-1"></i>
-                                                        <?php if(!empty($fx['rival_nombre'])): ?>
-                                                            Rival: <?= htmlspecialchars($fx['rival_nombre']) ?>
-                                                        <?php else: ?>
-                                                            Rival por definir
-                                                        <?php endif; ?>
-                                                    </div>
+                                                    <?php if(!empty($fx['rival_nombre'])): ?>
+                                                        <div class="rival-box">
+                                                            <i class="bi bi-person-vcard"></i>
+                                                            <span>RIVAL:</span>
+                                                            <span class="rival-nombre"><?= htmlspecialchars($fx['rival_nombre']) ?></span>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <div class="rival-por-definir"><i class="bi bi-question-circle me-1"></i>Rival por definir</div>
+                                                    <?php endif; ?>
                                                 <?php endif; ?>
                                             </div>
                                         <?php endforeach; ?>
