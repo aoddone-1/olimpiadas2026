@@ -13,11 +13,26 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *  - TIEMPO / PUNTAJE (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del
  *    resultado con más posiciones cargadas.
  *  - MARCADOR (ENFRENTAMIENTO): el podio es el del TORNEO COMPLETO, no del
- *    último partido:
- *      1º = ganador de la FINAL
- *      2º = perdedor de la FINAL
- *      3º = ganador del partido por el TERCER_PUESTO (si existe; si no, queda
- *           "por definir").
+ *    último partido. Hay DOS sistemas, definidos por deportes.sistema_definicion
+ *    (ver sql/migracion_puntaje_liga.sql):
+ *      FASE_FINAL (por defecto):
+ *        1º = ganador de la FINAL
+ *        2º = perdedor de la FINAL
+ *        3º = ganador del partido por el TERCER_PUESTO (si existe; si no, queda
+ *             "por definir").
+ *      PUNTAJE (liga / todos contra todos): se arma la TABLA DE PUNTOS con
+ *        TODOS los partidos cargados (MARCADOR y/o PUNTAJE) de la categoría:
+ *          + puntosVictoria (def: 3) al ganador
+ *          + puntosEmpate (def: 1) a cada equipo si empataron
+ *          + 0 al perdedor
+ *        El podio sale de esa tabla: 1º = puntero, 2º = segundo, 3º = tercero.
+ *        Desempates entre equipos con iguales puntos (en orden):
+ *          1) diferencia de goles/tantos, 2) tantos a favor, 3) menos tantos
+ *          contra, 4) resultado directo entre ambos, 5) sorteo (se avisa).
+ *        No hace falta que exista una FINAL: la premiación "cierra" cuando
+ *        todas las parejas de equipos ya jugaron entre sí (todos contra
+ *        todos) o cuando el fixture tiene su FINAL/última jornada marcada
+ *        como FINALIZADO.
  * La entrega queda registrada en la tabla `premiaciones` (ver sql/premiaciones.sql).
  */
 class Premiacion_model extends CI_Model {
@@ -458,11 +473,261 @@ class Premiacion_model extends CI_Model {
             c.id_categoria, c.nombre_categoria, c.genero, c.dia_competencia,
             d.id_deporte, d.nombre_deporte, d.modalidad_competencia, d.tipo_duracion
         ', FALSE);
+        // Columnas del sistema de definición por puntaje (sql/migracion_puntaje_liga.sql):
+        // se agregan solo si existen, para no romper en bases todavía sin el ALTER.
+        if ($this->_columna_deporte_existe('sistema_definicion')) {
+            $this->db->select(", IFNULL(d.sistema_definicion, 'FASE_FINAL') AS sistema_definicion", FALSE);
+        }
+        if ($this->_columna_deporte_existe('puntosVictoria')) {
+            $this->db->select(', IFNULL(NULLIF(d.puntosVictoria, -1), 3) AS puntos_victoria', FALSE);
+        }
+        if ($this->_columna_deporte_existe('puntosEmpate')) {
+            $this->db->select(', IFNULL(NULLIF(d.puntosEmpate, -1), 1) AS puntos_empate', FALSE);
+        }
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
         return $this->_filas_seguras();
     }
+
+    /** ¿Existe una columna en `deportes`? (tolera bases sin el ALTER). */
+    private function _columna_deporte_existe($columna) {
+        static $cache = array();
+        $key = strtolower((string) $columna);
+        if (!isset($cache[$key])) {
+            try {
+                $q = $this->db->query(
+                    "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = 'deportes'
+                       AND COLUMN_NAME = ?",
+                    array($columna)
+                );
+                $cache[$key] = (bool) ($q && $q->num_rows() > 0);
+            } catch (Throwable $e) {
+                log_message('error', '[Premiación] no se pudo verificar columna deportes.' . $columna . ': ' . $e->getMessage());
+                $cache[$key] = false;
+            }
+        }
+        return $cache[$key];
+    }
+
+    /* ============================================================
+     *  TABLA DE PUNTAJE (ENFRENTAMIENTO que define por puntos)
+     * ============================================================
+     *
+     * Reglas:
+     *  - Cada partido cargado (MARCADOR o PUNTAJE) suma:
+     *      ganador  -> puntos_victoria (def: 3)
+     *      empate   -> puntos_empate (def: 1) a cada lado
+     *      perdedor -> 0
+     *  - Empates SIN desempate registrado en fase eliminatoria NO se toman
+     *    como empate de liga: el partido está incompleto hasta que se cargue
+     *    el desempate. En GRUPO/JORNADA el empate es válido.
+     *  - El podio sale de la tabla ordenada por: puntos -> diferencia de
+     *    tantos -> tantos a favor -> menos tantos contra -> nombre.
+     */
+
+    /** Clave estable de un equipo (id UTE o nombre normalizado). */
+    private function _clave_equipo($eq, &$map) {
+        $nombre = trim((string) ($eq['nombre'] ?? ''));
+        if (empty($eq['id']) && $nombre === '') return null;
+        $k = !empty($eq['id']) ? ('u' . (int) $eq['id']) : ('n:' . mb_strtolower($nombre));
+        if (!isset($map[$k])) {
+            $map[$k] = array(
+                'id'     => !empty($eq['id']) ? (int) $eq['id'] : null,
+                'nombre' => $nombre !== '' ? $nombre : ('UTE #' . (int) $eq['id']),
+                'puntos' => 0, 'pj' => 0, 'pg' => 0, 'pe' => 0, 'pp' => 0,
+                'gf' => 0, 'gc' => 0, 'dif' => 0,
+            );
+        } elseif ($map[$k]['nombre'] === '' && $nombre !== '') {
+            $map[$k]['nombre'] = $nombre;
+        }
+        $map[$k]['pj']++;
+        return $k;
+    }
+
+    /** Clave estable de un cruce entre dos equipos (orden alfabético). */
+    private function _clave_cruce($ka, $kb) {
+        $ks = array($ka, $kb);
+        sort($ks);
+        return $ks[0] . '|' . $ks[1];
+    }
+
+    /**
+     * Tabla de puntos de una categoría ENFRENTAMIENTO con sistema PUNTAJE.
+     *
+     * @param int   $id_categoria
+     * @param array $resultados resultados de la categoría (con 'detalle')
+     * @param array $cat        fila de _categorias_base()
+     * @param array $fixtures   fixtures de la categoría
+     * @return array:
+     *   tabla            lista ordenada de equipos (puntos, pj, pg, pe, pp, gf, gc, dif)
+     *   pendientes       partidos del fixture aún sin resultado
+     *   faltan_jugar     parejas empatadas en puntos que aún deben jugar entre sí
+     *   sorteo_necesario podio (3º vs 4º) totalmente igualado
+     */
+    private function _tabla_puntaje($id_categoria, $resultados, $cat, $fixtures = array()) {
+        $pts_v = isset($cat['puntos_victoria']) ? max(0, (int) $cat['puntos_victoria']) : 3;
+        $pts_e = isset($cat['puntos_empate']) ? max(0, (int) $cat['puntos_empate']) : 1;
+
+        // Fases eliminatorias: un empate ahí sin desempate cargado es un
+        // partido INCOMPLETO, no un empate de liga.
+        $fases_eliminatorias = array('16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'TERCER_PUESTO', 'FINAL');
+
+        $equipos = array();  // clave => fila de la tabla
+        $cruces  = array();  // "ka|kb" => ['jugado' => bool, 'gano' => 'a'|'b'|null]
+        $usados  = array();  // id_fixture cubiertos por algún resultado
+
+        foreach ($resultados as $r) {
+            if (!in_array($r['tipo_resultado'], array('MARCADOR', 'PUNTAJE'), true)) continue;
+            if (!empty($r['id_fixture'])) $usados[(int) $r['id_fixture']] = true;
+
+            $m = $this->_parsear_marcador($r['detalle']);
+            if (!$m) continue;
+            $ka = $this->_clave_equipo($m['eqA'], $equipos);
+            $kb = $this->_clave_equipo($m['eqB'], $equipos);
+            if ($ka === null || $kb === null || $ka === $kb) continue;
+
+            $tantosA = (int) $m['eqA']['tantos'];
+            $tantosB = (int) $m['eqB']['tantos'];
+            $fase = strtoupper(trim((string) ($r['fx_fase'] ?? '')));
+            $des = $this->_resolver_desempate($r, $m);
+
+            $key = $this->_clave_cruce($ka, $kb);
+
+            if ($tantosA === $tantosB && !$des && in_array($fase, $fases_eliminatorias, true)) {
+                // Eliminatoria empatada sin desempate: NO computa todavía.
+                $equipos[$ka]['pj']--;
+                $equipos[$kb]['pj']--;
+                $cruces[$key] = array('jugado' => false, 'gano' => null);
+                continue;
+            }
+
+            if ($des) {
+                $kgan = $this->_clave_equipo($des['eq_ganador'], $equipos);
+                $kper = ($kgan === $ka) ? $kb : $ka;
+                $equipos[$kgan]['puntos'] += $pts_v;
+                $equipos[$kgan]['pg']++;
+                $equipos[$kper]['pp']++;
+                $gan_t = (int) $des['eq_ganador']['tantos'];
+                $per_t = (int) $des['eq_perdedor']['tantos'];
+                $equipos[$kgan]['gf'] += $gan_t; $equipos[$kgan]['gc'] += $per_t;
+                $equipos[$kper]['gf'] += $per_t; $equipos[$kper]['gc'] += $gan_t;
+                $directo = ($kgan === $ka) ? 'a' : 'b';
+            } elseif ($tantosA === $tantosB) {
+                $equipos[$ka]['puntos'] += $pts_e;
+                $equipos[$kb]['puntos'] += $pts_e;
+                $equipos[$ka]['pe']++; $equipos[$kb]['pe']++;
+                $equipos[$ka]['gf'] += $tantosA; $equipos[$ka]['gc'] += $tantosB;
+                $equipos[$kb]['gf'] += $tantosB; $equipos[$kb]['gc'] += $tantosA;
+                $directo = null;
+            } else {
+                $kgan = $tantosA > $tantosB ? $ka : $kb;
+                $kper = ($kgan === $ka) ? $kb : $ka;
+                $gan = ($kgan === $ka) ? $m['eqA'] : $m['eqB'];
+                $per = ($kgan === $ka) ? $m['eqB'] : $m['eqA'];
+                $equipos[$kgan]['puntos'] += $pts_v;
+                $equipos[$kgan]['pg']++;
+                $equipos[$kper]['pp']++;
+                $equipos[$kgan]['gf'] += (int) $gan['tantos']; $equipos[$kgan]['gc'] += (int) $per['tantos'];
+                $equipos[$kper]['gf'] += (int) $per['tantos']; $equipos[$kper]['gc'] += (int) $gan['tantos'];
+                $directo = ($kgan === $ka) ? 'a' : 'b';
+            }
+            $cruces[$key] = array('jugado' => true, 'gano' => $directo);
+        }
+
+        foreach ($equipos as &$e) { $e['dif'] = $e['gf'] - $e['gc']; }
+        unset($e);
+
+        // Partidos del fixture con ambos equipos ya definidos y sin resultado:
+        // son los que faltan jugar para cerrar el torneo.
+        $pendientes = 0;
+        $cruces_fx  = array();
+        foreach ($fixtures as $f) {
+            if (empty($f['id_ute_1']) || empty($f['id_ute_2'])) continue;
+            $k1 = 'u' . (int) $f['id_ute_1'];
+            $k2 = 'u' . (int) $f['id_ute_2'];
+            if (isset($cruces_fx[$this->_clave_cruce($k1, $k2)])) {
+                $cruces_fx[$this->_clave_cruce($k1, $k2)]++;
+            } else {
+                $cruces_fx[$this->_clave_cruce($k1, $k2)] = 1;
+            }
+            if (!isset($usados[(int) $f['id_fixture']])) $pendientes++;
+        }
+
+        // Equipos empatados EN PUNTOS que aún deben jugar entre sí (según el
+        // fixture): la tabla no puede darlos por definidos.
+        $faltan_jugar = array();
+        $por_puntos = array();
+        foreach ($equipos as $k => $e) $por_puntos[(int) $e['puntos']][] = $k;
+        foreach ($por_puntos as $p => $ks) {
+            if (count($ks) < 2) continue;
+            for ($i = 0; $i < count($ks); $i++) {
+                for ($j = $i + 1; $j < count($ks); $j++) {
+                    $key = $this->_clave_cruce($ks[$i], $ks[$j]);
+                    $ya_jugaron = isset($cruces[$key]) && !empty($cruces[$key]['jugado']);
+                    $debe_jugar = !empty($cruces_fx[$key]);
+                    if (!$ya_jugaron && $debe_jugar) {
+                        $faltan_jugar[] = array(
+                            'a' => $equipos[$ks[$i]]['nombre'],
+                            'b' => $equipos[$ks[$j]]['nombre'],
+                            'puntos' => (int) $p,
+                        );
+                    }
+                }
+            }
+        }
+
+        // Orden de la tabla: puntos -> dif -> gf -> menos gc -> nombre.
+        $tabla = array_values($equipos);
+        usort($tabla, function ($x, $y) {
+            foreach (array('puntos', 'dif', 'gf') as $c) {
+                if ($y[$c] != $x[$c]) return ($y[$c] > $x[$c]) ? 1 : -1;
+            }
+            if ($x['gc'] != $y['gc']) return ($x['gc'] > $y['gc']) ? 1 : -1;
+            return strcasecmp($x['nombre'], $y['nombre']);
+        });
+
+        // ¿El corte del podio (3º vs 4º) queda totalmente igualado?
+        $sorteo = false;
+        if (count($tabla) >= 4) {
+            $t3 = $tabla[2]; $t4 = $tabla[3];
+            if ($t3['puntos'] == $t4['puntos'] && $t3['dif'] == $t4['dif']
+                && $t3['gf'] == $t4['gf'] && $t3['gc'] == $t4['gc']) {
+                $sorteo = true;
+            }
+        }
+
+        return array(
+            'tabla' => $tabla,
+            'cruces' => $cruces,
+            'pendientes' => $pendientes,
+            'faltan_jugar' => $faltan_jugar,
+            'sorteo_necesario' => $sorteo,
+            'puntos_victoria' => $pts_v,
+            'puntos_empate' => $pts_e,
+        );
+    }
+
+    /** Podio desde la tabla de puntaje: puestos 1, 2 y 3. */
+    private function _podio_desde_tabla($info) {
+        $out = array();
+        $extra_base = 'Tabla de puntos: ' . $info['puntos_victoria']
+            . ' pts victoria / ' . $info['puntos_empate'] . ' pts empate / 0 derrota';
+        foreach (array_slice($info['tabla'], 0, 3) as $i => $e) {
+            $out[$i + 1] = array(
+                'id' => $e['id'],
+                'nombre' => $e['nombre'],
+                'extra' => $extra_base . ' · ' . $e['puntos'] . ' pts ('
+                    . $e['pj'] . ' PJ, ' . $e['pg'] . 'G/' . $e['pe'] . 'E/' . $e['pp'] . 'P, dif '
+                    . ($e['dif'] > 0 ? '+' : '') . $e['dif'] . ')',
+                'id_resultado_ref' => null,
+            );
+        }
+        return $out;
+    }
+
 
     /**
      * Todas las categorías con su estado de cierre y su podio resuelto.
@@ -535,8 +800,13 @@ class Premiacion_model extends CI_Model {
             if (!$resultados) continue; // sin resultados no hay nada que premiar
 
             $es_masiva = ($cat['modalidad_competencia'] === 'MASIVO_TIEMPO');
+            // ENFRENTAMIENTO que define por tabla de puntos (3/1/0) en lugar
+            // de FINAL + Tercer puesto: deportes.sistema_definicion = 'PUNTAJE'.
+            $define_por_puntaje = (!$es_masiva
+                && strtoupper((string) ($cat['sistema_definicion'] ?? 'FASE_FINAL')) === 'PUNTAJE');
             $podio = array();
             $origen = $es_masiva ? 'TIEMPO' : 'MARCADOR';
+            $info_tabla = null;
 
             if ($es_masiva) {
                 // Podio = el mejor resultado TIEMPO cargado (más posiciones).
@@ -567,6 +837,11 @@ class Premiacion_model extends CI_Model {
                 foreach ($podio_nombres as $pos => $p) {
                     $podio[$pos] = array_merge($p, array('id_resultado_ref' => (int) $mejor['id_resultado']));
                 }
+            } elseif ($define_por_puntaje) {
+                // Podio = tabla de puntos del torneo completo (3/1/0).
+                $info_tabla = $this->_tabla_puntaje($id_cat, $resultados, $cat, $fixtures);
+                $podio = $this->_podio_desde_tabla($info_tabla);
+                if (!isset($podio[1])) continue; // todavía no hay ningún partido computable
             } else {
                 $podio = $this->_podio_marcador_categoria($id_cat);
                 if (!isset($podio[1])) continue; // sin final resuelta todavía no se premia
@@ -591,6 +866,41 @@ class Premiacion_model extends CI_Model {
                 if (!$fecha_entrega) {
                     $cerrada = false;
                     $motivo = 'Sin fecha de competencia: cargá el día de la jornada en el Fixture de esta categoría.';
+                }
+            } elseif ($define_por_puntaje) {
+                // LIGA POR PUNTAJE: no hay FINAL que esperar. Cierra cuando
+                // NO quedan partidos por jugar entre equipos ya definidos en
+                // el fixture (todos contra todos completo) — o, si el torneo
+                // se jugó sin fixture, cuando hay al menos un partido cargado.
+                $pend = (int) $info_tabla['pendientes'];
+                $dias_jugados = array();
+                foreach ($resultados as $r) {
+                    if (!in_array($r['tipo_resultado'], array('MARCADOR', 'PUNTAJE'), true)) continue;
+                    $fd = $fecha_jugada($r) ?: $fecha_resultado($r);
+                    if ($fd) $dias_jugados[] = $fd;
+                }
+                $fecha_entrega = $dias_jugados ? max($dias_jugados) : null;
+                if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
+                    $fecha_entrega = $this->_norm_fecha($cat['dia_competencia']);
+                }
+                if ($pend > 0) {
+                    $cerrada = false;
+                    $motivo = 'Torneo por puntaje: todavía faltan ' . $pend
+                        . ' partido(s) del fixture por cargar resultados.';
+                } elseif (!$fecha_entrega) {
+                    $cerrada = false;
+                    $motivo = 'Sin fecha de competencia: cargá el día de los partidos en el Fixture de esta categoría.';
+                } else {
+                    $cerrada = true;
+                    $motivo = 'Torneo por puntaje (' . $info_tabla['puntos_victoria'] . '/'
+                        . $info_tabla['puntos_empate'] . '/0): tabla definida, se premia la última noche jugada';
+                    if (!empty($info_tabla['faltan_jugar'])) {
+                        $motivo .= ' — ojo: ' . count($info_tabla['faltan_jugar'])
+                            . ' pareja(s) empatada(s) en puntos aún deben jugar entre sí';
+                    }
+                    if (!empty($info_tabla['sorteo_necesario'])) {
+                        $motivo .= ' — el 3º puesto queda igualado en todo: definílo por sorteo antes de entregar';
+                    }
                 }
             } elseif ($cat['tipo_duracion'] === 'UNICO_DIA') {
                 $cerrada = isset($podio[1]);
@@ -660,6 +970,9 @@ class Premiacion_model extends CI_Model {
                 'origen'        => $origen,
                 'podio'         => $podio,
                 'entregadas'    => $ya,
+                // Tabla de puntos completa (solo en deportes por puntaje):
+                // la vista puede mostrarla como tooltip/mini-tabla.
+                'tabla_puntaje' => $define_por_puntaje ? $info_tabla['tabla'] : null,
             );
         }
 

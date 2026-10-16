@@ -244,13 +244,41 @@
     }
 
     /* ---------- Render ---------- */
+    // Mini-tabla de puntos para deportes ENFRENTAMIENTO que definen por
+    // puntaje (3 pts victoria / 1 empate / 0 derrota) en vez de final.
+    function tablaPuntajeHtml(tabla) {
+        if (!tabla || !tabla.length) return '';
+        const med = ['🥇', '🥈', '🥉'];
+        let filas = tabla.map((e, i) => `
+            <tr class="${i < 3 ? 'fw-bold' : ''}">
+                <td>${med[i] ? med[i] + ' ' : ''}${i + 1}</td>
+                <td>${esc(e.nombre)}</td>
+                <td class="text-center">${e.puntos}</td>
+                <td class="text-center">${e.pj}</td>
+                <td class="text-center">${e.pg}/${e.pe}/${e.pp}</td>
+                <td class="text-center">${e.dif > 0 ? '+' + e.dif : e.dif}</td>
+            </tr>`).join('');
+        return `<div class="mt-2"><span class="small fw-bold text-primary">
+                    <i class="bi bi-table me-1"></i>Tabla de puntos del torneo</span>
+                <table class="table table-sm table-bordered small mb-0 mt-1">
+                    <thead class="table-light"><tr>
+                        <th>#</th><th>Equipo</th><th class="text-center">Pts</th>
+                        <th class="text-center">PJ</th><th class="text-center">G/E/P</th>
+                        <th class="text-center">Dif</th>
+                    </tr></thead><tbody>${filas}</tbody>
+                </table></div>`;
+    }
+
     function cardPodio(item, entregada) {
         const c = item.categoria;
         const podio = item.podio || {};
         const regs = item.entregados || {};
+        const esPuntaje = !!item.tabla_puntaje;
         const origenBadge = item.origen === 'TIEMPO'
             ? '<span class="badge rounded-pill bg-info-subtle text-info-emphasis border pm-badge-origen">TIEMPO · top 3</span>'
-            : '<span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border pm-badge-origen">MARCADOR · podio del torneo</span>';
+            : (esPuntaje
+                ? '<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border pm-badge-origen">MARCADOR · tabla de puntos</span>'
+                : '<span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border pm-badge-origen">MARCADOR · podio del torneo</span>');
 
         let celdas = '';
         [1, 2, 3].forEach(pos => {
@@ -313,6 +341,7 @@
             <div class="pm-cuerpo">
                 ${entregada ? '<span class="pm-stamp">PREMIADO</span>' : ''}
                 <div class="pm-podio">${celdas}</div>
+                ${esPuntaje ? tablaPuntajeHtml(item.tabla_puntaje) : ''}
             </div>
             ${acciones}
         </div>`;
