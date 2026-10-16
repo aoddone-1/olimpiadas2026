@@ -395,5 +395,12 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Cerrar esta pantalla automáticamente después de 1 minuto
+    setTimeout(function() {
+        window.close();
+    }, 60000);
+</script>
 </body>
 </html>
