@@ -11,6 +11,9 @@ CREATE TABLE `categorias` (
   `equipos_por_grupo` int NOT NULL DEFAULT '4' COMMENT 'Tamaño deseado de grupo (3, 4 o 5). El generador ajusta si no divide exacto',
   `clasificados_por_grupo` int NOT NULL DEFAULT '2' COMMENT 'Cuántos avanzan por grupo (1 = solo el primero, 2 = primero y segundo)',
   `mejores_segundos` int NOT NULL DEFAULT '0' COMMENT 'Cuántos mejores segundos adicionales clasifican (para completar potencias de 2 en el bracket)',
+  `sistema_definicion` enum('FASE_FINAL','PUNTAJE') NOT NULL DEFAULT 'FASE_FINAL' COMMENT 'Solo ENFRENTAMIENTO, POR CATEGORÍA: FASE_FINAL = podio por FINAL + TERCER_PUESTO. PUNTAJE = podio por tabla de puntos del torneo de la categoría (3 pts ganador, 1 pt por lado en empate, 0 perdedor)',
+  `puntosVictoria` int NOT NULL DEFAULT 3 COMMENT 'Puntos al ganador de un enfrentamiento en esta categoría (sistema PUNTAJE)',
+  `puntosEmpate` int NOT NULL DEFAULT 1 COMMENT 'Puntos por equipo en empate en esta categoría (sistema PUNTAJE; 0 si no admite empate)',
   PRIMARY KEY (`id_categoria`),
   KEY `fk_deporte_cat` (`id_deporte`),
   KEY `fk_lugar_cat` (`id_lugar`),
@@ -25,9 +28,6 @@ CREATE TABLE `deportes` (
   `modalidad` enum('INDIVIDUAL','EQUIPO','AMBAS') NOT NULL DEFAULT 'INDIVIDUAL',
   `tipo_duracion` enum('UNICO_DIA','MULTIDIA') NOT NULL DEFAULT 'MULTIDIA' COMMENT 'Indica si requiere 1 sola jornada concentrada o varios días de torneo',
   `modalidad_competencia` enum('ENFRENTAMIENTO','MASIVO_TIEMPO') NOT NULL DEFAULT 'ENFRENTAMIENTO' COMMENT 'ENFRENTAMIENTO = Partidos 1vs1 / Equipo vs Equipo. MASIVO_TIEMPO = Todos compiten juntos en una jornada/largada (Running, Ciclismo, Pesca)',
-  `sistema_definicion` enum('FASE_FINAL','PUNTAJE') NOT NULL DEFAULT 'FASE_FINAL' COMMENT 'Solo ENFRENTAMIENTO: FASE_FINAL = podio por FINAL + TERCER_PUESTO. PUNTAJE = podio por tabla de puntos del torneo (3 pts ganador, 1 pt por lado en empate, 0 perdedor)',
-  `puntosVictoria` int NOT NULL DEFAULT 3 COMMENT 'Puntos al ganador de un enfrentamiento (sistema PUNTAJE)',
-  `puntosEmpate` int NOT NULL DEFAULT 1 COMMENT 'Puntos por equipo en empate (sistema PUNTAJE; 0 si el deporte no admite empate)',
   `fiscales` text COMMENT 'Texto libre con los fiscales asignados a la disciplina (se muestra en gestión, fixture, acreditación y credenciales)',
   PRIMARY KEY (`id_deporte`)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=latin1;
