@@ -413,7 +413,12 @@ class Inscripciones extends CI_Controller {
             'cupo_maximo'      => $this->input->post('cupo_maximo'),
             'id_lugar'         => $this->input->post('id_lugar'),
             'dia_competencia'  => $this->input->post('dia_competencia'),
-            'hora_competencia' => $this->input->post('hora_competencia')
+            'hora_competencia' => $this->input->post('hora_competencia'),
+            // Sistema de definición POR CATEGORÍA (FINAL+3er puesto vs tabla
+            // de puntos). Categoria_model valida y descarta si aún no existe.
+            'sistema_definicion' => $this->input->post('sistema_definicion'),
+            'puntos_victoria'    => $this->input->post('puntos_victoria'),
+            'puntos_empate'      => $this->input->post('puntos_empate')
         ];
 
         if (!empty($id_categoria)) {

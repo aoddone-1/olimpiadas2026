@@ -13,17 +13,18 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *  - TIEMPO / PUNTAJE (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del
  *    resultado con más posiciones cargadas.
  *  - MARCADOR (ENFRENTAMIENTO): el podio es el del TORNEO COMPLETO, no del
- *    último partido. Hay DOS sistemas, definidos por deportes.sistema_definicion
- *    (ver sql/migracion_puntaje_liga.sql):
+ *    último partido. Hay DOS sistemas, definidos POR CATEGORÍA en
+ *    categorias.sistema_definicion (ver sql/migracion_puntaje_categoria.sql;
+ *    dentro de un mismo deporte puede haber categorías con uno y con otro):
  *      FASE_FINAL (por defecto):
  *        1º = ganador de la FINAL
  *        2º = perdedor de la FINAL
  *        3º = ganador del partido por el TERCER_PUESTO (si existe; si no, queda
  *             "por definir").
- *      PUNTAJE (liga / todos contra todos): se arma la TABLA DE PUNTOS con
- *        TODOS los partidos cargados (MARCADOR y/o PUNTAJE) de la categoría:
- *          + puntosVictoria (def: 3) al ganador
- *          + puntosEmpate (def: 1) a cada equipo si empataron
+ *      PUNTAJE (liga / todos contra todos): se arma la TABLA DE PUNTOS de ESA
+ *        categoría con TODOS los partidos cargados (MARCADOR y/o PUNTAJE):
+ *          + puntosVictoria de la categoría (def: 3) al ganador
+ *          + puntosEmpate de la categoría (def: 1) a cada equipo si empataron
  *          + 0 al perdedor
  *        El podio sale de esa tabla: 1º = puntero, 2º = segundo, 3º = tercero.
  *        Desempates entre equipos con iguales puntos (en orden):
@@ -329,7 +330,7 @@ class Premiacion_model extends CI_Model {
         $this->db->select('r.*, f.fase AS fx_fase, f.id_fixture AS fx_id, f.fecha_competencia AS fx_fecha', FALSE);
         if ($this->_columna_resultado_existe('id_ute_ganador')) {
             // Nombre del ganador del desempate para el texto del podio.
-            $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+            $this->db->select(', ug.nombre_ute AS nombre_ganador_desempate', FALSE);
             $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
         }
         $this->db->from('resultados r');
@@ -473,15 +474,25 @@ class Premiacion_model extends CI_Model {
             c.id_categoria, c.nombre_categoria, c.genero, c.dia_competencia,
             d.id_deporte, d.nombre_deporte, d.modalidad_competencia, d.tipo_duracion
         ', FALSE);
-        // Columnas del sistema de definición por puntaje (sql/migracion_puntaje_liga.sql):
-        // se agregan solo si existen, para no romper en bases todavía sin el ALTER.
-        if ($this->_columna_deporte_existe('sistema_definicion')) {
+        // EL SISTEMA DE DEFINICIÓN VIVE EN LA CATEGORÍA (cada categoría de un
+        // mismo deporte puede definir por FINAL+3er puesto o por tabla de
+        // puntos). Columnas de sql/migracion_puntaje_categoria.sql: se agregan
+        // solo si existen, para no romper en bases todavía sin el ALTER.
+        if ($this->_columna_existe('categorias', 'sistema_definicion')) {
+            $this->db->select(", IFNULL(c.sistema_definicion, 'FASE_FINAL') AS sistema_definicion", FALSE);
+        } elseif ($this->_columna_existe('deportes', 'sistema_definicion')) {
+            // Retrocompatibilidad: si se llegó a aplicar la migración vieja
+            // (columnas en deportes), se usa ese valor como default del deporte.
             $this->db->select(", IFNULL(d.sistema_definicion, 'FASE_FINAL') AS sistema_definicion", FALSE);
         }
-        if ($this->_columna_deporte_existe('puntosVictoria')) {
+        if ($this->_columna_existe('categorias', 'puntosVictoria')) {
+            $this->db->select(', IFNULL(NULLIF(c.puntosVictoria, -1), 3) AS puntos_victoria', FALSE);
+        } elseif ($this->_columna_existe('deportes', 'puntosVictoria')) {
             $this->db->select(', IFNULL(NULLIF(d.puntosVictoria, -1), 3) AS puntos_victoria', FALSE);
         }
-        if ($this->_columna_deporte_existe('puntosEmpate')) {
+        if ($this->_columna_existe('categorias', 'puntosEmpate')) {
+            $this->db->select(', IFNULL(NULLIF(c.puntosEmpate, -1), 1) AS puntos_empate', FALSE);
+        } elseif ($this->_columna_existe('deportes', 'puntosEmpate')) {
             $this->db->select(', IFNULL(NULLIF(d.puntosEmpate, -1), 1) AS puntos_empate', FALSE);
         }
         $this->db->from('categorias c');
@@ -490,22 +501,22 @@ class Premiacion_model extends CI_Model {
         return $this->_filas_seguras();
     }
 
-    /** ¿Existe una columna en `deportes`? (tolera bases sin el ALTER). */
-    private function _columna_deporte_existe($columna) {
+    /** ¿Existe una columna en una tabla? (tolera bases sin el ALTER). */
+    private function _columna_existe($tabla, $columna) {
         static $cache = array();
-        $key = strtolower((string) $columna);
+        $key = strtolower((string) $tabla) . '.' . strtolower((string) $columna);
         if (!isset($cache[$key])) {
             try {
                 $q = $this->db->query(
                     "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
                      WHERE TABLE_SCHEMA = DATABASE()
-                       AND TABLE_NAME = 'deportes'
+                       AND TABLE_NAME = ?
                        AND COLUMN_NAME = ?",
-                    array($columna)
+                    array($tabla, $columna)
                 );
                 $cache[$key] = (bool) ($q && $q->num_rows() > 0);
             } catch (Throwable $e) {
-                log_message('error', '[Premiación] no se pudo verificar columna deportes.' . $columna . ': ' . $e->getMessage());
+                log_message('error', '[Premiación] no se pudo verificar columna ' . $tabla . '.' . $columna . ': ' . $e->getMessage());
                 $cache[$key] = false;
             }
         }
@@ -801,7 +812,8 @@ class Premiacion_model extends CI_Model {
 
             $es_masiva = ($cat['modalidad_competencia'] === 'MASIVO_TIEMPO');
             // ENFRENTAMIENTO que define por tabla de puntos (3/1/0) en lugar
-            // de FINAL + Tercer puesto: deportes.sistema_definicion = 'PUNTAJE'.
+            // de FINAL + Tercer puesto: categorias.sistema_definicion = 'PUNTAJE'
+            // (es configuración de LA CATEGORÍA, no del deporte).
             $define_por_puntaje = (!$es_masiva
                 && strtoupper((string) ($cat['sistema_definicion'] ?? 'FASE_FINAL')) === 'PUNTAJE');
             $podio = array();
