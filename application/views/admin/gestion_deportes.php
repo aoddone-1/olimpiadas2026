@@ -159,6 +159,9 @@
                                                                     data-lugar="<?= $c['id_lugar'] ?>"
                                                                     data-dia="<?= $c['dia_competencia'] ?>"
                                                                     data-hora="<?= $c['hora_competencia'] ?>"
+                                                                    data-sistema="<?= htmlspecialchars($c['sistema_definicion'] ?? 'FASE_FINAL', ENT_QUOTES, 'UTF-8') ?>"
+                                                                    data-pv="<?= intval($c['puntosVictoria'] ?? 3) ?>"
+                                                                    data-pe="<?= intval($c['puntosEmpate'] ?? 1) ?>"
                                                                     title="Editar Categoría">
                                                                 <i class="bi bi-pencil-square fs-6"></i>
                                                             </button>
@@ -360,6 +363,28 @@
                             <input type="time" name="hora_competencia" class="form-control">
                         </div>
                     </div>
+
+                    <!-- Sistema de definición: es POR CATEGORÍA (no por deporte) -->
+                    <div class="mt-3 p-3 rounded-3 bg-light border">
+                        <label class="form-label small fw-bold text-muted text-uppercase mb-1">
+                            <i class="bi bi-diagram-3-fill me-1 text-dark"></i>Sistema de definición (esta categoría)
+                        </label>
+                        <select name="sistema_definicion" id="nuevo_sistema_definicion" class="form-select form-select-sm">
+                            <option value="FASE_FINAL">Fase final: Final + Tercer puesto</option>
+                            <option value="PUNTAJE">Tabla de puntos (liga): gana / empata / pierde</option>
+                        </select>
+                        <div class="row g-2 mt-2 d-none" id="nuevo_contenedor_puntos">
+                            <div class="col-6">
+                                <label class="form-label small text-muted">Puntos por victoria</label>
+                                <input type="number" name="puntos_victoria" id="nuevo_pv" class="form-control form-control-sm" value="3" min="0" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small text-muted">Puntos por empate</label>
+                                <input type="number" name="puntos_empate" id="nuevo_pe" class="form-control form-control-sm" value="1" min="0" max="10">
+                            </div>
+                        </div>
+                        <div class="form-text small">En "Tabla de puntos" la premiación arma el podio 1º/2º/3º desde las posiciones de la liga, sin necesidad de Final ni 3er puesto.</div>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light border-0 rounded-bottom-4">
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -409,7 +434,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="row g-2">
+                    <div class="row g-2 mb-3">
                         <div class="col-6">
                             <label class="form-label small fw-bold text-muted text-uppercase">Día de Competencia</label>
                             <input type="date" name="dia_competencia" id="edit_dia_categoria" class="form-control">
@@ -418,6 +443,28 @@
                             <label class="form-label small fw-bold text-muted text-uppercase">Horario de Inicio</label>
                             <input type="time" name="hora_competencia" id="edit_hora_categoria" class="form-control">
                         </div>
+                    </div>
+
+                    <!-- Sistema de definición: es POR CATEGORÍA (no por deporte) -->
+                    <div class="mt-3 p-3 rounded-3 bg-light border">
+                        <label class="form-label small fw-bold text-muted text-uppercase mb-1">
+                            <i class="bi bi-diagram-3-fill me-1 text-dark"></i>Sistema de definición (esta categoría)
+                        </label>
+                        <select name="sistema_definicion" id="edit_sistema_definicion" class="form-select form-select-sm">
+                            <option value="FASE_FINAL">Fase final: Final + Tercer puesto</option>
+                            <option value="PUNTAJE">Tabla de puntos (liga): gana / empata / pierde</option>
+                        </select>
+                        <div class="row g-2 mt-2" id="edit_contenedor_puntos">
+                            <div class="col-6">
+                                <label class="form-label small text-muted">Puntos por victoria</label>
+                                <input type="number" name="puntos_victoria" id="edit_pv" class="form-control form-control-sm" value="3" min="0" max="10">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small text-muted">Puntos por empate</label>
+                                <input type="number" name="puntos_empate" id="edit_pe" class="form-control form-control-sm" value="1" min="0" max="10">
+                            </div>
+                        </div>
+                        <div class="form-text small">En "Tabla de puntos" la premiación arma el podio 1º/2º/3º desde las posiciones de la liga, sin necesidad de Final ni 3er puesto.</div>
                     </div>
                 </div>
                 <div class="modal-footer bg-light border-0 rounded-bottom-4">
@@ -558,9 +605,33 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // --- Toggle de puntos en el modal NUEVA categoría ---
+    var selSistemaNuevo = document.getElementById('nuevo_sistema_definicion');
+    if (selSistemaNuevo) {
+        selSistemaNuevo.addEventListener('change', function () {
+            var cont = document.getElementById('nuevo_contenedor_puntos');
+            if (cont) {
+                cont.classList.toggle('d-none', this.value !== 'PUNTAJE');
+            }
+        });
+    }
+
     // --- Lógica del Modal Editar Categoría ---
     var modalEditarCat = document.getElementById('modalEditarCategoria');
     if (modalEditarCat) {
+        // Mostrar/ocultar los campos de puntos según el sistema elegido
+        var togglePuntosEdit = function () {
+            var sel = document.getElementById('edit_sistema_definicion');
+            var cont = document.getElementById('edit_contenedor_puntos');
+            if (sel && cont) {
+                cont.classList.toggle('d-none', sel.value !== 'PUNTAJE');
+            }
+        };
+        var selSistemaEdit = document.getElementById('edit_sistema_definicion');
+        if (selSistemaEdit) {
+            selSistemaEdit.addEventListener('change', togglePuntosEdit);
+        }
+
         modalEditarCat.addEventListener('show.bs.modal', function (event) {
             var boton = event.relatedTarget;
             document.getElementById('edit_id_categoria').value = boton.getAttribute('data-id');
@@ -570,6 +641,13 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_lugar_categoria').value = boton.getAttribute('data-lugar');
             document.getElementById('edit_dia_categoria').value = boton.getAttribute('data-dia');
             document.getElementById('edit_hora_categoria').value = boton.getAttribute('data-hora');
+
+            // Sistema de definición POR CATEGORÍA (defaults si la base aún no migró)
+            var sistema = boton.getAttribute('data-sistema') || 'FASE_FINAL';
+            document.getElementById('edit_sistema_definicion').value = (sistema === 'PUNTAJE') ? 'PUNTAJE' : 'FASE_FINAL';
+            document.getElementById('edit_pv').value = boton.getAttribute('data-pv') || 3;
+            document.getElementById('edit_pe').value = boton.getAttribute('data-pe') || 1;
+            togglePuntosEdit();
         });
     }
 
