@@ -10,7 +10,8 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *  - Deportes UNICO_DIA: cierran el mismo día -> se premian esa noche.
  *  - Deportes MULTIDIA: cierran el día de la definición (fecha de la FINAL /
  *    última jornada) -> se premian esa noche.
- *  - TIEMPO (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del resultado.
+ *  - TIEMPO / PUNTAJE (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del
+ *    resultado con más posiciones cargadas.
  *  - MARCADOR (ENFRENTAMIENTO): el podio es el del TORNEO COMPLETO, no del
  *    último partido:
  *      1º = ganador de la FINAL
@@ -24,6 +25,44 @@ class Premiacion_model extends CI_Model {
     /** ¿Existe la tabla de premiaciones? (aviso amigable si falta el SQL). */
     public function tablas_existentes() {
         return $this->_tabla_existe('premiaciones');
+    }
+
+    /**
+     * Diagnóstico rápido para el mensaje de error: qué tablas/columnas hacen
+     * falta para que la Premiación pueda leer los resultados.
+     */
+    public function diagnostico_faltantes() {
+        $faltan = array();
+        foreach (array('resultados', 'resultado_detalle', 'fixtures', 'premiaciones') as $t) {
+            if (!$this->_tabla_existe($t)) $faltan[] = 'la tabla `' . $t . '`';
+        }
+        if ($this->_tabla_existe('resultados') && !$this->_columna_resultado_existe('id_fixture')) {
+            $faltan[] = 'la columna `resultados.id_fixture`';
+        }
+        return $faltan;
+    }
+
+    /**
+     * ¿El ENUM `resultados.tipo_resultado` acepta PUNTAJE? (sql/migracion_puntaje.sql).
+     * Si no, avisamos que los puntajes NO se pueden guardar ni premiar.
+     */
+    public function puntaje_soportado() {
+        static $ok = null;
+        if ($ok !== null) return $ok;
+        try {
+            $q = $this->db->query(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+                 WHERE TABLE_SCHEMA = DATABASE()
+                   AND TABLE_NAME = 'resultados'
+                   AND COLUMN_NAME = 'tipo_resultado'
+                   AND COLUMN_TYPE LIKE '%PUNTAJE%'"
+            );
+            $ok = (bool) ($q && $q->num_rows() > 0);
+        } catch (Throwable $e) {
+            log_message('error', '[Premiación] no se pudo verificar el ENUM tipo_resultado: ' . $e->getMessage());
+            $ok = true; // si no se puede comprobar, no bloquear la carga
+        }
+        return $ok;
     }
 
     /**
@@ -126,8 +165,9 @@ class Premiacion_model extends CI_Model {
         return compact('eqA', 'eqB');
     }
 
-    /** Podio de un resultado TIEMPO: posiciones 1, 2 y 3 del detalle. */
+    /** Podio de un resultado TIEMPO / PUNTAJE: posiciones 1, 2 y 3 del detalle. */
     private function _podio_desde_tiempo($resultado) {
+        $es_puntaje = (isset($resultado['tipo_resultado']) && $resultado['tipo_resultado'] === 'PUNTAJE');
         $ordenadas = $resultado['detalle'];
         usort($ordenadas, function ($a, $b) {
             return (int) $a['posicion'] - (int) $b['posicion'];
@@ -139,7 +179,9 @@ class Premiacion_model extends CI_Model {
             $nombres[$pos] = array(
                 'id'     => $d['id_ute'] !== null ? (int) $d['id_ute'] : null,
                 'nombre' => trim((string) $d['nombre_libre']),
-                'extra'  => $d['tiempo'] ? 'Tiempo: ' . $d['tiempo'] : null,
+                // PUNTAJE se guarda en la misma columna `tiempo`: el texto del
+                // podio debe decir "Pts:", no "Tiempo:".
+                'extra'  => $d['tiempo'] ? ($es_puntaje ? 'Puntaje: ' : 'Tiempo: ') . $d['tiempo'] : null,
             );
         }
         return $nombres;
@@ -297,6 +339,79 @@ class Premiacion_model extends CI_Model {
             }
         }
         return count($row['detalle']) >= 2 ? $row : null;
+    }
+
+    /**
+     * Resultado de la FINAL al que debería estar vinculado el partido del
+     * fixture (para detectar podios armados con resultados cargados "sin
+     * vincular al fixture": el resultado existe pero nunca se unió al partido
+     * y por eso la Premiación no lo encontraba).
+     */
+    private function _resultado_por_fase_vinculado_por_marcador($id_categoria, $fase, $fx) {
+        $res = $this->_resultados_de_la_instancia((int) $fx['id_fixture'], true);
+        if (!$res) return null;
+        foreach ($res as $r) {
+            if ($r['tipo_resultado'] !== 'MARCADOR') continue;
+            if (count($r['detalle']) < 2) continue;
+            if ($this->_equipos_coinciden_con_el_partido($fx, $r['detalle'])) {
+                return $r;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Resultados vinculados a un partido/jornada del fixture (con su detalle).
+     * $solo_marcador limita a los de tipo MARCADOR (un solo query).
+     */
+    private function _resultados_de_la_instancia($id_fixture, $solo_marcador = false) {
+        $this->db->where('id_fixture', (int) $id_fixture);
+        if ($solo_marcador) {
+            $this->db->where('tipo_resultado', 'MARCADOR');
+        }
+        $this->db->order_by('id_resultado', 'DESC');
+        $rows = $this->_filas_seguras('resultados');
+        if (!$rows) return array();
+        $detalles = $this->_detalle_de_resultados(array_column($rows, 'id_resultado'));
+        foreach ($rows as &$r) {
+            $r['detalle'] = isset($detalles[(int) $r['id_resultado']])
+                ? $detalles[(int) $r['id_resultado']] : array();
+        }
+        unset($r);
+        return $rows;
+    }
+
+    /** ¿Los dos equipos del resultado son los del partido del fixture? */
+    private function _equipos_coinciden_con_el_partido($fx, $detalle) {
+        $esperados = array_filter(array(
+            !empty($fx['id_ute_1']) ? (int) $fx['id_ute_1'] : 0,
+            !empty($fx['id_ute_2']) ? (int) $fx['id_ute_2'] : 0,
+        ));
+        $cargados = array();
+        $nombres_cargados = array();
+        foreach ($detalle as $d) {
+            if (!empty($d['id_ute'])) {
+                $cargados[] = (int) $d['id_ute'];
+            } else {
+                $nombres_cargados[] = mb_strtolower(trim((string) $d['nombre_libre']));
+            }
+        }
+        if ($cargados && count($cargados) === count($detalle)) {
+            sort($cargados);
+            sort($esperados);
+            return $cargados === $esperados;
+        }
+        // Equipos cargados "libres" (sin UTE): comparar por nombre.
+        if (!$nombres_cargados || !$esperados) return false;
+        $this->db->select('id_ute, nombre_ute', FALSE);
+        $this->db->where_in('id_ute', $esperados);
+        $nombres_esperados = array();
+        foreach ($this->_filas_seguras('utes') as $u) {
+            $nombres_esperados[] = mb_strtolower(trim((string) $u['nombre_ute']));
+        }
+        sort($nombres_cargados);
+        sort($nombres_esperados);
+        return $nombres_cargados === $nombres_esperados && count($nombres_cargados) >= 2;
     }
 
     /** ¿Existe una columna en `resultados`? (tolera bases sin el ALTER). */
