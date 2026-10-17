@@ -17,13 +17,12 @@ body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);colo
      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
 .wrap{max-width:1200px;margin:0 auto;padding:16px}
 header{text-align:center;padding:22px 10px 10px}
-/* Logo oficial: es cuadrado y con letras negras sobre fondo transparente,
-   por eso va montado en una "placa" blanca tipo medallón (no como banner). */
-.logo-placa{display:inline-block;background:#fff;border-radius:18px;padding:10px 14px;margin-bottom:12px;
-            box-shadow:0 6px 24px rgba(0,0,0,.5), inset 0 0 0 3px var(--acento)}
-header .logo-evento{display:block;height:clamp(90px,14vw,140px);width:auto;max-width:90%;object-fit:contain}
-header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25}
-header h1 .anillos{color:var(--acento)}
+/* Logo oficial sin letras (logo_olimpiadas_2.png): al no tener texto negro,
+   puede ir directo sobre el fondo oscuro — va a la par del título. */
+.titulo-row{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+.titulo-row .logo-evento{height:clamp(64px,9vw,96px);width:auto;object-fit:contain;flex-shrink:0;
+                         filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
+header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25;text-align:left}
 header p.sitio{color:var(--txt);margin-top:6px;font-size:14px;font-weight:600;opacity:.85}
 header p.lugar{display:inline-block;margin-top:8px;background:var(--card);border:1px solid var(--line);
                border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700}
@@ -109,10 +108,10 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 <div class="wrap">
 
 <header>
-  <div class="logo-placa">
-    <img class="logo-evento" src="<?= base_url('assets/img/header.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
+  <div class="titulo-row">
+    <img class="logo-evento" src="<?= base_url('assets/img/logo_olimpiadas_2.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
+    <h1><?= htmlspecialchars($nombre_sitio) ?></h1>
   </div>
-  <h1><span class="anillos">◉ ◉ ◉ ◉ ◉</span> <?= htmlspecialchars($nombre_sitio) ?></h1>
   <p class="lugar">📍 <?= htmlspecialchars($lugar_olimpico) ?></p>
   <p class="sub">
     <?php if (!empty($delegacion)): ?>
