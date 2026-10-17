@@ -43,13 +43,88 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
 .badge.MASIVA{background:#123c52;color:#7fd8ff;margin-left:6px}
 /* Barra de filtros */
-.filtros{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
-         background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
-.filtros label{font-size:13px;color:var(--muted)}
-.filtros select{background:var(--card2);color:var(--txt);border:1px solid var(--line);
-                border-radius:8px;padding:8px 12px;font-size:15px;min-width:160px}
-.filtros a.limpiar{color:var(--acento);text-decoration:none;font-size:14px;padding:8px 10px;
-                   border:1px solid var(--line);border-radius:8px}
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  align-items: flex-end;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 18px 0;
+}
+
+.filtro-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.filtros label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.filtros select {
+  background: var(--card2);
+  color: var(--txt);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 15px;
+  width: 100%;
+  min-width: 180px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.filtros select:hover {
+  border-color: var(--acento);
+}
+
+.filtros select:focus {
+  outline: none;
+  border-color: var(--acento);
+  box-shadow: 0 0 0 3px rgba(var(--acento-rgb, 0, 123, 255), 0.1);
+}
+
+.filtros a.limpiar {
+  color: var(--acento);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: all 0.2s;
+  align-self: flex-end;
+}
+
+.filtros a.limpiar:hover {
+  background: var(--card2);
+  border-color: var(--acento);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .filtros {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .filtro-grupo {
+    min-width: 100%;
+  }
+  
+  .filtros a.limpiar {
+    align-self: center;
+    width: 100%;
+    text-align: center;
+  }
+}
 .chip-delegacion{display:inline-block;background:var(--acento);color:#111;border-radius:20px;
                  padding:4px 14px;font-weight:700;font-size:14px}
 /* Cards resumen */
@@ -179,6 +254,7 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
     flex: 1 1 auto;
   }
 }
+
 </style>
 </head>
 <body>
@@ -201,44 +277,44 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 
 <!-- Filtros -->
 <form method="get" action="<?= site_url('publico') ?>" class="filtros">
-  <label>Delegación:</label>
-  <select name="delegacion" onchange="this.form.submit()">
-    <option value="">— Todas (vista general) —</option>
-    <?php foreach ($delegaciones as $d): ?>
-      <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
-        <?= htmlspecialchars($d) ?>
-      </option>
-    <?php endforeach; ?>
-  </select>
-
-  <label>Deporte:</label>
-  <select name="deporte" id="filtroDeporte" onchange="onFiltroDeporte(this)">
-    <option value="">— Todos —</option>
-    <?php foreach ($deportes as $dep): ?>
-      <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
-        <?= htmlspecialchars($dep['nombre_deporte']) ?>
-      </option>
-    <?php endforeach; ?>
-  </select>
-
-  <!-- Categoría: cascada Deporte → Categoría. Sin deporte elegido muestran
-       TODAS las categorías (con el deporte al lado para identificarlas); al
-       elegir un deporte, el combo se reduce a las categorías de ese deporte. -->
-  <label>Categoría:</label>
-  <select name="categoria" id="filtroCategoria">
-    <option value="">— Todas —</option>
-    <?php foreach ($deportes as $dep): ?>
-      <?php foreach (isset($dep['categorias']) ? $dep['categorias'] : array() as $cat): ?>
-        <?php if (empty($cat['id_categoria'])) continue; ?>
-        <option value="<?= (int)$cat['id_categoria'] ?>"
-                data-deporte="<?= (int)$dep['id_deporte'] ?>"
-                <?= ((int)$id_categoria === (int)$cat['id_categoria']) ? 'selected' : '' ?>>
-          <?= htmlspecialchars($cat['nombre_categoria']) ?><?= empty($id_deporte) ? ' (' . htmlspecialchars($dep['nombre_deporte']) . ')' : '' ?>
+  <div class="filtro-grupo">
+    <label>Delegación:</label>
+    <select name="delegacion" onchange="this.form.submit()">
+      <option value="">— Todas (vista general) —</option>
+      <?php foreach ($delegaciones as $d): ?>
+        <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
+          <?= htmlspecialchars($d) ?>
         </option>
       <?php endforeach; ?>
-    <?php endforeach; ?>
-  </select>
-
+    </select>
+  </div>
+  <div class="filtro-grupo">
+    <label>Deporte:</label>
+    <select name="deporte" id="filtroDeporte" onchange="onFiltroDeporte(this)">
+      <option value="">— Todos —</option>
+      <?php foreach ($deportes as $dep): ?>
+        <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
+          <?= htmlspecialchars($dep['nombre_deporte']) ?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <div class="filtro-grupo">
+    <label>Categoría:</label>
+    <select name="categoria" id="filtroCategoria">
+      <option value="">— Todas —</option>
+      <?php foreach ($deportes as $dep): ?>
+        <?php foreach (isset($dep['categorias']) ? $dep['categorias'] : array() as $cat): ?>
+          <?php if (empty($cat['id_categoria'])) continue; ?>
+          <option value="<?= (int)$cat['id_categoria'] ?>"
+                  data-deporte="<?= (int)$dep['id_deporte'] ?>"
+                  <?= ((int)$id_categoria === (int)$cat['id_categoria']) ? 'selected' : '' ?>>
+            <?= empty($id_deporte) ?  htmlspecialchars($dep['nombre_deporte'])  : '' ?> - <?= htmlspecialchars($cat['nombre_categoria']) ?>
+          </option>
+        <?php endforeach; ?>
+      <?php endforeach; ?>
+    </select>
+  </div>
   <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
     <a class="limpiar" href="<?= site_url('publico') ?>">✕ Quitar filtros</a>
   <?php endif; ?>
