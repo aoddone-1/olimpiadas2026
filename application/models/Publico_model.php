@@ -142,7 +142,7 @@ class Publico_model extends CI_Model {
      * (solo muestra los partidos donde esa delegación tiene algún integrante
      * en alguno de los equipos, o compite en la prueba individual).
      */
-    public function obtener_fixture_publico($delegacion = null, $id_deporte = null) {
+    public function obtener_fixture_publico($delegacion = null, $id_deporte = null, $id_categoria = null) {
         try {
             // NOTA DE DISEÑO: el panel público se renderiza DESPUÉS de varias
             // otras consultas (resumen → delegaciones → deportes). Si una de
@@ -157,6 +157,10 @@ class Publico_model extends CI_Model {
             if ($id_deporte !== null && (int) $id_deporte > 0) {
                 $ids = $this->_ids_categorias_del_deporte((int) $id_deporte);
                 $conds[] = 'id_categoria IN (' . implode(',', array_map('intval', $ids)) . ')';
+            }
+            // Filtro por CATEGORÍA específica (cascada Deporte → Categoría del panel).
+            if ($id_categoria !== null && (int) $id_categoria > 0) {
+                $conds[] = 'id_categoria = ' . (int) $id_categoria;
             }
             if ($conds) {
                 $sql .= ' WHERE ' . implode(' AND ', $conds);
@@ -634,7 +638,7 @@ class Publico_model extends CI_Model {
      * Filtrable por delegación: solo eventos donde participa un equipo/competidor
      * de esa delegación.
      */
-    public function obtener_resultados_publicos($delegacion = null, $id_deporte = null) {
+    public function obtener_resultados_publicos($delegacion = null, $id_deporte = null, $id_categoria = null) {
         try {
             if (!$this->_tabla_existe('resultados')) {
                 log_message('error', 'Publico_model::obtener_resultados_publicos — la tabla `resultados` no existe.');
@@ -655,9 +659,17 @@ class Publico_model extends CI_Model {
                 if (isset($cols_r[$col])) $campos_r[] = $col;
             }
             $sql = 'SELECT `' . implode('`, `', $campos_r) . '` FROM `resultados`';
+            $conds_r = array();
             if ($id_deporte !== null && (int) $id_deporte > 0) {
                 $ids = $this->_ids_categorias_del_deporte((int) $id_deporte);
-                $sql .= ' WHERE `id_categoria` IN (' . implode(',', array_map('intval', $ids)) . ')';
+                $conds_r[] = '`id_categoria` IN (' . implode(',', array_map('intval', $ids)) . ')';
+            }
+            // Filtro por CATEGORÍA específica (cascada Deporte → Categoría del panel).
+            if ($id_categoria !== null && (int) $id_categoria > 0) {
+                $conds_r[] = '`id_categoria` = ' . (int) $id_categoria;
+            }
+            if ($conds_r) {
+                $sql .= ' WHERE ' . implode(' AND ', $conds_r);
             }
             $sql .= ' ORDER BY `fecha_resultado` DESC, `id_resultado` DESC';
 

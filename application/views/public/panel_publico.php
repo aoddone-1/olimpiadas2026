@@ -212,7 +212,7 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
   </select>
 
   <label>Deporte:</label>
-  <select name="deporte" onchange="this.form.submit()">
+  <select name="deporte" id="filtroDeporte" onchange="onFiltroDeporte(this)">
     <option value="">— Todos —</option>
     <?php foreach ($deportes as $dep): ?>
       <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
@@ -221,7 +221,25 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
     <?php endforeach; ?>
   </select>
 
-  <?php if (!empty($delegacion) || !empty($id_deporte)): ?>
+  <!-- Categoría: cascada Deporte → Categoría. Sin deporte elegido muestran
+       TODAS las categorías (con el deporte al lado para identificarlas); al
+       elegir un deporte, el combo se reduce a las categorías de ese deporte. -->
+  <label>Categoría:</label>
+  <select name="categoria" id="filtroCategoria">
+    <option value="">— Todas —</option>
+    <?php foreach ($deportes as $dep): ?>
+      <?php foreach (isset($dep['categorias']) ? $dep['categorias'] : array() as $cat): ?>
+        <?php if (empty($cat['id_categoria'])) continue; ?>
+        <option value="<?= (int)$cat['id_categoria'] ?>"
+                data-deporte="<?= (int)$dep['id_deporte'] ?>"
+                <?= ((int)$id_categoria === (int)$cat['id_categoria']) ? 'selected' : '' ?>>
+          <?= htmlspecialchars($cat['nombre_categoria']) ?><?= empty($id_deporte) ? ' (' . htmlspecialchars($dep['nombre_deporte']) . ')' : '' ?>
+        </option>
+      <?php endforeach; ?>
+    <?php endforeach; ?>
+  </select>
+
+  <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
     <a class="limpiar" href="<?= site_url('publico') ?>">✕ Quitar filtros</a>
   <?php endif; ?>
 </form>
@@ -261,7 +279,7 @@ $metodos_txt = array(
 <!-- ============ FIXTURE ============ -->
 <div id="tab-fixture" class="panel-tab visible">
   <?php if (empty($fixture)): ?>
-    <div class="vacio">No hay partidos programados<?= $delegacion ? ' para esta delegación' : '' ?> todavía.</div>
+    <div class="vacio">No hay partidos programados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?> todavía.</div>
   <?php else: ?>
     <?php
       $dia_actual = null;
@@ -332,7 +350,7 @@ $metodos_txt = array(
 <!-- ============ RESULTADOS ============ -->
 <div id="tab-resultados" class="panel-tab">
   <?php if (empty($resultados)): ?>
-    <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?>.</div>
+    <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?>.</div>
   <?php else: foreach ($resultados as $res):
       /* Encabezado: DEPORTE destacado y CATEGORÍA abajo (nunca el nombre del
          partido, que es un dato interno tipo "Final - Partido 1"). */
@@ -472,6 +490,47 @@ $metodos_txt = array(
 </div>
 
 <script>
+// Cascada Deporte → Categoría en la barra de filtros del panel público.
+// Cada <option> del combo de categorías lleva data-deporte; al elegir un
+// deporte se ocultan las categorías de los demás deportes (y, si la elegida
+// ya no aplica, se resetea a "— Todas —"). Sin deporte elegido, se muestran
+// TODAS las categorías con el nombre del deporte entre paréntesis.
+(function () {
+  var selDep = document.getElementById('filtroDeporte');
+  var selCat = document.getElementById('filtroCategoria');
+  if (!selDep || !selCat) return;
+
+  // Snapshot de los textos originales (con "(Deporte)" cuando no hay filtro
+  // de deporte activo) para poder restaurarlos al limpiar el deporte.
+  Array.prototype.forEach.call(selCat.options, function (o) {
+    if (o.value !== '') o.dataset.baseLabel = o.textContent.trim();
+  });
+
+  function aplicarCascada(enviar) {
+    var dep = selDep.value;
+    var visibleSel = false;
+    Array.prototype.forEach.call(selCat.options, function (o) {
+      if (o.value === '') return; // "— Todas —" siempre visible
+      var ok = (dep === '' || o.dataset.deporte === dep);
+      o.hidden = !ok;
+      o.disabled = !ok;
+      // Con deporte elegido se muestra solo el nombre de la categoría;
+      // sin deporte, el deporte entre paréntesis identifica a cada una.
+      if (o.dataset.baseLabel) {
+        var base = o.dataset.baseLabel;
+        var paren = base.lastIndexOf(' (');
+        o.textContent = (dep === '' || paren < 0) ? base : base.slice(0, paren);
+      }
+      if (o.selected && ok) visibleSel = true;
+    });
+    if (selCat.value !== '' && !visibleSel) selCat.value = '';
+    if (enviar) selDep.form.submit();
+  }
+
+  window.onFiltroDeporte = function () { aplicarCascada(true); };
+  aplicarCascada(false); // estado inicial según los combos del servidor
+})();
+
 // Tabs
 document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){
