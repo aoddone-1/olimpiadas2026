@@ -1,0 +1,100 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+/**
+ * PUBLICO — Panel público de las Olimpíadas (sin login ni contraseña).
+ *
+ * Pensado para proyectarse en una pantalla del evento o consultarse desde el
+ * celular: muestra el resumen de las olimpíadas, el fixture, los resultados y
+ * el medallero. Si se selecciona una DELEGACIÓN, todo se filtra a lo de esa
+ * delegación únicamente.
+ *
+ * Diseño seguro:
+ *  - Controlador NUEVO e independiente: no reutiliza Inscripciones ni su sesión.
+ *  - Solo métodos GET/lectura: no existe ninguna ruta de escritura aquí.
+ *  - No expone datos personales sensibles (DNI, email, teléfono): se muestran
+ *    equipos/pruebas, no personas.
+ */
+class Publico extends CI_Controller {
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->model('Publico_model');
+        // Cache corto: los datos cambian durante la semana, pero no hace falta
+        // recargar en cada segundo.
+        $this->output->set_header('Cache-Control: max-age=30');
+    }
+
+    /** Panel principal: resumen + pestañas Fixture / Resultados / Medallero. */
+    public function index() {
+        $delegacion = $this->_delegacion_filtro();
+        $id_deporte = $this->_deporte_filtro();
+
+        $data = array(
+            'titulo_evento'  => 'Olimpíadas — Panel Público',
+            'resumen'        => $this->Publico_model->obtener_resumen_evento(),
+            'delegaciones'   => $this->Publico_model->obtener_delegaciones(),
+            'deportes'       => $this->Publico_model->obtener_deportes_con_categorias(),
+            'delegacion'     => $delegacion,
+            'id_deporte'     => $id_deporte,
+            'fixture'        => $this->Publico_model->obtener_fixture_publico($delegacion, $id_deporte),
+            'resultados'     => $this->Publico_model->obtener_resultados_publicos($delegacion, $id_deporte),
+            'medallero'      => $this->Publico_model->obtener_medallero(),
+            'ahora'          => date('d/m/Y H:i'),
+        );
+
+        $this->load->view('public/panel_publico', $data);
+    }
+
+    /** JSON del fixture (para auto-refresh sin recargar la página). */
+    public function fixture_json() {
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array(
+                'ok' => true,
+                'fixture' => $this->Publico_model->obtener_fixture_publico(
+                    $this->_delegacion_filtro(), $this->_deporte_filtro()
+                ),
+            )));
+    }
+
+    /** JSON de resultados. */
+    public function resultados_json() {
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array(
+                'ok' => true,
+                'resultados' => $this->Publico_model->obtener_resultados_publicos(
+                    $this->_delegacion_filtro(), $this->_deporte_filtro()
+                ),
+            )));
+    }
+
+    /** JSON del medallero. */
+    public function medallero_json() {
+        $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(array(
+                'ok' => true,
+                'medallero' => $this->Publico_model->obtener_medallero(),
+            )));
+    }
+
+    /* ============================================================
+     *  Helpers de filtros (GET sanitizados)
+     * ============================================================ */
+
+    private function _delegacion_filtro() {
+        $delegacion = trim((string) $this->input->get('delegacion'));
+        if ($delegacion === '') return null;
+        // Validar que sea una delegación real (evita inyección de texto arbitrary
+        // en el HTML y consultas inútiles).
+        $reales = $this->Publico_model->obtener_delegaciones();
+        return in_array($delegacion, $reales, true) ? $delegacion : null;
+    }
+
+    private function _deporte_filtro() {
+        $id_deporte = (int) $this->input->get('deporte');
+        return $id_deporte > 0 ? $id_deporte : null;
+    }
+}
