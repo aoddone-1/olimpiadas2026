@@ -4,7 +4,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= htmlspecialchars($titulo_evento) ?></title>
+<title><?= htmlspecialchars($titulo_evento) ?> — Panel Público</title>
+<link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <style>
 :root{
   --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
@@ -16,9 +17,18 @@ body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);colo
      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
 .wrap{max-width:1200px;margin:0 auto;padding:16px}
 header{text-align:center;padding:22px 10px 10px}
-header h1{font-size:clamp(22px,4vw,36px);letter-spacing:1px}
+header .logo-evento{height:clamp(64px,10vw,110px);max-width:80%;object-fit:contain;
+                    filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));margin-bottom:8px}
+header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25}
 header h1 .anillos{color:var(--acento)}
+header p.sitio{color:var(--txt);margin-top:6px;font-size:14px;font-weight:600;opacity:.85}
+header p.lugar{display:inline-block;margin-top:8px;background:var(--card);border:1px solid var(--line);
+               border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700}
 header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
+/* Jornada masiva (todos contra todos): sin "rivales" */
+.partido.masivo{background:linear-gradient(150deg,var(--card) 0%,#173a5e 100%)}
+.masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
+.badge.MASIVA{background:#123c52;color:#7fd8ff;margin-left:6px}
 /* Barra de filtros */
 .filtros{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
          background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
@@ -87,6 +97,8 @@ table.medallero td.bronce{color:var(--bronce);font-weight:800}
 tr.top1 .rank-num{background:var(--oro);color:#111}
 .vacio{text-align:center;color:var(--muted);padding:40px 10px;font-size:15px}
 footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
+footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-fit:contain;
+                filter:drop-shadow(0 3px 10px rgba(0,0,0,.4))}
 @media(max-width:600px){.partidos{grid-template-columns:1fr}}
 </style>
 </head>
@@ -94,7 +106,9 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
 <div class="wrap">
 
 <header>
-  <h1><span class="anillos">◉ ◉ ◉ ◉ ◉</span> <?= htmlspecialchars($titulo_evento) ?></h1>
+  <img class="logo-evento" src="<?= base_url('assets/img/header.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
+  <h1><span class="anillos">◉ ◉ ◉ ◉ ◉</span> <?= htmlspecialchars($nombre_sitio) ?></h1>
+  <p class="lugar">📍 <?= htmlspecialchars($lugar_olimpico) ?></p>
   <p class="sub">
     <?php if (!empty($delegacion)): ?>
       Viendo: <span class="chip-delegacion"><?= htmlspecialchars($delegacion) ?></span>
@@ -183,17 +197,26 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
         } elseif ($fx['estado'] === 'FINALIZADO' && !empty($fx['resultado'])) {
             $marcador_txt = 'Final';
         }
+
+        // Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos,
+        // NO llevan rivales ni marcador "VS".
+        $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
+                  || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
     ?>
-      <div class="partido">
+      <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
         <div class="meta">
           <span><?= htmlspecialchars((string) $fx['hora_inicio']) ?> – <?= htmlspecialchars((string) $fx['hora_fin']) ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
-          <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
+          <span><span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span><?php if ($es_masivo): ?><span class="badge MASIVA">MASIVA</span><?php endif; ?></span>
         </div>
+        <?php if ($es_masivo): ?>
+          <div class="masivo-aviso">🏃 Todos contra todos — jornada de participación libre.<br>Los puestos y tiempos se publican en la pestaña <b>Resultados</b>.</div>
+        <?php else: ?>
         <div class="vs">
           <div class="equipo <?= $g1 ? 'ganador' : '' ?>"><?= $eq1_nombre ?></div>
           <div class="marcador"><?= $marcador_txt !== '' ? htmlspecialchars($marcador_txt) : '<span class="vsx">VS</span>' ?></div>
           <div class="equipo <?= $g2 ? 'ganador' : '' ?>"><?= $eq2_nombre ?></div>
         </div>
+        <?php endif; ?>
         <div class="categoria-linea">
           <?= htmlspecialchars((string) $fx['nombre_deporte']) ?> · <?= htmlspecialchars((string) $fx['nombre_categoria']) ?>
           <?php if (!empty($fx['fase'])): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
@@ -269,7 +292,10 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
   <?php endif; ?>
 </div>
 
-<footer>Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales</footer>
+<footer>
+  <img class="mascota" src="<?= base_url('assets/img/pampito.png') ?>" alt="Pampito, la mascota de las olimpiadas">
+  Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales
+</footer>
 </div>
 
 <script>

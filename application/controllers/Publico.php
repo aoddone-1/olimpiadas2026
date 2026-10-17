@@ -34,7 +34,9 @@ class Publico extends CI_Controller {
         // (migraciones no aplicadas) el panel se muestra igual, con esa sección
         // vacía y el error real registrado en application/logs/.
         $data = array(
-            'titulo_evento'  => 'Olimpíadas — Panel Público',
+            'titulo_evento'  => NOMBRE_META,
+            'nombre_sitio'   => NOMBRE_SITIO,
+            'lugar_olimpico' => LUGAR_OLIMPICO2,
             'resumen'        => $this->_seguro(fn() => $this->Publico_model->obtener_resumen_evento(), array(
                 'delegaciones' => 0, 'deportes' => 0, 'categorias' => 0,
                 'partidos' => 0, 'finalizados' => 0, 'resultados' => 0, 'premiados' => 0,
