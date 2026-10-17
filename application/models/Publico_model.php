@@ -650,6 +650,7 @@ class Publico_model extends CI_Model {
             $cols_r = $this->_columnas_tabla('resultados');
             $campos_r = array('id_resultado', 'id_categoria', 'id_fixture', 'nombre_evento',
                               'tipo_resultado', 'fecha_resultado', 'lugar');
+            if (isset($cols_r['observaciones'])) $campos_r[] = 'observaciones';
             foreach (array('hubo_desempate', 'desempate_metodo', 'id_ute_ganador') as $col) {
                 if (isset($cols_r[$col])) $campos_r[] = $col;
             }
@@ -703,6 +704,11 @@ class Publico_model extends CI_Model {
                 ? $this->_nombres_utes_por_ids(array_keys($ids_ute_pos))
                 : array();
 
+            // Datos del partido vinculado (fase/fecha/hora/prueba) para mostrar
+            // DEPORTE + CATEGORÍA como encabezado, en vez del `nombre_evento`
+            // (que suele ser el nombre del partido: "Final - Partido 1").
+            $fx_info = $this->_info_fixtures_de_resultados($rows);
+
             $por_res = array();
             foreach ($detalles as &$d) {
                 $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
@@ -726,6 +732,32 @@ class Publico_model extends CI_Model {
                 $r['nombre_deporte']   = isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null;
                 $r['id_deporte']       = $dep ?: null;
                 $r['modalidad_competencia'] = isset($deportes[$dep]['modalidad_competencia']) ? $deportes[$dep]['modalidad_competencia'] : null;
+
+                // Contexto del partido (fixture vinculado): fase legible, fecha/hora
+                // reales de juego y nombre de prueba. Nunca `nombre_evento` en el
+                // encabezado público (es interno: "Final - Partido 1").
+                $idf = isset($r['id_fixture']) ? (int) $r['id_fixture'] : 0;
+                $fxi = ($idf > 0 && isset($fx_info[$idf])) ? $fx_info[$idf] : array();
+                $r['fase']           = isset($fxi['fase']) ? $fxi['fase'] : null;
+                $r['numero_fecha']   = isset($fxi['numero_fecha']) ? $fxi['numero_fecha'] : null;
+                $r['nombre_prueba']  = isset($fxi['nombre_prueba']) ? $fxi['nombre_prueba'] : null;
+                $r['fixture_fecha']  = isset($fxi['fecha_competencia']) ? $fxi['fecha_competencia'] : null;
+                $r['fixture_hora']   = isset($fxi['hora_inicio']) ? $fxi['hora_inicio'] : null;
+                // Nombre del ganador por desempate (resuelto desde la UTE o el detalle).
+                $gano = isset($r['id_ute_ganador']) ? (int) $r['id_ute_ganador'] : 0;
+                $r['nombre_ganador_desempate'] = null;
+                if (!empty($r['hubo_desempate']) && $gano > 0) {
+                    if (isset($nombres_utes[$gano]) && $nombres_utes[$gano] !== '') {
+                        $r['nombre_ganador_desempate'] = $nombres_utes[$gano];
+                    } else {
+                        foreach ($por_res[(int) $r['id_resultado']] as $d) {
+                            if ((int) $d['id_ute'] === $gano && !empty($d['nombre_libre'])) {
+                                $r['nombre_ganador_desempate'] = $d['nombre_libre'];
+                                break;
+                            }
+                        }
+                    }
+                }
 
                 $det = isset($por_res[(int) $r['id_resultado']]) ? $por_res[(int) $r['id_resultado']] : array();
                 if ($r['tipo_resultado'] === 'TIEMPO' || $r['tipo_resultado'] === 'PUNTAJE') {
@@ -770,6 +802,42 @@ class Publico_model extends CI_Model {
             log_message('error', 'Publico_model::obtener_resultados_publicos: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /**
+     * Datos de los `fixtures` vinculados a una lista de resultados (fase, fecha,
+     * hora, prueba), leídos con raw SQL acotado a los ids pedidos — igual que el
+     * resto del panel público: sin Query Builder compartida y tolerando tablas o
+     * columnas de migraciones que no existan.
+     */
+    private function _info_fixtures_de_resultados($rows) {
+        $ids = array();
+        foreach ($rows as $r) {
+            $idf = isset($r['id_fixture']) ? (int) $r['id_fixture'] : 0;
+            if ($idf > 0) $ids[$idf] = true;
+        }
+        if (!$ids || !$this->_tabla_existe('fixtures')) return array();
+
+        $cols = $this->_columnas_tabla('fixtures');
+        $campos = array('id_fixture');
+        foreach (array('fase', 'numero_fecha', 'nombre_prueba', 'fecha_competencia', 'hora_inicio') as $c) {
+            if (isset($cols[$c])) $campos[] = $c;
+        }
+        try {
+            $q = $this->db->query(
+                'SELECT `' . implode('`, `', $campos) . '` FROM `fixtures`'
+                . ' WHERE `id_fixture` IN (' . implode(',', array_keys($ids)) . ')'
+            );
+            $fxs = ($q === false || !is_object($q)) ? array() : $q->result_array();
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_info_fixtures_de_resultados: ' . $e->getMessage());
+            return array();
+        }
+        $mapa = array();
+        foreach ($fxs as $f) {
+            $mapa[(int) $f['id_fixture']] = $f;
+        }
+        return $mapa;
     }
 
     /* ============================================================
