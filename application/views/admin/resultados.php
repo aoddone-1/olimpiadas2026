@@ -145,21 +145,12 @@
                                 <option value="">— Sin vincular —</option>
                             </select>
                             <div class="form-text small" id="rs_modal_modalidad_hint"></div>
-                            <!-- Partidos que YA tienen resultado cargado: se ocultan
-                                 del select de arriba (cuestión estética) y se listan
-                                 acá con su marcador, para que se vean igual. -->
-                            <div id="rs_cargados_wrap" class="mt-2 d-none">
-                                <div class="small fw-bold text-muted text-uppercase mb-1">
-                                    <i class="bi bi-check-circle-fill text-success me-1"></i>Ya cargados (<span id="rs_cargados_cuenta">0</span>)
-                                </div>
-                                <div id="rs_cargados_lista"
-                                     class="border rounded bg-success-subtle p-2 small"
-                                     style="max-height:160px; overflow-y:auto;"></div>
-                            </div>
-                            <div id="rs_todos_cargados" class="alert alert-success py-2 small mt-2 d-none mb-0">
-                                <i class="bi bi-party-popover me-1"></i>
-                                ¡Todos los partidos de esta categoría tienen resultado cargado!
-                                Podés editarlos desde el listado o cargar uno nuevo sin vincular.
+                            <!-- Los partidos con resultado ya cargado simplemente NO
+                                 aparecen en el select (se ven/editan en el listado).
+                                 Acá solo queda un contador discreto por si todos
+                                 están cargados y el select queda vacío. -->
+                            <div id="rs_todos_cargados" class="form-text small text-success fw-semibold mt-1 d-none">
+                                <i class="bi bi-check-circle-fill me-1"></i>Todos los partidos de esta categoría ya tienen resultado.
                             </div>
                         </div>
                     </div>
@@ -917,20 +908,16 @@
         fixturesDelModal = [];
         selFixture.innerHTML = '<option value="">— Sin vincular —</option>';
         selFixture.disabled = true;
-        // Reset del bloque "ya cargados" (se rellena cuando llega la respuesta).
-        document.getElementById('rs_cargados_wrap').classList.add('d-none');
-        document.getElementById('rs_cargados_lista').innerHTML = '';
         document.getElementById('rs_todos_cargados').classList.add('d-none');
         if (!idCategoria) return;
         fetch(BASE + '/ajax_fixtures_por_categoria/' + idCategoria)
             .then(r => r.json())
             .then(res => {
                 const todos = res.fixtures || [];
-                // Los partidos con resultado ya cargado NO aparecen en el select:
-                // se muestran aparte, en verde, con su marcador. Si igualmente
+                // Los partidos con resultado ya cargado NO aparecen en el select
+                // (se ven y editan desde el listado de resultados). Si igualmente
                 // hace falta volver a cargar uno, existe la opción "Sin vincular".
                 const pendientes = todos.filter(f => !f.tiene_resultado);
-                const cargados = todos.filter(f => f.tiene_resultado);
                 fixturesDelModal = todos; // se busca por id, incluídos los cargados
 
                 pendientes.forEach(f => {
@@ -942,34 +929,7 @@
                         (fFx ? ' · 📅' + fFx : '') + ` (${esc(f.estado)})</option>`);
                 });
 
-                const wrapCargados = document.getElementById('rs_cargados_wrap');
-                const listaCargados = document.getElementById('rs_cargados_lista');
-                listaCargados.innerHTML = '';
-                cargados.forEach(f => {
-                    const info = f.resultado_info || {};
-                    let marcador = '';
-                    if (info.tipo_resultado === 'MARCADOR') {
-                        const e1 = info.eq1 || {}, e2 = info.eq2 || {};
-                        if (e1.nombre && e2.nombre) {
-                            marcador = esc(e1.nombre) + ' <strong>' + esc(e1.goles || '-') + '</strong> – ' +
-                                       '<strong>' + esc(e2.goles || '-') + '</strong> ' + esc(e2.nombre);
-                        } else {
-                            const g = (info.eq1 && info.eq1.goles != null) ? info.eq1.goles : '?';
-                            marcador = 'Marcador ' + esc(String(g));
-                        }
-                    } else {
-                        const bicho = info.tipo_resultado === 'PUNTAJE' ? '🎯' : '⏱';
-                        marcador = bicho + ' prueba cargada';
-                    }
-                    listaCargados.insertAdjacentHTML('beforeend',
-                        `<div class="text-truncate py-1 border-bottom border-success-subtle" ` +
-                        `title="F${esc(String(f.numero_fecha))} · ${esc(f.nombre_prueba)}">` +
-                        `<i class="bi bi-check2 text-success me-1"></i>` +
-                        `<span class="fw-semibold">${esc(f.nombre_prueba)}</span> — ${marcador}</div>`);
-                });
-                document.getElementById('rs_cargados_cuenta').textContent = String(cargados.length);
-                wrapCargados.classList.toggle('d-none', cargados.length === 0);
-                // Si ya no queda NINGÚN partido pendiente, mensaje de categoría completa.
+                // Aviso mínimo: si no quedó NINGÚN pendiente, el select solo ofrece "Sin vincular".
                 document.getElementById('rs_todos_cargados')
                     .classList.toggle('d-none', !(todos.length > 0 && pendientes.length === 0));
 
@@ -1126,9 +1086,6 @@
         datalistUtes.innerHTML = '';
         tbodyTiempos.innerHTML = '';
         hintModalidad.innerHTML = '';
-        // Ocultar también el bloque "ya cargados" hasta elegir categoría.
-        document.getElementById('rs_cargados_wrap').classList.add('d-none');
-        document.getElementById('rs_cargados_lista').innerHTML = '';
         document.getElementById('rs_todos_cargados').classList.add('d-none');
         // Estado inicial de la cascada: categoría y jornada bloqueadas hasta
         // elegir deporte/categoría.
