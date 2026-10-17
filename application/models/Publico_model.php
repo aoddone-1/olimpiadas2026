@@ -152,11 +152,14 @@ class Publico_model extends CI_Model {
             // rompe TODO el query (Unknown column) y el controlador explota justo
             // en la línea del 'fixture' => obtener_fixture_publico(...).
             $select = '
-                f.id_fixture, f.id_categoria, f.fecha_competencia, f.hora_inicio, f.hora_fin,
+                f.id_fixture, f.id_categoria, f.id_lugar, f.fecha_competencia, f.hora_inicio, f.hora_fin,
                 f.fase, f.numero_fecha, f.estado,
                 f.id_ute_1, f.id_ute_2';
             if ($this->_columna_existe('fixtures', 'nombre_prueba')) {
                 $select .= ', f.nombre_prueba';
+            }
+            if ($this->_columna_existe('fixtures', 'resultado')) {
+                $select .= ', f.resultado AS orden_llegada_json';
             }
             $select .= ',
                 u1.nombre_ute AS ute_1_nombre,
@@ -177,6 +180,34 @@ class Publico_model extends CI_Model {
                 $this->db->where('d.id_deporte', (int) $id_deporte);
             }
 
+            // Filtro por DELEGACIÓN: se resuelve en SQL, con los MISMOS criterios
+            // que usa el panel privado (partido de equipo, de individual o jornada
+            // masiva de la categoría). Antes se filtraba en PHP comparando solo
+            // participantes_utes, y como los fixtures guardan individuales como
+            // slots negativos (-id_inscripcion), el filtro dejaba todo vacío.
+            if (!empty($delegacion)) {
+                $del = $this->db->escape($delegacion);
+                $cond_equipo = "EXISTS (
+                    SELECT 1 FROM participantes_utes pu
+                    INNER JOIN participantes p ON p.id_participante = pu.id_participante
+                    WHERE pu.id_ute IN (f.id_ute_1, f.id_ute_2)
+                      AND p.delegacion = {$del})";
+                $cond_individual = "EXISTS (
+                    SELECT 1 FROM inscripciones_deportivas i
+                    INNER JOIN participantes p ON p.id_participante = i.id_participante
+                    WHERE i.id_categoria = f.id_categoria
+                      AND (-i.id_inscripcion) IN (f.id_ute_1, f.id_ute_2)
+                      AND p.delegacion = {$del})";
+                $cond_masivo = "(
+                    (f.fase = 'JORNADA_UNICA' OR d.modalidad_competencia = 'MASIVO_TIEMPO')
+                    AND EXISTS (
+                        SELECT 1 FROM inscripciones_deportivas i
+                        INNER JOIN participantes p ON p.id_participante = i.id_participante
+                        WHERE i.id_categoria = f.id_categoria
+                          AND p.delegacion = {$del}))";
+                $this->db->where('(' . $cond_equipo . ' OR ' . $cond_individual . ' OR ' . $cond_masivo . ')', NULL, FALSE);
+            }
+
             // Marcador: traer el resultado MARCADOR vinculado al partido (si existe)
             // en una sola pasada, sin N+1 queries.
             $marcadores = $this->_obtener_marcadores_por_fixture();
@@ -184,41 +215,80 @@ class Publico_model extends CI_Model {
             $this->db->order_by('f.fecha_competencia, f.hora_inicio, d.nombre_deporte, c.nombre_categoria', 'ASC');
             $fixtures = $this->db->get()->result_array();
 
+            // Nombres de los competidores individuales (slots negativos -id_inscripcion).
+            $nombres_ind = $this->_nombres_individuales_en_fixtures($fixtures);
+
             foreach ($fixtures as &$fx) {
                 $idf = (int) $fx['id_fixture'];
                 $fx['marcador'] = isset($marcadores[$idf]) ? $marcadores[$idf] : null;
                 if (!isset($fx['nombre_prueba'])) {
                     $fx['nombre_prueba'] = null;
                 }
+                if (!isset($fx['orden_llegada_json'])) {
+                    $fx['orden_llegada_json'] = null;
+                }
+                // Slots negativos: el join contra `utes` no devuelve nombre, así
+                // que se completa con el del inscripto individual.
+                foreach (array(1, 2) as $lado) {
+                    $campo_id = 'id_ute_' . $lado;
+                    $campo_nom = 'ute_' . $lado . '_nombre';
+                    $idl = isset($fx[$campo_id]) ? (int) $fx[$campo_id] : 0;
+                    if (empty($fx[$campo_nom]) && $idl < 0 && isset($nombres_ind[$idl])) {
+                        $fx[$campo_nom] = $nombres_ind[$idl];
+                    } elseif (empty($fx[$campo_nom])) {
+                        $fx[$campo_nom] = null;
+                    }
+                }
             }
             unset($fx);
-
-            // Filtro por DELEGACIÓN: resolver qué UTEs pertenecen a la delegación
-            // (por integrantes en participantes_utes o por inscripciones con ese
-            // nombre de equipo) y quedarme solo con los partidos de esas UTEs.
-            if (!empty($delegacion)) {
-                $utes_delegacion = $this->_utes_de_la_delegacion($delegacion);
-                $inscripciones_delegacion = $this->_ids_inscripcion_de_la_delegacion($delegacion);
-                $fixtures = array_values(array_filter($fixtures, function ($fx) use ($utes_delegacion, $inscripciones_delegacion) {
-                    foreach (array('id_ute_1', 'id_ute_2') as $campo) {
-                        $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
-                        if ($idl > 0 && isset($utes_delegacion[$idl])) {
-                            return true;
-                        }
-                        // Competidor individual: slot negativo = -id_inscripcion
-                        if ($idl < 0 && isset($inscripciones_delegacion[abs($idl)])) {
-                            return true;
-                        }
-                    }
-                    return false;
-                }));
-            }
 
             return $fixtures;
         } catch (Throwable $e) {
             log_message('error', 'Publico_model::obtener_fixture_publico: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /**
+     * Nombres de las inscripciones individuales usadas en el fixture
+     * (clave: id negativo = -id_inscripcion). PÚBLICO: nunca expone el DNI.
+     */
+    private function _nombres_individuales_en_fixtures($fixtures) {
+        $nombres = array();
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')) {
+                return $nombres;
+            }
+            $ids_neg = array();
+            foreach ($fixtures as $f) {
+                foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                    $idl = isset($f[$campo]) ? (int) $f[$campo] : 0;
+                    if ($idl < 0) $ids_neg[] = abs($idl);
+                }
+                if (!empty($f['orden_llegada_json'])) {
+                    $arr = json_decode($f['orden_llegada_json'], true);
+                    if (is_array($arr)) {
+                        foreach ($arr as $id) {
+                            if ((int) $id < 0) $ids_neg[] = abs((int) $id);
+                        }
+                    }
+                }
+            }
+            $ids_neg = array_values(array_unique($ids_neg));
+            if (!$ids_neg) return $nombres;
+
+            $this->db->select('i.id_inscripcion, p.nombre_completo', FALSE);
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where_in('i.id_inscripcion', $ids_neg);
+            $rows = $this->db->get()->result_array();
+            foreach ($rows as $r) {
+                $nombres[-(int) $r['id_inscripcion']] = $r['nombre_completo'];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_nombres_individuales_en_fixtures: ' . $e->getMessage());
+        }
+        return $nombres;
     }
 
     /** Marcadores (goles/sets) por id_fixture, tomados de resultados MARCADOR. */
@@ -385,7 +455,15 @@ class Publico_model extends CI_Model {
             if (!empty($delegacion)) {
                 $utes_delegacion = $this->_utes_de_la_delegacion($delegacion);
                 $inscripciones_delegacion = $this->_ids_inscripcion_de_la_delegacion($delegacion);
-                $rows = array_values(array_filter($rows, function ($r) use ($utes_delegacion, $inscripciones_delegacion) {
+                $categorias_delegacion = $this->_categorias_de_la_delegacion($delegacion);
+                $rows = array_values(array_filter($rows, function ($r) use ($utes_delegacion, $inscripciones_delegacion, $categorias_delegacion) {
+                    // Eventos masivos (TIEMPO de una jornada): la delegación
+                    // participó si tiene inscriptos en esa categoría.
+                    $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
+                    $es_tiempo = isset($r['tipo_resultado']) && $r['tipo_resultado'] === 'TIEMPO';
+                    if ($es_tiempo && $idc > 0 && isset($categorias_delegacion[$idc])) {
+                        return true;
+                    }
                     foreach ($r['detalle'] as $d) {
                         $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
                         if ($idl > 0 && isset($utes_delegacion[$idl])) return true;
@@ -399,6 +477,29 @@ class Publico_model extends CI_Model {
             return $rows;
         } catch (Throwable $e) {
             log_message('error', 'Publico_model::obtener_resultados_publicos: ' . $e->getMessage());
+            return array();
+        }
+    }
+
+    /** ids de categoría en las que la delegación tiene inscriptos. */
+    private function _categorias_de_la_delegacion($delegacion) {
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')) {
+                return array();
+            }
+            $this->db->select('i.id_categoria', FALSE);
+            $this->db->distinct();
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where('p.delegacion', $delegacion);
+            $rows = $this->db->get()->result_array();
+            $map = array();
+            foreach ($rows as $r) {
+                if (isset($r['id_categoria'])) $map[(int) $r['id_categoria']] = true;
+            }
+            return $map;
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_categorias_de_la_delegacion: ' . $e->getMessage());
             return array();
         }
     }
@@ -441,8 +542,13 @@ class Publico_model extends CI_Model {
             $rows = $this->db->get()->result_array();
             if (!$rows) return array();
 
-            // Mapa id_ute -> delegación (mayoría de integrantes)
+            // Mapa id_ute -> delegación (mayoría de integrantes). Si la tabla
+            // participantes_utes está vacía (equipos armados por nombre en la
+            // inscripción), se completa con inscripciones_deportivas.
             $deleg_por_ute = $this->_delegacion_por_ute();
+            if (!$deleg_por_ute) {
+                $deleg_por_ute = $this->_delegacion_por_ute_desde_inscripciones();
+            }
 
             $medallero = array();
             foreach ($rows as $r) {
@@ -509,6 +615,40 @@ class Publico_model extends CI_Model {
             if (!isset($mejor[$idl]) || $cant > $mejor[$idl]['cant']) {
                 $mejor[$idl] = array('delegacion' => $r['delegacion'], 'cant' => $cant);
             }
+        }
+        return array_map(function ($m) { return $m['delegacion']; }, $mejor);
+    }
+
+    /**
+     * Fallback del mapa id_ute -> delegación para equipos que NO tienen filas
+     * en participantes_utes (se arman por nombre en la inscripción): se resuelve
+     * por inscripciones_deportivas.id_ute + delegación del inscripto.
+     */
+    private function _delegacion_por_ute_desde_inscripciones() {
+        $mejor = array();
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')
+                || !$this->_columna_existe('inscripciones_deportivas', 'id_ute')) {
+                return array();
+            }
+            $this->db->select('i.id_ute, p.delegacion, COUNT(*) AS cant', FALSE);
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where('i.id_ute IS NOT NULL', null, false);
+            $this->db->where('p.delegacion IS NOT NULL');
+            $this->db->where('p.delegacion !=', '');
+            $this->db->group_by('i.id_ute, p.delegacion');
+            $rows = $this->db->get()->result_array();
+            foreach ($rows as $r) {
+                $idl = (int) $r['id_ute'];
+                $cant = (int) $r['cant'];
+                if (!isset($mejor[$idl]) || $cant > $mejor[$idl]['cant']) {
+                    $mejor[$idl] = array('delegacion' => $r['delegacion'], 'cant' => $cant);
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_delegacion_por_ute_desde_inscripciones: ' . $e->getMessage());
+            return array();
         }
         return array_map(function ($m) { return $m['delegacion']; }, $mejor);
     }
