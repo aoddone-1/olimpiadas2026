@@ -357,8 +357,32 @@ $metodos_txt = array(
           $a = $res['detalle'][0]; $b = $res['detalle'][1];
           $eq1_nombre = trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo 1';
           $eq2_nombre = trim((string) $b['nombre_libre']) !== '' ? $b['nombre_libre'] : 'Equipo 2';
+          /* Cada fila de `resultado_detalle` guarda el marcador DESDE SU PROPIA
+             perspectiva: marcador_local = tantos del equipo de la fila,
+             marcador_visita = tantos del rival (criterio idéntico a
+             pase_valido.php). ANTES se leía el local de una fila y la VISITA de
+             la otra, lo que con datos espejados mostraba un empate falso
+             (ej. 105 / 105 en vez de 105 : 45). */
           $p1 = (int) $a['marcador_local'];
-          $p2 = (int) $b['marcador_visita'];
+          $r1 = (int) $a['marcador_visita'];
+          $p2 = (int) $b['marcador_local'];
+          $r2 = (int) $b['marcador_visita'];
+          if ($p2 === $p1 && $r2 === $r1) {
+              /* Datos históricos "espejados": ambas filas guardaron el mismo par
+                 (goles_1:goles_2). La segunda fila debía estar invertida, así
+                 que se invierte SU par (tantos = rival, rival = tantos), igual
+                 que Premiacion_model::_parsear_marcador(). Con nombres/UTE
+                 idénticos podría ser un empate real cargado duplicado: solo
+                 normalizamos si los equipos son distintos (mismo criterio de
+                 Resultado_model::_reparar_marcador_espejado). */
+              $equipos_distintos = trim((string) $a['nombre_libre']) !== trim((string) $b['nombre_libre'])
+                  || ((isset($a['id_ute']) ? (int) $a['id_ute'] : 0) > 0
+                      && (isset($b['id_ute']) ? (int) $b['id_ute'] : 0) > 0
+                      && (int) $a['id_ute'] !== (int) $b['id_ute']);
+              if ($equipos_distintos) {
+                  $tmp = $p2; $p2 = $r2; $r2 = $tmp;
+              }
+          }
           $hubo_desempate = !empty($res['hubo_desempate']) && !empty($res['desempate_metodo']);
           $ganador_desemp = isset($res['nombre_ganador_desempate']) ? trim((string) $res['nombre_ganador_desempate']) : '';
           $gana1 = $p1 > $p2 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== ''
