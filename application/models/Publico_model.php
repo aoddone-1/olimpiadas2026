@@ -675,7 +675,6 @@ class Publico_model extends CI_Model {
 
             // UTEs y competidores individuales (para completar nombres_libre cuando
             // el detalle no lo guarda o es un slot negativo -id_inscripcion).
-            $ins_map      = $this->_delegacion_por_inscripcion(); // id_inscripcion -> delegación
 
             // Detalle en un solo raw query
             $ids_res = array_map('intval', array_column($rows, 'id_resultado'));
@@ -694,6 +693,11 @@ class Publico_model extends CI_Model {
             // inscripciones_deportivas+participantes. Si la consulta auxiliar
             // fallara, usamos el snapshot de `nombre_libre` como fallback.
             $nombres_ind = $this->_nombres_individuales_en_detalle($detalles);
+            // Delegación de cada competidor del detalle (deportes MASIVO:
+            // TIEMPO/PUNTAJE). Se resuelve por id_ute (>0 UTE, <0 inscripción) o
+            // por nombre cuando el dato es viejo. Solo se expone el NOMBRE de la
+            // delegación — nunca DNI ni otros datos personales.
+            $mapa_delegaciones = $this->_delegaciones_para_detalle_masivo($detalles, $rows);
             // ids de UTE positivos presentes en el detalle → nombres desde `utes`.
             $ids_ute_pos = array();
             foreach ($detalles as $d) {
@@ -712,14 +716,34 @@ class Publico_model extends CI_Model {
             $por_res = array();
             foreach ($detalles as &$d) {
                 $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                // Delegación del competidor (puede ser null si no se resolvió).
+                $dl = null;
+                if ($idl > 0)               $clave = 'UTE:' . $idl;
+                elseif ($idl < 0)           $clave = 'IND:' . abs($idl);
+                else {
+                    $nn = trim((string) (isset($d['nombre_libre']) ? $d['nombre_libre'] : ''));
+                    $clave = $nn !== '' ? mb_strtolower($nn) : '';
+                }
+                if ($clave !== '') {
+                    if (isset($mapa_delegaciones[$clave]))      $dl = $mapa_delegaciones[$clave];
+                    elseif (isset($mapa_delegaciones['UTEN:' . $clave])) $dl = $mapa_delegaciones['UTEN:' . $clave];
+                    elseif (isset($mapa_delegaciones['NOM:' . $clave]))  $dl = $mapa_delegaciones['NOM:' . $clave];
+                }
+                $d['delegacion'] = ($dl !== null && $dl !== '') ? $dl : null;
                 if (empty($d['nombre_libre'])) {
                     if ($idl > 0 && isset($nombres_utes[$idl])) {
                         $d['nombre_libre'] = $nombres_utes[$idl];
                     } elseif ($idl < 0 && isset($nombres_ind[$idl])) {
-                        // Público: nombre + delegación del individual.
-                        $dl = isset($ins_map[abs($idl)]) ? ' (' . $ins_map[abs($idl)] . ')' : '';
-                        $d['nombre_libre'] = $nombres_ind[$idl] . $dl;
+                        // Público: nombre limpio; la delegación va aparte
+                        // (arriba ya quedó en $d['delegacion']).
+                        $d['nombre_libre'] = $nombres_ind[$idl];
                     }
+                } else {
+                    // Datos viejos guardaban "APELLIDO NOMBRE (30123456)" dentro
+                    // de nombre_libre: se limpia el DNI para mostrar solo el
+                    // nombre + delegación en el panel público.
+                    $limpio = Resultado_model::limpiar_nombre_con_dni($d['nombre_libre']);
+                    if ($limpio !== '') $d['nombre_libre'] = $limpio;
                 }
                 $por_res[(int) $d['id_resultado']][] = $d;
             }
@@ -802,6 +826,159 @@ class Publico_model extends CI_Model {
             log_message('error', 'Publico_model::obtener_resultados_publicos: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /**
+     * Delegación de cada competidor que aparece en el detalle de los resultados
+     * MASIVO (TIEMPO/PUNTAJE) del panel público. Reutiliza la resolución de
+     * Resultado_model::delegaciones_por_detalle() (UTE por id/nombre, inscripto
+     * individual por -id_inscripcion y fallback por nombre libre), pero con
+     * raw SQL — mismo blindaje que el resto del panel: sin Query Builder
+     * compartida y tolerando tablas/columnas inexistentes. Cualquier error
+     * devuelve mapa vacío: la vista simplemente no muestra delegación.
+     * Claves devueltas: 'UTE:<id>', 'IND:<id_inscripcion>', '<nombre lowercase>'
+     * y 'NOM:<nombre lowercase>'.
+     */
+    private function _delegaciones_para_detalle_masivo($detalles, $rows) {
+        $out = array();
+        try {
+            // Solo interesa el detalle de los resultados masivos; en MARCADOR
+            // compiten equipos/UTEs completos y su nombre ya identifica al
+            // participante (y puede ser una UTE multi-delegación).
+            $masivos = array();
+            foreach ($rows as $r) {
+                $t = isset($r['tipo_resultado']) ? (string) $r['tipo_resultado'] : '';
+                if ($t === 'TIEMPO' || $t === 'PUNTAJE') {
+                    $masivos[(int) $r['id_resultado']] = true;
+                }
+            }
+            if (!$masivos) return $out;
+
+            $ute_ids = array();
+            $ins_ids = array();
+            $libres  = array(); // nombre normalizado => nombre original
+            foreach ($detalles as $d) {
+                $idr = isset($d['id_resultado']) ? (int) $d['id_resultado'] : 0;
+                if (!isset($masivos[$idr])) continue;
+                $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if ($idl > 0) { $ute_ids[$idl] = true; continue; }
+                if ($idl < 0) { $ins_ids[-$idl] = true; continue; }
+                $nn = trim((string) (isset($d['nombre_libre']) ? $d['nombre_libre'] : ''));
+                if ($nn !== '') $libres[mb_strtolower($nn)] = $nn;
+            }
+
+            // --- Inscriptos individuales: id_inscripcion -> delegación
+            if ($ins_ids && $this->_tabla_existe('inscripciones_deportivas')
+                && $this->_tabla_existe('participantes')) {
+                $cols_p = $this->_columnas_tabla('participantes');
+                if (isset($cols_p['delegacion'])) {
+                    $q = $this->db->query(
+                        'SELECT i.`id_inscripcion`, p.`delegacion`'
+                        . ' FROM `inscripciones_deportivas` i'
+                        . ' INNER JOIN `participantes` p ON p.`id_participante` = i.`id_participante`'
+                        . ' WHERE i.`id_inscripcion` IN (' . implode(',', array_map('intval', array_keys($ins_ids))) . ')'
+                        . " AND p.`delegacion` IS NOT NULL AND p.`delegacion` != ''"
+                    );
+                    $rs = ($q === false || !is_object($q)) ? array() : $q->result_array();
+                    foreach ($rs as $r) {
+                        $dl = trim((string) $r['delegacion']);
+                        if ($dl !== '') $out['IND:' . (int) $r['id_inscripcion']] = $dl;
+                    }
+                }
+            }
+
+            // --- UTEs/equipos: delegación dominante (la de más integrantes)
+            $nom_ute = array(); // nombre normalizado de UTE -> id_ute
+            if (($ute_ids || $libres) && $this->_tabla_existe('participantes_utes')
+                && $this->_tabla_existe('participantes')) {
+                $cols_u = $this->_columnas_tabla('utes');
+                $cols_p = $this->_columnas_tabla('participantes');
+                if (isset($cols_p['delegacion'])) {
+                    $sel_nom = isset($cols_u['nombre_ute']) ? ', u.`nombre_ute`' : '';
+                    $join_u  = isset($cols_u['nombre_ute'])
+                        ? ' LEFT JOIN `utes` u ON u.`id_ute` = pu.`id_ute`' : '';
+                    $q = $this->db->query(
+                        'SELECT pu.`id_ute`, p.`delegacion`, COUNT(*) AS cant' . $sel_nom
+                        . ' FROM `participantes_utes` pu'
+                        . ' INNER JOIN `participantes` p ON p.`id_participante` = pu.`id_participante`'
+                        . $join_u
+                        . " WHERE p.`delegacion` IS NOT NULL AND p.`delegacion` != ''"
+                        . ' GROUP BY pu.`id_ute`, p.`delegacion`' . $sel_nom
+                    );
+                    $rs = ($q === false || !is_object($q)) ? array() : $q->result_array();
+                    $mejor = array(); // id_ute => [delegacion, cant]
+                    foreach ($rs as $r) {
+                        $uid = (int) $r['id_ute'];
+                        $dl  = trim((string) $r['delegacion']);
+                        $cn  = (int) $r['cant'];
+                        if ($dl === '') continue;
+                        if (!isset($mejor[$uid]) || $cn > $mejor[$uid][1]) {
+                            $mejor[$uid] = array($dl, $cn);
+                        }
+                        if (isset($r['nombre_ute'])) {
+                            $nn = mb_strtolower(trim((string) $r['nombre_ute']));
+                            if ($nn !== '') $nom_ute[$nn] = $uid;
+                        }
+                    }
+                    foreach ($mejor as $uid => $par) {
+                        $out['UTE:' . $uid] = $par[0];
+                    }
+                    // Datos viejos sin id_ute: resolver la UTE por nombre exacto.
+                    foreach ($libres as $nn => $_) {
+                        if (isset($nom_ute[$nn]) && isset($out['UTE:' . $nom_ute[$nn]])) {
+                            $out[$nn] = $out['UTE:' . $nom_ute[$nn]];
+                        }
+                    }
+                }
+            }
+
+            // --- Fallback por nombre libre (limpiando el "(DNI)" histórico)
+            $pend = array();
+            foreach ($libres as $nn => $orig) {
+                if (!isset($out[$nn])) $pend[] = $orig;
+            }
+            if ($pend && $this->_tabla_existe('participantes')) {
+                $cols_p = $this->_columnas_tabla('participantes');
+                $campo_nombre = null;
+                foreach (array('nombre_completo', 'nombre', 'apellido', 'nombres') as $cand) {
+                    if (isset($cols_p[$cand])) { $campo_nombre = $cand; break; }
+                }
+                if ($campo_nombre !== null && isset($cols_p['delegacion'])) {
+                    $lista = array();
+                    foreach ($pend as $p) {
+                        $lista[] = "'" . $this->db->escape_str($p) . "'";
+                        // versión sin el "(dni)" pegado que guardaban las cargas viejas
+                        $sin_dni = Resultado_model::limpiar_nombre_con_dni($p);
+                        if ($sin_dni !== '' && $sin_dni !== $p) {
+                            $lista[] = "'" . $this->db->escape_str($sin_dni) . "'";
+                        }
+                    }
+                    $q = $this->db->query(
+                        'SELECT DISTINCT p.`' . $campo_nombre . '` AS nombre, p.`delegacion`'
+                        . ' FROM `participantes` p'
+                        . ' WHERE p.`' . $campo_nombre . '` IN (' . implode(',', $lista) . ')'
+                        . " AND p.`delegacion` IS NOT NULL AND p.`delegacion` != ''"
+                    );
+                    $rs = ($q === false || !is_object($q)) ? array() : $q->result_array();
+                    $por_nombre = array();
+                    foreach ($rs as $r) {
+                        $k = mb_strtolower(Resultado_model::limpiar_nombre_con_dni($r['nombre']));
+                        $dl = trim((string) $r['delegacion']);
+                        if ($k !== '' && $dl !== '' && !isset($por_nombre[$k])) {
+                            $por_nombre[$k] = $dl;
+                        }
+                    }
+                    foreach ($libres as $nn => $orig) {
+                        if (isset($out[$nn])) continue;
+                        $k = mb_strtolower(Resultado_model::limpiar_nombre_con_dni($orig));
+                        if (isset($por_nombre[$k])) $out[$nn] = $por_nombre[$k];
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_delegaciones_para_detalle_masivo: ' . $e->getMessage());
+        }
+        return $out;
     }
 
     /**
