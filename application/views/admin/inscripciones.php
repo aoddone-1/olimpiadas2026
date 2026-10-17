@@ -233,6 +233,38 @@
 
 
 
+            <div class="col-md-3">
+
+                <label for="filtroCategoria" class="form-label small fw-semibold mb-1">
+
+                    <i class="bi bi-tags-fill text-primary me-1"></i>Categoría
+
+                </label>
+
+                <select id="filtroCategoria" class="form-select form-select-sm">
+
+                    <option value="">Todas las Categorías</option>
+
+                    <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
+
+                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>"
+
+                                data-deporte="<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
+
+                            <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
+
+                            <span class="text-muted">(<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>)</span>
+
+                        </option>
+
+                    <?php endforeach; endif; ?>
+
+                </select>
+
+            </div>
+
+
+
             <div class="col-md-2">
                 <button id="btnLimpiarFiltros" class="btn fx-btn-round fx-btn-limpiar" title="Quitar los filtros activos">
                     <i class="bi bi-x-circle"></i><span class="ms-2">Limpiar filtros</span>
@@ -586,6 +618,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const filtroSexo = document.getElementById('filtroSexo');
 
+    const filtroCategoria = document.getElementById('filtroCategoria');
+
     const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
     const filasIns = Array.from(document.querySelectorAll('.js-fila-inscripcion'));
@@ -756,6 +790,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const sexoSeleccionado = filtroSexo ? filtroSexo.value.toLowerCase() : '';
 
+        const categoriaSeleccionada = filtroCategoria ? filtroCategoria.value.toLowerCase() : '';
+
 
 
         filasFiltradasIns = filasIns.filter(fila => {
@@ -781,6 +817,18 @@ document.addEventListener('DOMContentLoaded', function () {
             const deportesFilaElem = fila.querySelector('td:nth-child(4) .fw-semibold');
 
             const deportesFila = deportesFilaElem ? deportesFilaElem.textContent.toLowerCase() : '';
+
+
+
+            // Categoría de la fila (columna "Deporte / Categoría"), sin el rótulo "Cat:"
+
+            const catFilaElem = fila.querySelector('td:nth-child(4) .text-muted');
+
+            const catsFila = catFilaElem
+
+                ? catFilaElem.textContent.toLowerCase().replace('cat:', '')
+
+                : '';
 
 
 
@@ -831,6 +879,22 @@ document.addEventListener('DOMContentLoaded', function () {
             if (deporteSeleccionado && !deportesFila.includes(deporteSeleccionado)) {
 
                 coincide = false;
+
+            }
+
+
+
+            // Filtro por categoría (coincidencia exacta sobre la lista "Cat: X, Y")
+
+            if (coincide && categoriaSeleccionada) {
+
+                const coincideCat = catsFila.split(',').some(c => c.trim() === categoriaSeleccionada);
+
+                if (!coincideCat) {
+
+                    coincide = false;
+
+                }
 
             }
 
@@ -900,6 +964,52 @@ document.addEventListener('DOMContentLoaded', function () {
 
     }
 
+    if (filtroCategoria) {
+
+        // Al elegir un deporte, mostrar solo las categorías de ese deporte.
+
+        // Si se limpia el deporte, vuelven a aparecer TODAS las categorías.
+
+        filtroDeporte.addEventListener('change', function() {
+
+            const depSel = this.value.trim().toLowerCase();
+
+            let catSigueValida = false;
+
+            Array.from(filtroCategoria.options).forEach(opt => {
+
+                if (!opt.value) return; // la opción "Todas las Categorías"
+
+                const debeOcultarse = depSel !== '' &&
+
+                    (opt.dataset.deporte || '').trim().toLowerCase() !== depSel;
+
+                opt.hidden = debeOcultarse;
+
+                opt.disabled = debeOcultarse;
+
+                if (!debeOcultarse && opt.value === filtroCategoria.value) {
+
+                    catSigueValida = true;
+
+                }
+
+            });
+
+            // Si la categoría seleccionada ya no pertenece al deporte elegido, resetearla
+
+            if (filtroCategoria.value && !catSigueValida) {
+
+                filtroCategoria.value = '';
+
+            }
+
+        });
+
+        filtroCategoria.addEventListener('change', aplicarFiltros);
+
+    }
+
     if (btnLimpiarFiltros) {
 
         btnLimpiarFiltros.addEventListener('click', function() {
@@ -913,6 +1023,22 @@ document.addEventListener('DOMContentLoaded', function () {
             filtroDeporte.value = '';
 
             if (filtroSexo) filtroSexo.value = '';
+
+            if (filtroCategoria) {
+
+                filtroCategoria.value = '';
+
+                // Volver a habilitar/mostrar todas las categorías
+
+                Array.from(filtroCategoria.options).forEach(opt => {
+
+                    opt.hidden = false;
+
+                    opt.disabled = false;
+
+                });
+
+            }
 
             aplicarFiltros();
 
