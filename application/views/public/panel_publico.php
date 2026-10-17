@@ -186,7 +186,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
     ?>
       <div class="partido">
         <div class="meta">
-          <span><?= htmlspecialchars($fx['hora_inicio']) ?> – <?= htmlspecialchars($fx['hora_fin']) ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?></span>
+          <span><?= htmlspecialchars((string) $fx['hora_inicio']) ?> – <?= htmlspecialchars((string) $fx['hora_fin']) ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
           <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
         </div>
         <div class="vs">
@@ -195,8 +195,8 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
           <div class="equipo <?= $g2 ? 'ganador' : '' ?>"><?= $eq2_nombre ?></div>
         </div>
         <div class="categoria-linea">
-          <?= htmlspecialchars($fx['nombre_deporte']) ?> · <?= htmlspecialchars($fx['nombre_categoria']) ?>
-          · <?= htmlspecialchars($fx['fase']) ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
+          <?= htmlspecialchars((string) $fx['nombre_deporte']) ?> · <?= htmlspecialchars((string) $fx['nombre_categoria']) ?>
+          <?php if (!empty($fx['fase'])): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
         </div>
       </div>
     <?php endforeach; if ($dia_actual !== null) echo "</div></div>"; ?>
@@ -209,10 +209,10 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
     <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?>.</div>
   <?php else: foreach ($resultados as $res): ?>
     <div class="resultado-card">
-      <h4><?= htmlspecialchars($res['nombre_evento']) ?></h4>
+      <h4><?= htmlspecialchars((string) $res['nombre_evento']) ?></h4>
       <div class="sub">
-        <?= htmlspecialchars($res['nombre_deporte']) ?> · <?= htmlspecialchars($res['nombre_categoria']) ?>
-        · <?= htmlspecialchars($res['fecha_resultado']) ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars($res['lugar']) : '' ?>
+        <?= htmlspecialchars((string) (isset($res['nombre_deporte']) ? $res['nombre_deporte'] : '')) ?> · <?= htmlspecialchars((string) (isset($res['nombre_categoria']) ? $res['nombre_categoria'] : '')) ?>
+        · <?= htmlspecialchars((string) $res['fecha_resultado']) ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars($res['lugar']) : '' ?>
         <?php if (!empty($res['hubo_desempate'])): ?>
           <span class="desempate-tag">⚡ Desempate: <?= htmlspecialchars(ucwords(strtolower((string)$res['desempate_metodo']))) ?></span>
         <?php endif; ?>
@@ -221,19 +221,19 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
           $a = $res['detalle'][0]; $b = $res['detalle'][1]; ?>
         <div class="fila-pos">
           <span class="pos <?= (int)$a['marcador_local'] > (int)$a['marcador_visita'] ? 'p1' : '' ?>">1er</span>
-          <span><?= htmlspecialchars($a['nombre_libre']) ?></span>
+          <span><?= htmlspecialchars((string) $a['nombre_libre']) ?></span>
           <span class="marcador-res"><?= (int)$a['marcador_local'] ?> : <?= (int)$a['marcador_visita'] ?></span>
         </div>
         <div class="fila-pos">
           <span class="pos <?= (int)$b['marcador_local'] > (int)$b['marcador_visita'] ? 'p1' : '' ?>">2do</span>
-          <span><?= htmlspecialchars($b['nombre_libre']) ?></span>
+          <span><?= htmlspecialchars((string) $b['nombre_libre']) ?></span>
           <span class="marcador-res"><?= (int)$b['marcador_local'] ?> : <?= (int)$b['marcador_visita'] ?></span>
         </div>
       <?php else: foreach ($res['detalle'] as $d):
           $pos_n = (int)$d['posicion']; ?>
         <div class="fila-pos">
           <span class="pos <?= $pos_n >= 1 && $pos_n <= 3 ? 'p'.$pos_n : '' ?>"><?= $pos_n ?></span>
-          <span><?= htmlspecialchars($d['nombre_libre']) ?></span>
+          <span><?= htmlspecialchars((string) $d['nombre_libre']) ?></span>
           <?php if (!empty($d['tiempo'])): ?><span class="tiempo"><?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
         </div>
       <?php endforeach; endif; ?>
