@@ -2,133 +2,186 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Panel Público - <?= NOMBRE_META; ?></title>
-<!-- Mismos Bootstrap + íconos que el formulario de inscripción -->
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= htmlspecialchars($titulo_evento) ?> — Panel Público</title>
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
-<!-- ¡Los mismos estilos del formulario_inscripcion_2! (hero azul, borde dorado, cards...) -->
-<link href="<?= base_url('css/style_formularios.css') ?>" rel="stylesheet">
 <style>
-/* Ajustes propios del panel, respetando la paleta del formulario:
-   azul #1e3c72 / #2a5298, dorado #ffc107, fondo #f4f7f6 */
 :root{
-  --azul:#1e3c72; --azul2:#2a5298; --dorado:#ffc107;
-  --card:#ffffff; --card2:#f2f5f9; --line:#dee2e6;
-  --txt:#212529; --muted:#6c757d; --acento:var(--azul); --ok:#0a8a5f;
-  --oro:#b8860b; --plata:#5c6b7a; --bronce:#a05a2c;
+  --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
+  --txt:#eaf1f9; --muted:#8fa8c4; --acento:#ffb703; --ok:#2dd4a7;
+  --oro:#ffd54d; --plata:#cfd8e3; --bronce:#d9915b;
 }
-section.hero-panel{margin-bottom:30px}
-.chip-delegacion{display:inline-block;background:var(--dorado);color:#212529;border-radius:20px;
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);color:var(--txt);
+     font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
+.wrap{max-width:1200px;margin:0 auto;padding:16px}
+header{text-align:center;padding:22px 10px 10px}
+/* Logo oficial sin letras (logo_olimpiadas_2.png): al no tener texto negro,
+   puede ir directo sobre el fondo oscuro — va a la par del título. */
+.titulo-row{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
+/* Un poco más grande */
+.titulo-row .logo-evento{height:clamp(80px,11vw,120px);...}
+
+/* Bastante más grande */
+.titulo-row .logo-evento{height:clamp(96px,13vw,140px);...}
+
+/* Bien grande (tipo banner) */
+.titulo-row .logo-evento{height:clamp(110px,15vw,160px);...}
+header{ text-align:center; padding: 14px 10px 6px; }
+header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25;text-align:left}
+header p.sitio{color:var(--txt);margin-top:6px;font-size:14px;font-weight:600;opacity:.85}
+header p.lugar{display:inline-block;margin-top:8px;background:var(--card);border:1px solid var(--line);
+               border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700}
+header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
+/* Jornada masiva (todos contra todos): sin "rivales" */
+.partido.masivo{background:linear-gradient(150deg,var(--card) 0%,#173a5e 100%)}
+.masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
+.badge.MASIVA{background:#123c52;color:#7fd8ff;margin-left:6px}
+/* Barra de filtros */
+.filtros{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
+         background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
+.filtros label{font-size:13px;color:var(--muted)}
+.filtros select{background:var(--card2);color:var(--txt);border:1px solid var(--line);
+                border-radius:8px;padding:8px 12px;font-size:15px;min-width:160px}
+.filtros a.limpiar{color:var(--acento);text-decoration:none;font-size:14px;padding:8px 10px;
+                   border:1px solid var(--line);border-radius:8px}
+.chip-delegacion{display:inline-block;background:var(--acento);color:#111;border-radius:20px;
                  padding:4px 14px;font-weight:700;font-size:14px}
-.stat b{display:block;font-size:28px;color:var(--azul)}
+/* Cards resumen */
+.resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.stat b{display:block;font-size:28px;color:var(--acento)}
 .stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+/* Tabs */
 .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
 .tab-btn{background:var(--card);border:1px solid var(--line);color:var(--txt);padding:10px 22px;
-         border-radius:30px;font-size:15px;cursor:pointer;transition:.15s;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
-.tab-btn:hover{border-color:var(--azul);color:var(--azul)}
-.tab-btn.activo{background:var(--azul);color:#fff;font-weight:700;border-color:var(--azul)}
+         border-radius:30px;font-size:15px;cursor:pointer;transition:.15s}
+.tab-btn:hover{border-color:var(--acento)}
+.tab-btn.activo{background:var(--acento);color:#111;font-weight:700;border-color:var(--acento)}
 .panel-tab{display:none}
 .panel-tab.visible{display:block}
+/* Fixture: tarjetas de partido */
 .grupo-dia{margin-bottom:22px}
-.grupo-dia h3{color:var(--azul);font-size:16px;margin-bottom:10px;border-left:5px solid var(--dorado);
-              padding-left:12px;text-transform:uppercase;font-weight:700}
+.grupo-dia h3{color:var(--acento);font-size:16px;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .partidos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.partido{background:var(--card);border:none;border-left:5px solid var(--azul);border-radius:15px;
-         padding:12px 14px;box-shadow:0 4px 6px rgba(0,0,0,0.1)}
+.partido{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .partido .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
-.badge{font-size:11px;padding:4px 10px;border-radius:10px;font-weight:700}
-.badge.PROGRAMADO{background:#e0ecff;color:#1d4ed8}
-.badge.EN_CURSO{background:#fef3c7;color:#92400e}
-.badge.FINALIZADO{background:#d1f2e4;color:#0a8a5f}
-.badge.SUSPENDIDO{background:#fee2e2;color:#b91c1c}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700}
+.badge.PROGRAMADO{background:#234;color:#9ec5fe}
+.badge.EN_CURSO{background:#423000;color:var(--acento)}
+.badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
+.badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
 .vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
-.vs .marcador{font-size:20px;font-weight:800;color:var(--azul);white-space:nowrap;padding:0 6px}
+.vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
 .vs .vsx{color:var(--muted);font-size:12px}
 .ganador{color:var(--ok)}
 .pendiente{color:var(--muted);font-style:italic;font-weight:400 !important}
 .categoria-linea{font-size:12px;color:var(--muted);margin-top:8px}
-.resultado-card{background:var(--card);border:none;border-radius:15px;padding:14px;margin-bottom:12px;
-                box-shadow:0 4px 6px rgba(0,0,0,0.1)}
-.resultado-card h4{font-size:15px;margin-bottom:2px;color:var(--azul)}
+/* Resultados */
+.resultado-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.resultado-card h4{font-size:15px;margin-bottom:2px}
 .resultado-card .sub{font-size:12px;color:var(--muted);margin-bottom:10px}
 .fila-pos{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;font-size:14px}
 .fila-pos:nth-child(odd){background:var(--card2)}
 .pos{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-     font-weight:800;font-size:13px;background:#e2e8f0;color:#334155;flex-shrink:0}
-.pos.p1{background:var(--oro);color:#fff}.pos.p2{background:var(--plata);color:#fff}.pos.p3{background:var(--bronce);color:#fff}
+     font-weight:800;font-size:13px;background:var(--line);flex-shrink:0}
+.pos.p1{background:var(--oro);color:#111}.pos.p2{background:var(--plata);color:#111}.pos.p3{background:var(--bronce);color:#111}
 .tiempo{margin-left:auto;font-family:Consolas,monospace;color:var(--ok);font-weight:700}
-.marcador-res{margin-left:auto;font-weight:800;color:var(--azul)}
-.desempate-tag{font-size:11px;color:#b91c1c;margin-left:8px}
-table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:15px;overflow:hidden;
-                box-shadow:0 4px 6px rgba(0,0,0,0.1)}
-table.medallero th{background:var(--azul);color:#fff;font-size:12px;text-transform:uppercase;
+.marcador-res{margin-left:auto;font-weight:800;color:var(--acento)}
+.desempate-tag{font-size:11px;color:#ffab9e;margin-left:8px}
+/* Medallero */
+table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
                    padding:10px;border-bottom:1px solid var(--line)}
 table.medallero td{padding:10px;border-bottom:1px solid var(--line);font-size:15px;text-align:center}
 table.medallero td:first-child{text-align:left;font-weight:600}
-table.medallero tr:hover td{background:rgba(30,60,114,.06)}
+table.medallero tr:hover td{background:rgba(255,183,3,.06)}
 table.medallero td.oro{color:var(--oro);font-weight:800}
 table.medallero td.plata{color:var(--plata);font-weight:800}
 table.medallero td.bronce{color:var(--bronce);font-weight:800}
-.rank-num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:#334155;
+.rank-num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--line);
           align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px}
-tr.top1 .rank-num{background:var(--dorado);color:#212529}
+tr.top1 .rank-num{background:var(--oro);color:#111}
 .vacio{text-align:center;color:var(--muted);padding:40px 10px;font-size:15px}
-footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-fit:contain;
-                filter:drop-shadow(0px 4px 8px rgba(0,0,0,0.2))}
 footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
-/* Jornada masiva (todos contra todos): sin "rivales" */
-.partido.masivo{background:linear-gradient(150deg,#ffffff 0%,#eaf3fb 100%)}
-.masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
-.badge.MASIVA{background:#dbeafe;color:#1d4ed8;margin-left:6px}
+footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-fit:contain;
+                filter:drop-shadow(0 3px 10px rgba(0,0,0,.4))}
 @media(max-width:600px){.partidos{grid-template-columns:1fr}}
+
+/* Logo + título en la misma línea */
+.titulo-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:16px;
+  flex-wrap:wrap;
+  max-width: 600px;          /* 👈 achica el bloque (ajustá a gusto) */
+  margin: 0 auto;            /* 👈 lo centra */
+  padding: 0 10px;
+}
+
+/* El título se adapta al espacio y se parte en líneas */
+.titulo-row h1{
+  font-size: clamp(20px, 3.6vw, 32px);
+  letter-spacing: 1px;
+  line-height: 1.25;
+  text-align: left;
+  margin: 0;
+  white-space: normal;       /* 👈 permite saltos de línea */
+  flex: 1 1 400px;           /* 👈 ocupa el espacio disponible, mínimo 400px */
+}
+.titulo-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;   /* centrados juntos */
+  gap:18px;
+  flex-wrap:nowrap;         /* 👈 clave: no se rompe la línea */
+}
+.titulo-row .logo-evento{
+  height:clamp(140px, 18vw, 220px);
+  width:auto;
+  object-fit:contain;
+  flex-shrink:0;
+  filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));
+}
+/* Si la pantalla es muy chica, recién ahí se apilan */
+@media (max-width: 600px){
+  .titulo-row{
+    max-width: 100%;
+    flex-direction: column;
+    text-align: center;
+  }
+  .titulo-row h1{
+    text-align: center;
+    flex: 1 1 auto;
+  }
+}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<!-- HERO idéntico al del formulario de inscripción: gradiente azul + borde dorado -->
-<div class="hero-section hero-panel">
-    <div class="container">
-        <div class="row align-items-center g-4">
-            <div class="col-12 col-md-4 text-center text-md-end d-none d-md-block">
-                <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>"
-                     alt="Logo Olimpiadas" class="img-fluid logo-hero">
-            </div>
-            <div class="col-12 col-md-8 text-center text-md-start ps-md-4">
-                <div class="d-block d-md-none mb-2">
-                    <img src="<?= base_url('assets/img/logo_olimpiadas.png') ?>"
-                         alt="Logo Olimpiadas" class="img-fluid logo-hero">
-                </div>
-                <h1 class="h2 fw-bold text-uppercase text-white mb-2 header-title">
-                    PANEL PÚBLICO <u>DE OLIMPISMO</u>
-                </h1>
-                <small class="d-block text-white-50 help-text">
-                    <?= NOMBRE_SITIO; ?> <br/> <?= LUGAR_OLIMPICO; ?>
-                </small>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="container">
-
-<p class="text-center mb-3" style="color:var(--muted);font-size:14px">
-  <?php if (!empty($delegacion)): ?>
-    Viendo: <span class="chip-delegacion"><?= htmlspecialchars($delegacion) ?></span>
-  <?php else: ?>
-    Seguimiento en vivo del evento · actualizado <?= htmlspecialchars($ahora) ?>
-  <?php endif; ?>
-</p>
+<header>
+  <div class="titulo-row">
+    <img class="logo-evento" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
+    
+  </div>
+  <p class="lugar">📍 <?= htmlspecialchars($lugar_olimpico) ?></p>
+  <p class="sub">
+    <?php if (!empty($delegacion)): ?>
+      Viendo: <span class="chip-delegacion"><?= htmlspecialchars($delegacion) ?></span>
+    <?php else: ?>
+      Seguimiento en vivo del evento · actualizado <?= htmlspecialchars($ahora) ?>
+    <?php endif; ?>
+  </p>
+</header>
 
 <!-- Filtros -->
-<form method="get" action="<?= site_url('publico') ?>" class="card p-3 mb-4 shadow-sm">
-  <div class="row g-2 align-items-center justify-content-center">
-  <label class="col-auto fw-bold small text-secondary">Delegación:</label>
-  <div class="col-auto" style="min-width:170px">
-  <select name="delegacion" class="form-select" onchange="this.form.submit()">
+<form method="get" action="<?= site_url('publico') ?>" class="filtros">
+  <label>Delegación:</label>
+  <select name="delegacion" onchange="this.form.submit()">
     <option value="">— Todas (vista general) —</option>
     <?php foreach ($delegaciones as $d): ?>
       <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
@@ -136,11 +189,9 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
       </option>
     <?php endforeach; ?>
   </select>
-  </div>
 
-  <label class="col-auto fw-bold small text-secondary">Deporte:</label>
-  <div class="col-auto" style="min-width:170px">
-  <select name="deporte" class="form-select" onchange="this.form.submit()">
+  <label>Deporte:</label>
+  <select name="deporte" onchange="this.form.submit()">
     <option value="">— Todos —</option>
     <?php foreach ($deportes as $dep): ?>
       <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
@@ -148,49 +199,27 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
       </option>
     <?php endforeach; ?>
   </select>
-  </div>
 
   <?php if (!empty($delegacion) || !empty($id_deporte)): ?>
-    <div class="col-auto">
-      <a class="btn btn-outline-secondary btn-sm" href="<?= site_url('publico') ?>"><i class="bi bi-x-circle"></i> Quitar filtros</a>
-    </div>
+    <a class="limpiar" href="<?= site_url('publico') ?>">✕ Quitar filtros</a>
   <?php endif; ?>
-  </div>
 </form>
 
 <!-- Resumen -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['delegaciones'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Delegaciones</div>
-  </div></div></div>
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['deportes'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Deportes</div>
-  </div></div></div>
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['categorias'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Categorías</div>
-  </div></div></div>
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['finalizados'] ?>/<?= (int)$resumen['partidos'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Partidos jugados</div>
-  </div></div></div>
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['resultados'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Resultados</div>
-  </div></div></div>
-  <div class="col-6 col-md-2"><div class="card text-center shadow-sm"><div class="card-body py-3">
-    <b style="font-size:26px;color:var(--azul)"><?= (int)$resumen['premiados'] ?></b>
-    <div class="small text-muted text-uppercase" style="letter-spacing:.5px">Medallas entregadas</div>
-  </div></div></div>
+<div class="resumen">
+  <div class="stat"><b><?= (int)$resumen['delegaciones'] ?></b><span>Delegaciones</span></div>
+  <div class="stat"><b><?= (int)$resumen['deportes'] ?></b><span>Deportes</span></div>
+  <div class="stat"><b><?= (int)$resumen['categorias'] ?></b><span>Categorías</span></div>
+  <div class="stat"><b><?= (int)$resumen['finalizados'] ?>/<?= (int)$resumen['partidos'] ?></b><span>Partidos jugados</span></div>
+  <div class="stat"><b><?= (int)$resumen['resultados'] ?></b><span>Resultados</span></div>
+  <div class="stat"><b><?= (int)$resumen['premiados'] ?></b><span>Medallas entregadas</span></div>
 </div>
 
 <!-- Tabs -->
 <div class="tabs">
-  <button class="tab-btn activo" data-tab="tab-fixture"><i class="bi bi-calendar-event me-1"></i> Fixture</button>
-  <button class="tab-btn" data-tab="tab-resultados"><i class="bi bi-flag-fill me-1"></i> Resultados</button>
-  <button class="tab-btn" data-tab="tab-medallero"><i class="bi bi-medal me-1"></i> Medallero</button>
+  <button class="tab-btn activo" data-tab="tab-fixture">📅 Fixture</button>
+  <button class="tab-btn" data-tab="tab-resultados">🏁 Resultados</button>
+  <button class="tab-btn" data-tab="tab-medallero">🏅 Medallero</button>
 </div>
 
 <!-- ============ FIXTURE ============ -->
@@ -237,10 +266,10 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
         <div class="meta">
           <span><?= htmlspecialchars((string) $fx['hora_inicio']) ?> – <?= htmlspecialchars((string) $fx['hora_fin']) ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
-          <span><span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span><?php if ($es_masivo): ?><span class="badge MASIVA">MASIVA</span><?php endif; ?></span>
+          <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
         </div>
         <?php if ($es_masivo): ?>
-          <div class="masivo-aviso">🏃 Todos contra todos — jornada de participación libre.<br>Los puestos y tiempos se publican en la pestaña <b>Resultados</b>.</div>
+          <div class="masivo-aviso"></div>
         <?php else: ?>
         <div class="vs">
           <div class="equipo <?= $g1 ? 'ganador' : '' ?>"><?= $eq1_nombre ?></div>
@@ -323,13 +352,11 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
   <?php endif; ?>
 </div>
 
-<footer class="text-center mt-5 pb-4" style="color:var(--muted);font-size:13px">
-  <img class="mascota mb-2" src="<?= base_url('assets/img/pampito.png') ?>" alt="Pampito, la mascota de las olimpiadas">
-  Panel público · <?= NOMBRE_META; ?> · sin datos personales
+<footer>
+  <img class="mascota" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Pampito, la mascota de las olimpiadas">
+  Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales
 </footer>
-</div><!-- /container -->
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</div>
 
 <script>
 // Tabs
