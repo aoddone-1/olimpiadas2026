@@ -676,6 +676,7 @@ class Publico_model extends CI_Model {
             // UTEs y competidores individuales (para completar nombres_libre cuando
             // el detalle no lo guarda o es un slot negativo -id_inscripcion).
             $ins_map      = $this->_delegacion_por_inscripcion(); // id_inscripcion -> delegación
+            $deleg_por_ute = $this->_delegacion_por_ute();         // id_ute -> delegación (UTEs/equipos)
 
             // Detalle en un solo raw query
             $ids_res = array_map('intval', array_column($rows, 'id_resultado'));
@@ -719,6 +720,24 @@ class Publico_model extends CI_Model {
                         // Público: nombre + delegación del individual.
                         $dl = isset($ins_map[abs($idl)]) ? ' (' . $ins_map[abs($idl)] . ')' : '';
                         $d['nombre_libre'] = $nombres_ind[$idl] . $dl;
+                    }
+                }
+                /* Deporte de largada masiva: la planilla guarda "Nombre (DNI)"
+                   en `nombre_libre`. El DNI es un dato personal y el panel
+                   público promete "sin datos personales", así que acá se
+                   reemplaza por la DELEGACIÓN del competidor:
+                   "Nombre — Delegación". Si no hay delegación conocida, se
+                   muestra solo el nombre (nunca el DNI). */
+                if ($idl <= 0 && preg_match('/^(.*)\s*\((\d{6,9})\)\s*$/u', (string) $d['nombre_libre'], $mm)) {
+                    $dl = ($idl < 0 && isset($ins_map[abs($idl)])) ? trim((string) $ins_map[abs($idl)]) : '';
+                    $d['nombre_libre'] = trim($mm[1]) . ($dl !== '' ? ' — ' . $dl : '');
+                }
+                /* Equipos/UTEs de una jornada masiva: agregar SU delegación al
+                   nombre para que el público identifique a quién representa. */
+                if ($idl > 0 && strpos((string) $d['nombre_libre'], '(') === false) {
+                    $dl_u = isset($deleg_por_ute[$idl]) ? trim((string) $deleg_por_ute[$idl]) : '';
+                    if ($dl_u !== '') {
+                        $d['nombre_libre'] = (string) $d['nombre_libre'] . ' — ' . $dl_u;
                     }
                 }
                 $por_res[(int) $d['id_resultado']][] = $d;

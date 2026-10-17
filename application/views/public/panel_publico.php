@@ -9,8 +9,12 @@
 <style>
 :root{
   --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
-  --txt:#eaf1f9; --muted:#8fa8c4; --acento:#ffb703; --ok:#2dd4a7;
-  --oro:#ffd54d; --plata:#cfd8e3; --bronce:#d9915b;
+  --txt:#eaf1f9; --muted:#8fa8c4; --acento:#84cc16; --ok:#2dd4a7;
+  /* Gama del verde institucional (#84CC16, lime-500): claro → oscuro */
+  --verde-100:#ecfccb; --verde-200:#d9f99d; --verde-300:#bef264; --verde-400:#a3e635;
+  --verde-500:#84cc16; --verde-600:#65a30d; --verde-700:#4d7c0f; --verde-800:#3f6212;
+  /* "Oro" (1er puesto) en la gama del verde: #d9f99d sobre texto oscuro. */
+  --oro:#d9f99d; --plata:#cfd8e3; --bronce:#d9915b;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);color:var(--txt);
@@ -69,7 +73,7 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .partido .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
 .badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700}
 .badge.PROGRAMADO{background:#234;color:#9ec5fe}
-.badge.EN_CURSO{background:#423000;color:var(--acento)}
+.badge.EN_CURSO{background:var(--verde-800);color:var(--verde-300)}
 .badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
 .badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
@@ -81,7 +85,7 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .categoria-linea{font-size:12px;color:var(--muted);margin-top:8px}
 /* Deporte destacado en la card del fixture (llama la atención); la categoría
    va discreta abajo. */
-.deporte-chip{display:inline-block;background:rgba(255,183,3,.14);border:1px solid rgba(255,183,3,.45);
+.deporte-chip{display:inline-block;background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
               color:var(--acento);font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;
               border-radius:8px;padding:2px 10px}
 .hora-inicio{color:var(--txt);font-weight:600}
@@ -114,7 +118,7 @@ table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;tex
                    padding:10px;border-bottom:1px solid var(--line)}
 table.medallero td{padding:10px;border-bottom:1px solid var(--line);font-size:15px;text-align:center}
 table.medallero td:first-child{text-align:left;font-weight:600}
-table.medallero tr:hover td{background:rgba(255,183,3,.06)}
+table.medallero tr:hover td{background:rgba(132,204,22,.06)}
 table.medallero td.oro{color:var(--oro);font-weight:800}
 table.medallero td.plata{color:var(--plata);font-weight:800}
 table.medallero td.bronce{color:var(--bronce);font-weight:800}
