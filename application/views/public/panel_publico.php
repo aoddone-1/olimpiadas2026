@@ -7,30 +7,32 @@
 <title><?= htmlspecialchars($titulo_evento) ?> — Panel Público</title>
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <style>
+/* Tema CLARO: gris clarito de fondo + blanco en las tarjetas. Así el logo
+   oficial (transparente con letras negras) se ve perfecto sin placas ni retoques. */
 :root{
-  --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
-  --txt:#eaf1f9; --muted:#8fa8c4; --acento:#ffb703; --ok:#2dd4a7;
-  --oro:#ffd54d; --plata:#cfd8e3; --bronce:#d9915b;
+  --bg:#eef1f5; --card:#ffffff; --card2:#f2f5f9; --line:#d7dee7;
+  --txt:#1f2a37; --muted:#64748b; --acento:#b45309; --ok:#0a8a5f;
+  --oro:#b8860b; --plata:#5c6b7a; --bronce:#a05a2c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);color:var(--txt);
+body{background:linear-gradient(160deg,#eef1f5 0%,#e4eaf1 60%,#eef1f5 100%);color:var(--txt);
      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
 .wrap{max-width:1200px;margin:0 auto;padding:16px}
 header{text-align:center;padding:22px 10px 10px}
-/* Logo oficial sin letras (logo_olimpiadas_2.png): al no tener texto negro,
-   puede ir directo sobre el fondo oscuro — va a la par del título. */
+/* Logo del evento: con tema claro las letras negras se ven directo sobre el
+   fondo gris — no hace falta placa blanca ni versión sin letras. */
 .titulo-row{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
-.titulo-row .logo-evento{height:clamp(64px,9vw,96px);width:auto;object-fit:contain;flex-shrink:0;
-                         filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
+.titulo-row .logo-evento{height:clamp(64px,9vw,96px);width:auto;object-fit:contain;flex-shrink:0}
 header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25;text-align:left}
 header p.sitio{color:var(--txt);margin-top:6px;font-size:14px;font-weight:600;opacity:.85}
 header p.lugar{display:inline-block;margin-top:8px;background:var(--card);border:1px solid var(--line);
-               border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700}
+               border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700;
+               box-shadow:0 1px 3px rgba(15,23,42,.08)}
 header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 /* Jornada masiva (todos contra todos): sin "rivales" */
-.partido.masivo{background:linear-gradient(150deg,var(--card) 0%,#173a5e 100%)}
+.partido.masivo{background:linear-gradient(150deg,#ffffff 0%,#eaf3fb 100%)}
 .masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
-.badge.MASIVA{background:#123c52;color:#7fd8ff;margin-left:6px}
+.badge.MASIVA{background:#dbeafe;color:#1d4ed8;margin-left:6px}
 /* Barra de filtros */
 .filtros{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center;
          background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:18px 0}
@@ -39,32 +41,34 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
                 border-radius:8px;padding:8px 12px;font-size:15px;min-width:160px}
 .filtros a.limpiar{color:var(--acento);text-decoration:none;font-size:14px;padding:8px 10px;
                    border:1px solid var(--line);border-radius:8px}
-.chip-delegacion{display:inline-block;background:var(--acento);color:#111;border-radius:20px;
+.chip-delegacion{display:inline-block;background:var(--acento);color:#fff;border-radius:20px;
                  padding:4px 14px;font-weight:700;font-size:14px}
 /* Cards resumen */
 .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
-.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center;
+      box-shadow:0 1px 3px rgba(15,23,42,.07)}
 .stat b{display:block;font-size:28px;color:var(--acento)}
 .stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 /* Tabs */
 .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
 .tab-btn{background:var(--card);border:1px solid var(--line);color:var(--txt);padding:10px 22px;
-         border-radius:30px;font-size:15px;cursor:pointer;transition:.15s}
+         border-radius:30px;font-size:15px;cursor:pointer;transition:.15s;box-shadow:0 1px 3px rgba(15,23,42,.07)}
 .tab-btn:hover{border-color:var(--acento)}
-.tab-btn.activo{background:var(--acento);color:#111;font-weight:700;border-color:var(--acento)}
+.tab-btn.activo{background:var(--acento);color:#fff;font-weight:700;border-color:var(--acento)}
 .panel-tab{display:none}
 .panel-tab.visible{display:block}
 /* Fixture: tarjetas de partido */
 .grupo-dia{margin-bottom:22px}
 .grupo-dia h3{color:var(--acento);font-size:16px;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .partidos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.partido{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.partido{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+         box-shadow:0 1px 3px rgba(15,23,42,.07)}
 .partido .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
 .badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700}
-.badge.PROGRAMADO{background:#234;color:#9ec5fe}
-.badge.EN_CURSO{background:#423000;color:var(--acento)}
-.badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
-.badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
+.badge.PROGRAMADO{background:#e0ecff;color:#1d4ed8}
+.badge.EN_CURSO{background:#fef3c7;color:#92400e}
+.badge.FINALIZADO{background:#d1f2e4;color:#0a8a5f}
+.badge.SUSPENDIDO{background:#fee2e2;color:#b91c1c}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
 .vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
@@ -73,34 +77,35 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .pendiente{color:var(--muted);font-style:italic;font-weight:400 !important}
 .categoria-linea{font-size:12px;color:var(--muted);margin-top:8px}
 /* Resultados */
-.resultado-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+.resultado-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px;
+                box-shadow:0 1px 3px rgba(15,23,42,.07)}
 .resultado-card h4{font-size:15px;margin-bottom:2px}
 .resultado-card .sub{font-size:12px;color:var(--muted);margin-bottom:10px}
 .fila-pos{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;font-size:14px}
 .fila-pos:nth-child(odd){background:var(--card2)}
 .pos{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-     font-weight:800;font-size:13px;background:var(--line);flex-shrink:0}
-.pos.p1{background:var(--oro);color:#111}.pos.p2{background:var(--plata);color:#111}.pos.p3{background:var(--bronce);color:#111}
+     font-weight:800;font-size:13px;background:#e2e8f0;color:#334155;flex-shrink:0}
+.pos.p1{background:var(--oro);color:#fff}.pos.p2{background:var(--plata);color:#fff}.pos.p3{background:var(--bronce);color:#fff}
 .tiempo{margin-left:auto;font-family:Consolas,monospace;color:var(--ok);font-weight:700}
 .marcador-res{margin-left:auto;font-weight:800;color:var(--acento)}
-.desempate-tag{font-size:11px;color:#ffab9e;margin-left:8px}
+.desempate-tag{font-size:11px;color:#b91c1c;margin-left:8px}
 /* Medallero */
-table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;
+                box-shadow:0 1px 3px rgba(15,23,42,.07)}
 table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
                    padding:10px;border-bottom:1px solid var(--line)}
 table.medallero td{padding:10px;border-bottom:1px solid var(--line);font-size:15px;text-align:center}
 table.medallero td:first-child{text-align:left;font-weight:600}
-table.medallero tr:hover td{background:rgba(255,183,3,.06)}
+table.medallero tr:hover td{background:rgba(180,83,9,.06)}
 table.medallero td.oro{color:var(--oro);font-weight:800}
 table.medallero td.plata{color:var(--plata);font-weight:800}
 table.medallero td.bronce{color:var(--bronce);font-weight:800}
-.rank-num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--line);
+.rank-num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:#e2e8f0;color:#334155;
           align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px}
-tr.top1 .rank-num{background:var(--oro);color:#111}
+tr.top1 .rank-num{background:var(--oro);color:#fff}
 .vacio{text-align:center;color:var(--muted);padding:40px 10px;font-size:15px}
 footer{text-align:center;color:var(--muted);font-size:12px;padding:26px 0 16px}
-footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-fit:contain;
-                filter:drop-shadow(0 3px 10px rgba(0,0,0,.4))}
+footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-fit:contain}
 @media(max-width:600px){.partidos{grid-template-columns:1fr}}
 </style>
 </head>
@@ -109,7 +114,7 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 
 <header>
   <div class="titulo-row">
-    <img class="logo-evento" src="<?= base_url('assets/img/logo_olimpiadas_2.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
+    <img class="logo-evento" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
     <h1><?= htmlspecialchars($nombre_sitio) ?></h1>
   </div>
   <p class="lugar">📍 <?= htmlspecialchars($lugar_olimpico) ?></p>
