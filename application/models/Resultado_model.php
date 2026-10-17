@@ -787,10 +787,6 @@ class Resultado_model extends CI_Model {
             u1.nombre_ute as ute_1_nombre, u2.nombre_ute as ute_2_nombre,
             l.nombre as lugar_nombre
         ', FALSE);
-        // fixtures.resultado (podio masivo en JSON) solo si la columna existe.
-        if ($this->_existe_columna_resultado()) {
-            $this->db->select('f.resultado');
-        }
         $this->db->from('fixtures f');
         $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
         $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
@@ -799,14 +795,64 @@ class Resultado_model extends CI_Model {
         $this->db->order_by('numero_fecha, fecha_competencia, hora_inicio', 'ASC');
         $rows = $this->db->get()->result_array();
 
+        // Datos del resultado ya cargado sobre cada partido (si lo hay): así la
+        // vista puede ocultar del select los partidos con resultado y listarlos
+        // aparte con su marcador. Un solo query para toda la categoría.
+        $ya_tienen = array();
+        if ($this->_tabla_existe('resultados') && $this->_tabla_existe('resultado_detalle') && $rows) {
+            $ids_fx = array_column($rows, 'id_fixture');
+            $this->db->select('r.id_fixture, r.id_resultado, r.tipo_resultado');
+            $this->db->select('rd.marcador_local, rd.marcador_visita, rd.id_ute, rd.nombre_libre', FALSE);
+            $this->db->from('resultados r');
+            $this->db->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'left');
+            $this->db->where_in('r.id_fixture', $ids_fx);
+            $this->db->order_by('r.id_resultado, rd.id_detalle', 'ASC');
+            $filas = $this->db->get()->result_array();
+            foreach ($filas as $fl) {
+                $kfx = (int) $fl['id_fixture'];
+                if (!isset($ya_tienen[$kfx])) {
+                    $ya_tienen[$kfx] = array(
+                        'id_resultado'   => (int) $fl['id_resultado'],
+                        'tipo_resultado' => $fl['tipo_resultado'],
+                        'eq1' => array('goles' => null, 'nombre' => null),
+                        'eq2' => array('goles' => null, 'nombre' => null),
+                    );
+                }
+                if ($fl['marcador_local'] === null && $fl['marcador_visita'] === null) continue;
+                $ent = array('goles' => trim($fl['marcador_local'] . ':' . $fl['marcador_visita'], ':'),
+                             'nombre' => trim((string) $fl['nombre_libre']));
+                $slot = empty($ya_tienen[$kfx]['eq1']['nombre']) ? 'eq1' : (
+                        empty($ya_tienen[$kfx]['eq2']['nombre']) ? 'eq2' : null);
+                if ($slot) $ya_tienen[$kfx][$slot] = $ent;
+            }
+        }
+
         // MASIVO_TIEMPO: adjuntar a cada jornada los competidores que participaron
         // (resueltos desde el fixture + las inscripciones_deportivas).
-        if ($this->modalidad_de_categoria($id_categoria) === 'MASIVO_TIEMPO') {
+        $es_masivo = ($this->modalidad_de_categoria($id_categoria) === 'MASIVO_TIEMPO');
+        foreach ($rows as &$f) {
+            $kfx = (int) $f['id_fixture'];
+            $f['tiene_resultado'] = isset($ya_tienen[$kfx]);
+            $f['resultado_info']  = isset($ya_tienen[$kfx]) ? $ya_tienen[$kfx] : null;
+            if ($es_masivo) {
+                $f['competidores'] = $this->obtener_participantes_de_jornada($kfx);
+            }
+        }
+        unset($f);
+
+        // fixtures.resultado (podio masivo en JSON) solo si la columna existe.
+        if ($this->_existe_columna_resultado()) {
+            $this->db->select('id_fixture, resultado');
+            $this->db->where('id_categoria', (int) $id_categoria);
+            $podios = $this->db->get('fixtures')->result_array();
+            $por_fx = array();
+            foreach ($podios as $p) {
+                $por_fx[(int) $p['id_fixture']] = $p['resultado'];
+            }
             foreach ($rows as &$f) {
-                $f['competidores'] = $this->obtener_participantes_de_jornada((int) $f['id_fixture']);
-                // Adjuntar también el "podio" guardado (fixtures.resultado) para la vista.
-                if ($this->_existe_columna_resultado() && !empty($f['resultado'])) {
-                    $arr = json_decode($f['resultado'], true);
+                $raw = isset($por_fx[(int) $f['id_fixture']]) ? $por_fx[(int) $f['id_fixture']] : null;
+                if (!empty($raw)) {
+                    $arr = json_decode($raw, true);
                     $f['resultado'] = is_array($arr) ? array_map('intval', $arr) : null;
                 } else {
                     $f['resultado'] = null;
