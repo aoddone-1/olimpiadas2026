@@ -79,6 +79,12 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .ganador{color:var(--ok)}
 .pendiente{color:var(--muted);font-style:italic;font-weight:400 !important}
 .categoria-linea{font-size:12px;color:var(--muted);margin-top:8px}
+/* Deporte destacado en la card del fixture (llama la atención); la categoría
+   va discreta abajo. */
+.deporte-chip{display:inline-block;background:rgba(255,183,3,.14);border:1px solid rgba(255,183,3,.45);
+              color:var(--acento);font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;
+              border-radius:8px;padding:2px 10px}
+.hora-inicio{color:var(--txt);font-weight:600}
 /* Resultados */
 .resultado-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
 .resultado-card h4{font-size:15px;margin-bottom:2px}
@@ -259,13 +265,19 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
         }
 
         // Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos,
-        // NO llevan rivales ni marcador "VS".
+        // NO llevan rivales ni marcador "VS". (modalidad_competencia es un dato
+        // interno: solo se usa acá, nunca se muestra.)
         $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
                   || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
+
+        // Horario: lo importante es la HORA DE COMIENZO en hh:mm (los segundos
+        // y el horario de fin no interesan al público).
+        $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
+        $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
     ?>
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
         <div class="meta">
-          <span><?= htmlspecialchars((string) $fx['hora_inicio']) ?> – <?= htmlspecialchars((string) $fx['hora_fin']) ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
+          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
           <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
         </div>
         <?php if ($es_masivo): ?>
@@ -278,7 +290,8 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
         </div>
         <?php endif; ?>
         <div class="categoria-linea">
-          <?= htmlspecialchars((string) $fx['nombre_deporte']) ?> · <?= htmlspecialchars((string) $fx['nombre_categoria']) ?>
+          <span class="deporte-chip"><?= htmlspecialchars((string) $fx['nombre_deporte']) ?></span>
+          <?php if (!empty($fx['nombre_categoria'])): ?><span style="opacity:.75"><?= htmlspecialchars((string) $fx['nombre_categoria']) ?></span><?php endif; ?>
           <?php if (!empty($fx['fase'])): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
         </div>
       </div>
