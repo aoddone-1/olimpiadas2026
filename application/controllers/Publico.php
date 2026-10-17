@@ -30,20 +30,37 @@ class Publico extends CI_Controller {
         $delegacion = $this->_delegacion_filtro();
         $id_deporte = $this->_deporte_filtro();
 
+        // Cada consulta va envuelta en try/catch: si falta una tabla/columna
+        // (migraciones no aplicadas) el panel se muestra igual, con esa sección
+        // vacía y el error real registrado en application/logs/.
         $data = array(
             'titulo_evento'  => 'Olimpíadas — Panel Público',
-            'resumen'        => $this->Publico_model->obtener_resumen_evento(),
-            'delegaciones'   => $this->Publico_model->obtener_delegaciones(),
-            'deportes'       => $this->Publico_model->obtener_deportes_con_categorias(),
+            'resumen'        => $this->_seguro(fn() => $this->Publico_model->obtener_resumen_evento(), array(
+                'delegaciones' => 0, 'deportes' => 0, 'categorias' => 0,
+                'partidos' => 0, 'finalizados' => 0, 'resultados' => 0, 'premiados' => 0,
+            )),
+            'delegaciones'   => $this->_seguro(fn() => $this->Publico_model->obtener_delegaciones(), array()),
+            'deportes'       => $this->_seguro(fn() => $this->Publico_model->obtener_deportes_con_categorias(), array()),
             'delegacion'     => $delegacion,
             'id_deporte'     => $id_deporte,
-            'fixture'        => $this->Publico_model->obtener_fixture_publico($delegacion, $id_deporte),
-            'resultados'     => $this->Publico_model->obtener_resultados_publicos($delegacion, $id_deporte),
-            'medallero'      => $this->Publico_model->obtener_medallero(),
+            'fixture'        => $this->_seguro(fn() => $this->Publico_model->obtener_fixture_publico($delegacion, $id_deporte), array()),
+            'resultados'     => $this->_seguro(fn() => $this->Publico_model->obtener_resultados_publicos($delegacion, $id_deporte), array()),
+            'medallero'      => $this->_seguro(fn() => $this->Publico_model->obtener_medallero(), array()),
             'ahora'          => date('d/m/Y H:i'),
         );
 
         $this->load->view('public/panel_publico', $data);
+    }
+
+    /** Ejecuta una consulta del modelo; ante cualquier error devuelve $fallback. */
+    private function _seguro(callable $fn, $fallback) {
+        try {
+            $r = $fn();
+            return $r === null ? $fallback : $r;
+        } catch (Throwable $e) {
+            log_message('error', 'Publico::index — ' . $e->getMessage());
+            return $fallback;
+        }
     }
 
     /** JSON del fixture (para auto-refresh sin recargar la página). */
@@ -87,10 +104,15 @@ class Publico extends CI_Controller {
     private function _delegacion_filtro() {
         $delegacion = trim((string) $this->input->get('delegacion'));
         if ($delegacion === '') return null;
-        // Validar que sea una delegación real (evita inyección de texto arbitrary
-        // en el HTML y consultas inútiles).
-        $reales = $this->Publico_model->obtener_delegaciones();
-        return in_array($delegacion, $reales, true) ? $delegacion : null;
+        try {
+            // Validar que sea una delegación real (evita inyección de texto
+            // arbitrary en el HTML y consultas inútiles).
+            $reales = $this->Publico_model->obtener_delegaciones();
+            return in_array($delegacion, $reales, true) ? $delegacion : null;
+        } catch (Throwable $e) {
+            log_message('error', 'Publico::_delegacion_filtro — ' . $e->getMessage());
+            return null;
+        }
     }
 
     private function _deporte_filtro() {
