@@ -144,76 +144,82 @@ class Publico_model extends CI_Model {
      */
     public function obtener_fixture_publico($delegacion = null, $id_deporte = null) {
         try {
-            if (!$this->_tabla_existe('fixtures')) {
+            // NOTA DE DISEÑO: el panel público se renderiza DESPUÉS de varias
+            // otras consultas (resumen → delegaciones → deportes). Si una de
+            // esas consultas previas deja la Query Builder "sucia" (p. ej. por
+            // un error de DB en `count_all_results`), un `$this->db->get()`
+            // simple arma un SELECT * FROM <última tabla usada> y no desde
+            // `fixtures`, devolviendo 0 filas → "No hay partidos programados"
+            // aunque haya fixture cargado. Para blindarlo, acá se lee la tabla
+            // con raw SQL SIN pasar por la Query Builder compartida.
+            $sql = 'SELECT * FROM `fixtures`';
+            $conds = array();
+            if ($id_deporte !== null && (int) $id_deporte > 0) {
+                $ids = $this->_ids_categorias_del_deporte((int) $id_deporte);
+                $conds[] = 'id_categoria IN (' . implode(',', array_map('intval', $ids)) . ')';
+            }
+            if ($conds) {
+                $sql .= ' WHERE ' . implode(' AND ', $conds);
+            }
+            $sql .= ' ORDER BY fecha_competencia ASC, hora_inicio ASC, id_categoria ASC, numero_fecha ASC, id_fixture ASC';
+
+            $query = $this->db->query($sql);
+            $fixtures = ($query === false || !is_object($query)) ? array() : $query->result_array();
+            if (!$fixtures) {
+                log_message('error', 'Publico_model::obtener_fixture_publico — sin filas. SQL: ' . $sql);
                 return array();
             }
-            // Columnas opcionales según migraciones aplicadas: si la base todavía
-            // no tiene alguna columna (p. ej. fixtures.nombre_prueba), seleccionarla
-            // rompe TODO el query (Unknown column) y el controlador explota justo
-            // en la línea del 'fixture' => obtener_fixture_publico(...).
-            $select = '
-                f.id_fixture, f.id_categoria, f.id_lugar, f.fecha_competencia, f.hora_inicio, f.hora_fin,
-                f.fase, f.numero_fecha, f.estado,
-                f.id_ute_1, f.id_ute_2';
-            if ($this->_columna_existe('fixtures', 'nombre_prueba')) {
-                $select .= ', f.nombre_prueba';
-            }
-            if ($this->_columna_existe('fixtures', 'resultado')) {
-                $select .= ', f.resultado AS orden_llegada_json';
-            }
-            $select .= ',
-                u1.nombre_ute AS ute_1_nombre,
-                u2.nombre_ute AS ute_2_nombre,
-                l.nombre AS lugar_nombre,
-                c.nombre_categoria, c.genero AS genero_categoria,
-                d.nombre_deporte, d.modalidad_competencia';
 
-            $this->db->select($select, FALSE);
-            $this->db->from('fixtures f');
-            $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
-            $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
-            $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
-            $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
-            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
-
-            if ($id_deporte !== null && (int) $id_deporte > 0) {
-                $this->db->where('d.id_deporte', (int) $id_deporte);
-            }
-
-            // Filtro por DELEGACIÓN: se resuelve en SQL, con los MISMOS criterios
-            // que usa el panel privado (partido de equipo, de individual o jornada
-            // masiva de la categoría). Antes se filtraba en PHP comparando solo
-            // participantes_utes, y como los fixtures guardan individuales como
-            // slots negativos (-id_inscripcion), el filtro dejaba todo vacío.
+            // Filtro por DELEGACIÓN: se resuelve en PHP (igual que el panel
+            // privado, que sí funciona) para no depender de tablas auxiliares.
+            $comp = null;
             if (!empty($delegacion)) {
-                $del = $this->db->escape($delegacion);
-                $cond_equipo = "EXISTS (
-                    SELECT 1 FROM participantes_utes pu
-                    INNER JOIN participantes p ON p.id_participante = pu.id_participante
-                    WHERE pu.id_ute IN (f.id_ute_1, f.id_ute_2)
-                      AND p.delegacion = {$del})";
-                $cond_individual = "EXISTS (
-                    SELECT 1 FROM inscripciones_deportivas i
-                    INNER JOIN participantes p ON p.id_participante = i.id_participante
-                    WHERE i.id_categoria = f.id_categoria
-                      AND (-i.id_inscripcion) IN (f.id_ute_1, f.id_ute_2)
-                      AND p.delegacion = {$del})";
-                $cond_masivo = "(
-                    (f.fase = 'JORNADA_UNICA' OR d.modalidad_competencia = 'MASIVO_TIEMPO')
-                    AND EXISTS (
-                        SELECT 1 FROM inscripciones_deportivas i
-                        INNER JOIN participantes p ON p.id_participante = i.id_participante
-                        WHERE i.id_categoria = f.id_categoria
-                          AND p.delegacion = {$del}))";
-                $this->db->where('(' . $cond_equipo . ' OR ' . $cond_individual . ' OR ' . $cond_masivo . ')', NULL, FALSE);
+                $comp = $this->_competidores_de_delegacion($delegacion);
             }
 
-            // Marcador: traer el resultado MARCADOR vinculado al partido (si existe)
-            // en una sola pasada, sin N+1 queries.
-            $marcadores = $this->_obtener_marcadores_por_fixture();
+            // Joins de nombres resueltos en PHP, sobre CONSULTAS SEPARADAS limpias
+            // (sin `$this->db->reset_query()`): así el panel público nunca depende
+            // de que una tabla auxiliar exista. Si falta, esa columna queda null y
+            // el fixture se muestra igual.
+            $nombres_utes   = $this->_mapa('utes', 'id_ute', 'nombre_ute');
+            $nombres_lugares = $this->_mapa('lugares', 'id', 'nombre');
+            $cats = $this->_mapa(
+                'categorias', 'id_categoria',
+                array('nombre_categoria', 'genero', 'id_deporte')
+            );
+            $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
 
-            $this->db->order_by('f.fecha_competencia, f.hora_inicio, d.nombre_deporte, c.nombre_categoria', 'ASC');
-            $fixtures = $this->db->get()->result_array();
+            foreach ($fixtures as &$fx) {
+                $idl1 = isset($fx['id_ute_1']) ? (int) $fx['id_ute_1'] : 0;
+                $idl2 = isset($fx['id_ute_2']) ? (int) $fx['id_ute_2'] : 0;
+                $cat  = isset($fx['id_categoria']) ? (int) $fx['id_categoria'] : 0;
+                $dep  = isset($cats[$cat]['id_deporte']) ? (int) $cats[$cat]['id_deporte'] : 0;
+
+                $fx['ute_1_nombre'] = isset($nombres_utes[$idl1]) ? $nombres_utes[$idl1] : null;
+                $fx['ute_2_nombre'] = isset($nombres_utes[$idl2]) ? $nombres_utes[$idl2] : null;
+                $fx['lugar_nombre'] = isset($nombres_lugares[(int) $fx['id_lugar']])
+                    ? $nombres_lugares[(int) $fx['id_lugar']] : null;
+                $fx['nombre_categoria']  = isset($cats[$cat]['nombre_categoria']) ? $cats[$cat]['nombre_categoria'] : null;
+                $fx['genero_categoria']  = isset($cats[$cat]['genero']) ? $cats[$cat]['genero'] : null;
+                $fx['nombre_deporte']    = isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null;
+                $fx['modalidad_competencia'] = isset($deportes[$dep]['modalidad_competencia']) ? $deportes[$dep]['modalidad_competencia'] : null;
+                // Columnas opcionales (migraciones): leídas del SELECT *, sin field_exists().
+                $fx['nombre_prueba']      = isset($fx['nombre_prueba']) ? $fx['nombre_prueba'] : null;
+                $fx['orden_llegada_json'] = isset($fx['resultado']) ? $fx['resultado'] : null;
+
+            }
+            unset($fx);
+
+            // Filtro por delegación (en PHP, con los mismos 3 caminos que el panel
+            // privado): se aplica AHORA, con los nombres ya resueltos.
+            if ($comp !== null) {
+                $fixtures = array_values(array_filter($fixtures, function ($fx) use ($comp) {
+                    return $this->_fixture_es_de_la_delegacion($fx, $comp);
+                }));
+            }
+
+            // Marcadores (resultados MARCADOR), en una sola pasada sin N+1.
+            $marcadores = $this->_obtener_marcadores_por_fixture();
 
             // Nombres de los competidores individuales (slots negativos -id_inscripcion).
             $nombres_ind = $this->_nombres_individuales_en_fixtures($fixtures);
@@ -221,22 +227,14 @@ class Publico_model extends CI_Model {
             foreach ($fixtures as &$fx) {
                 $idf = (int) $fx['id_fixture'];
                 $fx['marcador'] = isset($marcadores[$idf]) ? $marcadores[$idf] : null;
-                if (!isset($fx['nombre_prueba'])) {
-                    $fx['nombre_prueba'] = null;
-                }
-                if (!isset($fx['orden_llegada_json'])) {
-                    $fx['orden_llegada_json'] = null;
-                }
-                // Slots negativos: el join contra `utes` no devuelve nombre, así
-                // que se completa con el del inscripto individual.
+                // Slots negativos: `utes` no tiene filas para ids < 0, así que se
+                // completa con el nombre del inscripto individual.
                 foreach (array(1, 2) as $lado) {
                     $campo_id = 'id_ute_' . $lado;
                     $campo_nom = 'ute_' . $lado . '_nombre';
                     $idl = isset($fx[$campo_id]) ? (int) $fx[$campo_id] : 0;
                     if (empty($fx[$campo_nom]) && $idl < 0 && isset($nombres_ind[$idl])) {
                         $fx[$campo_nom] = $nombres_ind[$idl];
-                    } elseif (empty($fx[$campo_nom])) {
-                        $fx[$campo_nom] = null;
                     }
                 }
             }
@@ -396,6 +394,115 @@ class Publico_model extends CI_Model {
             log_message('error', 'Publico_model::_ids_inscripcion_de_la_delegacion: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /** Categorías (id_categoria) en las que la delegación tiene inscriptos. */
+    private function _categorias_con_inscriptos_de($delegacion) {
+        $map = array();
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')) {
+                return $map;
+            }
+            $this->db->select('i.id_categoria', FALSE);
+            $this->db->distinct();
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where('p.delegacion', $delegacion);
+            $rows = $this->db->get()->result_array();
+            foreach ($rows as $r) {
+                if (isset($r['id_categoria'])) $map[(int) $r['id_categoria']] = true;
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_categorias_con_inscriptos_de: ' . $e->getMessage());
+        }
+        return $map;
+    }
+
+    /**
+     * Set de "competidores" de una delegación para filtrar el fixture EN PHP
+     * (mismos 3 caminos que el panel privado): UTEs propias, inscripciones
+     * individuales (-id_inscripcion) y categorías con inscriptos (jornadas masivas).
+     */
+    private function _competidores_de_delegacion($delegacion) {
+        return array(
+            'utes'        => $this->_utes_de_la_delegacion($delegacion),
+            'inscripciones' => $this->_ids_inscripcion_de_la_delegacion($delegacion),
+            'categorias'  => $this->_categorias_con_inscriptos_de($delegacion),
+        );
+    }
+
+    /** ¿El partido (ya con nombres resueltos) pertenece a la delegación? */
+    private function _fixture_es_de_la_delegacion($fx, $comp) {
+        $idl1 = isset($fx['id_ute_1']) ? (int) $fx['id_ute_1'] : 0;
+        $idl2 = isset($fx['id_ute_2']) ? (int) $fx['id_ute_2'] : 0;
+        // Camino 1: partido de EQUIPO — alguna UTE del match tiene integrantes de la delegación.
+        if ($idl1 > 0 && isset($comp['utes'][$idl1])) return true;
+        if ($idl2 > 0 && isset($comp['utes'][$idl2])) return true;
+        // Camino 2: INDIVIDUAL — slot negativo -id_inscripcion de un inscripto de la delegación.
+        if ($idl1 < 0 && isset($comp['inscripciones'][abs($idl1)])) return true;
+        if ($idl2 < 0 && isset($comp['inscripciones'][abs($idl2)])) return true;
+        // Camino 3: JORNADA MASIVA — la categoría es de un deporte masivo/única y la
+        // delegación tiene inscriptos en esa categoría.
+        $cat = isset($fx['id_categoria']) ? (int) $fx['id_categoria'] : 0;
+        $es_masivo = (isset($fx['fase']) && $fx['fase'] === 'JORNADA_UNICA')
+                  || (isset($fx['modalidad_competencia']) && $fx['modalidad_competencia'] === 'MASIVO_TIEMPO');
+        if ($es_masivo && $cat > 0 && isset($comp['categorias'][$cat])) return true;
+        // Fallback: si los nombres resueltos ya incluyen la delegación (equipos
+        // cuyo nombre de UTE coincide con la delegación, p. ej. "Los Pumas").
+        return false;
+    }
+
+    /**
+     * Mapa clave→valor(es) leído de una tabla auxiliar. Cada llamada usa su
+     * PROPIA cadena de Query Builder (select/from/get) sobre tablas SIN alias,
+     * para no dejar nunca la conexión "sucia". Si la tabla no existe o la
+     * consulta falla, devuelve array vacío (el fixture se muestra igual).
+     */
+    private function _mapa($tabla, $campo_clave, $campos_valor) {
+        $mapa = array();
+        $campos = is_array($campos_valor) ? $campos_valor : array($campos_valor);
+        try {
+            if (!$this->_tabla_existe($tabla)) {
+                return $mapa;
+            }
+            $select = array_merge(array($campo_clave), $campos);
+            $this->db->select(implode(', ', $select), FALSE);
+            $rows = $this->db->get($tabla)->result_array();
+            foreach ($rows as $r) {
+                if (!isset($r[$campo_clave])) continue;
+                $k = (int) $r[$campo_clave];
+                if (count($campos) === 1) {
+                    $mapa[$k] = isset($r[$campos[0]]) ? $r[$campos[0]] : null;
+                } else {
+                    $fila = array();
+                    foreach ($campos as $c) {
+                        $fila[$c] = isset($r[$c]) ? $r[$c] : null;
+                    }
+                    $mapa[$k] = $fila;
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', "Publico_model::_mapa($tabla): " . $e->getMessage());
+        }
+        return $mapa;
+    }
+
+    /** ids de categoría de un deporte (para filtrar el fixture sin JOIN). */
+    private function _ids_categorias_del_deporte($id_deporte) {
+        $ids = array(-1); // centinela: si `categorias` no existe, WHERE IN no rompe.
+        try {
+            if ($this->_tabla_existe('categorias')) {
+                $this->db->select('id_categoria', FALSE);
+                $this->db->where('id_deporte', (int) $id_deporte);
+                $rows = $this->db->get('categorias')->result_array();
+                foreach ($rows as $r) {
+                    $ids[] = (int) $r['id_categoria'];
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_ids_categorias_del_deporte: ' . $e->getMessage());
+        }
+        return $ids;
     }
 
     /* ============================================================
