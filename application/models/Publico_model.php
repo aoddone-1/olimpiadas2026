@@ -252,39 +252,64 @@ class Publico_model extends CI_Model {
      * (clave: id negativo = -id_inscripcion). PÚBLICO: nunca expone el DNI.
      */
     private function _nombres_individuales_en_fixtures($fixtures) {
-        $nombres = array();
-        try {
-            if (!$this->_tabla_existe('inscripciones_deportivas')) {
-                return $nombres;
+        $ids_neg = array();
+        foreach ($fixtures as $f) {
+            foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                $idl = isset($f[$campo]) ? (int) $f[$campo] : 0;
+                if ($idl < 0) $ids_neg[] = abs($idl);
             }
-            $ids_neg = array();
-            foreach ($fixtures as $f) {
-                foreach (array('id_ute_1', 'id_ute_2') as $campo) {
-                    $idl = isset($f[$campo]) ? (int) $f[$campo] : 0;
-                    if ($idl < 0) $ids_neg[] = abs($idl);
-                }
-                if (!empty($f['orden_llegada_json'])) {
-                    $arr = json_decode($f['orden_llegada_json'], true);
-                    if (is_array($arr)) {
-                        foreach ($arr as $id) {
-                            if ((int) $id < 0) $ids_neg[] = abs((int) $id);
-                        }
+            if (!empty($f['orden_llegada_json'])) {
+                $arr = json_decode($f['orden_llegada_json'], true);
+                if (is_array($arr)) {
+                    foreach ($arr as $id) {
+                        if ((int) $id < 0) $ids_neg[] = abs((int) $id);
                     }
                 }
             }
-            $ids_neg = array_values(array_unique($ids_neg));
-            if (!$ids_neg) return $nombres;
+        }
+        return $this->_nombres_individuales_por_ids($ids_neg);
+    }
 
-            $this->db->select('i.id_inscripcion, p.nombre_completo', FALSE);
-            $this->db->from('inscripciones_deportivas i');
-            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-            $this->db->where_in('i.id_inscripcion', $ids_neg);
-            $rows = $this->db->get()->result_array();
+    /** Idem, pero desde filas de `resultado_detalle` (columna id_ute negativa). */
+    private function _nombres_individuales_en_detalle($detalles) {
+        $ids_neg = array();
+        foreach ($detalles as $d) {
+            $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+            if ($idl < 0) $ids_neg[] = abs($idl);
+        }
+        return $this->_nombres_individuales_por_ids($ids_neg);
+    }
+
+    /** Resuelve nombres por lista de ids de inscripción (raw SQL, sin QB compartida). */
+    private function _nombres_individuales_por_ids($ids_neg) {
+        $nombres = array();
+        try {
+            $ids_neg = array_values(array_unique(array_map('intval', $ids_neg)));
+            if (!$ids_neg || !$this->_tabla_existe('inscripciones_deportivas')) {
+                return $nombres;
+            }
+            $cols_i = $this->_columnas_tabla('inscripciones_deportivas');
+            $cols_p = $this->_columnas_tabla('participantes');
+            if (!isset($cols_i['id_participante'])) return $nombres;
+            // Columna del nombre en `participantes` (varía según esquema).
+            $campo_nombre = null;
+            foreach (array('nombre_completo', 'nombre', 'apellido', 'nombres') as $cand) {
+                if (isset($cols_p[$cand])) { $campo_nombre = $cand; break; }
+            }
+            if ($campo_nombre === null) return $nombres;
+
+            $q = $this->db->query(
+                'SELECT i.`id_inscripcion`, p.`' . $campo_nombre . '` AS nombre'
+                . ' FROM `inscripciones_deportivas` i'
+                . ' INNER JOIN `participantes` p ON p.`id_participante` = i.`id_participante`'
+                . ' WHERE i.`id_inscripcion` IN (' . implode(',', $ids_neg) . ')'
+            );
+            $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
             foreach ($rows as $r) {
-                $nombres[-(int) $r['id_inscripcion']] = $r['nombre_completo'];
+                $nombres[-(int) $r['id_inscripcion']] = $r['nombre'];
             }
         } catch (Throwable $e) {
-            log_message('error', 'Publico_model::_nombres_individuales_en_fixtures: ' . $e->getMessage());
+            log_message('error', 'Publico_model::_nombres_individuales_por_ids: ' . $e->getMessage());
         }
         return $nombres;
     }
@@ -295,24 +320,27 @@ class Publico_model extends CI_Model {
             return array();
         }
         try {
-            $sel = 'r.id_fixture';
+            // Raw SQL (mismo blindaje que el fixture): sin QB compartida y con
+            // columnas opcionales validadas sobre SHOW COLUMNS cacheado.
+            $cols_r = $this->_columnas_tabla('resultados');
+            $cols_d = $this->_columnas_tabla('resultado_detalle');
+            $sel = 'r.id_fixture, rd.id_ute, rd.nombre_libre';
             foreach (array('hubo_desempate', 'desempate_metodo') as $col) {
-                if ($this->_columna_existe('resultados', $col)) {
-                    $sel .= ', r.' . $col;
-                }
+                if (isset($cols_r[$col])) $sel .= ', r.' . $col;
             }
-            $sel .= ', rd.id_ute, rd.nombre_libre';
-            if ($this->_columna_existe('resultado_detalle', 'marcador_local')) {
+            if (isset($cols_d['marcador_local'])) {
                 $sel .= ', rd.marcador_local, rd.marcador_visita';
             }
-            $this->db->select($sel, FALSE);
-            $this->db->from('resultados r');
-            $this->db->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'inner');
-            if ($this->_columna_existe('resultados', 'tipo_resultado')) {
-                $this->db->where('r.tipo_resultado', 'MARCADOR');
+            $where = array('r.id_fixture IS NOT NULL');
+            if (isset($cols_r['tipo_resultado'])) {
+                $where[] = "r.tipo_resultado = 'MARCADOR'";
             }
-            $this->db->where('r.id_fixture IS NOT NULL', null, false);
-            $rows = $this->db->get()->result_array();
+            $q_m = $this->db->query(
+                'SELECT ' . $sel . ' FROM `resultados` r'
+                . ' INNER JOIN `resultado_detalle` rd ON rd.id_resultado = r.id_resultado'
+                . ' WHERE ' . implode(' AND ', $where)
+            );
+            $rows = ($q_m === false || !is_object($q_m)) ? array() : $q_m->result_array();
         } catch (Throwable $e) {
             log_message('error', 'Publico_model::_obtener_marcadores_por_fixture: ' . $e->getMessage());
             return array();
@@ -517,38 +545,84 @@ class Publico_model extends CI_Model {
     public function obtener_resultados_publicos($delegacion = null, $id_deporte = null) {
         try {
             if (!$this->_tabla_existe('resultados')) {
+                log_message('error', 'Publico_model::obtener_resultados_publicos — la tabla `resultados` no existe.');
                 return array();
             }
-            $sel = 'r.id_resultado, r.id_categoria, r.id_fixture, r.nombre_evento, r.tipo_resultado, r.fecha_resultado, r.lugar';
-            foreach (array('hubo_desempate', 'desempate_metodo') as $col) {
-                if ($this->_columna_existe('resultados', $col)) {
-                    $sel .= ', r.' . $col;
-                }
-            }
-            $sel .= ', c.nombre_categoria, d.nombre_deporte, d.id_deporte';
-            $this->db->select($sel, FALSE);
-            $this->db->from('resultados r');
-            $this->db->join('categorias c', 'c.id_categoria = r.id_categoria', 'left');
-            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
-            if ($id_deporte !== null && (int) $id_deporte > 0) {
-                $this->db->where('d.id_deporte', (int) $id_deporte);
-            }
-            $this->db->order_by('r.fecha_resultado DESC, r.id_resultado DESC');
-            $rows = $this->db->get()->result_array();
-            if (!$rows) return array();
 
-            // Detalle en un solo query
-            $ids = array_column($rows, 'id_resultado');
-            $this->db->where_in('id_resultado', $ids);
-            if ($this->_columna_existe('resultado_detalle', 'id_detalle')) {
-                $this->db->order_by('id_detalle', 'ASC');
+            // MISMO BLINDAJE QUE EL FIXTURE: lectura con raw SQL, sin pasar por
+            // la Query Builder compartida (si una consulta previa quedó "sucia",
+            // un $this->db->get() simple arma el SELECT desde la última tabla y
+            // devuelve 0 filas → "no hay resultados" aunque sí los haya).
+            // Columnas opcionales resueltas sobre SHOW COLUMNS (cacheado), nunca
+            // sobre `field_exists()` (que usa la QB y puede fallar en MySQL 8).
+            $cols_r = $this->_columnas_tabla('resultados');
+            $campos_r = array('id_resultado', 'id_categoria', 'id_fixture', 'nombre_evento',
+                              'tipo_resultado', 'fecha_resultado', 'lugar');
+            foreach (array('hubo_desempate', 'desempate_metodo', 'id_ute_ganador') as $col) {
+                if (isset($cols_r[$col])) $campos_r[] = $col;
             }
-            $detalles = $this->db->get('resultado_detalle')->result_array();
+            $sql = 'SELECT `' . implode('`, `', $campos_r) . '` FROM `resultados`';
+            if ($id_deporte !== null && (int) $id_deporte > 0) {
+                $ids = $this->_ids_categorias_del_deporte((int) $id_deporte);
+                $sql .= ' WHERE `id_categoria` IN (' . implode(',', array_map('intval', $ids)) . ')';
+            }
+            $sql .= ' ORDER BY `fecha_resultado` DESC, `id_resultado` DESC';
+
+            $query = $this->db->query($sql);
+            $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
+            if (!$rows) {
+                log_message('error', 'Publico_model::obtener_resultados_publicos — sin filas. SQL: ' . $sql);
+                return array();
+            }
+
+            // Nombres de deporte/categoría resueltos en PHP (mapas auxiliares,
+            // igual que en el fixture) — sin JOINs que dependan del estado de la QB.
+            $cats = $this->_mapa('categorias', 'id_categoria', array('nombre_categoria', 'genero', 'id_deporte'));
+            $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
+
+            // UTEs y competidores individuales (para completar nombres_libre cuando
+            // el detalle no lo guarda o es un slot negativo -id_inscripcion).
+            $nombres_utes = $this->_mapa('utes', 'id_ute', 'nombre_ute');
+            $ins_map      = $this->_delegacion_por_inscripcion(); // id_inscripcion -> delegación
+
+            // Detalle en un solo raw query
+            $ids_res = array_map('intval', array_column($rows, 'id_resultado'));
+            $cols_d = $this->_columnas_tabla('resultado_detalle');
+            $campos_d = array('id_resultado', 'id_ute', 'nombre_libre', 'posicion', 'tiempo');
+            foreach (array('marcador_local', 'marcador_visita') as $col) {
+                if (isset($cols_d[$col])) $campos_d[] = $col;
+            }
+            $orden_d = isset($cols_d['id_detalle']) ? ' ORDER BY `id_detalle` ASC' : '';
+            $sql_d = 'SELECT `' . implode('`, `', $campos_d) . '` FROM `resultado_detalle`'
+                   . ' WHERE `id_resultado` IN (' . implode(',', $ids_res) . ')' . $orden_d;
+            $q_d = $this->db->query($sql_d);
+            $detalles = ($q_d === false || !is_object($q_d)) ? array() : $q_d->result_array();
+            // Nombres de individuales (slots negativos) sin exponer DNI.
+            $nombres_ind = $this->_nombres_individuales_en_detalle($detalles);
             $por_res = array();
-            foreach ($detalles as $d) {
+            foreach ($detalles as &$d) {
+                $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if (empty($d['nombre_libre'])) {
+                    if ($idl > 0 && isset($nombres_utes[$idl])) {
+                        $d['nombre_libre'] = $nombres_utes[$idl];
+                    } elseif ($idl < 0 && isset($nombres_ind[$idl])) {
+                        // Público: nombre + delegación del individual.
+                        $dl = isset($ins_map[abs($idl)]) ? ' (' . $ins_map[abs($idl)] . ')' : '';
+                        $d['nombre_libre'] = $nombres_ind[$idl] . $dl;
+                    }
+                }
                 $por_res[(int) $d['id_resultado']][] = $d;
             }
+            unset($d);
+
             foreach ($rows as &$r) {
+                $idc = (int) $r['id_categoria'];
+                $dep = isset($cats[$idc]['id_deporte']) ? (int) $cats[$idc]['id_deporte'] : 0;
+                $r['nombre_categoria'] = isset($cats[$idc]['nombre_categoria']) ? $cats[$idc]['nombre_categoria'] : null;
+                $r['nombre_deporte']   = isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null;
+                $r['id_deporte']       = $dep ?: null;
+                $r['modalidad_competencia'] = isset($deportes[$dep]['modalidad_competencia']) ? $deportes[$dep]['modalidad_competencia'] : null;
+
                 $det = isset($por_res[(int) $r['id_resultado']]) ? $por_res[(int) $r['id_resultado']] : array();
                 if ($r['tipo_resultado'] === 'TIEMPO' || $r['tipo_resultado'] === 'PUNTAJE') {
                     usort($det, function ($a, $b) {
@@ -560,22 +634,20 @@ class Publico_model extends CI_Model {
             unset($r);
 
             if (!empty($delegacion)) {
-                $utes_delegacion = $this->_utes_de_la_delegacion($delegacion);
-                $inscripciones_delegacion = $this->_ids_inscripcion_de_la_delegacion($delegacion);
-                $categorias_delegacion = $this->_categorias_de_la_delegacion($delegacion);
-                $rows = array_values(array_filter($rows, function ($r) use ($utes_delegacion, $inscripciones_delegacion, $categorias_delegacion) {
+                $comp = $this->_competidores_de_delegacion($delegacion);
+                $rows = array_values(array_filter($rows, function ($r) use ($comp) {
                     // Eventos masivos (TIEMPO de una jornada): la delegación
                     // participó si tiene inscriptos en esa categoría.
                     $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
                     $es_tiempo = isset($r['tipo_resultado']) && $r['tipo_resultado'] === 'TIEMPO';
-                    if ($es_tiempo && $idc > 0 && isset($categorias_delegacion[$idc])) {
+                    if ($es_tiempo && $idc > 0 && isset($comp['categorias'][$idc])) {
                         return true;
                     }
                     foreach ($r['detalle'] as $d) {
                         $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
-                        if ($idl > 0 && isset($utes_delegacion[$idl])) return true;
+                        if ($idl > 0 && isset($comp['utes'][$idl])) return true;
                         // Individual: id_ute negativo = -id_inscripcion
-                        if ($idl < 0 && isset($inscripciones_delegacion[abs($idl)])) return true;
+                        if ($idl < 0 && isset($comp['inscripciones'][abs($idl)])) return true;
                     }
                     return false;
                 }));
@@ -584,29 +656,6 @@ class Publico_model extends CI_Model {
             return $rows;
         } catch (Throwable $e) {
             log_message('error', 'Publico_model::obtener_resultados_publicos: ' . $e->getMessage());
-            return array();
-        }
-    }
-
-    /** ids de categoría en las que la delegación tiene inscriptos. */
-    private function _categorias_de_la_delegacion($delegacion) {
-        try {
-            if (!$this->_tabla_existe('inscripciones_deportivas')) {
-                return array();
-            }
-            $this->db->select('i.id_categoria', FALSE);
-            $this->db->distinct();
-            $this->db->from('inscripciones_deportivas i');
-            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
-            $this->db->where('p.delegacion', $delegacion);
-            $rows = $this->db->get()->result_array();
-            $map = array();
-            foreach ($rows as $r) {
-                if (isset($r['id_categoria'])) $map[(int) $r['id_categoria']] = true;
-            }
-            return $map;
-        } catch (Throwable $e) {
-            log_message('error', 'Publico_model::_categorias_de_la_delegacion: ' . $e->getMessage());
             return array();
         }
     }
@@ -623,31 +672,34 @@ class Publico_model extends CI_Model {
     public function obtener_medallero() {
         try {
             if (!$this->_tabla_existe('premiaciones')) {
+                log_message('error', 'Publico_model::obtener_medallero — la tabla `premiaciones` no existe.');
                 return array();
             }
-            // Delegación de cada premiación: se resuelve por la UTE premiada
-            // (la delegación mayoritaria de sus integrantes).
-            $sel = 'p.puesto, p.nombre';
-            foreach (array('id_ute', 'fecha_entrega') as $col) {
-                if ($this->_columna_existe('premiaciones', $col)) {
-                    $sel .= ', p.' . $col;
-                }
+
+            // BLINDAJE IGUAL QUE FIXTURE/RESULTADOS: raw SQL, sin Query Builder
+            // compartida y sin `field_exists()` (usa la QB y puede fallar).
+            $cols_p = $this->_columnas_tabla('premiaciones');
+            $campos_p = array('id_categoria', 'puesto', 'nombre');
+            foreach (array('id_ute', 'fecha_entrega', 'entregado') as $col) {
+                if (isset($cols_p[$col])) $campos_p[] = $col;
             }
-            $sel .= ', c.nombre_categoria, d.nombre_deporte';
-            $this->db->select($sel, FALSE);
-            $this->db->from('premiaciones p');
-            $this->db->join('categorias c', 'c.id_categoria = p.id_categoria', 'left');
-            $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
-            if ($this->_columna_existe('premiaciones', 'entregado')) {
-                $this->db->where('p.entregado', 1);
+            $sql = 'SELECT `' . implode('`, `', $campos_p) . '` FROM `premiaciones`';
+            if (isset($cols_p['entregado'])) {
+                $sql .= ' WHERE `entregado` = 1';
             }
-            if ($this->_columna_existe('premiaciones', 'fecha_entrega')) {
-                $this->db->order_by('p.fecha_entrega ASC, p.puesto ASC');
-            } else {
-                $this->db->order_by('p.puesto ASC');
+            $orden = isset($cols_p['fecha_entrega']) ? '`fecha_entrega` ASC, ' : '';
+            $sql .= ' ORDER BY ' . $orden . '`puesto` ASC';
+
+            $query = $this->db->query($sql);
+            $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
+            if (!$rows) {
+                log_message('error', 'Publico_model::obtener_medallero — sin filas. SQL: ' . $sql);
+                return array();
             }
-            $rows = $this->db->get()->result_array();
-            if (!$rows) return array();
+
+            // Nombres de deporte/categoría resueltos en PHP (mapas auxiliares).
+            $cats = $this->_mapa('categorias', 'id_categoria', array('nombre_categoria', 'genero', 'id_deporte'));
+            $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
 
             // Mapa id_ute -> delegación (mayoría de integrantes). Si la tabla
             // participantes_utes está vacía (equipos armados por nombre en la
@@ -659,13 +711,23 @@ class Publico_model extends CI_Model {
 
             $medallero = array();
             foreach ($rows as $r) {
+                $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
+                $dep = isset($cats[$idc]['id_deporte']) ? (int) $cats[$idc]['id_deporte'] : 0;
                 $deleg = null;
                 $idl = isset($r['id_ute']) ? (int) $r['id_ute'] : 0;
                 if ($idl > 0 && isset($deleg_por_ute[$idl])) {
                     $deleg = $deleg_por_ute[$idl];
                 }
                 if ($deleg === null) {
-                    continue; // premio sin delegación identificable (p. ej. individual libre)
+                    // Individuales (id_ute NULL o negativo): la delegación del
+                    // inscripto dueño de -id_inscripcion.
+                    $ins_map = $this->_delegacion_por_inscripcion();
+                    if ($idl < 0 && isset($ins_map[abs($idl)])) {
+                        $deleg = $ins_map[abs($idl)];
+                    }
+                }
+                if ($deleg === null) {
+                    continue; // premio sin delegación identificable
                 }
                 if (!isset($medallero[$deleg])) {
                     $medallero[$deleg] = array('delegacion' => $deleg, 'oro' => 0, 'plata' => 0, 'bronce' => 0, 'total' => 0, 'podios' => array());
@@ -677,8 +739,8 @@ class Publico_model extends CI_Model {
                 $medallero[$deleg]['total']++;
                 $medallero[$deleg]['podios'][] = array(
                     'puesto' => $puesto,
-                    'deporte' => $r['nombre_deporte'],
-                    'categoria' => $r['nombre_categoria'],
+                    'deporte' => isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null,
+                    'categoria' => isset($cats[$idc]['nombre_categoria']) ? $cats[$idc]['nombre_categoria'] : null,
                     'nombre' => $r['nombre'],
                 );
             }
@@ -694,6 +756,35 @@ class Publico_model extends CI_Model {
             log_message('error', 'Publico_model::obtener_medallero: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /** Mapa id_inscripcion -> delegación (para podios individuales, id_ute < 0). */
+    private function _delegacion_por_inscripcion() {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $cache = array();
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')) {
+                return $cache;
+            }
+            $cols_i = $this->_columnas_tabla('inscripciones_deportivas');
+            if (!isset($cols_i['id_participante'])) {
+                return $cache;
+            }
+            $q = $this->db->query(
+                'SELECT i.id_inscripcion, p.delegacion'
+                . ' FROM inscripciones_deportivas i'
+                . ' INNER JOIN participantes p ON p.id_participante = i.id_participante'
+                . " WHERE p.delegacion IS NOT NULL AND p.delegacion != ''"
+            );
+            $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
+            foreach ($rows as $r) {
+                $cache[(int) $r['id_inscripcion']] = $r['delegacion'];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_delegacion_por_inscripcion: ' . $e->getMessage());
+        }
+        return $cache;
     }
 
     /** Delegación "dominante" de cada UTE (la de más integrantes). */
@@ -764,29 +855,77 @@ class Publico_model extends CI_Model {
      *  Utilidades
      * ============================================================ */
 
-    private function _tabla_existe($tabla) {
-        try {
-            return !empty($this->db->table_exists($tabla));
-        } catch (Throwable $e) {
-            return false;
+    /**
+     * Columnas reales de una tabla (clave = nombre de columna), leídas con
+     * `SHOW COLUMNS` vía raw SQL y cacheadas por request. Nunca pasa por la
+     * Query Builder compartida.
+     */
+    private function _columnas_tabla($tabla) {
+        static $cache = array();
+        if (isset($cache[$tabla])) {
+            return $cache[$tabla];
         }
+        $cols = array();
+        try {
+            // Identificador sanitizado: solo [A-Za-z0-9_] (nombres propios del
+            // esquema, nunca input del usuario).
+            $t = preg_replace('/[^A-Za-z0-9_]/', '', (string) $tabla);
+            if ($t !== '') {
+                $q = $this->db->query('SHOW COLUMNS FROM `' . $t . '`');
+                if ($q !== false && is_object($q)) {
+                    foreach ($q->result_array() as $r) {
+                        if (isset($r['Field'])) $cols[$r['Field']] = true;
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_columnas_tabla(' . $tabla . '): ' . $e->getMessage());
+        }
+        $cache[$tabla] = $cols;
+        return $cache[$tabla];
     }
 
     /**
-     * ¿Existe la columna en la tabla? (cachée por request: cada consulta del
-     * panel puede validar columnas sin golpear el esquema varias veces).
+     * ¿Existe la tabla? Sobre INFORMATION_SCHEMA con raw SQL (cacheado): no
+     * depende del estado de la Query Builder ni de `protect_identifiers()`
+     * como `table_exists()` de CI. Ante duda devuelve true: si la tabla no
+     * existe, la consulta real falla igual — pero dentro del try/catch de
+     * cada método, que loguea el error exacto en vez de vaciar la sección.
+     */
+    private function _tabla_existe($tabla) {
+        static $cache = array();
+        if (isset($cache[$tabla])) {
+            return $cache[$tabla];
+        }
+        $existe = true;
+        try {
+            $t = preg_replace('/[^A-Za-z0-9_]/', '', (string) $tabla);
+            if ($t === '') return false;
+            $q = $this->db->query(
+                "SELECT COUNT(*) AS c FROM information_schema.tables"
+                . " WHERE table_schema = DATABASE() AND table_name = '" . $this->db->escape_str($t) . "'"
+            );
+            if ($q !== false && is_object($q)) {
+                $row = $q->row_array();
+                $existe = isset($row['c']) ? ((int) $row['c'] > 0) : true;
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_tabla_existe(' . $tabla . '): ' . $e->getMessage());
+            $existe = true; // ante duda, dejar intentar la consulta real (loguea el motivo)
+        }
+        $cache[$tabla] = $existe;
+        return $existe;
+    }
+
+    /**
+     * ¿Existe la columna en la tabla? Implementación BLINDADA sobre
+     * `_columnas_tabla()` (SHOW COLUMNS con raw SQL): `field_exists()` de CI
+     * usa la Query Builder compartida y, si una consulta previa quedó "sucia"
+     * o el driver falla, devuelve false / lanza — y así se vaciaban las
+     * secciones del panel público aunque los datos existieran.
      */
     private function _columna_existe($tabla, $columna) {
-        static $cache = array();
-        $key = $tabla . '.' . $columna;
-        if (isset($cache[$key])) {
-            return $cache[$key];
-        }
-        try {
-            $cache[$key] = $this->db->field_exists($columna, $tabla);
-        } catch (Throwable $e) {
-            $cache[$key] = false;
-        }
-        return $cache[$key];
+        $cols = $this->_columnas_tabla($tabla);
+        return isset($cols[$columna]);
     }
 }
