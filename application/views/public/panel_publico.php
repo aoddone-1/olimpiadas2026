@@ -97,6 +97,17 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .tiempo{margin-left:auto;font-family:Consolas,monospace;color:var(--ok);font-weight:700}
 .marcador-res{margin-left:auto;font-weight:800;color:var(--acento)}
 .desempate-tag{font-size:11px;color:#ffab9e;margin-left:8px}
+/* Encabezado de la card de resultado: DEPORTE destacado + categoría abajo */
+.res-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.res-categoria{font-size:13px;color:var(--txt);opacity:.85;font-weight:600}
+/* Marcador "por equipo" (La Pampa 54 / Mendoza 58) + línea de quién ganó */
+.vs-res{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 2px}
+.vs-res .lado{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
+.vs-res .lado.derecho{justify-content:flex-end;text-align:right}
+.vs-res .nombre{font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+.vs-res .tato{font-size:22px;font-weight:800;color:var(--acento);white-space:nowrap}
+.ganador-linea{margin-top:8px;font-size:13px;font-weight:700;color:var(--ok)}
+.empate-linea{margin-top:8px;font-size:13px;color:var(--muted);font-style:italic}
 /* Medallero */
 table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
 table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
@@ -228,6 +239,21 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
   <button class="tab-btn" data-tab="tab-medallero">🏅 Medallero</button>
 </div>
 
+<?php
+/* Etiquetas legibles (mismo criterio que pase_valido.php): fases del fixture y
+   métodos de desempate. El público no lee códigos como "SEMIFINAL" o "PENALES". */
+$fases_txt = array(
+    'GRUPO' => 'Fase de grupos', '16AVOS' => '16avos. de final',
+    'OCTAVOS' => 'Octavos de final', 'CUARTOS' => 'Cuartos de final',
+    'SEMIFINAL' => 'Semifinal', 'TERCER_PUESTO' => 'Por el 3er puesto',
+    'FINAL' => 'Final', 'JORNADA_UNICA' => 'Jornada',
+);
+$metodos_txt = array(
+    'PENALES' => 'los penales', 'PRORROGA' => 'la prórroga',
+    'PUNTOS_DE_ORO' => 'puntos de oro', 'MUERTE_SUBITA' => 'la muerte súbita',
+    'LANZAMIENTO_TIRLIBRE' => 'el lanzamiento tirlibre', 'OTRO' => 'el desempate',
+);
+?>
 <!-- ============ FIXTURE ============ -->
 <div id="tab-fixture" class="panel-tab visible">
   <?php if (empty($fixture)): ?>
@@ -303,27 +329,70 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 <div id="tab-resultados" class="panel-tab">
   <?php if (empty($resultados)): ?>
     <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?>.</div>
-  <?php else: foreach ($resultados as $res): ?>
+  <?php else: foreach ($resultados as $res):
+      /* Encabezado: DEPORTE destacado y CATEGORÍA abajo (nunca el nombre del
+         partido, que es un dato interno tipo "Final - Partido 1"). */
+      $dep_txt  = trim((string) (isset($res['nombre_deporte']) ? $res['nombre_deporte'] : ''));
+      $cat_txt  = trim((string) (isset($res['nombre_categoria']) ? $res['nombre_categoria'] : ''));
+      if ($dep_txt === '' && $cat_txt === '') $dep_txt = trim((string) (isset($res['nombre_evento']) ? $res['nombre_evento'] : ''));
+      // Fecha/hora: se prefiere cuándo se JUGÓ (fixture), no cuándo se cargó.
+      $fecha_ts = strtotime(!empty($res['fixture_fecha']) ? $res['fixture_fecha'] : (string) $res['fecha_resultado']);
+      $fecha_txt = $fecha_ts ? date('d/m/Y', $fecha_ts) : trim((string) $res['fecha_resultado']);
+      $hora_ts   = !empty($res['fixture_hora']) ? strtotime('today ' . trim((string) $res['fixture_hora'])) : false;
+      $hora_txt  = $hora_ts !== false ? date('H:i', $hora_ts) : '';
+      $fase_raw  = isset($res['fase']) ? (string) $res['fase'] : '';
+      $fase_txt  = $fase_raw !== '' ? (isset($fases_txt[$fase_raw]) ? $fases_txt[$fase_raw] : $fase_raw) : '';
+  ?>
     <div class="resultado-card">
-      <h4><?= htmlspecialchars((string) $res['nombre_evento']) ?></h4>
-      <div class="sub">
-        <?= htmlspecialchars((string) (isset($res['nombre_deporte']) ? $res['nombre_deporte'] : '')) ?> · <?= htmlspecialchars((string) (isset($res['nombre_categoria']) ? $res['nombre_categoria'] : '')) ?>
-        · <?= htmlspecialchars((string) $res['fecha_resultado']) ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars($res['lugar']) : '' ?>
-        <?php if (!empty($res['hubo_desempate'])): ?>
-          <span class="desempate-tag">⚡ Desempate: <?= htmlspecialchars(ucwords(strtolower((string)$res['desempate_metodo']))) ?></span>
-        <?php endif; ?>
+      <div class="res-header">
+        <?php if ($dep_txt !== ''): ?><span class="deporte-chip"><?= htmlspecialchars($dep_txt) ?></span><?php endif; ?>
+        <?php if ($cat_txt !== ''): ?><span class="res-categoria"><?= htmlspecialchars($cat_txt) ?></span><?php endif; ?>
       </div>
-      <?php if ($res['tipo_resultado'] === 'MARCADOR' && count($res['detalle']) >= 2):
-          $a = $res['detalle'][0]; $b = $res['detalle'][1]; ?>
-        <div class="fila-pos">
-          <span class="pos <?= (int)$a['marcador_local'] > (int)$a['marcador_visita'] ? 'p1' : '' ?>">1er</span>
-          <span><?= htmlspecialchars((string) $a['nombre_libre']) ?></span>
-          <span class="marcador-res"><?= (int)$a['marcador_local'] ?> : <?= (int)$a['marcador_visita'] ?></span>
+      <div class="sub">
+        <?= $fase_txt !== '' ? htmlspecialchars($fase_txt) . ' · ' : '' ?><?= htmlspecialchars($fecha_txt) ?><?= $hora_txt !== '' ? ' · 🕐 ' . htmlspecialchars($hora_txt) : '' ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars((string) $res['lugar']) : '' ?><?= !empty($res['nombre_prueba']) ? ' · ' . htmlspecialchars((string) $res['nombre_prueba']) : '' ?>
+      </div>
+      <?php if ((string) $res['tipo_resultado'] === 'MARCADOR' && count($res['detalle']) >= 2):
+          /* Enfrentamiento: cada equipo con SU puntaje (54 / 58), no "54:58".
+             Abajo: quién ganó, o cómo se desempató el empate (idea de pase_valido.php). */
+          $a = $res['detalle'][0]; $b = $res['detalle'][1];
+          $eq1_nombre = trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo 1';
+          $eq2_nombre = trim((string) $b['nombre_libre']) !== '' ? $b['nombre_libre'] : 'Equipo 2';
+          $p1 = (int) $a['marcador_local'];
+          $p2 = (int) $b['marcador_visita'];
+          $hubo_desempate = !empty($res['hubo_desempate']) && !empty($res['desempate_metodo']);
+          $ganador_desemp = isset($res['nombre_ganador_desempate']) ? trim((string) $res['nombre_ganador_desempate']) : '';
+          $gana1 = $p1 > $p2 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== ''
+                    && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq1_nombre)));
+          $gana2 = $p2 > $p1 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== ''
+                    && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq2_nombre)));
+      ?>
+        <div class="vs-res">
+          <div class="lado">
+            <span class="nombre <?= $gana1 ? 'ganador' : '' ?>"><?= htmlspecialchars($eq1_nombre) ?></span>
+            <span class="tato"><?= $p1 ?></span>
+          </div>
+          <div class="lado derecho">
+            <span class="tato"><?= $p2 ?></span>
+            <span class="nombre <?= $gana2 ? 'ganador' : '' ?>"><?= htmlspecialchars($eq2_nombre) ?></span>
+          </div>
         </div>
-        <div class="fila-pos">
-          <span class="pos <?= (int)$b['marcador_local'] > (int)$b['marcador_visita'] ? 'p1' : '' ?>">2do</span>
-          <span><?= htmlspecialchars((string) $b['nombre_libre']) ?></span>
-          <span class="marcador-res"><?= (int)$b['marcador_local'] ?> : <?= (int)$b['marcador_visita'] ?></span>
+        <?php if ($gana1): ?>
+          <div class="ganador-linea">🏆 Ganó <?= htmlspecialchars($eq1_nombre) ?></div>
+        <?php elseif ($gana2): ?>
+          <div class="ganador-linea">🏆 Ganó <?= htmlspecialchars($eq2_nombre) ?></div>
+        <?php elseif ($p1 === $p2 && $hubo_desempate): ?>
+          <div class="ganador-linea">🏅 Empate en tiempo regular — <?= htmlspecialchars($ganador_desemp !== '' ? $ganador_desemp : 'Definido') ?>
+            ganó en <?= htmlspecialchars(isset($metodos_txt[(string) $res['desempate_metodo']]) ? $metodos_txt[(string) $res['desempate_metodo']] : strtolower((string) $res['desempate_metodo'])) ?></div>
+        <?php elseif ($p1 === $p2): ?>
+          <div class="empate-linea">Empate</div>
+        <?php endif; ?>
+      <?php elseif ((string) $res['tipo_resultado'] === 'MARCADOR'): ?>
+        <?php $a = $res['detalle'][0]; ?>
+        <div class="vs-res">
+          <div class="lado">
+            <span class="nombre"><?= htmlspecialchars(trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo') ?></span>
+            <span class="tato"><?= (int) $a['marcador_local'] ?> : <?= (int) $a['marcador_visita'] ?></span>
+          </div>
         </div>
       <?php else: foreach ($res['detalle'] as $d):
           $pos_n = (int)$d['posicion']; ?>
@@ -333,6 +402,9 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
           <?php if (!empty($d['tiempo'])): ?><span class="tiempo"><?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
         </div>
       <?php endforeach; endif; ?>
+      <?php if (!empty($res['observaciones'])): ?>
+        <div class="empate-linea">📝 <?= htmlspecialchars((string) $res['observaciones']) ?></div>
+      <?php endif; ?>
     </div>
   <?php endforeach; endif; ?>
 </div>
