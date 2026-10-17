@@ -1,0 +1,405 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+/**
+ * PUBLICO_model — Consultas READ-ONLY para el panel público de las Olimpíadas.
+ *
+ * Este modelo NO toca ninguna lógica del backend privado (Inscripciones).
+ * Todas sus consultas son de solo lectura y devuelven ÚNICAMENTE información
+ * pública del evento: fixture, resultados, medallero y delegaciones.
+ *
+ * Privacidad: los nombres de los competidores que se muestran son los de los
+ * EQUIPOS/UTEs o pruebas (no DNI, ni emails, ni datos personales), por lo que
+ * no expone información individual sensible.
+ */
+class Publico_model extends CI_Model {
+
+    public function __construct() {
+        parent::__construct();
+    }
+
+    /* ============================================================
+     *  RESUMEN GENERAL DEL EVENTO (cards de la home pública)
+     * ============================================================ */
+
+    /** Totales públicos: delegaciones, deportes, categorías, partidos, resultados cargados. */
+    public function obtener_resumen_evento() {
+        $resumen = array(
+            'delegaciones' => 0,
+            'deportes'     => 0,
+            'categorias'   => 0,
+            'partidos'     => 0,
+            'finalizados'  => 0,
+            'resultados'   => 0,
+            'premiados'    => 0,
+        );
+
+        // Delegaciones con inscriptos
+        $this->db->select('COUNT(DISTINCT delegacion) AS cant', FALSE);
+        $this->db->where('delegacion IS NOT NULL');
+        $this->db->where('delegacion !=', '');
+        $row = $this->db->get('participantes')->row_array();
+        $resumen['delegaciones'] = isset($row['cant']) ? (int) $row['cant'] : 0;
+
+        // Deportes y categorías
+        $resumen['deportes']   = (int) $this->db->count_all('deportes');
+        $resumen['categorias'] = (int) $this->db->count_all('categorias');
+
+        // Partidos del fixture (programados / finalizados)
+        $resumen['partidos'] = (int) $this->db->count_all('fixtures');
+        $this->db->where('estado', 'FINALIZADO');
+        $resumen['finalizados'] = (int) $this->db->count_all_results('fixtures');
+
+        // Resultados cargados
+        if ($this->_tabla_existe('resultados')) {
+            $resumen['resultados'] = (int) $this->db->count_all('resultados');
+        }
+
+        // Premios entregados (medallas confirmadas)
+        if ($this->_tabla_existe('premiaciones')) {
+            $this->db->where('entregado', 1);
+            $resumen['premiados'] = (int) $this->db->count_all_results('premiaciones');
+        }
+
+        return $resumen;
+    }
+
+    /** Lista DISTINCT de delegaciones con participantes inscriptos. */
+    public function obtener_delegaciones() {
+        $this->db->select('delegacion');
+        $this->db->where('delegacion IS NOT NULL');
+        $this->db->where('delegacion !=', '');
+        $this->db->group_by('delegacion');
+        $this->db->order_by('delegacion', 'ASC');
+        $rows = $this->db->get('participantes')->result_array();
+        return array_column($rows, 'delegacion');
+    }
+
+    /** Deportes con sus categorías (para los filtros públicos). */
+    public function obtener_deportes_con_categorias() {
+        $this->db->select('d.id_deporte, d.nombre_deporte, d.modalidad_competencia, c.id_categoria, c.nombre_categoria, c.genero', FALSE);
+        $this->db->from('deportes d');
+        $this->db->join('categorias c', 'c.id_deporte = d.id_deporte', 'left');
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
+        $rows = $this->db->get()->result_array();
+
+        // Agrupar: deporte -> [categorias]
+        $deportes = array();
+        foreach ($rows as $r) {
+            $id_d = (int) $r['id_deporte'];
+            if (!isset($deportes[$id_d])) {
+                $deportes[$id_d] = array(
+                    'id_deporte' => $id_d,
+                    'nombre_deporte' => $r['nombre_deporte'],
+                    'categorias' => array(),
+                );
+            }
+            if (!empty($r['id_categoria'])) {
+                $deportes[$id_d]['categorias'][] = array(
+                    'id_categoria'    => (int) $r['id_categoria'],
+                    'nombre_categoria' => $r['nombre_categoria'],
+                    'genero'          => $r['genero'],
+                );
+            }
+        }
+        return array_values($deportes);
+    }
+
+    /* ============================================================
+     *  FIXTURE PÚBLICO
+     * ============================================================ */
+
+    /**
+     * Fixture público: partidos con equipos (UTEs), categoría, deporte, lugar,
+     * fecha/hora, fase y estado. Opcionalmente filtrado por delegación
+     * (solo muestra los partidos donde esa delegación tiene algún integrante
+     * en alguno de los equipos, o compite en la prueba individual).
+     */
+    public function obtener_fixture_publico($delegacion = null, $id_deporte = null) {
+        $this->db->select('
+            f.id_fixture, f.id_categoria, f.fecha_competencia, f.hora_inicio, f.hora_fin,
+            f.fase, f.numero_fecha, f.estado, f.nombre_prueba,
+            f.id_ute_1, f.id_ute_2,
+            u1.nombre_ute AS ute_1_nombre,
+            u2.nombre_ute AS ute_2_nombre,
+            l.nombre AS lugar_nombre,
+            c.nombre_categoria, c.genero AS genero_categoria,
+            d.nombre_deporte, d.modalidad_competencia
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('utes u1', 'u1.id_ute = f.id_ute_1', 'left');
+        $this->db->join('utes u2', 'u2.id_ute = f.id_ute_2', 'left');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+
+        if ($id_deporte !== null && (int) $id_deporte > 0) {
+            $this->db->where('d.id_deporte', (int) $id_deporte);
+        }
+
+        // Marcador: traer el resultado MARCADOR vinculado al partido (si existe)
+        // en una sola pasada, sin N+1 queries.
+        $marcadores = $this->_obtener_marcadores_por_fixture();
+
+        $this->db->order_by('f.fecha_competencia, f.hora_inicio, d.nombre_deporte, c.nombre_categoria', 'ASC');
+        $fixtures = $this->db->get()->result_array();
+
+        foreach ($fixtures as &$fx) {
+            $idf = (int) $fx['id_fixture'];
+            $fx['marcador'] = isset($marcadores[$idf]) ? $marcadores[$idf] : null;
+        }
+        unset($fx);
+
+        // Filtro por DELEGACIÓN: resolver qué UTEs pertenecen a la delegación
+        // (por integrantes en participantes_utes o por inscripciones con ese
+        // nombre de equipo) y quedarme solo con los partidos de esas UTEs.
+        if (!empty($delegacion)) {
+            $utes_delegacion = $this->_utes_de_la_delegacion($delegacion);
+            $inscripciones_delegacion = $this->_ids_inscripcion_de_la_delegacion($delegacion);
+            $fixtures = array_values(array_filter($fixtures, function ($fx) use ($utes_delegacion, $inscripciones_delegacion) {
+                foreach (array('id_ute_1', 'id_ute_2') as $campo) {
+                    $idl = isset($fx[$campo]) ? (int) $fx[$campo] : 0;
+                    if ($idl > 0 && isset($utes_delegacion[$idl])) {
+                        return true;
+                    }
+                    // Competidor individual: slot negativo = -id_inscripcion
+                    if ($idl < 0 && isset($inscripciones_delegacion[abs($idl)])) {
+                        return true;
+                    }
+                }
+                return false;
+            }));
+        }
+
+        return $fixtures;
+    }
+
+    /** Marcadores (goles/sets) por id_fixture, tomados de resultados MARCADOR. */
+    private function _obtener_marcadores_por_fixture() {
+        if (!$this->_tabla_existe('resultados') || !$this->_tabla_existe('resultado_detalle')) {
+            return array();
+        }
+        $this->db->select('r.id_fixture, r.hubo_desempate, r.desempate_metodo, rd.id_ute, rd.nombre_libre, rd.marcador_local, rd.marcador_visita', FALSE);
+        $this->db->from('resultados r');
+        $this->db->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'inner');
+        $this->db->where("r.tipo_resultado", 'MARCADOR');
+        $this->db->where('r.id_fixture IS NOT NULL', null, false);
+        $rows = $this->db->get()->result_array();
+
+        $por_fx = array();
+        foreach ($rows as $r) {
+            $idf = (int) $r['id_fixture'];
+            if (!isset($por_fx[$idf])) {
+                $por_fx[$idf] = array(
+                    'equipos' => array(),
+                    'hubo_desempate' => isset($r['hubo_desempate']) ? (int) $r['hubo_desempate'] : 0,
+                    'desempate_metodo' => isset($r['desempate_metodo']) ? $r['desempate_metodo'] : null,
+                );
+            }
+            $nombre = !empty($r['nombre_libre']) ? $r['nombre_libre'] : null;
+            $por_fx[$idf]['equipos'][] = array(
+                'id_ute' => isset($r['id_ute']) ? (int) $r['id_ute'] : null,
+                'nombre' => $nombre,
+                'a_favor' => isset($r['marcador_local']) && $r['marcador_local'] !== null ? (int) $r['marcador_local'] : null,
+                'en_contra' => isset($r['marcador_visita']) && $r['marcador_visita'] !== null ? (int) $r['marcador_visita'] : null,
+            );
+        }
+        return $por_fx;
+    }
+
+    /** ids de UTE en las que la delegación tiene integrantes. */
+    private function _utes_de_la_delegacion($delegacion) {
+        $this->db->select('pu.id_ute', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+        $this->db->where('p.delegacion', $delegacion);
+        $rows = $this->db->get()->result_array();
+        $map = array();
+        foreach ($rows as $r) {
+            if (isset($r['id_ute'])) $map[(int) $r['id_ute']] = true;
+        }
+
+        // Equipos "históricos" sin fila en participantes_utes: reconocidos por
+        // el nombre guardado en inscripciones_deportivas.detalle_ute.
+        $this->db->select('i.id_ute', FALSE);
+        $this->db->distinct();
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p2', 'p2.id_participante = i.id_participante', 'inner');
+        $this->db->where('p2.delegacion', $delegacion);
+        $this->db->where('i.id_ute IS NOT NULL', null, false);
+        $rows2 = $this->db->get()->result_array();
+        foreach ($rows2 as $r) {
+            if (isset($r['id_ute'])) $map[(int) $r['id_ute']] = true;
+        }
+        return $map;
+    }
+
+    /** ids de inscripción de los participantes de la delegación (slots individuales negativos). */
+    private function _ids_inscripcion_de_la_delegacion($delegacion) {
+        $this->db->select('i.id_inscripcion', FALSE);
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+        $this->db->where('p.delegacion', $delegacion);
+        $rows = $this->db->get()->result_array();
+        $map = array();
+        foreach ($rows as $r) {
+            if (isset($r['id_inscripcion'])) $map[(int) $r['id_inscripcion']] = true;
+        }
+        return $map;
+    }
+
+    /* ============================================================
+     *  RESULTADOS PÚBLICOS
+     * ============================================================ */
+
+    /**
+     * Resultados públicos (MARCADOR y TIEMPO/PUNTAJE) con su detalle.
+     * Filtrable por delegación: solo eventos donde participa un equipo/competidor
+     * de esa delegación.
+     */
+    public function obtener_resultados_publicos($delegacion = null, $id_deporte = null) {
+        if (!$this->_tabla_existe('resultados')) {
+            return array();
+        }
+        $this->db->select('r.id_resultado, r.id_categoria, r.id_fixture, r.nombre_evento, r.tipo_resultado, r.fecha_resultado, r.lugar, r.hubo_desempate, r.desempate_metodo, c.nombre_categoria, d.nombre_deporte, d.id_deporte', FALSE);
+        $this->db->from('resultados r');
+        $this->db->join('categorias c', 'c.id_categoria = r.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        if ($id_deporte !== null && (int) $id_deporte > 0) {
+            $this->db->where('d.id_deporte', (int) $id_deporte);
+        }
+        $this->db->order_by('r.fecha_resultado DESC, r.id_resultado DESC');
+        $rows = $this->db->get()->result_array();
+        if (!$rows) return array();
+
+        // Detalle en un solo query
+        $ids = array_column($rows, 'id_resultado');
+        $this->db->where_in('id_resultado', $ids);
+        $this->db->order_by('id_detalle', 'ASC');
+        $detalles = $this->db->get('resultado_detalle')->result_array();
+        $por_res = array();
+        foreach ($detalles as $d) {
+            $por_res[(int) $d['id_resultado']][] = $d;
+        }
+        foreach ($rows as &$r) {
+            $det = isset($por_res[(int) $r['id_resultado']]) ? $por_res[(int) $r['id_resultado']] : array();
+            if ($r['tipo_resultado'] === 'TIEMPO') {
+                usort($det, function ($a, $b) {
+                    return (int) $a['posicion'] - (int) $b['posicion'];
+                });
+            }
+            $r['detalle'] = $det;
+        }
+        unset($r);
+
+        if (!empty($delegacion)) {
+            $utes_delegacion = $this->_utes_de_la_delegacion($delegacion);
+            $inscripciones_delegacion = $this->_ids_inscripcion_de_la_delegacion($delegacion);
+            $rows = array_values(array_filter($rows, function ($r) use ($utes_delegacion, $inscripciones_delegacion) {
+                foreach ($r['detalle'] as $d) {
+                    $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                    if ($idl > 0 && isset($utes_delegacion[$idl])) return true;
+                    // Individual: id_ute negativo = -id_inscripcion
+                    if ($idl < 0 && isset($inscripciones_delegacion[abs($idl)])) return true;
+                }
+                return false;
+            }));
+        }
+
+        return $rows;
+    }
+
+    /* ============================================================
+     *  MEDALLERO PÚBLICO
+     * ============================================================ */
+
+    /**
+     * Medallero: oro/plata/bronce por delegación, calculado sobre las
+     * premiaciones ENTREGADAS. El premiado es el nombre del equipo/prueba
+     * (snapshot), nunca un dato personal sensible.
+     */
+    public function obtener_medallero() {
+        if (!$this->_tabla_existe('premiaciones')) {
+            return array();
+        }
+        // Delegación de cada premiación: se resuelve por la UTE premiada
+        // (la delegación mayoritaria de sus integrantes).
+        $this->db->select('p.puesto, p.nombre, p.id_ute, p.fecha_entrega, c.nombre_categoria, d.nombre_deporte', FALSE);
+        $this->db->from('premiaciones p');
+        $this->db->join('categorias c', 'c.id_categoria = p.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        $this->db->where('p.entregado', 1);
+        $this->db->order_by('p.fecha_entrega ASC, p.puesto ASC');
+        $rows = $this->db->get()->result_array();
+        if (!$rows) return array();
+
+        // Mapa id_ute -> delegación (mayoría de integrantes)
+        $deleg_por_ute = $this->_delegacion_por_ute();
+
+        $medallero = array();
+        foreach ($rows as $r) {
+            $deleg = null;
+            $idl = isset($r['id_ute']) ? (int) $r['id_ute'] : 0;
+            if ($idl > 0 && isset($deleg_por_ute[$idl])) {
+                $deleg = $deleg_por_ute[$idl];
+            }
+            if ($deleg === null) {
+                continue; // premio sin delegación identificable (p. ej. individual libre)
+            }
+            if (!isset($medallero[$deleg])) {
+                $medallero[$deleg] = array('delegacion' => $deleg, 'oro' => 0, 'plata' => 0, 'bronce' => 0, 'total' => 0, 'podios' => array());
+            }
+            $puesto = (int) $r['puesto'];
+            if ($puesto === 1)      $medallero[$deleg]['oro']++;
+            elseif ($puesto === 2) $medallero[$deleg]['plata']++;
+            elseif ($puesto === 3) $medallero[$deleg]['bronce']++;
+            $medallero[$deleg]['total']++;
+            $medallero[$deleg]['podios'][] = array(
+                'puesto' => $puesto,
+                'deporte' => $r['nombre_deporte'],
+                'categoria' => $r['nombre_categoria'],
+                'nombre' => $r['nombre'],
+            );
+        }
+
+        $lista = array_values($medallero);
+        usort($lista, function ($a, $b) {
+            return [$b['oro'], $b['plata'], $b['bronce']] <=> [$a['oro'], $a['plata'], $a['bronce']];
+        });
+        return $lista;
+    }
+
+    /** Delegación "dominante" de cada UTE (la de más integrantes). */
+    private function _delegacion_por_ute() {
+        $this->db->select('pu.id_ute, p.delegacion, COUNT(*) AS cant', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+        $this->db->where('p.delegacion IS NOT NULL');
+        $this->db->where('p.delegacion !=', '');
+        $this->db->group_by('pu.id_ute, p.delegacion');
+        $rows = $this->db->get()->result_array();
+
+        $mejor = array(); // id_ute => ['delegacion' => ..., 'cant' => ...]
+        foreach ($rows as $r) {
+            if (!isset($r['id_ute']) || !isset($r['delegacion'])) continue;
+            $idl = (int) $r['id_ute'];
+            $cant = isset($r['cant']) ? (int) $r['cant'] : 1;
+            if (!isset($mejor[$idl]) || $cant > $mejor[$idl]['cant']) {
+                $mejor[$idl] = array('delegacion' => $r['delegacion'], 'cant' => $cant);
+            }
+        }
+        return array_map(function ($m) { return $m['delegacion']; }, $mejor);
+    }
+
+    /* ============================================================
+     *  Utilidades
+     * ============================================================ */
+
+    private function _tabla_existe($tabla) {
+        try {
+            return !empty($this->db->table_exists($tabla));
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+}

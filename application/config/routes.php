@@ -56,3 +56,10 @@ $route['translate_uri_dashes'] = FALSE;
 // En CodeIgniter 3 se usa el array $route
 $route['inscripciones/getCategorias/(:num)'] = 'Inscripciones/getCategorias/$1';
 $route['inscripciones/guardar'] = 'Inscripciones/guardar';
+
+// ---- Panel PÚBLICO de las olimpíadas (sin login) ----
+// URL amigable: /panel-publico  ->  Publico::index
+$route['panel-publico']                    = 'Publico/index';
+$route['panel-publico/fixture']            = 'Publico/fixture_json';
+$route['panel-publico/resultados']         = 'Publico/resultados_json';
+$route['panel-publico/medallero']          = 'Publico/medallero_json';
