@@ -570,7 +570,7 @@ class MYPDF extends TCPDF {
               . $esc($titulo) . '</div>';
               
         $this->writeHTMLCell(0, 70, 300, 15, $html, 0, 1, 0, true, 'J', true);
-
+        $html = "";
         /**
          * TRAMPITA DE LAS JORNADAS (solo planillas de mesa de control):
          * numero_fecha se usa como divisor de grupos. La regla es:
@@ -919,8 +919,6 @@ class MYPDF extends TCPDF {
             // equipos que va antes del encabezado de la planilla.
             $html .= '<br/><hr/><br/><table cellpadding="4" cellspacing="0" border="0" style="width:100%; font-size:8pt; color:#2c3e50; margin-bottom:6px;">'
                    . '<tr>'
-                   . '<td style="width:50%;"><b>Prueba:</b> ' . $esc($fila_partido['nombre_prueba'] ?? '') . '</td>'
-                   . '</tr><tr>'
                    . '<td><b>Lugar:</b> ' . $esc($fila_partido['lugar_nombre'] ?? 'A confirmar') . '</td>'
                    . '<td><b>Partidos:</b> ' . count($this->datos) . '</td>'
                    . '</tr></table>';

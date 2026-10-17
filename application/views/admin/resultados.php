@@ -1057,15 +1057,10 @@
         const tr = document.createElement('tr');
         const c = competidor || null;
         const esPuntaje = (selTipo.value === 'PUNTAJE');
-        // En la planilla de carga se muestra el nombre del deportista con su
-        // delegación al lado: "PEREZ JUAN (30123456) — MENDOZA" (el DNI sigue
-        // visible acá porque es el admin quien confirma quién corrió; en el
-        // panel público solo se ve nombre + delegación).
         const nombreTxt = c
             ? esc(c.nombre)
               + (c.integrantes ? ' <span class="text-muted small fw-normal">(' + esc(c.integrantes) + ')</span>' : '')
               + (!c.integrantes && c.dni ? ' <span class="text-muted small fw-normal">(' + esc(c.dni) + ')</span>' : '')
-              + (!c.integrantes && c.delegacion ? ' <span class="text-muted small fw-normal">&mdash; ' + esc(c.delegacion) + '</span>' : '')
             : '<span class="text-muted fst-italic small">participante sin nombre</span>';
         tr.innerHTML = `
             <td class="text-muted small fw-bold">${pos}º</td>
