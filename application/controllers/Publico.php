@@ -27,8 +27,9 @@ class Publico extends CI_Controller {
 
     /** Panel principal: resumen + pestañas Fixture / Resultados / Medallero. */
     public function index() {
-        $delegacion = $this->_delegacion_filtro();
-        $id_deporte = $this->_deporte_filtro();
+        $delegacion   = $this->_delegacion_filtro();
+        $id_deporte   = $this->_deporte_filtro();
+        $id_categoria = $this->_categoria_filtro();
 
         // Cada consulta va envuelta en try/catch: si falta una tabla/columna
         // (migraciones no aplicadas) el panel se muestra igual, con esa sección
@@ -45,8 +46,9 @@ class Publico extends CI_Controller {
             'deportes'       => $this->_seguro(fn() => $this->Publico_model->obtener_deportes_con_categorias(), array()),
             'delegacion'     => $delegacion,
             'id_deporte'     => $id_deporte,
-            'fixture'        => $this->_seguro(fn() => $this->Publico_model->obtener_fixture_publico($delegacion, $id_deporte), array()),
-            'resultados'     => $this->_seguro(fn() => $this->Publico_model->obtener_resultados_publicos($delegacion, $id_deporte), array()),
+            'id_categoria'   => $id_categoria,
+            'fixture'        => $this->_seguro(fn() => $this->Publico_model->obtener_fixture_publico($delegacion, $id_deporte, $id_categoria), array()),
+            'resultados'     => $this->_seguro(fn() => $this->Publico_model->obtener_resultados_publicos($delegacion, $id_deporte, $id_categoria), array()),
             'medallero'      => $this->_seguro(fn() => $this->Publico_model->obtener_medallero(), array()),
             'ahora'          => date('d/m/Y H:i'),
         );
@@ -120,5 +122,10 @@ class Publico extends CI_Controller {
     private function _deporte_filtro() {
         $id_deporte = (int) $this->input->get('deporte');
         return $id_deporte > 0 ? $id_deporte : null;
+    }
+
+    private function _categoria_filtro() {
+        $id_categoria = (int) $this->input->get('categoria');
+        return $id_categoria > 0 ? $id_categoria : null;
     }
 }
