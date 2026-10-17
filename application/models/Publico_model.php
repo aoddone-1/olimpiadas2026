@@ -515,8 +515,100 @@ class Publico_model extends CI_Model {
         return $mapa;
     }
 
+    /**
+     * Nombres de UTEs por id, leídos con raw SQL acotado a los ids pedidos
+     * (no depende del estado de la Query Builder ni del tamaño de la tabla).
+     */
+    private function _nombres_utes_por_ids($ids) {
+        $mapa = array();
+        try {
+            $ids = array_values(array_unique(array_map('intval', $ids)));
+            if (!$ids || !$this->_tabla_existe('utes')) return $mapa;
+            $cols = $this->_columnas_tabla('utes');
+            if (!isset($cols['nombre_ute'])) return $mapa;
+            $q = $this->db->query(
+                'SELECT `id_ute`, `nombre_ute` FROM `utes` WHERE `id_ute` IN (' . implode(',', $ids) . ')'
+            );
+            $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
+            foreach ($rows as $r) {
+                $mapa[(int) $r['id_ute']] = $r['nombre_ute'];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_nombres_utes_por_ids: ' . $e->getMessage());
+        }
+        return $mapa;
+    }
+
+    /** Clave normalizada para emparejar nombres libre vs. registrados. */
+    public function normalizar_nombre($s) {
+        $s = strtolower(trim((string) $s));
+        if (function_exists('iconv') && @iconv('UTF-8', 'ASCII//TRANSLIT', $s) !== false) {
+            $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT', $s);
+            if ($ascii !== false) $s = $ascii;
+        }
+        $s = preg_replace('/[^a-z0-9]+/', '', $s);
+        return $s;
+    }
+
+    /** Mapa nombre-normalizado → id_ute (primera coincidencia gana). */
+    private function _ute_por_nombre_normalizado() {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $cache = array();
+        try {
+            if (!$this->_tabla_existe('utes')) return $cache;
+            $cols = $this->_columnas_tabla('utes');
+            if (!isset($cols['nombre_ute'])) return $cache;
+            $q = $this->db->query('SELECT `id_ute`, `nombre_ute` FROM `utes`');
+            $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
+            foreach ($rows as $r) {
+                $n = $this->normalizar_nombre($r['nombre_ute']);
+                if ($n !== '' && !isset($cache[$n])) $cache[$n] = (int) $r['id_ute'];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_ute_por_nombre_normalizado: ' . $e->getMessage());
+        }
+        return $cache;
+    }
+
+    /**
+     * Mapa nombre-normalizado → delegación, construido desde las inscripciones
+     * de EQUIPO (`detalle_ute` guarda el nombre libre con el que se anotó el
+     * equipo cuando no existe una UTE registrada). Es el último fallback del
+     * medallero: si el premiado se cargó "libre", igual sabemos su delegación.
+     */
+    private function _equipo_por_nombre_normalizado() {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $cache = array();
+        try {
+            if (!$this->_tabla_existe('inscripciones_deportivas')) return $cache;
+            $cols_i = $this->_columnas_tabla('inscripciones_deportivas');
+            $cols_p = $this->_columnas_tabla('participantes');
+            if (!isset($cols_i['detalle_ute'], $cols_i['id_participante'], $cols_p['delegacion'])) {
+                return $cache;
+            }
+            $q = $this->db->query(
+                'SELECT i.`detalle_ute`, p.`delegacion`'
+                . ' FROM `inscripciones_deportivas` i'
+                . ' INNER JOIN `participantes` p ON p.`id_participante` = i.`id_participante`'
+                . " WHERE i.`detalle_ute` IS NOT NULL AND i.`detalle_ute` != ''"
+                . " AND p.`delegacion` IS NOT NULL AND p.`delegacion` != ''"
+            );
+            $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
+            foreach ($rows as $r) {
+                $n = $this->normalizar_nombre($r['detalle_ute']);
+                if ($n !== '' && !isset($cache[$n])) $cache[$n] = $r['delegacion'];
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::_equipo_por_nombre_normalizado: ' . $e->getMessage());
+        }
+        return $cache;
+    }
+
     /** ids de categoría de un deporte (para filtrar el fixture sin JOIN). */
     private function _ids_categorias_del_deporte($id_deporte) {
+
         $ids = array(-1); // centinela: si `categorias` no existe, WHERE IN no rompe.
         try {
             if ($this->_tabla_existe('categorias')) {
@@ -582,7 +674,6 @@ class Publico_model extends CI_Model {
 
             // UTEs y competidores individuales (para completar nombres_libre cuando
             // el detalle no lo guarda o es un slot negativo -id_inscripcion).
-            $nombres_utes = $this->_mapa('utes', 'id_ute', 'nombre_ute');
             $ins_map      = $this->_delegacion_por_inscripcion(); // id_inscripcion -> delegación
 
             // Detalle en un solo raw query
@@ -597,8 +688,21 @@ class Publico_model extends CI_Model {
                    . ' WHERE `id_resultado` IN (' . implode(',', $ids_res) . ')' . $orden_d;
             $q_d = $this->db->query($sql_d);
             $detalles = ($q_d === false || !is_object($q_d)) ? array() : $q_d->result_array();
-            // Nombres de individuales (slots negativos) sin exponer DNI.
+
+            // Nombres de los slots negativos (-id_inscripcion): se resuelven por
+            // inscripciones_deportivas+participantes. Si la consulta auxiliar
+            // fallara, usamos el snapshot de `nombre_libre` como fallback.
             $nombres_ind = $this->_nombres_individuales_en_detalle($detalles);
+            // ids de UTE positivos presentes en el detalle → nombres desde `utes`.
+            $ids_ute_pos = array();
+            foreach ($detalles as $d) {
+                $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if ($idl > 0) $ids_ute_pos[$idl] = true;
+            }
+            $nombres_utes = $ids_ute_pos
+                ? $this->_nombres_utes_por_ids(array_keys($ids_ute_pos))
+                : array();
+
             $por_res = array();
             foreach ($detalles as &$d) {
                 $idl = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
@@ -635,7 +739,12 @@ class Publico_model extends CI_Model {
 
             if (!empty($delegacion)) {
                 $comp = $this->_competidores_de_delegacion($delegacion);
-                $rows = array_values(array_filter($rows, function ($r) use ($comp) {
+                // Fallback por NOMBRE del detalle: resultados "libres" (sin id_ute
+                // ni -id_inscripcion) se reconocen si el snapshot coincide con una
+                // UTE o un equipo inscripto de la delegación.
+                $nombres_propios = $this->_nombres_equipo_de_delegacion($delegacion, $comp);
+                $model = $this;
+                $rows = array_values(array_filter($rows, function ($r) use ($comp, $nombres_propios, $model) {
                     // Eventos masivos (TIEMPO de una jornada): la delegación
                     // participó si tiene inscriptos en esa categoría.
                     $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
@@ -648,6 +757,9 @@ class Publico_model extends CI_Model {
                         if ($idl > 0 && isset($comp['utes'][$idl])) return true;
                         // Individual: id_ute negativo = -id_inscripcion
                         if ($idl < 0 && isset($comp['inscripciones'][abs($idl)])) return true;
+                        // Libre: match por nombre normalizado (sin datos personales).
+                        $n = $model->normalizar_nombre((string) $d['nombre_libre']);
+                        if ($n !== '' && isset($nombres_propios[$n])) return true;
                     }
                     return false;
                 }));
@@ -709,6 +821,13 @@ class Publico_model extends CI_Model {
                 $deleg_por_ute = $this->_delegacion_por_ute_desde_inscripciones();
             }
 
+            // Fallback por NOMBRE del premiado: si el id_ute no está registrado
+            // (podios cargados "libres" o equipos armados por nombre), la
+            // delegación se reconoce porque el snapshot `nombre` coincide con
+            // el nombre de una UTE o de un equipo inscripto.
+            $ute_por_nombre   = $this->_ute_por_nombre_normalizado();
+            $equipo_por_nombre = $this->_equipo_por_nombre_normalizado();
+
             $medallero = array();
             foreach ($rows as $r) {
                 $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
@@ -724,6 +843,16 @@ class Publico_model extends CI_Model {
                     $ins_map = $this->_delegacion_por_inscripcion();
                     if ($idl < 0 && isset($ins_map[abs($idl)])) {
                         $deleg = $ins_map[abs($idl)];
+                    }
+                }
+                if ($deleg === null && !empty($r['nombre'])) {
+                    // Camino por nombre (sin DNI ni datos personales).
+                    $n = $this->normalizar_nombre((string) $r['nombre']);
+                    if ($n !== '' && isset($ute_por_nombre[$n])
+                        && isset($deleg_por_ute[(int) $ute_por_nombre[$n]])) {
+                        $deleg = $deleg_por_ute[(int) $ute_por_nombre[$n]];
+                    } elseif ($n !== '' && isset($equipo_por_nombre[$n])) {
+                        $deleg = $equipo_por_nombre[$n];
                     }
                 }
                 if ($deleg === null) {
