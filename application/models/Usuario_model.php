@@ -28,4 +28,14 @@ class Usuario_model extends CI_Model {
         $query = $this->db->get('usuarios');
         return $query->num_rows() > 0;
     }
+
+    /**
+     * NUEVO: Verifica si un usuario es de la mesa de control
+     */
+    public function es_mesa_control($id_usuario) {
+        $this->db->where('id_usuario', $id_usuario);
+        $this->db->where('rol', 'mesa_control');
+        $query = $this->db->get('usuarios');
+        return $query->num_rows() > 0;
+    }
 }

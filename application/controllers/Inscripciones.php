@@ -509,6 +509,10 @@ class Inscripciones extends CI_Controller {
                     $redirigir_a = $this->session->userdata('url_retorno_qr');
                     $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
                     redirect($redirigir_a);
+                } else if ($logged_user['rol'] === 'mesa_control') {
+                    // NUEVO (Mesa de control): rol específico -> va directo al panel
+                    // de acreditaciones (escaneo de QR), no al dashboard general.
+                    redirect('Inscripciones/acreditacion');
                 } else {               
                     redirect('Inscripciones/dashboard');
                 }
