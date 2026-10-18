@@ -6,13 +6,25 @@
 <div class="nav-menu mb-4 shadow-sm">
     <div class="container d-flex justify-content-between align-items-center">
         <ul class="nav">
+            <?php $rol_actual = $this->session->userdata('user_rol'); ?>
+            <?php if ($rol_actual !== 'mesa_control'): ?>
             <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'resumen') ? 'active' : ''; ?>" 
                    href="<?= base_url('Inscripciones/login') ?>">
                     <i class="bi bi-bar-chart me-1"></i> Resumen
                 </a>
             </li>
+            <?php else: ?>
+            <!-- NUEVO (Mesa de control): acceso directo al panel de acreditaciones -->
+            <li class="nav-item">
+                <a class="nav-link active"
+                   href="<?= base_url('Inscripciones/acreditacion') ?>">
+                    <i class="bi bi-qr-code-scan me-1"></i> Mesa de Control
+                </a>
+            </li>
+            <?php endif; ?>
 
+            <?php if ($rol_actual !== 'mesa_control'): ?>
             <li class="nav-item dropdown <?= (isset($menu_activo) && $menu_activo === 'deportes') ? 'active' : ''; ?>">
                 <a class="nav-link dropdown-toggle"
                    href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -33,6 +45,7 @@
                     </li>
                 </ul>
             </li>
+            <?php endif; ?> <!-- /No es mesa_control: menú de gestión -->
             
             
             <?php if($this->session->userdata('user_rol') === 'superadmin'){ ?> 
