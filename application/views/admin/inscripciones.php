@@ -17,6 +17,19 @@
 <?php $this->load->view('admin/header_admin'); ?>
 <?php include("modals/control_total_modals.php");?>
 
+<?php
+// NUEVO (solo_lectura): si el usuario logueado es de SOLO LECTURA, se ocultan
+// todos los botones de escritura (nueva inscripción, modificar, eliminar).
+// El servidor ya bloquea estas acciones; esto solo limpia la interfaz.
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info shadow-sm d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-eye-fill"></i>
+    <span><strong>Modo solo lectura:</strong> podés consultar y descargar listados, pero no crear, modificar ni eliminar registros.</span>
+</div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
@@ -35,6 +48,7 @@
                     <i class="bi bi-person-badge-fill me-1"></i>
                 </button>
 
+<?php if (!$solo_lectura): // oculto en solo lectura ?>
                 <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
 
                    class="btn btn-lg btn-danger"
@@ -46,6 +60,8 @@
                     
 
                 </a>
+                <?php endif; ?>
+
 
                 
 
@@ -474,7 +490,8 @@
 
                                 </button>
 
-                                <span class="vr mx-1 text-muted opacity-25"></span>
+                                <?php if (!$solo_lectura): // lápiz oculto en solo lectura ?>
+<span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
 
@@ -485,8 +502,11 @@
                                     <i class="bi bi-pencil-fill"></i>
 
                                 </a>
+                                <?php endif; ?>
 
-                                <span class="vr mx-1 text-muted opacity-25"></span>
+
+                                <?php if (!$solo_lectura): // tacho oculto en solo lectura ?>
+<span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <button type="button"
 
@@ -501,6 +521,8 @@
                                     <i class="bi bi-trash3-fill"></i>
 
                                 </button>
+                                <?php endif; ?>
+
 
                             </div>
 
