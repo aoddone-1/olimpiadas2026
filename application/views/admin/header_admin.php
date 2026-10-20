@@ -35,7 +35,6 @@
             </li>
             
             
-            <?php if($this->session->userdata('user_rol') === 'superadmin'){ ?> 
             <li class="nav-item">
                 <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'inscriptos') ? 'active' : ''; ?>" 
                    href="<?= base_url('Inscripciones/inscriptos') ?>">
@@ -60,7 +59,6 @@
                     <i class="bi bi-award-fill me-1"></i> Premiación
                 </a>
             </li>
-            <?php } ?> 
         </ul>
         
         <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
