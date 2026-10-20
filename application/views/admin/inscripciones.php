@@ -17,19 +17,6 @@
 <?php $this->load->view('admin/header_admin'); ?>
 <?php include("modals/control_total_modals.php");?>
 
-<?php
-// NUEVO (solo_lectura): si el usuario logueado es de SOLO LECTURA, se ocultan
-// todos los botones de escritura (nueva inscripción, modificar, eliminar).
-// El servidor ya bloquea estas acciones; esto solo limpia la interfaz.
-$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
-?>
-<?php if ($solo_lectura): ?>
-<div class="alert alert-info shadow-sm d-flex align-items-center gap-2" role="alert">
-    <i class="bi bi-eye-fill"></i>
-    <span><strong>Modo solo lectura:</strong> podés consultar y descargar listados, pero no crear, modificar ni eliminar registros.</span>
-</div>
-<?php endif; ?>
-
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
@@ -48,7 +35,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     <i class="bi bi-person-badge-fill me-1"></i>
                 </button>
 
-<?php if (!$solo_lectura): // oculto en solo lectura ?>
                 <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
 
                    class="btn btn-lg btn-danger"
@@ -60,8 +46,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     
 
                 </a>
-                <?php endif; ?>
-
 
                 
 
@@ -242,38 +226,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     <option value="Femenino">Femenino</option>
 
                     <option value="Otro">Otro</option>
-
-                </select>
-
-            </div>
-
-
-
-            <div class="col-md-3">
-
-                <label for="filtroCategoria" class="form-label small fw-semibold mb-1">
-
-                    <i class="bi bi-tags-fill text-primary me-1"></i>Categoría
-
-                </label>
-
-                <select id="filtroCategoria" class="form-select form-select-sm">
-
-                    <option value="">Todas las Categorías</option>
-
-                    <?php if(!empty($categorias)): foreach($categorias as $cat): ?>
-
-                        <option value="<?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>"
-
-                                data-deporte="<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>">
-
-                            <?= htmlspecialchars($cat['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>
-
-                            <span class="text-muted">(<?= htmlspecialchars($cat['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>)</span>
-
-                        </option>
-
-                    <?php endforeach; endif; ?>
 
                 </select>
 
@@ -490,8 +442,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                                 </button>
 
-                                <?php if (!$solo_lectura): // lápiz oculto en solo lectura ?>
-<span class="vr mx-1 text-muted opacity-25"></span>
+                                <span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
 
@@ -502,11 +453,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                     <i class="bi bi-pencil-fill"></i>
 
                                 </a>
-                                <?php endif; ?>
 
-
-                                <?php if (!$solo_lectura): // tacho oculto en solo lectura ?>
-<span class="vr mx-1 text-muted opacity-25"></span>
+                                <span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <button type="button"
 
@@ -521,8 +469,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                     <i class="bi bi-trash3-fill"></i>
 
                                 </button>
-                                <?php endif; ?>
-
 
                             </div>
 
@@ -639,8 +585,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const filtroDeporte = document.getElementById('filtroDeporte');
 
     const filtroSexo = document.getElementById('filtroSexo');
-
-    const filtroCategoria = document.getElementById('filtroCategoria');
 
     const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
 
@@ -812,8 +756,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const sexoSeleccionado = filtroSexo ? filtroSexo.value.toLowerCase() : '';
 
-        const categoriaSeleccionada = filtroCategoria ? filtroCategoria.value.toLowerCase() : '';
-
 
 
         filasFiltradasIns = filasIns.filter(fila => {
@@ -839,18 +781,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const deportesFilaElem = fila.querySelector('td:nth-child(4) .fw-semibold');
 
             const deportesFila = deportesFilaElem ? deportesFilaElem.textContent.toLowerCase() : '';
-
-
-
-            // Categoría de la fila (columna "Deporte / Categoría"), sin el rótulo "Cat:"
-
-            const catFilaElem = fila.querySelector('td:nth-child(4) .text-muted');
-
-            const catsFila = catFilaElem
-
-                ? catFilaElem.textContent.toLowerCase().replace('cat:', '')
-
-                : '';
 
 
 
@@ -901,22 +831,6 @@ document.addEventListener('DOMContentLoaded', function () {
             if (deporteSeleccionado && !deportesFila.includes(deporteSeleccionado)) {
 
                 coincide = false;
-
-            }
-
-
-
-            // Filtro por categoría (coincidencia exacta sobre la lista "Cat: X, Y")
-
-            if (coincide && categoriaSeleccionada) {
-
-                const coincideCat = catsFila.split(',').some(c => c.trim() === categoriaSeleccionada);
-
-                if (!coincideCat) {
-
-                    coincide = false;
-
-                }
 
             }
 
@@ -986,52 +900,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     }
 
-    if (filtroCategoria) {
-
-        // Al elegir un deporte, mostrar solo las categorías de ese deporte.
-
-        // Si se limpia el deporte, vuelven a aparecer TODAS las categorías.
-
-        filtroDeporte.addEventListener('change', function() {
-
-            const depSel = this.value.trim().toLowerCase();
-
-            let catSigueValida = false;
-
-            Array.from(filtroCategoria.options).forEach(opt => {
-
-                if (!opt.value) return; // la opción "Todas las Categorías"
-
-                const debeOcultarse = depSel !== '' &&
-
-                    (opt.dataset.deporte || '').trim().toLowerCase() !== depSel;
-
-                opt.hidden = debeOcultarse;
-
-                opt.disabled = debeOcultarse;
-
-                if (!debeOcultarse && opt.value === filtroCategoria.value) {
-
-                    catSigueValida = true;
-
-                }
-
-            });
-
-            // Si la categoría seleccionada ya no pertenece al deporte elegido, resetearla
-
-            if (filtroCategoria.value && !catSigueValida) {
-
-                filtroCategoria.value = '';
-
-            }
-
-        });
-
-        filtroCategoria.addEventListener('change', aplicarFiltros);
-
-    }
-
     if (btnLimpiarFiltros) {
 
         btnLimpiarFiltros.addEventListener('click', function() {
@@ -1045,22 +913,6 @@ document.addEventListener('DOMContentLoaded', function () {
             filtroDeporte.value = '';
 
             if (filtroSexo) filtroSexo.value = '';
-
-            if (filtroCategoria) {
-
-                filtroCategoria.value = '';
-
-                // Volver a habilitar/mostrar todas las categorías
-
-                Array.from(filtroCategoria.options).forEach(opt => {
-
-                    opt.hidden = false;
-
-                    opt.disabled = false;
-
-                });
-
-            }
 
             aplicarFiltros();
 

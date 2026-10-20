@@ -10,74 +10,6 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Categoria_model');
     }
 
-    /* ============================================================
-     *  SEGURIDAD POR ROLES - "solo_lectura"
-     * ============================================================ */
-
-    /**
-     * Roles que pueden VER (solo lectura) las pantallas de Control Total:
-     * inscriptos, fixture y resultados. El resto de los roles no organizadores
-     * sigue bloqueado como antes.
-     */
-    private function _roles_lectura_disponibles() {
-        return array('superadmin', 'admin', 'staff', 'carga_resultados', 'solo_lectura');
-    }
-
-    /** TRUE si el usuario logueado es solo de lectura (no puede modificar nada). */
-    private function _es_solo_lectura() {
-        return $this->session->userdata('is_organizador')
-            && $this->session->userdata('user_rol') === 'solo_lectura';
-    }
-
-    /**
-     * Autenticación para pantallas de CONSULTA (ver, filtrar, descargar PDF/CSV).
-     * Permite los roles de lectura; bloquea al resto.
-     */
-    private function _auth_lectura() {
-        if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), $this->_roles_lectura_disponibles())) {
-            redirect('Inscripciones/login');
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Autenticación para acciones de ESCRITURA (crear/editar/eliminar/guardar).
-     * Además del login, bloquea explícitamente al rol solo_lectura.
-     */
-    private function _auth_no_lectura() {
-        if (!$this->_auth_lectura()) {
-            return false;
-        }
-        if ($this->_es_solo_lectura()) {
-            show_error('Su cuenta es de SOLO LECTURA: no tiene permiso para modificar datos.', 403);
-            return false;
-        }
-        return true;
-    }
-
-    /** Versión JSON de _auth_no_lectura para los endpoints AJAX. */
-    private function _auth_no_lectura_json() {
-        if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), $this->_roles_lectura_disponibles())) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
-            return false;
-        }
-        if ($this->_es_solo_lectura()) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array(
-                    'ok' => false,
-                    'error' => 'Su cuenta es de SOLO LECTURA: no puede guardar ni eliminar registros.'
-                )));
-            return false;
-        }
-        return true;
-    }
-
     public function index() {
         redirect('Inscripciones/panel');
     }
@@ -427,8 +359,9 @@ class Inscripciones extends CI_Controller {
 
     // --- NUEVA PANTALLA: GESTIÓN DE DEPORTES ---
     public function gestion_deportes() {
-        // NUEVO (solo_lectura): pantalla de CONSULTA de deportes/categorías.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Deporte_model');
         
@@ -449,15 +382,6 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-
-
         $this->load->model('Categoria_model');
         
         // Le mandamos todo el POST crudo al modelo para que él decida qué hacer
@@ -472,13 +396,6 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/gestion_deportes');
     }
     public function eliminar_categoria($id_categoria) {
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
         if (!empty($id_categoria)) {
             $this->Categoria_model->eliminar_categoria($id_categoria);
             $this->session->set_flashdata('msg_ok', 'Categoría eliminada correctamente.');
@@ -488,13 +405,6 @@ class Inscripciones extends CI_Controller {
 
     // --- EDITAR CATEGORÍA ---
     public function editar_categoria() {
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
         $id_categoria = $this->input->post('id_categoria');
         
         $data = [
@@ -523,15 +433,6 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-
-
         $this->load->model('Deporte_model');
         
         $guardado = $this->Deporte_model->insertar_lugar_desde_post($this->input->post());
@@ -547,13 +448,6 @@ class Inscripciones extends CI_Controller {
 
     // --- ELIMINAR LUGAR ---
     public function eliminar_lugar($id_lugar) {
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
         if (!empty($id_lugar)) {
             $this->Deporte_model->eliminar_lugar($id_lugar);
             $this->session->set_flashdata('msg_ok', 'Sede/Predio eliminado correctamente.');
@@ -563,13 +457,6 @@ class Inscripciones extends CI_Controller {
 
     // --- EDITAR LUGAR ---
     public function editar_lugar() {
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
         $id_lugar = $this->input->post('id_lugar');
         
         $data = [
@@ -622,10 +509,6 @@ class Inscripciones extends CI_Controller {
                     $redirigir_a = $this->session->userdata('url_retorno_qr');
                     $this->session->unset_userdata('url_retorno_qr'); // Limpiamos la sesión
                     redirect($redirigir_a);
-                } else if ($logged_user['rol'] === 'mesa_control') {
-                    // NUEVO (Mesa de control): rol específico -> va directo al panel
-                    // de acreditaciones (escaneo de QR), no al dashboard general.
-                    redirect('Inscripciones/acreditacion');
                 } else {               
                     redirect('Inscripciones/dashboard');
                 }
@@ -757,15 +640,6 @@ class Inscripciones extends CI_Controller {
     public function guardar_deporte() {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-
-
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
         $data['fiscales'] = $this->input->post('fiscales', TRUE);
@@ -779,15 +653,6 @@ class Inscripciones extends CI_Controller {
     public function eliminar_deporte($id_deporte) {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
-
-
         if (!empty($id_deporte) && is_numeric($id_deporte)) {
             // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
             $this->db->delete('categorias', ['id_deporte' => $id_deporte]);
@@ -797,13 +662,6 @@ class Inscripciones extends CI_Controller {
     }
 
     public function editar_deporte() {
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede gestionar deportes/categorías.');
-            redirect('Inscripciones/gestion_deportes');
-            return;
-        }
-
         $id_deporte = $this->input->post('id_deporte');
         $data = [
             'nombre_deporte' => $this->input->post('nombre_deporte'),
@@ -820,9 +678,14 @@ class Inscripciones extends CI_Controller {
 
     
     public function inscriptos() {
-        // NUEVO (solo_lectura): pantalla de CONSULTA. Pueden verla los roles de
-        // lectura (superadmin, admin, staff, carga_resultados y solo_lectura).
-        if (!$this->_auth_lectura()) return;
+        // Misma seguridad que Control Total (solo superadmin)
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
@@ -839,10 +702,10 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/inscripciones', $data);
     }
     public function fixture() {
-        // NUEVO (solo_lectura): pantalla de CONSULTA del calendario. Los roles de
-        // lectura pueden ver/filtrar/descargar; las acciones de escritura se
-        // bloquean aparte (ajax_guardar_partido, ajax_eliminar_*, etc.).
-        if (!$this->_auth_lectura()) return;
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
@@ -866,9 +729,10 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/fixture', $data);
     }
     public function resultados() {
-        // NUEVO (solo_lectura): pantalla de CONSULTA de marcadores/tiempos.
-        // Ver es permitido a los roles de lectura; cargar/editar/borrar no.
-        if (!$this->_auth_lectura()) return;
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
@@ -882,9 +746,10 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/resultados', $data);
     }
     public function utes_equipos() {
-        // NUEVO (solo_lectura): pantalla de CONSULTA de UTEs/equipos. Pueden verla
-        // los roles de lectura; las acciones de escritura ajax_* están bloqueadas.
-        if (!$this->_auth_lectura()) return;
+        // Seguridad Superadmin
+        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Deporte_model');
         $this->load->model('UTE_model');
@@ -962,23 +827,6 @@ class Inscripciones extends CI_Controller {
         return true;
     }
 
-    /**
-     * NUEVO (solo_lectura): autenticación JSON para los endpoints de CONSULTA
-     * del fixture. Permite ver/filtrar a los roles de lectura (incluido
-     * solo_lectura); las acciones de escritura siguen usando _fixture_auth_json.
-     */
-    private function _fixture_auth_lectura_json() {
-        if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), $this->_roles_lectura_disponibles())) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
-            return false;
-        }
-        $this->load->model('Fixture_model');
-        return true;
-    }
-
     /** JSON de error con detalle para poder diagnosticar en pantalla. */
     private function _fixture_error_json($mensaje, $detalle = '') {
         log_message('error', '[Fixture] ' . $mensaje . ($detalle !== '' ? ' :: ' . $detalle : ''));
@@ -994,7 +842,7 @@ class Inscripciones extends CI_Controller {
 
     /** Devuelve el fixture + las UTEs de una categoría (para pintar la pestaña). */
     public function ajax_fixture_categoria($id_categoria) {
-        if (!$this->_fixture_auth_lectura_json()) return;
+        if (!$this->_fixture_auth_json()) return;
         $this->_fixture_no_cache_headers();
 
         try {
@@ -1015,7 +863,7 @@ class Inscripciones extends CI_Controller {
      * Deporte -> Categoría del modal de partido/jornada del panel Fixture.
      */
     public function ajax_categorias_por_deporte($id_deporte) {
-        if (!$this->_fixture_auth_lectura_json()) return;
+        if (!$this->_fixture_auth_json()) return;
 
         try {
             $categorias = $this->Fixture_model->obtener_categorias_para_fixture((int) $id_deporte);
@@ -1041,7 +889,7 @@ class Inscripciones extends CI_Controller {
 
     /** Devuelve TODO el fixture de todas las categorías (vista general sin filtros). */
     public function ajax_fixture_todo() {
-        if (!$this->_fixture_auth_lectura_json()) return;
+        if (!$this->_fixture_auth_json()) return;
         $this->_fixture_no_cache_headers();
 
         // Orden del listado: 'deporte' (Deporte → Categoría → Fecha → Hora, por
@@ -1073,7 +921,7 @@ class Inscripciones extends CI_Controller {
 
     /** Detalle de participantes de un partido/jornada (modal "Detalle" del fixture). */
     public function ajax_fixture_detalle($id_fixture) {
-        if (!$this->_fixture_auth_lectura_json()) return;
+        if (!$this->_fixture_auth_json()) return;
 
         try {
             $detalle = $this->Fixture_model->detalle_participantes_del_partido((int) $id_fixture);
@@ -1095,7 +943,7 @@ class Inscripciones extends CI_Controller {
 
     /** Lista de inscriptos de una categoría (modal "Participantes" de la categoría). */
     public function ajax_inscriptos_categoria($id_categoria) {
-        if (!$this->_fixture_auth_lectura_json()) return;
+        if (!$this->_fixture_auth_json()) return;
 
         try {
             $listado = $this->Fixture_model->inscriptos_de_categoria((int) $id_categoria);
@@ -1205,8 +1053,10 @@ class Inscripciones extends CI_Controller {
      *   ?franja=HH        ancho de las franjas horarias del cuadro (filas).
      */
     public function descargar_csv_fixture() {
-        // NUEVO (solo_lectura): descarga de consulta habilitada a los roles de lectura.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Fixture_model');
 
@@ -1368,8 +1218,10 @@ class Inscripciones extends CI_Controller {
      *   ?franja=HH        ancho en horas de las franjas horarias del cuadro (1-12).
      */
     public function descargar_pdf_fixture() {
-        // NUEVO (solo_lectura): descarga de consulta habilitada a los roles de lectura.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
 
         $this->load->model('Fixture_model');
 
@@ -1449,8 +1301,10 @@ class Inscripciones extends CI_Controller {
      * con formato='planilla'.
      */
     public function descargar_planilla_categoria($id_categoria = null) {
-        // NUEVO (solo_lectura): descarga de consulta habilitada a los roles de lectura.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
 
         $id_categoria = (int) ($id_categoria !== null ? $id_categoria : $this->input->get('categoria'));
         if ($id_categoria <= 0) {
@@ -1507,8 +1361,10 @@ class Inscripciones extends CI_Controller {
      * propia vista (MYPDF::_body_planilla).
      */
     public function descargar_planilla_deporte($id_deporte = null) {
-        // NUEVO (solo_lectura): descarga de consulta habilitada a los roles de lectura.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
 
         $id_deporte = (int) ($id_deporte !== null ? $id_deporte : $this->input->get('deporte'));
         if ($id_deporte <= 0) {
@@ -1561,8 +1417,10 @@ class Inscripciones extends CI_Controller {
      * controlador y funcione aunque los assets estáticos no sean accesibles.
      */
     public function descargar_planillas_vacias() {
-        // NUEVO (solo_lectura): descarga de consulta habilitada a los roles de lectura.
-        if (!$this->_auth_lectura()) return;
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            redirect('Inscripciones/login');
+        }
 
         $ruta_archivo = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'docs' . DIRECTORY_SEPARATOR . 'planillas_vacias.pdf';
 
@@ -1695,23 +1553,6 @@ class Inscripciones extends CI_Controller {
         return true;
     }
 
-    /**
-     * NUEVO (solo_lectura): autenticación JSON para los endpoints de CONSULTA
-     * de resultados. Los roles de lectura pueden ver marcadores/tiempos; la
-     * carga/edición/borrado sigue reservada a superadmin/admin.
-     */
-    private function _resultados_auth_lectura_json() {
-        if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), $this->_roles_lectura_disponibles())) {
-            $this->output
-                ->set_content_type('application/json')
-                ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
-            return false;
-        }
-        $this->load->model('Resultado_model');
-        return true;
-    }
-
     /** Guarda un resultado cargado desde la pestaña "Resultados". */
     public function ajax_guardar_resultado() {
         try {
@@ -1755,7 +1596,7 @@ class Inscripciones extends CI_Controller {
     /** Lista TODOS los resultados cargados (con su detalle). */
     public function ajax_resultados_todo() {
         try {
-            if (!$this->_resultados_auth_lectura_json()) return;
+            if (!$this->_resultados_auth_json()) return;
 
             if (!$this->Resultado_model->tablas_existentes()) {
                 $this->output
@@ -1782,7 +1623,7 @@ class Inscripciones extends CI_Controller {
     /** Partidos del fixture de una categoría (para vincular el resultado a uno). */
     public function ajax_fixtures_por_categoria($id_categoria) {
         try {
-            if (!$this->_resultados_auth_lectura_json()) return;
+            if (!$this->_resultados_auth_json()) return;
 
             $this->load->model('Resultado_model');
             $fixtures = $this->Resultado_model->obtener_fixtures_por_categoria((int) $id_categoria);
@@ -1799,7 +1640,7 @@ class Inscripciones extends CI_Controller {
     /** Competidores (inscripciones personales + UTEs) de una categoría. */
     public function ajax_competidores_por_categoria($id_categoria) {
         try {
-            if (!$this->_resultados_auth_lectura_json()) return;
+            if (!$this->_resultados_auth_json()) return;
 
             // Deporte MASIVO_TIEMPO: si la categoría todavía no tiene jornada en
             // el fixture, se crea automáticamente la JORNADA_UNICA. Sin esto, la
@@ -2039,13 +1880,6 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede eliminar inscripciones.');
-            redirect('Inscripciones/inscriptos');
-            return;
-        }
-
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
             redirect('Inscripciones/inscriptos');
@@ -2087,15 +1921,6 @@ class Inscripciones extends CI_Controller {
             echo json_encode([
                 'success' => false,
                 'error' => 'No tenés permisos para realizar esta acción.'
-            ]);
-            return;
-        }
-
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode([
-                'success' => false,
-                'error' => 'Su cuenta es de SOLO LECTURA: no puede eliminar inscripciones.'
             ]);
             return;
         }
@@ -2147,13 +1972,6 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // NUEVO (solo_lectura): el formulario de edición es una acción de escritura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede modificar inscripciones.');
-            redirect('Inscripciones/inscriptos');
-            return;
-        }
-
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
             redirect('Inscripciones/inscriptos');
@@ -2186,13 +2004,6 @@ class Inscripciones extends CI_Controller {
         // Verificar que sea staff/organizador
         if (!$this->session->userdata('is_organizador')) {
             $this->session->set_flashdata('error', 'No tenés permisos para realizar esta acción.');
-            redirect('Inscripciones/inscriptos');
-            return;
-        }
-
-        // NUEVO (solo_lectura): guardar cambios es una acción de escritura.
-        if ($this->_es_solo_lectura()) {
-            $this->session->set_flashdata('error', 'Su cuenta es de SOLO LECTURA: no puede modificar inscripciones.');
             redirect('Inscripciones/inscriptos');
             return;
         }
@@ -2401,12 +2212,6 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode(['success' => false, 'error' => 'Su cuenta es de SOLO LECTURA: no puede modificar UTEs.']);
-            return;
-        }
-
         $nombre_ute = $this->input->post('nombre_ute');
         $id_categoria = $this->input->post('id_categoria');
         $genero = $this->input->post('genero');
@@ -2434,12 +2239,6 @@ class Inscripciones extends CI_Controller {
 
         if (!$this->session->userdata('is_organizador')) {
             echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
-            return;
-        }
-
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode(['success' => false, 'error' => 'Su cuenta es de SOLO LECTURA: no puede modificar UTEs.']);
             return;
         }
 
@@ -2483,12 +2282,6 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode(['success' => false, 'error' => 'Su cuenta es de SOLO LECTURA: no puede modificar UTEs.']);
-            return;
-        }
-
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
 
@@ -2526,12 +2319,6 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode(['success' => false, 'error' => 'Su cuenta es de SOLO LECTURA: no puede modificar UTEs.']);
-            return;
-        }
-
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
 
@@ -2558,12 +2345,6 @@ class Inscripciones extends CI_Controller {
         
         if (!$this->session->userdata('is_organizador')) {
             echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
-            return;
-        }
-
-        // NUEVO (solo_lectura): acción de ESCRITURA bloqueada para cuentas de lectura.
-        if ($this->_es_solo_lectura()) {
-            echo json_encode(['success' => false, 'error' => 'Su cuenta es de SOLO LECTURA: no puede modificar UTEs.']);
             return;
         }
 
