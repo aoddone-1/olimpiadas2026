@@ -1623,6 +1623,9 @@ class Inscripciones extends CI_Controller {
         try {
             if (!$this->_resultados_auth_json()) return;
 
+            // Seguridad: los usuarios 'solo_lectura' no pueden crear/modificar resultados.
+            $this->bloqueo_solo_lectura(TRUE);
+
             if (!$this->Resultado_model->tablas_existentes()) {
                 $this->output
                     ->set_content_type('application/json')
@@ -1744,6 +1747,9 @@ class Inscripciones extends CI_Controller {
     public function ajax_eliminar_resultado() {
         try {
             if (!$this->_resultados_auth_json()) return;
+
+            // Seguridad: los usuarios 'solo_lectura' no pueden eliminar resultados.
+            $this->bloqueo_solo_lectura(TRUE);
 
             $id = (int) $this->input->post('id_resultado');
             if (!$id) throw new Exception('Resultado inexistente.');

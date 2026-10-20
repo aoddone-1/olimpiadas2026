@@ -23,6 +23,11 @@
 // ============================================
 $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 ?>
+<script>
+// Bandera JS del modo solo lectura: se usa en la lógica de render para
+// ocultar/deshabilitar toda acción de escritura (crear/editar/eliminar).
+window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
+</script>
 
 <!-- PANEL RESULTADOS -->
 <style>
@@ -47,9 +52,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 <span class="fx-header-titulo">Carga de Resultados <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <?php if (!$solo_lectura): ?>
                 <button id="rs_btn_nuevo" class="btn btn-lg btn-primary">
                     <i class="bi bi-plus-circle me-1"></i>
                 </button>
+                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -113,6 +120,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
+<?php if (!$solo_lectura): ?>
 <!-- MODAL: cargar resultado -->
 <div class="modal fade" id="modalResultado" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -290,6 +298,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- MODAL: detalle de un resultado -->
 <div class="modal fade" id="modalDetalleResultado" tabindex="-1">
@@ -322,10 +331,16 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     const filtroCategoria = document.getElementById('rs_filtro_categoria');
 
     let todosResultados = [];
-    // El modal de carga vive dentro del pane oculto de la pestaña: lo pasamos al body
-    // para que Bootstrap calcule bien el overlay y el scroll.
-    document.body.appendChild(document.getElementById('modalResultado'));
-    let modalResultado = new bootstrap.Modal(document.getElementById('modalResultado'));
+    // En modo SOLO LECTURA el modal de carga no existe en el DOM (no se renderiza),
+    // por eso todo el código del modal se protege con esta bandera.
+    const SOLO_LECTURA = !!window.SOLO_LECTURA;
+    const elModalResultado = document.getElementById('modalResultado');
+    if (!SOLO_LECTURA && elModalResultado) {
+        // El modal de carga vive dentro del pane oculto de la pestaña: lo pasamos al body
+        // para que Bootstrap calcule bien el overlay y el scroll.
+        document.body.appendChild(elModalResultado);
+    }
+    let modalResultado = (!SOLO_LECTURA && elModalResultado) ? new bootstrap.Modal(elModalResultado) : null;
     let modalDetalle = new bootstrap.Modal(document.getElementById('modalDetalleResultado'));
 
     /* ---------- Confirmación estilizada (SweetAlert2 si está cargado) ---------- */
@@ -356,6 +371,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     }
 
     function post(url, datos) {
+        // Red de seguridad: en modo solo lectura nunca se envían escrituras.
+        if (SOLO_LECTURA) {
+            return Promise.resolve({ ok: false, error: 'Tu usuario es de solo lectura. No tenés permisos para modificar datos.' });
+        }
         const form = new FormData();
         Object.keys(datos).forEach(k => {
             if (Array.isArray(datos[k])) {
@@ -564,7 +583,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 '<i class="bi bi-clipboard-x fs-1 d-block mb-2"></i>' +
                 (todosResultados.length
                     ? 'No hay resultados que coincidan con los filtros elegidos.'
-                    : 'Todavía no cargaste ningún resultado. Usá el botón "Cargar resultado".') +
+                    : (SOLO_LECTURA
+                        ? 'No hay resultados cargados todavía.'
+                        : 'Todavía no cargaste ningún resultado. Usá el botón "Cargar resultado".')) +
                 '</div>';
             return;
         }
@@ -651,9 +672,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         <button class="btn btn-sm btn-outline-primary rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
                             <i class="bi bi-eye-fill me-1"></i>Detalle
                         </button>
+                        ${SOLO_LECTURA ? '' : `
                         <button class="btn btn-sm btn-outline-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
                             <i class="bi bi-x-lg"></i>
-                        </button>
+                        </button>`}
                     </div>
                 </div>`;
             });
@@ -736,6 +758,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     });
 
     /* ---------- Modal: cargar resultado ---------- */
+    // TODO el bloque del modal de carga se ejecuta SOLO si el usuario puede
+    // escribir (rol superadmin). En modo solo lectura el modal ni siquiera
+    // existe en el DOM, así que se saltea completo.
+    if (!SOLO_LECTURA) {
     const selDeporteModal = document.getElementById('rs_modal_deporte');
     const selCatModal = document.getElementById('rs_modal_categoria');
     const selTipo = document.getElementById('rs_modal_tipo');
@@ -1163,6 +1189,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             }
         });
     });
+
+    } // fin if (!SOLO_LECTURA) — bloque del modal de carga
 
     /* Al iniciar, mostrar todo lo cargado */
     filtrarOpcionesCategoria();
