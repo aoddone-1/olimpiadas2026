@@ -14,21 +14,7 @@
 </head>
 <body>
 
-<?php
-// ============================================
-// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
-// toda la pantalla de Fixture queda de solo lectura (sin
-// crear, editar, eliminar partidos ni cargar resultados).
-// Con 'superadmin' funciona igual que siempre.
-// ============================================
-$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
-?>
 <?php $this->load->view('admin/header_admin'); ?>
-<?php if ($solo_lectura): ?>
-<div class="alert alert-info mt-3 mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
-    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar el fixture y descargar sus reportes, pero no crear, modificar ni eliminar partidos ni resultados.
-</div>
-<?php endif; ?>
 <!-- PANEL FIXTURE -->
 <div class="card fx-card shadow-sm border-0">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
@@ -99,11 +85,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             <div class="col-md-12 col-lg-5">
                 <label class="form-label small fw-bold d-none d-lg-block">&nbsp;</label>
                 <div class="d-flex flex-wrap gap-2 fx-acciones">
-                    <?php if (!$solo_lectura): ?>
                     <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
                         <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
-                    <?php endif; ?>
                     <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF de 2 páginas en blanco para completar a mano (planilla de participantes y planilla de partidos)">
                         <i class="bi bi-file-earmark-arrow-down-fill"></i><span class="ms-2">Descargar planillas vacías</span>
                     </button>
@@ -145,12 +129,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
-    <!-- MODAL: crear/editar partido (oculto en modo solo lectura). Se renderiza
-         DENTRO del <body> de header_admin, igual que en equipos.php; si se
-         dejaba antes del header, el banner de "solo lectura" quedaba arriba de
-         todo y el modal podía romper el flujo de la página. -->
-    <?php if (!$solo_lectura): ?>
-    <div class="modal fade" id="modalPartido" tabindex="-1">
+<!-- MODAL: crear/editar partido -->
+<div class="modal fade" id="modalPartido" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -267,7 +247,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         </div>
     </div>
 </div>
-<?php endif; ?>
 
 <!-- MODAL: detalle de participantes (partido o categoría) -->
 <div class="modal fade" id="modalDetalle" tabindex="-1">
@@ -293,8 +272,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     const BASE = '<?= base_url("Inscripciones") ?>';
 
     /* ---------- MODAL: resultados de deportes masivos (orden de llegada) ---------- */
-    // (no se inserta en modo solo lectura: no se pueden cargar resultados)
-    if (!<?= $solo_lectura ? 'true' : 'false' ?> && !document.getElementById('modalMasivo')) {
+    if (!document.getElementById('modalMasivo')) {
         document.body.insertAdjacentHTML('beforeend', `
         <div class="modal fade" id="modalMasivo" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -365,16 +343,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     // Día seleccionado: HOY si cae dentro del calendario oficial; si no, el primer día
     let diaActual = (hoyISO() >= INICIO_COMPETENCIA && hoyISO() <= FIN_COMPETENCIA)
         ? hoyISO() : INICIO_COMPETENCIA;
-    // Modal de partido/jornada: el HTML solo se renderiza para roles con
-    // permisos de escritura; en modo solo lectura se crea "perezoso" para
-    // que la página no rompa si algún flujo intenta abrirlo.
-    let modalPartido = null;
-    function getModalPartido() {
-        const el = document.getElementById('modalPartido');
-        if (!el) return null;
-        if (!modalPartido) modalPartido = new bootstrap.Modal(el);
-        return modalPartido;
-    }
+    let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
     let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
     // Modal de detalle de participantes: instancia Bootstrap creada ACÁ
     // (antes faltaba esta línea y el botón "Detalle" tiraba ReferenceError).
@@ -778,7 +747,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                 <button class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
                                     <i class="bi bi-search"></i>
                                 </button>
-                                ${SOLO_LECTURA ? '' : `
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
                                     <i class="bi bi-pencil-fill"></i>
@@ -786,7 +754,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-danger border-0 rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
                                     <i class="bi bi-trash3-fill"></i>
-                                </button>`}
+                                </button>
                             </div>
                             
                             
@@ -1266,8 +1234,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             document.getElementById('fx_cat_hidden').value = '';
             cargarUtesDelModal('');
         }
-        const m = getModalPartido();
-        if (m) m.show();
+        modalPartido.show();
     }
 
     /* ---------- Resultados de deportes masivos (JORNADA_UNICA) ---------- */
@@ -1364,7 +1331,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         }
         post('ajax_guardar_partido', datos).then(res => {
             if (res.ok) {
-                if (modalPartido) modalPartido.hide();
+                modalPartido.hide();
                 mensaje(res.mensaje, 'success');
                 cargarTodo();
             } else {
