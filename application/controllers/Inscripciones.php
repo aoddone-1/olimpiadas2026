@@ -677,13 +677,41 @@ class Inscripciones extends CI_Controller {
     }
 
     
+    /**
+     * ¿El usuario actual tiene rol "solo lectura"?
+     * Los usuarios con rol 'solo_lectura' pueden VER la pantalla de
+     * inscriptos, pero no modificar nada (ni por interfaz ni por request directa).
+     */
+    private function es_solo_lectura() {
+        return $this->session->userdata('user_rol') === 'solo_lectura';
+    }
+
+    /**
+     * Bloqueo de escrituras para el rol "solo_lectura" (seguridad del lado
+     * del servidor). Si el usuario tiene ese rol, corta la ejecución con 403.
+     */
+    private function bloqueo_solo_lectura($es_json = FALSE) {
+        if (!$this->es_solo_lectura()) {
+            return;
+        }
+        if ($es_json) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Tu usuario es de solo lectura. No tenés permisos para modificar datos.'
+            ]);
+            exit;
+        }
+        show_error('Tu usuario es de solo lectura. No tenés permisos para realizar esta acción.', 403);
+        exit;
+    }
+
     public function inscriptos() {
-        // Misma seguridad que Control Total (solo superadmin)
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login');
         }
-        // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -1880,6 +1908,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Rol "solo lectura": no puede eliminar inscripciones
+        $this->bloqueo_solo_lectura();
+
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
             redirect('Inscripciones/inscriptos');
@@ -1924,6 +1955,9 @@ class Inscripciones extends CI_Controller {
             ]);
             return;
         }
+
+        // Rol "solo lectura": no puede eliminar inscripciones
+        $this->bloqueo_solo_lectura(TRUE);
 
         if (!$id_participante) {
             echo json_encode([
@@ -1972,6 +2006,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Rol "solo lectura": no puede modificar inscripciones
+        $this->bloqueo_solo_lectura();
+
         if (!$id_participante) {
             $this->session->set_flashdata('error', 'ID de participante no válido.');
             redirect('Inscripciones/inscriptos');
@@ -2007,6 +2044,9 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/inscriptos');
             return;
         }
+
+        // Rol "solo lectura": no puede guardar modificaciones
+        $this->bloqueo_solo_lectura();
 
         $this->load->model('Participante_model');
         $post = $this->input->post();
@@ -2083,6 +2123,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Rol "solo lectura": no puede crear inscripciones
+        $this->bloqueo_solo_lectura();
+
         $this->load->model('Deporte_model');
         
         // Obtener todos los deportes para el formulario
@@ -2102,6 +2145,9 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/inscriptos');
             return;
         }
+
+        // Rol "solo lectura": no puede guardar nuevas inscripciones
+        $this->bloqueo_solo_lectura();
 
         $this->load->model('Participante_model');
         $post = $this->input->post();
