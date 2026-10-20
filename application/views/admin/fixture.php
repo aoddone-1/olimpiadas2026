@@ -23,12 +23,12 @@
 // ============================================
 $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 ?>
+<?php $this->load->view('admin/header_admin'); ?>
 <?php if ($solo_lectura): ?>
-<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+<div class="alert alert-info mt-3 mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
     <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar el fixture y descargar sus reportes, pero no crear, modificar ni eliminar partidos ni resultados.
 </div>
 <?php endif; ?>
-<?php $this->load->view('admin/header_admin'); ?>
 <!-- PANEL FIXTURE -->
 <div class="card fx-card shadow-sm border-0">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
@@ -145,9 +145,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
-<!-- MODAL: crear/editar partido (oculto en modo solo lectura) -->
-<?php if (!$solo_lectura): ?>
-<div class="modal fade" id="modalPartido" tabindex="-1">
+    <!-- MODAL: crear/editar partido (oculto en modo solo lectura). Se renderiza
+         DENTRO del <body> de header_admin, igual que en equipos.php; si se
+         dejaba antes del header, el banner de "solo lectura" quedaba arriba de
+         todo y el modal podía romper el flujo de la página. -->
+    <?php if (!$solo_lectura): ?>
+    <div class="modal fade" id="modalPartido" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -775,6 +778,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                 <button class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
                                     <i class="bi bi-search"></i>
                                 </button>
+                                ${SOLO_LECTURA ? '' : `
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
                                     <i class="bi bi-pencil-fill"></i>
@@ -782,7 +786,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-danger border-0 rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
                                     <i class="bi bi-trash3-fill"></i>
-                                </button>
+                                </button>`}
                             </div>
                             
                             
