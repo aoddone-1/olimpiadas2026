@@ -785,7 +785,7 @@ class Inscripciones extends CI_Controller {
     }
     public function resultados() {
         // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -1608,7 +1608,7 @@ class Inscripciones extends CI_Controller {
     private function _resultados_auth_json() {
         // Solo superadmin/admin pueden gestionar resultados
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
