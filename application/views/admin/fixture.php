@@ -14,6 +14,7 @@
 </head>
 <body>
 
+<?php $this->load->view('admin/header_admin'); ?>
 <?php
 // ============================================
 // MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
@@ -23,20 +24,19 @@
 // ============================================
 $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 ?>
-<?php $this->load->view('admin/header_admin'); ?>
 <?php if ($solo_lectura): ?>
-<div class="alert alert-info mt-3 mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
     <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar el fixture y descargar sus reportes, pero no crear, modificar ni eliminar partidos ni resultados.
 </div>
 <?php endif; ?>
 <!-- PANEL FIXTURE -->
-<div class="card fx-card shadow-sm border-0">
+<div class="card card-inscriptos fx-card shadow-sm border-0 mb-4">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
             <!-- Título con ícono suave en lugar de texto plano -->
             <div class="d-flex align-items-center gap-2">
                 <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
-                    <i class="bi bi-calendar3"></i>
+                    <i class="bi bi-calendar3 text-warning me-2"></i>
                 </span>
                 <span class="fx-header-titulo">Gestión de Fixture <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
@@ -73,8 +73,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         <!-- Barra de FILTROS: deporte y categoría filtran el listado -->
         <div class="fx-filtros row g-2 align-items-end mb-3">
             <div class="col-md-4 col-lg-3">
-                <label class="form-label small fw-semibold mb-1"><i class="bi bi-funnel-fill text-primary me-1"></i>Filtrar por deporte</label>
-                <select id="fx_filtro_deporte" class="form-select">
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-trophy-fill text-warning me-1"></i>Filtrar por deporte</label>
+                <select id="fx_filtro_deporte" class="form-select form-select-sm">
                     <option value="">— Todos los deportes —</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
                         <option value="<?= $dep['id_deporte'] ?>">
@@ -84,8 +84,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 </select>
             </div>
             <div class="col-md-5 col-lg-4">
-                <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-primary me-1"></i>Filtrar por categoría</label>
-                <select id="fx_filtro_categoria" class="form-select" disabled>
+                <label class="form-label small fw-semibold mb-1"><i class="bi bi-layers-fill text-warning me-1"></i>Filtrar por categoría</label>
+                <select id="fx_filtro_categoria" class="form-select form-select-sm" disabled>
                     <option value="">— Todas las categorías —</option>
                     <?php foreach ($categorias_fixture as $cat): ?>
                         <option value="<?= $cat['id_categoria'] ?>"
@@ -291,10 +291,15 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
+    // Bandera de "solo lectura" para el JS: con rol 'solo_lectura' NO se pintan
+    // los botones de editar/borrar de cada partido ni se crean los modales de
+    // escritura (nuevo partido / cargar resultados). Con 'superadmin' queda
+    // todo habilitado, igual que siempre.
+    const SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
 
     /* ---------- MODAL: resultados de deportes masivos (orden de llegada) ---------- */
     // (no se inserta en modo solo lectura: no se pueden cargar resultados)
-    if (!<?= $solo_lectura ? 'true' : 'false' ?> && !document.getElementById('modalMasivo')) {
+    if (!SOLO_LECTURA && !document.getElementById('modalMasivo')) {
         document.body.insertAdjacentHTML('beforeend', `
         <div class="modal fade" id="modalMasivo" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -617,7 +622,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             lista.innerHTML = '<div class="fx-vacio text-center text-muted py-5">' +
                 '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"><i class="bi bi-calendar-x fs-2"></i></span>' +
                 '<div class="fw-semibold">Todavía no hay ningún partido cargado.</div>' +
-                '<div class="small mt-1">Creá uno manual con el botón <strong>+ Nuevo partido</strong>.</div></div>';
+                (SOLO_LECTURA
+                    ? '<div class="small mt-1">Tu usuario es de solo lectura: esperá a que un administrador cargue el fixture.</div>'
+                    : '<div class="small mt-1">Creá uno manual con el botón <strong>+ Nuevo partido</strong>.</div>') + '</div>';
             return;
         }
 
