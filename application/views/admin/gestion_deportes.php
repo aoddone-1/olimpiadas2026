@@ -14,6 +14,34 @@
 <body>
 
 <?php $this->load->view('admin/header_admin'); ?>
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla de Gestión Deportiva queda de solo lectura (sin
+// crear, modificar ni eliminar deportes, categorías ni predios). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver los deportes, categorías, cronogramas y predios, pero no crearlos, modificarlos ni eliminarlos.
+</div>
+<?php endif; ?>
+
+<!-- PANEL GESTIÓN DEPORTIVA -->
+<div class="card fx-card shadow-sm border-0 mb-4 card-inscriptos">
+    <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <!-- Título con ícono suave en lugar de texto plano -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
+                    <i class="bi bi-trophy-fill text-warning"></i>
+                </span>
+                <span class="fx-header-titulo">Gestión Deportiva <u><?= LUGAR_OLIMPICO2 ?></u></span>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="container-fluid px-4 mb-5">
     <div class="row g-4">
@@ -22,9 +50,11 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-calendar-event text-success me-2"></i>Deportes</h6>
+                    <?php if (!$solo_lectura): ?>
                     <button class="btn btn-xs btn-success rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalDeporte">
                         <i class="bi bi-plus-circle me-1"></i> Nuevo Deporte
                     </button>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-3 scroll-panel">
                     <div class="row g-2">
@@ -65,6 +95,7 @@
                                                 </div>
                                             </div>
                                             
+                                            <?php if (!$solo_lectura): ?>
                                             <div class="d-flex gap-2">
                                                 <button type="button" class="text-muted btn-accion-panel btn-editar" data-bs-toggle="modal" data-bs-target="#modalEditarDeporte" data-id="<?= $d['id_deporte'] ?>" data-nombre="<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>" data-genero="<?= $d['genero'] ?>" data-fiscales="<?= htmlspecialchars($d['fiscales'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="Editar Deporte">
                                                     <i class="bi bi-pencil-square fs-6"></i>
@@ -73,6 +104,7 @@
                                                     <i class="bi bi-trash3-fill fs-6"></i>
                                                 </a>
                                             </div>
+                                            <?php endif; ?>
                                         </div>
                                         
                                         <div class="list-group list-group-flush bg-transparent">
@@ -104,9 +136,11 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-tags-fill text-primary me-2"></i>Listado de Categorías</h6>
+                    <?php if (!$solo_lectura): ?>
                     <button class="btn btn-xs btn-primary rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalCategoria">
                         <i class="bi bi-plus-circle me-1"></i>Nueva Categoría
                     </button>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-3 scroll-panel">
                     <!-- Filtro por deporte -->
@@ -126,7 +160,9 @@
                                 <tr>
                                     <th>Categoría / Deporte</th>
                                     <th class="text-center">Cronograma</th>
+                                    <?php if (!$solo_lectura): ?>
                                     <th class="text-end">Acciones</th>
+                                    <?php endif; ?>
                                 </tr>
                             </thead>
                             <tbody id="tabla_categorias_body">
@@ -147,6 +183,7 @@
                                                         <small class="d-block text-nowrap"><i class="bi bi-calendar3 me-1 text-muted"></i><?= !empty($c['dia_competencia']) ? date('d/m', strtotime($c['dia_competencia'])) : '--/--' ?> <i class="bi bi-clock me-1 ms-2 text-muted"></i><?= !empty($c['hora_competencia']) ? date('H:i', strtotime($c['hora_competencia'])) : '--:--' ?> hs</small>
                                                         <small class="d-block text-muted text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($c['nombre_lugar'] ?? '', ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-geo-alt-fill me-1"></i><?= !empty($c['nombre_lugar']) ? htmlspecialchars($c['nombre_lugar'], ENT_QUOTES, 'UTF-8') : 'Sin lugar asignado' ?></small>
                                                     </td>
+                                                    <?php if (!$solo_lectura): ?>
                                                     <td class="text-end">
                                                         <div class="d-flex justify-content-end gap-2">
                                                             <button type="button" class="text-muted btn-accion-panel btn-editar" 
@@ -170,6 +207,7 @@
                                                             </a>
                                                         </div>
                                                     </td>
+                                                    <?php endif; ?>
                                                 </tr>
                                 <?php 
                                             endforeach;
@@ -177,7 +215,7 @@
                                     endforeach;
                                 endif;
                                 if(!$hay_categorias): ?>
-                                    <tr><td colspan="3" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
+                                    <tr><td colspan="<?= $solo_lectura ? 2 : 3 ?>" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -190,9 +228,11 @@
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-geo-alt-fill text-danger me-2"></i>Predios / Sedes</h6>
+                    <?php if (!$solo_lectura): ?>
                     <button class="btn btn-xs btn-danger rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalLugar">
                         <i class="bi bi-plus-circle me-1"></i> Nueva Sede
                     </button>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-3 scroll-panel">
                     <ul class="list-group list-group-flush">
@@ -203,6 +243,7 @@
                                         <span class="fw-bold text-dark d-block"><i class="bi bi-building me-1 text-muted"></i> <?= htmlspecialchars($lug['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
                                         <small class="text-muted"><i class="bi bi-signpost-fill me-1"></i> <?= !empty($lug['direccion']) ? htmlspecialchars($lug['direccion'], ENT_QUOTES, 'UTF-8') : 'Sin dirección cargada' ?></small>
                                     </div>
+                                    <?php if (!$solo_lectura): ?>
                                     <div class="d-flex gap-2 ms-2">
                                         <button type="button" class="text-muted btn-accion-panel btn-editar"
                                                 data-bs-toggle="modal" 
@@ -217,6 +258,7 @@
                                             <i class="bi bi-x-circle fs-6"></i>
                                         </a>
                                     </div>
+                                    <?php endif; ?>
                                 </li>
                             <?php endforeach; ?>
                         <?php else: ?>
@@ -534,7 +576,32 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+// MODO SOLO LECTURA (viene del PHP de arriba según el rol del usuario):
+// con 'solo_lectura' no se puede crear, modificar ni eliminar nada.
+// Con 'superadmin' vale false y todo queda igual que siempre.
+const SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
+
 document.addEventListener('DOMContentLoaded', function () {
+
+    // Seguridad solo_lectura: si somehow quedara algún formulario de escritura
+    // visible (p. ej. abriendo el modal directo por URL), se bloquea el envío.
+    if (SOLO_LECTURA) {
+        document.querySelectorAll('form[action*="Inscripciones/"]').forEach(function (form) {
+            form.addEventListener('submit', function (e) {
+                e.preventDefault();
+                if (window.Swal && typeof window.Swal.fire === 'function') {
+                    window.Swal.fire({
+                        title: 'Solo lectura',
+                        text: 'Tu usuario es de solo lectura: no tenés permisos para guardar cambios.',
+                        icon: 'warning',
+                        confirmButtonText: 'Entendido'
+                    });
+                } else {
+                    alert('Tu usuario es de solo lectura: no tenés permisos para guardar cambios.');
+                }
+            });
+        });
+    }
     
     /* ---------- Confirmación estilizada (SweetAlert2 si está cargado) ---------- */
     function confirmarAccion(texto, icono, btnOk, btnCancelar) {

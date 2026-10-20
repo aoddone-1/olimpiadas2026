@@ -381,6 +381,8 @@ class Inscripciones extends CI_Controller {
         if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login');
         }
+        // Seguridad solo_lectura: no se pueden crear categorías.
+        $this->bloqueo_solo_lectura();
 
         $this->load->model('Categoria_model');
         
@@ -396,7 +398,9 @@ class Inscripciones extends CI_Controller {
         redirect('Inscripciones/gestion_deportes');
     }
     public function eliminar_categoria($id_categoria) {
-        if (!empty($id_categoria)) {
+        if (!empty($id_categoria)) {            // Seguridad solo_lectura: no se pueden eliminar categorías.
+            $this->bloqueo_solo_lectura();
+
             $this->Categoria_model->eliminar_categoria($id_categoria);
             $this->session->set_flashdata('msg_ok', 'Categoría eliminada correctamente.');
         }
@@ -406,6 +410,9 @@ class Inscripciones extends CI_Controller {
     // --- EDITAR CATEGORÍA ---
     public function editar_categoria() {
         $id_categoria = $this->input->post('id_categoria');
+        // Seguridad solo_lectura: no se pueden modificar categorías.
+        $this->bloqueo_solo_lectura();
+
         
         $data = [
             'nombre_categoria' => $this->input->post('nombre_categoria'),
@@ -432,6 +439,9 @@ class Inscripciones extends CI_Controller {
         if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login');
         }
+        // Seguridad solo_lectura: no se pueden crear predios.
+        $this->bloqueo_solo_lectura();
+
 
         $this->load->model('Deporte_model');
         
@@ -448,7 +458,9 @@ class Inscripciones extends CI_Controller {
 
     // --- ELIMINAR LUGAR ---
     public function eliminar_lugar($id_lugar) {
-        if (!empty($id_lugar)) {
+        if (!empty($id_lugar)) {            // Seguridad solo_lectura: no se pueden eliminar predios.
+            $this->bloqueo_solo_lectura();
+
             $this->Deporte_model->eliminar_lugar($id_lugar);
             $this->session->set_flashdata('msg_ok', 'Sede/Predio eliminado correctamente.');
         }
@@ -458,6 +470,9 @@ class Inscripciones extends CI_Controller {
     // --- EDITAR LUGAR ---
     public function editar_lugar() {
         $id_lugar = $this->input->post('id_lugar');
+        // Seguridad solo_lectura: no se pueden modificar predios.
+        $this->bloqueo_solo_lectura();
+
         
         $data = [
             'nombre'    => $this->input->post('nombre'),
@@ -639,6 +654,9 @@ class Inscripciones extends CI_Controller {
      */
     public function guardar_deporte() {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
+        // Seguridad solo_lectura: no se pueden crear deportes.
+        $this->bloqueo_solo_lectura();
+
 
         $data['nombre_deporte'] = $this->input->post('nombre_deporte', TRUE);
         $data['genero'] = $this->input->post('genero', TRUE);
@@ -652,6 +670,9 @@ class Inscripciones extends CI_Controller {
      */
     public function eliminar_deporte($id_deporte) {
         if (!$this->session->userdata('is_organizador')) { redirect('Inscripciones/login'); }
+        // Seguridad solo_lectura: no se pueden eliminar deportes.
+        $this->bloqueo_solo_lectura();
+
 
         if (!empty($id_deporte) && is_numeric($id_deporte)) {
             // Al borrar el deporte, quitamos también sus categorías para no dejar registros huérfanos
@@ -663,6 +684,9 @@ class Inscripciones extends CI_Controller {
 
     public function editar_deporte() {
         $id_deporte = $this->input->post('id_deporte');
+        // Seguridad solo_lectura: no se pueden modificar deportes.
+        $this->bloqueo_solo_lectura();
+
         $data = [
             'nombre_deporte' => $this->input->post('nombre_deporte'),
             'genero'         => $this->input->post('genero'),
