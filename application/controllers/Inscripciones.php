@@ -730,8 +730,11 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/inscripciones', $data);
     }
     public function fixture() {
-        // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login');
+        }
+        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -846,9 +849,10 @@ class Inscripciones extends CI_Controller {
      * ============================================================ */
 
     private function _fixture_auth_json() {
-        // Solo superadmin/admin pueden gestionar el fixture
+        // Solo superadmin/admin/solo_lectura pueden acceder a los endpoints del
+        // fixture; las ESCRITURAS se bloquean aparte con bloqueo_solo_lectura().
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => false, 'error' => 'No autorizado')));
@@ -991,6 +995,7 @@ class Inscripciones extends CI_Controller {
     /** Genera automáticamente el fixture de una categoría. */
     public function ajax_generar_fixture() {
         if (!$this->_fixture_auth_json()) return;
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_categoria = (int) $this->input->post('id_categoria');
         try {
@@ -1014,6 +1019,7 @@ class Inscripciones extends CI_Controller {
         // (nunca un HTTP 500 con HTML que el JS no puede parsear).
         try {
             if (!$this->_fixture_auth_json()) return;
+            $this->bloqueo_solo_lectura(TRUE);
 
             $datos = $this->input->post();
             if (empty($datos['id_categoria']) || empty($datos['nombre_prueba'])
@@ -1038,6 +1044,7 @@ class Inscripciones extends CI_Controller {
     /** Registrar ganador de un partido (clasifica a la siguiente fase). */
     public function ajax_resultado_partido() {
         if (!$this->_fixture_auth_json()) return;
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_fixture = (int) $this->input->post('id_fixture');
         $id_ganador = (int) $this->input->post('id_ganador');
@@ -1057,6 +1064,7 @@ class Inscripciones extends CI_Controller {
     /** Registrar resultado de un deporte masivo (JORNADA_UNICA): orden de llegada. */
     public function ajax_resultado_masivo() {
         if (!$this->_fixture_auth_json()) return;
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_fixture = (int) $this->input->post('id_fixture');
         $ute_ids = $this->input->post('ute_ids'); // array en el orden elegido
@@ -1085,7 +1093,7 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_csv_fixture() {
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             redirect('Inscripciones/login');
         }
 
@@ -1250,7 +1258,7 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_pdf_fixture() {
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             redirect('Inscripciones/login');
         }
 
@@ -1333,7 +1341,7 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_planilla_categoria($id_categoria = null) {
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             redirect('Inscripciones/login');
         }
 
@@ -1393,7 +1401,7 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_planilla_deporte($id_deporte = null) {
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             redirect('Inscripciones/login');
         }
 
@@ -1449,7 +1457,7 @@ class Inscripciones extends CI_Controller {
      */
     public function descargar_planillas_vacias() {
         if (!$this->session->userdata('is_organizador')
-            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin'))) {
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
             redirect('Inscripciones/login');
         }
 
@@ -1548,6 +1556,7 @@ class Inscripciones extends CI_Controller {
     /** Borrar todo el fixture de una categoría. */
     public function ajax_eliminar_fixture() {
         if (!$this->_fixture_auth_json()) return;
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_categoria = (int) $this->input->post('id_categoria');
         $this->Fixture_model->eliminar_fixture_por_categoria($id_categoria);
@@ -1559,6 +1568,7 @@ class Inscripciones extends CI_Controller {
     /** Borrar un partido individual. */
     public function ajax_eliminar_partido() {
         if (!$this->_fixture_auth_json()) return;
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_fixture = (int) $this->input->post('id_fixture');
         $this->Fixture_model->eliminar_partido($id_fixture);
