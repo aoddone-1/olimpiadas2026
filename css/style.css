@@ -9,6 +9,12 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 .nav-menu { background: #fff; border-bottom: 1px solid #dee2e6; }
 .nav-menu .nav-link { color: #495057; font-weight: 500; padding: 12px 20px; }
 .nav-menu .nav-link.active { color: #1e3c72; border-bottom: 3px solid #1e3c72; border-radius: 0; }
+/* Separación visual del ítem "Usuarios" (solo superadmin) */
+.nav-menu .vr-nav { width: 1px; height: 28px; background: #dee2e6; align-self: center; margin: 0 10px; list-style: none; }
+.nav-menu .nav-link-usuarios { color: #1e3c72; font-weight: 600; background: #fff8e1; border: 1px solid #ffc107; border-radius: 8px; margin: 6px 0; padding: 6px 16px; }
+.nav-menu .nav-link-usuarios:hover { background: #ffecb3; }
+.nav-menu .nav-link-usuarios.active { border-bottom: 1px solid #ffc107; background: #ffe082; }
+.usuario-logueado { font-size: .85rem; font-weight: 600; }
 .card-grafico { border: none; border-radius: 15px; }
 
 /* Forzamos el comportamiento por si los estilos nativos fallan */

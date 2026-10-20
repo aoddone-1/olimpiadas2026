@@ -60,8 +60,9 @@
                 </a>
             </li>
             <?php if ($this->session->userdata('user_rol') === 'superadmin'): ?>
-            <li class="nav-item">
-                <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'usuarios') ? 'active' : ''; ?>"
+            <li class="vr-nav d-none d-lg-block" aria-hidden="true"></li>
+            <li class="nav-item ms-1">
+                <a class="nav-link nav-link-usuarios <?= (isset($menu_activo) && $menu_activo === 'usuarios') ? 'active' : ''; ?>"
                    href="<?= base_url('Inscripciones/gestion_usuarios') ?>">
                     <i class="bi bi-person-gear me-2"></i> Usuarios
                 </a>
@@ -69,9 +70,18 @@
             <?php endif; ?>
         </ul>
         
-        <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
-            <i class="bi bi-box-arrow-right me-1"></i> Salir
-        </a>
+        <div class="d-flex align-items-center gap-3">
+            <?php if ($this->session->userdata('user_nombre')): ?>
+            <span class="usuario-logueado badge text-bg-secondary rounded-pill px-3 py-2">
+                <i class="bi bi-person-circle me-1"></i>
+                <?= html_escape($this->session->userdata('user_nombre')) ?>
+                <small class="text-white-50 ms-1">(<?= html_escape($this->session->userdata('user_rol') ?: '') ?>)</small>
+            </span>
+            <?php endif; ?>
+            <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">
+                <i class="bi bi-box-arrow-right me-1"></i> Salir
+            </a>
+        </div>
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
