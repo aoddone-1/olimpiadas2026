@@ -774,8 +774,11 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/resultados', $data);
     }
     public function utes_equipos() {
-        // Seguridad Superadmin
-        if (!$this->session->userdata('is_organizador') || $this->session->userdata('user_rol') !== 'superadmin') {
+        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        if (!$this->session->userdata('is_organizador')) {
+            redirect('Inscripciones/login');
+        }
+        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -2258,6 +2261,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Seguridad solo_lectura: no puede crear UTEs
+        $this->bloqueo_solo_lectura(TRUE);
+
         $nombre_ute = $this->input->post('nombre_ute');
         $id_categoria = $this->input->post('id_categoria');
         $genero = $this->input->post('genero');
@@ -2287,6 +2293,9 @@ class Inscripciones extends CI_Controller {
             echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
             return;
         }
+
+        // Seguridad solo_lectura: no puede modificar UTEs
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
         $nombre_ute = $this->input->post('nombre_ute');
@@ -2328,6 +2337,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Seguridad solo_lectura: no puede modificar la composición de las UTEs
+        $this->bloqueo_solo_lectura(TRUE);
+
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
 
@@ -2365,6 +2377,9 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
+        // Seguridad solo_lectura: no puede quitar integrantes de las UTEs
+        $this->bloqueo_solo_lectura(TRUE);
+
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
 
@@ -2393,6 +2408,9 @@ class Inscripciones extends CI_Controller {
             echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
             return;
         }
+
+        // Seguridad solo_lectura: no puede eliminar UTEs
+        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
 

@@ -15,6 +15,19 @@
 <body>
 
 <?php $this->load->view('admin/header_admin'); ?>
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla de UTEs/Equipos queda de solo lectura (sin
+// crear, modificar ni eliminar). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y buscar las UTEs/Equipos y sus integrantes, pero no crearlos, modificarlos ni eliminarlos.
+</div>
+<?php endif; ?>
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
@@ -27,9 +40,11 @@
                 <span class="badge bg-secondary ms-2" id="contador-equipos">0 filas</span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <?php if (!$solo_lectura): ?>
                 <button class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#modalCrearUTE">
                     <i class="bi bi-plus-circle me-1"></i>
                 </button>
+                <?php endif; ?>
                 <div class="position-relative" style="max-width: 300px; width: 100%;">
                     <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
                     <input type="text" 
@@ -162,6 +177,7 @@
                                             title="Ver integrantes">
                                         <i class="bi bi-search"></i>
                                     </button>
+                                    <?php if (!$solo_lectura): ?>
                                     <span class="vr mx-1 text-muted opacity-25"></span>
                                     <button type="button" class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion btn-agregar-integrante"
                                             data-id-ute="<?= $ute['id_ute'] ?>"
@@ -186,6 +202,7 @@
                                             title="Eliminar UTE">
                                         <i class="bi bi-trash3-fill"></i>
                                     </button>
+                                    <?php endif; ?>
                                 </div>
                             </td>
                         </tr>
@@ -215,6 +232,7 @@
     </div>
 </div>
 
+<?php if (!$solo_lectura): ?>
 <!-- Modal Crear UTE -->
 <div class="modal fade" id="modalCrearUTE" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -265,6 +283,9 @@
     </div>
 </div>
 
+<?php endif; ?>
+
+<?php if (!$solo_lectura): ?>
 <!-- Modal Editar UTE -->
 <div class="modal fade" id="modalEditarUTE" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -304,6 +325,8 @@
     </div>
 </div>
 
+<?php endif; ?>
+
 <!-- Modal Ver Integrantes -->
 <div class="modal fade" id="modalVerIntegrantes" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -327,7 +350,9 @@
                                 <th>DNI</th>
                                 <th>Delegación</th>
                                 <th>Sexo</th>
+                                <?php if (!$solo_lectura): ?>
                                 <th class="text-end">Acción</th>
+                                <?php endif; ?>
                             </tr>
                         </thead>
                         <tbody id="lista-integrantes">
@@ -546,6 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     title="Ver integrantes">
                                 <i class="bi bi-search"></i>
                             </button>
+                            <?php if (!$solo_lectura): ?>
                             <span class="vr mx-1 text-muted opacity-25"></span>
                             <button type="button" class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion btn-agregar-integrante"
                                     data-id-ute="${data.id_ute}"
@@ -570,6 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     title="Eliminar UTE">
                                 <i class="bi bi-trash3-fill"></i>
                             </button>
+                            <?php endif; ?>
                         </div>
                     </td>
                 `;
@@ -633,6 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>${int.dni}</td>
                                 <td>${int.delegacion}</td>
                                 <td>${int.sexo}</td>
+                                <?php if (!$solo_lectura): ?>
                                 <td class="text-end">
                                     <button class="btn btn-sm btn-outline-danger btn-quitar-integrante" 
                                             data-id-ute="${idUte}" 
@@ -641,11 +669,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <i class="bi bi-x-circle"></i>
                                     </button>
                                 </td>
+                                <?php endif; ?>
                             `;
                             tbody.appendChild(tr);
                         });
                     } else {
-                        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">Sin integrantes</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="<?= $solo_lectura ? 4 : 5 ?>" class="text-center text-muted py-3">Sin integrantes</td></tr>';
                     }
                     
                     new bootstrap.Modal(document.getElementById('modalVerIntegrantes')).show();
