@@ -89,6 +89,14 @@
 .badge.text-dark, .badge.text-dark * { color: #000 !important; }
 .pm-hero .pm-chip, .pm-hero .pm-chip * { color: #fff; }
 </style>
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla del Fixture queda de solo lectura (sin
+// crear, modificar ni eliminar partidos). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-white pt-3 fw-bold text-secondary d-flex flex-column gap-3">

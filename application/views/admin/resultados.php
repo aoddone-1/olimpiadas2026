@@ -15,6 +15,15 @@
 <body>
 
 <?php $this->load->view('admin/header_admin'); ?>
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla del Fixture queda de solo lectura (sin
+// crear, modificar ni eliminar partidos). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+
 <!-- PANEL RESULTADOS -->
 <style>
 /* Podio "top 3" de deportes con tiempo: fondo claro + SIEMPRE letra negra
@@ -23,6 +32,11 @@
 .rs-podio.badge strong,
 .rs-podio.badge span { color: #000 !important; background-color: #fff !important; }
 </style>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar los resultados, pero no crear, modificar ni eliminar.
+</div>
+<?php endif; ?>
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
