@@ -14,6 +14,20 @@
 </head>
 <body>
 
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla de Fixture queda de solo lectura (sin
+// crear, editar, eliminar partidos ni cargar resultados).
+// Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar el fixture y descargar sus reportes, pero no crear, modificar ni eliminar partidos ni resultados.
+</div>
+<?php endif; ?>
 <?php $this->load->view('admin/header_admin'); ?>
 <!-- PANEL FIXTURE -->
 <div class="card fx-card shadow-sm border-0">
@@ -85,9 +99,11 @@
             <div class="col-md-12 col-lg-5">
                 <label class="form-label small fw-bold d-none d-lg-block">&nbsp;</label>
                 <div class="d-flex flex-wrap gap-2 fx-acciones">
+                    <?php if (!$solo_lectura): ?>
                     <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
                         <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
+                    <?php endif; ?>
                     <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF de 2 páginas en blanco para completar a mano (planilla de participantes y planilla de partidos)">
                         <i class="bi bi-file-earmark-arrow-down-fill"></i><span class="ms-2">Descargar planillas vacías</span>
                     </button>
@@ -129,7 +145,8 @@
     </div>
 </div>
 
-<!-- MODAL: crear/editar partido -->
+<!-- MODAL: crear/editar partido (oculto en modo solo lectura) -->
+<?php if (!$solo_lectura): ?>
 <div class="modal fade" id="modalPartido" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -247,6 +264,7 @@
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- MODAL: detalle de participantes (partido o categoría) -->
 <div class="modal fade" id="modalDetalle" tabindex="-1">
@@ -272,7 +290,8 @@
     const BASE = '<?= base_url("Inscripciones") ?>';
 
     /* ---------- MODAL: resultados de deportes masivos (orden de llegada) ---------- */
-    if (!document.getElementById('modalMasivo')) {
+    // (no se inserta en modo solo lectura: no se pueden cargar resultados)
+    if (!<?= $solo_lectura ? 'true' : 'false' ?> && !document.getElementById('modalMasivo')) {
         document.body.insertAdjacentHTML('beforeend', `
         <div class="modal fade" id="modalMasivo" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -343,7 +362,16 @@
     // Día seleccionado: HOY si cae dentro del calendario oficial; si no, el primer día
     let diaActual = (hoyISO() >= INICIO_COMPETENCIA && hoyISO() <= FIN_COMPETENCIA)
         ? hoyISO() : INICIO_COMPETENCIA;
-    let modalPartido = new bootstrap.Modal(document.getElementById('modalPartido'));
+    // Modal de partido/jornada: el HTML solo se renderiza para roles con
+    // permisos de escritura; en modo solo lectura se crea "perezoso" para
+    // que la página no rompa si algún flujo intenta abrirlo.
+    let modalPartido = null;
+    function getModalPartido() {
+        const el = document.getElementById('modalPartido');
+        if (!el) return null;
+        if (!modalPartido) modalPartido = new bootstrap.Modal(el);
+        return modalPartido;
+    }
     let modalMasivo = null;   // se crea al primer uso (el HTML está más abajo)
     // Modal de detalle de participantes: instancia Bootstrap creada ACÁ
     // (antes faltaba esta línea y el botón "Detalle" tiraba ReferenceError).
@@ -1234,7 +1262,8 @@
             document.getElementById('fx_cat_hidden').value = '';
             cargarUtesDelModal('');
         }
-        modalPartido.show();
+        const m = getModalPartido();
+        if (m) m.show();
     }
 
     /* ---------- Resultados de deportes masivos (JORNADA_UNICA) ---------- */
@@ -1331,7 +1360,7 @@
         }
         post('ajax_guardar_partido', datos).then(res => {
             if (res.ok) {
-                modalPartido.hide();
+                if (modalPartido) modalPartido.hide();
                 mensaje(res.mensaje, 'success');
                 cargarTodo();
             } else {
