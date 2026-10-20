@@ -15,14 +15,27 @@
 <body>
 
 <?php $this->load->view('admin/header_admin'); ?>
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla del Fixture queda de solo lectura (sin
+// crear, modificar ni eliminar partidos). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y filtrar el fixture, descargar planillas y reportes, pero no crear, modificar ni eliminar partidos.
+</div>
+<?php endif; ?>
 <!-- PANEL FIXTURE -->
-<div class="card fx-card shadow-sm border-0">
+<div class="card fx-card shadow-sm border-0 card-inscriptos">
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
             <!-- Título con ícono suave en lugar de texto plano -->
             <div class="d-flex align-items-center gap-2">
                 <span class="fx-header-icon d-inline-flex align-items-center justify-content-center">
-                    <i class="bi bi-calendar3"></i>
+                    <i class="bi bi-calendar3 text-warning"></i>
                 </span>
                 <span class="fx-header-titulo">Gestión de Fixture <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
@@ -85,9 +98,11 @@
             <div class="col-md-12 col-lg-5">
                 <label class="form-label small fw-bold d-none d-lg-block">&nbsp;</label>
                 <div class="d-flex flex-wrap gap-2 fx-acciones">
+                    <?php if (!$solo_lectura): ?>
                     <button id="fx_btn_nuevo" class="btn fx-btn-round fx-btn-nuevo" title="Crear un partido manual">
                         <i class="bi bi-plus-circle-fill"></i><span class="ms-2">Nuevo partido</span>
                     </button>
+                    <?php endif; ?>
                     <button id="fx_btn_planillas_vacias" class="btn fx-btn-round fx-btn-descargar" title="Descarga un PDF de 2 páginas en blanco para completar a mano (planilla de participantes y planilla de partidos)">
                         <i class="bi bi-file-earmark-arrow-down-fill"></i><span class="ms-2">Descargar planillas vacías</span>
                     </button>
@@ -270,6 +285,10 @@
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
+    // MODO SOLO LECTURA (viene del PHP de arriba según el rol del usuario):
+    // con 'solo_lectura' se ocultan todas las acciones de escritura (nuevo,
+    // editar, eliminar y guardar). Con 'superadmin' vale false y todo queda igual que siempre.
+    const SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
 
     /* ---------- MODAL: resultados de deportes masivos (orden de llegada) ---------- */
     if (!document.getElementById('modalMasivo')) {
@@ -586,7 +605,9 @@
             lista.innerHTML = '<div class="fx-vacio text-center text-muted py-5">' +
                 '<span class="fx-vacio-icon d-inline-flex align-items-center justify-content-center mb-3"><i class="bi bi-calendar-x fs-2"></i></span>' +
                 '<div class="fw-semibold">Todavía no hay ningún partido cargado.</div>' +
-                '<div class="small mt-1">Creá uno manual con el botón <strong>+ Nuevo partido</strong>.</div></div>';
+                (SOLO_LECTURA
+                    ? '<div class="small mt-1">Tu usuario es de solo lectura: esperá a que un administrador cargue el fixture.</div>'
+                    : '<div class="small mt-1">Creá uno manual con el botón <strong>+ Nuevo partido</strong>.</div>') + '</div>';
             return;
         }
 
@@ -747,6 +768,7 @@
                                 <button class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
                                     <i class="bi bi-search"></i>
                                 </button>
+                                ${SOLO_LECTURA ? '' : `
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
                                     <i class="bi bi-pencil-fill"></i>
@@ -754,7 +776,7 @@
                                 <span class="vr mx-1 text-muted opacity-25"></span>
                                 <button class="btn btn-sm btn-light text-danger border-0 rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
                                     <i class="bi bi-trash3-fill"></i>
-                                </button>
+                                </button>`}
                             </div>
                             
                             
@@ -1294,6 +1316,11 @@
     });
 
     document.getElementById('fxm_guardar').addEventListener('click', () => {
+        // Seguridad solo_lectura: no se pueden cargar resultados.
+        if (SOLO_LECTURA) {
+            mensaje('Tu usuario es de solo lectura: no podés guardar resultados.', 'warning');
+            return;
+        }
         if (!jornadaActual) return;
         // Enviar SOLO los equipos que "llegaron" (antes del cursor), en orden.
         const limite = jornadaActual._limite || 0;
@@ -1316,6 +1343,11 @@
     });
 
     document.getElementById('fx_btn_guardar').addEventListener('click', () => {
+        // Seguridad solo_lectura: no se puede crear ni modificar partidos.
+        if (SOLO_LECTURA) {
+            mensaje('Tu usuario es de solo lectura: no podés guardar partidos.', 'warning');
+            return;
+        }
         const datos = Object.fromEntries(new FormData(document.getElementById('form_partido')).entries());
         if (!selDeporteModal.value) {
             mensaje('Elegí el deporte dentro del formulario.', 'warning');
@@ -1525,7 +1557,9 @@
     btnLimpiarFiltros.addEventListener('click', limpiarFiltros);
 
     /* ---------- Acciones ---------- */
-    btnNuevo.addEventListener('click', () => abrirModal(null));
+    // El botón "Nuevo partido" solo se renderiza para superadmin; con el rol
+    // solo_lectura no existe en el DOM, por eso el guard.
+    if (btnNuevo) btnNuevo.addEventListener('click', () => abrirModal(null));
 
     btnPlanillasVacias.addEventListener('click', () => {
         // Descarga el PDF de planillas VACÍAS: 2 páginas en blanco, con título
