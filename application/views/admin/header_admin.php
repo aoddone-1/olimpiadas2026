@@ -59,6 +59,14 @@
                     <i class="bi bi-award-fill me-1"></i> Premiación
                 </a>
             </li>
+            <?php if ($this->session->userdata('user_rol') === 'superadmin'): ?>
+            <li class="nav-item">
+                <a class="nav-link <?= (isset($menu_activo) && $menu_activo === 'usuarios') ? 'active' : ''; ?>"
+                   href="<?= base_url('Inscripciones/gestion_usuarios') ?>">
+                    <i class="bi bi-person-gear me-2"></i> Usuarios
+                </a>
+            </li>
+            <?php endif; ?>
         </ul>
         
         <a href="<?= base_url('Inscripciones/logout') ?>" class="btn btn-sm btn-outline-danger rounded-pill px-3">

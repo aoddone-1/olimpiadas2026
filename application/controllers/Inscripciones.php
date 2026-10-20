@@ -2613,4 +2613,182 @@ class Inscripciones extends CI_Controller {
         fclose($output);
         exit;
     }
+
+    // ====================================================================
+    // GESTOR DE USUARIOS (exclusivo rol superadmin)
+    // ====================================================================
+
+    /**
+     * Guard: todas las acciones del gestor exigen sesión iniciada Y rol
+     * 'superadmin'. Cualquier otro rol es devuelto al login.
+     */
+    private function requiere_superadmin() {
+        if (!$this->session->userdata('is_organizador')
+            && !$this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/login');
+        }
+        if ($this->session->userdata('user_rol') !== 'superadmin') {
+            show_error('No tenés permisos para acceder al Gestor de Usuarios. Solo rol SUPERADMIN.', 403);
+            exit;
+        }
+    }
+
+    /**
+     * Pantalla principal del gestor: listado de usuarios + modales.
+     */
+    public function gestion_usuarios() {
+        $this->requiere_superadmin();
+
+        $this->load->model('Usuario_model');
+
+        $data['usuarios']       = $this->Usuario_model->obtener_todos();
+        $data['roles']          = $this->Usuario_model->roles_validos();
+        $data['menu_activo']    = 'usuarios';
+        $data['yo_id']          = $this->session->userdata('user_id');
+
+        $this->load->view('admin/gestion_usuarios', $data);
+    }
+
+    /**
+     * Crear un usuario nuevo.
+     */
+    public function crear_usuario() {
+        $this->requiere_superadmin();
+        $this->load->model('Usuario_model');
+
+        $username       = trim((string) $this->input->post('username', TRUE));
+        $password       = (string) $this->input->post('password', FALSE); // cruda por compatibilidad con el login actual
+        $nombre_usuario = mb_strtoupper(trim((string) $this->input->post('nombre_usuario')), 'UTF-8');
+        $rol            = $this->input->post('rol', TRUE);
+
+        $roles_validos  = array_keys($this->Usuario_model->roles_validos());
+
+        // Validaciones
+        if ($username === '' || $password === '' || !in_array($rol, $roles_validos, TRUE)) {
+            $this->session->set_flashdata('mensaje_error', 'Completá usuario, contraseña y un rol válido.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+        if (strlen($password) < 4) {
+            $this->session->set_flashdata('mensaje_error', 'La contraseña debe tener al menos 4 caracteres.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+        if ($this->Usuario_model->username_existe($username)) {
+            $this->session->set_flashdata('mensaje_error', 'El usuario "' . html_escape($username) . '" ya existe.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        $creado = $this->Usuario_model->crear(array(
+            'username'       => $username,
+            'password'       => $password,
+            'rol'            => $rol,
+            'nombre_usuario' => $nombre_usuario ?: $username
+        ));
+
+        if ($creado) {
+            $this->session->set_flashdata('mensaje_exito', 'Usuario "' . html_escape($username) . '" creado correctamente.');
+        } else {
+            $this->session->set_flashdata('mensaje_error', 'No se pudo crear el usuario.');
+        }
+        redirect('Inscripciones/gestion_usuarios');
+    }
+
+    /**
+     * Editar rol y/o nombre visible de un usuario existente.
+     */
+    public function editar_usuario() {
+        $this->requiere_superadmin();
+        $this->load->model('Usuario_model');
+
+        $id_usuario     = intval($this->input->post('id_usuario'));
+        $nombre_usuario = mb_strtoupper(trim((string) $this->input->post('nombre_usuario')), 'UTF-8');
+        $rol            = $this->input->post('rol', TRUE);
+
+        $usuario_actual = $this->Usuario_model->obtener_por_id($id_usuario);
+        $roles_validos  = array_keys($this->Usuario_model->roles_validos());
+
+        if (!$usuario_actual || !in_array($rol, $roles_validos, TRUE)) {
+            $this->session->set_flashdata('mensaje_error', 'Usuario o rol no válido.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        // Seguridad: no permitir que el sistema quede sin superadmins
+        // (descender al único superadmin que queda).
+        if ($usuario_actual['rol'] === 'superadmin' && $rol !== 'superadmin'
+            && $this->Usuario_model->contar_superadmins() <= 1) {
+            $this->session->set_flashdata('mensaje_error', 'No podés quitarle el rol superadmin al último administrador del sistema.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        $this->Usuario_model->actualizar($id_usuario, array(
+            'rol'            => $rol,
+            'nombre_usuario' => $nombre_usuario ?: $usuario_actual['username']
+        ));
+
+        // Si el editado soy yo, actualizo la sesión con el nuevo rol/nombre
+        if ($id_usuario == $this->session->userdata('user_id')) {
+            $this->session->set_userdata(array(
+                'user_rol'    => $rol,
+                'user_nombre' => $nombre_usuario ?: $usuario_actual['username']
+            ));
+        }
+
+        $this->session->set_flashdata('mensaje_exito', 'Usuario "' . html_escape($usuario_actual['username']) . '" actualizado.');
+        redirect('Inscripciones/gestion_usuarios');
+    }
+
+    /**
+     * Resetear / cambiar la contraseña de un usuario.
+     */
+    public function cambiar_password_usuario() {
+        $this->requiere_superadmin();
+        $this->load->model('Usuario_model');
+
+        $id_usuario = intval($this->input->post('id_usuario'));
+        $password   = (string) $this->input->post('nuevo_password', FALSE);
+
+        $usuario_actual = $this->Usuario_model->obtener_por_id($id_usuario);
+
+        if (!$usuario_actual) {
+            $this->session->set_flashdata('mensaje_error', 'Usuario no encontrado.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+        if (strlen($password) < 4) {
+            $this->session->set_flashdata('mensaje_error', 'La nueva contraseña debe tener al menos 4 caracteres.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        $this->Usuario_model->cambiar_password($id_usuario, $password);
+        $this->session->set_flashdata('mensaje_exito', 'Contraseña de "' . html_escape($usuario_actual['username']) . '" actualizada.');
+        redirect('Inscripciones/gestion_usuarios');
+    }
+
+    /**
+     * Eliminar un usuario.
+     */
+    public function eliminar_usuario($id_usuario = NULL) {
+        $this->requiere_superadmin();
+
+        if (empty($id_usuario)) {
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        $this->load->model('Usuario_model');
+        $usuario_actual = $this->Usuario_model->obtener_por_id($id_usuario);
+
+        if (!$usuario_actual) {
+            $this->session->set_flashdata('mensaje_error', 'Usuario no encontrado.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        // No dejar el sistema sin superadmins
+        if ($usuario_actual['rol'] === 'superadmin'
+            && $this->Usuario_model->contar_superadmins() <= 1) {
+            $this->session->set_flashdata('mensaje_error', 'No podés eliminar al último superadmin del sistema.');
+            redirect('Inscripciones/gestion_usuarios');
+        }
+
+        $this->Usuario_model->eliminar($id_usuario);
+        $this->session->set_flashdata('mensaje_exito', 'Usuario "' . html_escape($usuario_actual['username']) . '" eliminado.');
+        redirect('Inscripciones/gestion_usuarios');
+    }
 }
