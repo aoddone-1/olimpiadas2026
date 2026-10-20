@@ -17,6 +17,20 @@
 <?php $this->load->view('admin/header_admin'); ?>
 <?php include("modals/control_total_modals.php");?>
 
+<?php
+// ============================================
+// MODO SOLO LECTURA: si el rol del usuario es 'solo_lectura',
+// toda la pantalla de inscriptos queda de solo lectura (sin
+// crear, modificar ni eliminar). Con 'superadmin' funciona igual que siempre.
+// ============================================
+$solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
+?>
+<?php if ($solo_lectura): ?>
+<div class="alert alert-info mb-3 border-0 shadow-sm rounded-pill py-2 small fw-semibold text-center" role="alert">
+    <i class="bi bi-eye-fill me-1"></i> Estás en modo SOLO LECTURA: podés ver y buscar los inscriptos, pero no crearlos, modificarlos ni eliminarlos.
+</div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 mb-4 card-inscriptos">
 
     <div class="card-header fx-card-header fw-bold text-secondary d-flex flex-column gap-3">
@@ -30,11 +44,14 @@
                 <span class="badge bg-secondary ms-2" id="contador-inscripciones"><?= count($listado_inscripciones) ?> filas</span>            
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <?php if (!$solo_lectura): ?>
                 <button type="button" class="btn btn-lg  btn-warning"
                         data-bs-toggle="modal" data-bs-target="#modalImprimirCredenciales">
                     <i class="bi bi-person-badge-fill me-1"></i>
                 </button>
+                <?php endif; ?>
 
+                <?php if (!$solo_lectura): ?>
                 <a href="<?= base_url('Inscripciones/nueva_inscripcion') ?>" 
 
                    class="btn btn-lg btn-danger"
@@ -46,6 +63,7 @@
                     
 
                 </a>
+                <?php endif; ?>
 
                 
 
@@ -442,6 +460,8 @@
 
                                 </button>
 
+                                <?php if (!$solo_lectura): ?>
+
                                 <span class="vr mx-1 text-muted opacity-25"></span>
 
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
@@ -469,6 +489,7 @@
                                     <i class="bi bi-trash3-fill"></i>
 
                                 </button>
+                                <?php endif; ?>
 
                             </div>
 
