@@ -477,44 +477,134 @@ document.addEventListener('DOMContentLoaded', function() {
     /* ---------- Base del controlador (mismo patrón que fixture/premiacion/resultados) ---------- */
     const BASE_UTE = '<?= base_url("Inscripciones") ?>';
 
-    /* ---------- Cache-buster ----------
-       Algunos proxies/firewalls de hostings (LiteSpeed + ModSecurity, tipo
-       WNpower) inspeccionan los POST y pueden bloquearlos con 403 HTML antes
-       de que CodeIgniter ejecute nada. En las pantallas que SIEMPRE funcionaron
-       (gestion de deportes via formularios POST nativos, fixture, resultados,
-       premiacion) las escrituras se envian como application/x-www-form-urlencoded
-       SIN cabecera Accept: application/json (que es justo la que hace que varios
-       WAF clasifiquen el request como "API sospechosa"). Aca replicamos ese
-       estilo exacto de peticion, y ademas sumamos un timestamp en la query
-       ("cache-buster") para que la URL sea unica por peticion: eso evita que
-       cualquier caché intermedia devuelva respuestas viejas o paginas de error. */
-    function urlConCacheBuster(url) {
-        const sep = url.indexOf('?') === -1 ? '?' : '&';
-        return url + sep + '_=' + Date.now();
+    /* ---------- Parseo defensivo de listas JSON (participantes disponibles) ----------
+       El endpoint devuelve un ARRAY de participantes en el éxito, pero un OBJETO
+       {success:false,...} cuando la sesión cayó. Esta función normaliza ambos
+       casos para no confundir un error con "lista vacía". */
+    function parsearListaJson(data) {
+        if (Array.isArray(data)) return { ok: true, lista: data };
+        if (data && typeof data === 'object') {
+            if (data.success === false) return { ok: false, error: data.error || 'Error en el servidor', sesion_caida: !!data.sesion_caida };
+            // Objeto sin success:false y sin claves de lista -> lo tomamos como array vacío
+            return { ok: true, lista: [] };
+        }
+        return { ok: true, lista: [] };
     }
 
-    /* ---------- POST AJAX estilo fixture/resultados para UTEs/Equipos ----------
-       Mismas caracteristicas que el post() de fixture.php (la pantalla que
-       funciona bien): FormData (urlencoded), sin cabecera Accept: application/json,
-       cache: 'no-store' y cache-buster en la URL. Se conserva el parseo
-       defensivo (parseJsonResponse) para detectar sesiones caidas o paginas
-       HTML del firewall en vez de romper con "Unexpected token '<'". */
+    /* ---------- POST AJAX estilo gestión_deportes.php ----------
+       En Gestión Deportiva TODAS las modificaciones se hacen con <form
+       method="POST"> NATIVOS (action="Inscripciones/guardar_deporte", etc.):
+       el navegador envía la petición como application/x-www-form-urlencoded,
+       sin fetch(), sin cabeceras extra (ni Accept: application/json, ni
+       X-Requested-With) y sin query "cache-buster" en la URL. Ese es justo el
+       tipo de petición que los firewalls/WAF de algunos hostings (LiteSpeed +
+       ModSecurity) NO bloquean, mientras que el fetch() con headers de API
+       les parece sospechoso y cortaba todo con 403 HTML.
+       Para replicar ese comportamiento 100% sin perder la experiencia de
+       "no recargar la página", cada acción crea un <form> oculto REAL con el
+       mismo action/method que usa gestión_deportes y lo envía a un IFRAME
+       invisible: la petición saliente es idéntica a la de un submit nativo
+       (urlencoded, sin headers custom). La respuesta JSON del servidor se
+       lee desde el iframe para seguir actualizando la tabla en vivo; si el
+       iframe devolviera HTML (firewall/sesión), se muestra el error amigable. */
     function postAjaxUte(url, formData) {
-        return fetch(urlConCacheBuster(url), {
-            method: 'POST',
-            body: formData,
-            cache: 'no-store'
-        })
-        .then(response => parseJsonResponse(response));
+        return enviarFormularioNativoAiframe(url, formData, 'POST');
     }
 
-    /* ---------- GET AJAX estilo fixture.php (getJSON) ---------- */
+    /* ---------- GET AJAX estilo gestión_deportes.php ----------
+       Misma idea: submit nativo por iframe (esta vez con método GET, como
+       cuando se navega un enlace normal). Así las lecturas (detalle de UTE,
+       participantes disponibles) tampoco llevan cabeceras de API. */
     function getAjaxUte(url) {
-        return fetch(urlConCacheBuster(url), {
-            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' },
-            cache: 'no-store'
-        })
-        .then(response => parseJsonResponse(response));
+        return enviarFormularioNativoAiframe(url, null, 'GET');
+    }
+
+    function enviarFormularioNativoAiframe(url, formData, metodo) {
+        return new Promise(function (resolver, rejector) {
+            // Nombre único por petición para poder leer el iframe correcto
+            var nombreTarget = 'ute_frame_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+
+            // 1) Iframe invisible que recibe la respuesta (sin fetch ni headers)
+            var iframe = document.createElement('iframe');
+            iframe.name = nombreTarget;
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
+            // 2) Formulario real, igual a los de gestión_deportes.php
+            var form = document.createElement('form');
+            form.method = metodo;                 // 'POST' o 'GET', urlencoded nativo
+            form.action = url;                    // sin ?_=timestamp (eso era parte del patrón "API" que el WAF cortaba)
+            form.target = nombreTarget;
+            form.acceptCharset = 'UTF-8';
+            form.style.display = 'none';
+
+            if (formData) {
+                formData.forEach(function (valor, clave) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = clave;
+                    input.value = valor;
+                    form.appendChild(input);
+                });
+            }
+
+            document.body.appendChild(form);
+
+            // 3) Lectura de la respuesta desde el iframe
+            var resuelto = false;
+            function limpiar() {
+                setTimeout(function () {
+                    if (form.parentNode) form.parentNode.removeChild(form);
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                }, 1500);
+            }
+            function interpretarRespuesta() {
+                if (resuelto) return;
+                resuelto = true;
+                var texto = '';
+                try {
+                    var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+                    if (doc && doc.body) {
+                        texto = doc.body.innerHTML;
+                        // Si el servidor devolvió JSON plano, algunos navegadores
+                        // lo muestran dentro de <pre>; sacamos el texto crudo.
+                        var pre = doc.querySelector('pre');
+                        if (pre && pre.textContent) texto = pre.textContent;
+                    }
+                } catch (err) {
+                    texto = '';
+                }
+                limpiar();
+                try {
+                    resolver(JSON.parse(texto));
+                } catch (e) {
+                    console.error('[equipos][AJAX] La respuesta no es JSON. Body recibido:\n' + texto);
+                    var errFinal = new Error('El servidor bloqueó la operación (403). Puede ser tu rol de solo lectura, la sesión expirada o el firewall del hosting.');
+                    if (/login|password|contraseña|contrasena/i.test(texto) && /^\s*</.test(texto)) {
+                        errFinal.message = 'Tu sesión expiró. Recargá la página e ingresá nuevamente.';
+                    } else if (/firewall|mod_?security|sucuri|blocked the request|abuse detection/i.test(texto)) {
+                        errFinal.message = 'El firewall del hosting bloqueó esta petición (403). El body completo quedó en la consola (F12) para pasarlo al proveedor del hosting.';
+                    }
+                    rejector(errFinal);
+                }
+            }
+            // onload cubre todos los navegadores; readystatechange ayuda en IE/Edge viejo
+            iframe.addEventListener('load', interpretarRespuesta);
+            iframe.addEventListener('readystatechange', function () {
+                if (iframe.readyState === 'complete') interpretarRespuesta();
+            });
+            // Red de seguridad: si el hosting tarda muchísimo, no dejar el botón colgado
+            setTimeout(function () {
+                if (!resuelto) {
+                    resuelto = true;
+                    limpiar();
+                    rejector(new Error('El servidor tardó demasiado en responder. Recargá la página e intentá de nuevo.'));
+                }
+            }, 30000);
+
+            // 4) Submit NATIVO del formulario (idéntico a gestión_deportes.php)
+            form.submit();
+        });
     }
 
     /* ---------- Limpieza anti-"pantalla gris bloqueada" ----------
@@ -625,6 +715,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         postAjaxUte(BASE_UTE + '/ajax_crear_ute', formData)
         .then(data => {
+            // Sesión caída o sin permisos (respuesta JSON del guard del controlador)
+            if (data && data.sesion_caida) {
+                alertar('Sesión expirada', data.error, 'warning').then(() => location.reload());
+                return;
+            }
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
                 const modalCrear = bootstrap.Modal.getInstance(document.getElementById('modalCrearUTE'));
@@ -773,6 +868,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
             getAjaxUte(BASE_UTE + '/ajax_detalle_ute/' + idUte)
             .then(ute => {
+                // Respuestas de error en JSON (sesión caída, sin permisos, etc.)
+                if (ute && ute.success === false) {
+                    if (ute.sesion_caida) {
+                        alertar('Sesión expirada', ute.error, 'warning').then(() => location.reload());
+                    } else {
+                        alertar('Error', ute.error, 'error');
+                    }
+                    return;
+                }
                 if (ute && ute.nombre_ute) {
                     document.getElementById('nombre-ute-modal').textContent = ute.nombre_ute;
                     const generoUteDetalle = (ute.genero || ute.genero_categoria || '').toUpperCase();
@@ -896,10 +1000,25 @@ document.addEventListener('DOMContentLoaded', function() {
             
             getAjaxUte(BASE_UTE + '/ajax_participantes_disponibles/' + idCategoria)
             .then(participantes => {
+                const resultado = parsearListaJson(participantes);
+
+                // Sesión caída: avisar y recargar (igual que en las escrituras)
+                if (!resultado.ok && resultado.sesion_caida) {
+                    select.innerHTML = '<option value="" disabled>Sesión expirada</option>';
+                    alertar('Sesión expirada', resultado.error, 'warning').then(() => location.reload());
+                    return;
+                }
+                // Otro error del servidor: mostrarlo explícitamente
+                if (!resultado.ok) {
+                    select.innerHTML = '<option value="" disabled>Error al cargar</option>';
+                    alertar('Error', resultado.error, 'error');
+                    return;
+                }
+
                 select.innerHTML = '<option value="">Seleccione un participante...</option>';
                 
-                if (participantes && participantes.length > 0) {
-                    participantes.forEach(p => {
+                if (resultado.lista && resultado.lista.length > 0) {
+                    resultado.lista.forEach(p => {
                         const option = document.createElement('option');
                         option.value = p.id_participante;
                         option.textContent = `${p.nombre_completo} (${p.dni}) - ${p.delegacion}`;
