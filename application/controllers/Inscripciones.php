@@ -2408,9 +2408,17 @@ class Inscripciones extends CI_Controller {
      */
     public function ajax_participantes_disponibles($id_categoria) {
         header('Content-Type: application/json');
-        
+
+        // Igual que los endpoints de escritura (_ute_auth_write_json): la
+        // respuesta SIEMPRE es JSON con 'success'. Antes, si la sesión estaba
+        // caída devolvía solo {'error': ...} y equipos.js lo trataba como
+        // "lista de participantes" vacía sin mostrar el problema real.
         if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['error' => 'No tenés permisos']);
+            echo json_encode([
+                'success'      => false,
+                'error'        => 'Tu sesión expiró. Recargá la página e ingresá nuevamente.',
+                'sesion_caida' => TRUE,
+            ]);
             return;
         }
 
@@ -2594,16 +2602,26 @@ class Inscripciones extends CI_Controller {
      */
     public function ajax_detalle_ute($id_ute) {
         header('Content-Type: application/json');
-        
+
+        // Igual que los endpoints de escritura (_ute_auth_write_json): la
+        // respuesta SIEMPRE es JSON con 'success'.
         if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['error' => 'No tenés permisos']);
+            echo json_encode([
+                'success'      => false,
+                'error'        => 'Tu sesión expiró. Recargá la página e ingresá nuevamente.',
+                'sesion_caida' => TRUE,
+            ]);
             return;
         }
 
         $this->load->model('UTE_model');
         $ute = $this->UTE_model->obtener_ute_con_integrantes($id_ute);
-        
-        echo json_encode($ute);
+
+        if ($ute) {
+            echo json_encode($ute);
+        } else {
+            echo json_encode(['success' => false, 'error' => 'No se encontró la UTE solicitada']);
+        }
     }
     
     // ==========================================
