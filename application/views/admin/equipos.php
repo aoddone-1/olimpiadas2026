@@ -45,12 +45,16 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     <i class="bi bi-plus-circle me-1"></i>
                 </button>
                 <?php endif; ?>
+                <!-- IMPORTANTE: el ícono va con pointer-events:none. Si no, al hacer
+                     click sobre él (o muy cerca del borde) el foco NO cae en el input
+                     y el cursor titilante desaparece enseguida, imposibilitando escribir. -->
                 <div class="position-relative" style="max-width: 300px; width: 100%;">
-                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+                    <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted" style="pointer-events:none;"></i>
                     <input type="text" 
                            id="inputBuscarEquipo" 
                            class="form-control form-control-sm rounded-pill ps-5 bg-light" 
-                           placeholder="Buscar por Nombre UTE, Deporte...">
+                           placeholder="Buscar por Nombre UTE, Deporte..."
+                           autocomplete="off">
                 </div>
             </div>
         </div>
@@ -430,7 +434,37 @@ document.addEventListener('DOMContentLoaded', function() {
        Al encadenar Bootstrap modal + SweetAlert2 pueden quedar rezagados
        el backdrop de Bootstrap (.modal-backdrop), el overlay de Swal o las
        clases modal-open / swal2-shown en <body>, dejando la página "gris"
-       e inservible tras cerrar todo. Se limpia luego de cada alerta/confirm. */
+       e inservible tras cerrar todo. Se limpia luego de cada alerta/confirm.
+
+       REGLA DE ORO: nunca limpiar mientras el usuario está INTERACTUANDO con
+       la página (escribiendo, seleccionando texto, usando un <select>, etc.).
+       Las versiones anteriores barrían los overlays en CADA mouseup/keydown
+       (400ms después), y eso provocaba los 3 bugs reportados:
+         - el blur() final le robaba el foco al buscador (el cursor titilante
+           aparecía y desaparecía solo, imposibilitando escribir);
+         - remover backdrops huérfanos durante una selección cerraba de golpe
+           el desplegable nativo de los filtros <select>;
+         - el barrido intermitente alteraba el layout/re-pintado y rompía la
+           paginación en algunos roles.
+       Ahora la limpieza corre SOLO cuando la página está inactiva: tras
+       cerrar un modal/alerta explícitamente, o diferida unos segundos después
+       del último evento y únicamente si no hay ningún elemento interactivo
+       enfocado ni texto seleccionado. */
+    var ultimoEventoInteraccion = 0;   // timestamp del último click/tecla
+    var timerBarridoInactivo = null;   // timeout del barrido diferido
+
+    function hayInteraccionActiva() {
+        var activo = document.activeElement;
+        if (activo && ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].indexOf(activo.tagName) !== -1) {
+            return true; // el usuario está usando un control: NO tocar nada
+        }
+        var sel = window.getSelection ? window.getSelection() : null;
+        if (sel && !sel.isCollapsed && String(sel).length > 0) {
+            return true; // hay texto seleccionado: no re-pintar la página
+        }
+        return false;
+    }
+
     function limpiarOverlaysResiduales() {
         // 1) Si quedó algún modal de Bootstrap visible, no tocar nada
         //    (el backdrop le pertenece).
@@ -445,32 +479,34 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.swal2-container, .swal2-backdrop-show').forEach(function (o) { o.remove(); });
         }
 
-        // 4) Clases y estilos de bloqueo que quedan en <body>
+        // 4) Clases y estilos de bloqueo que quedan en <body>.
+        //    Solo quitar las clases; NUNCA hacer removeAttribute('style') en
+        //    condiciones de interacción activa (eso era parte del problema).
         document.body.classList.remove('modal-open', 'swal2-shown', 'swal2-toast-shown', 'swal2-height-auto');
-        document.body.removeAttribute('style'); // quita padding-right/overflow del scrollbar-lock
         document.documentElement.classList.remove('swal2-height-auto');
 
-        // 5) Por las dudas: devolver foco al documento.
-        //    Se evita quitarle el foco a un <select> activo, porque eso
-        //    cierra el desplegable nativo del filtro mientras se está usando.
-        var activo = document.activeElement;
-        if (activo && activo.blur && activo.tagName !== 'SELECT' && activo.tagName !== 'OPTION') {
-            activo.blur();
+        // 5) Devolver el scroll a la normalidad SI no hay interacción activa.
+        if (!hayInteraccionActiva()) {
+            document.body.removeAttribute('style'); // quita padding-right/overflow del scrollbar-lock
         }
     }
 
-    // Barrido preventivo: cubre los casos donde un Swal se cierra por fuera
-    // de nuestro código (click en el fondo, tecla Esc, etc.)
-    // IMPORTANTE: se excluye a los <select> y sus opciones. Si no, al abrir el
-    // desplegable de un filtro, el "mouseup" que se produce al elegir una opción
-    // dispara la limpieza y termina cerrando el select de golpe (y el blur()
-    // final también interfiere con la interacción nativa del desplegable).
-    ['mouseup', 'keydown'].forEach(function (evt) {
-        document.addEventListener(evt, function (e) {
-            var t = e.target;
-            if (t && (t.closest && (t.closest('select') || t.closest('.modal')))) return;
-            if (t && (t.tagName === 'SELECT' || t.tagName === 'OPTION')) return;
-            setTimeout(limpiarOverlaysResiduales, 400);
+    // Barrido preventivo DIFERIDO: cubre los casos donde un Swal se cierra por
+    // fuera de nuestro código (click en el fondo, tecla Esc, etc.). La limpieza
+    // solo se ejecuta pasados ~1,8s sin ninguna interacción nueva y siempre que
+    // el usuario no esté escribiendo/seleccionando (ver hayInteraccionActiva()).
+    ['mouseup', 'keyup', 'touchend'].forEach(function (evt) {
+        document.addEventListener(evt, function () {
+            ultimoEventoInteraccion = Date.now();
+            if (timerBarridoInactivo) clearTimeout(timerBarridoInactivo);
+            timerBarridoInactivo = setTimeout(function () {
+                timerBarridoInactivo = null;
+                // ¿Pasó algo nuevo mientras esperaba? -> reprogramar/no limpiar
+                if (Date.now() - ultimoEventoInteraccion < 1500) return;
+                // ¿El usuario tiene foco en un campo o texto seleccionado? -> no limpiar
+                if (hayInteraccionActiva()) return;
+                limpiarOverlaysResiduales();
+            }, 1800);
         });
     });
 
@@ -994,6 +1030,15 @@ document.addEventListener('DOMContentLoaded', function() {
     let paginaActualEquipos = 1;
     let filasFiltradasEquipos = [...filasEquipos];
 
+    // Normalizador de texto para comparar (los nombres vienen de la BD y pueden
+    // traer acentos o espacios de más; sin esto el filtro "no anda" porque
+    // "FÚTBOL" !== "futbol" al comparar).
+    const normalizarTexto = s => String(s || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
     function actualizarTablaEquipos() {
         const totalFilasEquipos = filasFiltradasEquipos.length;
         const totalPaginasEquipos = Math.ceil(totalFilasEquipos / filasPorPaginaEquipos) || 1;
@@ -1041,15 +1086,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button class="page-link" data-page-equipos="${paginaActualEquipos + 1}">&raquo;</button>
                     </li>`;
 
-                ulPaginacionEquipos.querySelectorAll('button').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const nuevaPagEquipos = parseInt(this.getAttribute('data-page-equipos'));
-                        if (nuevaPagEquipos >= 1 && nuevaPagEquipos <= totalPaginasEquipos) {
-                            paginaActualEquipos = nuevaPagEquipos;
-                            actualizarTablaEquipos();
-                        }
-                    });
-                });
+                // PAGINACIÓN ROBUSTA: los botones se crean dinámicamente acá, así que
+                // enlazarlos con addEventListener dentro de este bucle es frágil (se
+                // re-crea el innerHTML en cada render y cualquier error previo en la
+                // función impedía registrarlos -> los clicks no hacían nada).
+                // Se usa delegación de eventos UNA sola vez sobre el <ul>, que funciona
+                // siempre sin importar cuándo se re-rendericen los botones.
             }
         }
 
@@ -1065,33 +1107,33 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function aplicarFiltrosEquipos() {
-        const terminoBusqueda = inputBuscarEquipo.value.toLowerCase().trim();
-        const deporteSeleccionado = filtroDeporteEquipo.value.toLowerCase();
-        const categoriaSeleccionada = filtroCategoriaEquipo.value.toLowerCase();
+        const terminoBusqueda = normalizarTexto(inputBuscarEquipo.value);
+        const deporteSeleccionado = normalizarTexto(filtroDeporteEquipo.value);
+        const categoriaSeleccionada = normalizarTexto(filtroCategoriaEquipo.value);
 
         filasFiltradasEquipos = filasEquipos.filter(fila => {
             // Obtener datos de la fila
-            const textoFila = fila.textContent.toLowerCase();
-            
+            const textoFila = normalizarTexto(fila.textContent);
+
             const badgeDeporte = fila.querySelector('td:nth-child(1) .fw-semibold');
-            const deporteFila = badgeDeporte ? badgeDeporte.textContent.toLowerCase() : '';
-            
+            const deporteFila = badgeDeporte ? normalizarTexto(badgeDeporte.textContent) : '';
+
             const celdaCategoria = fila.querySelector('td:nth-child(2)');
-            const categoriaFila = celdaCategoria ? celdaCategoria.textContent.toLowerCase() : '';
+            const categoriaFila = celdaCategoria ? normalizarTexto(celdaCategoria.textContent) : '';
 
             // Aplicar filtros
             let coincide = true;
-            
+
             // Filtro por búsqueda de texto
             if (terminoBusqueda && !textoFila.includes(terminoBusqueda)) {
                 coincide = false;
             }
-            
-            // Filtro por deporte
-            if (deporteSeleccionado && (deporteFila!=deporteSeleccionado)) {
+
+            // Filtro por deporte (comparación normalizada: sin acentos ni espacios extra)
+            if (deporteSeleccionado && deporteFila !== deporteSeleccionado) {
                 coincide = false;
             }
-            
+
             // Filtro por categoría
             if (categoriaSeleccionada && !categoriaFila.includes(categoriaSeleccionada)) {
                 coincide = false;
@@ -1158,6 +1200,29 @@ document.addEventListener('DOMContentLoaded', function() {
             filtroCategoriaEquipo.value = '';
             actualizarCategoriasPorDeporte();
             aplicarFiltrosEquipos();
+        });
+    }
+
+    // ----------------------------------------------------
+    // PAGINACIÓN: delegación de eventos (un solo listener).
+    // Funciona para todos los roles (superadmin y solo_lectura) porque no
+    // depende de re-enlazar los botones cada vez que se re-renderiza el <ul>.
+    // ----------------------------------------------------
+    const ulPaginacionEquiposEl = document.getElementById('ulPaginacionEquipos');
+    if (ulPaginacionEquiposEl) {
+        ulPaginacionEquiposEl.addEventListener('click', function(e) {
+            const btnPag = e.target.closest('button[data-page-equipos]');
+            if (!btnPag) return;
+            if (btnPag.closest('.page-item') && btnPag.closest('.page-item').classList.contains('disabled')) return;
+            const nuevaPagEquipos = parseInt(btnPag.getAttribute('data-page-equipos'), 10);
+            const totalPags = Math.ceil(filasFiltradasEquipos.length / filasPorPaginaEquipos) || 1;
+            if (!isNaN(nuevaPagEquipos) && nuevaPagEquipos >= 1 && nuevaPagEquipos <= totalPags) {
+                paginaActualEquipos = nuevaPagEquipos;
+                actualizarTablaEquipos();
+                // Devolver la tabla a la vista al cambiar de página
+                const tabla = document.getElementById('tabla-utes');
+                if (tabla) tabla.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
         });
     }
 
