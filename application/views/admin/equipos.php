@@ -443,6 +443,15 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             return JSON.parse(text);
         } catch (e) {
+            // No era JSON: el servidor/firewall devolvio HTML. Registramos en
+            // consola un fragmento del cuerpo para diagnosticar CUAL capa
+            // bloqueo la peticion (ModSecurity, Cloudflare/AntiBot, pagina de
+            // login por sesion caida, error 500 con HTML, etc.).
+            const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 300);
+            console.warn('[parseJsonResponse] HTTP ' + response.status
+                + ' | URL: ' + response.url
+                + ' | Body (primeros 300 chars): ' + snippet);
+
             const err = new Error('La respuesta del servidor no es valida (HTTP ' + response.status + ')');
             err.httpStatus = response.status;
             if (response.status === 403 || /Forbidden/i.test(text)) {
@@ -454,6 +463,31 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             throw err;
         }
+    }
+
+    /* ---------- POST AJAX "anti-WAF" para UTEs/Equipos ----------
+       Contexto: en hostings como WNpower el ModSecurity / AntiBot evalua los
+       POST y puede responder 403 Forbidden ANTES de que CodeIgniter ejecute
+       nada. Los endpoints ajax_* de Inscripciones SIEMPRE responden JSON con
+       status 200 cuando niegan el acceso (ver _ute_auth_write_json), por lo
+       que un 403 real casi seguro proviene del firewall del hosting, no de la
+       app. Esta funcion centraliza los POST con:
+         - cabeceras X-Requested-With / Accept (muchos WAF whitelisteaban XHR
+           con esas cabeceras y las trataban como peticion legitima de JS),
+         - cache: 'no-store' (evita respuestas raras de caches intermediarios),
+         - el mismo parseo defensivo de siempre. */
+    async function postAjaxUte(url, formData) {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            body: formData,
+            credentials: 'same-origin',
+            cache: 'no-store'
+        });
+        return parseJsonResponse(response);
     }
 
     /* ---------- Limpieza anti-"pantalla gris bloqueada" ----------
@@ -562,11 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('nombre_ute', nombreUte);
         formData.append('genero', generoUte);
         
-        fetch('<?= base_url("Inscripciones/ajax_crear_ute") ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => parseJsonResponse(response))
+        postAjaxUte('<?= base_url("Inscripciones/ajax_crear_ute") ?>', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -707,6 +737,13 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const idUte = this.getAttribute('data-id-ute');
             
+            // SNAPSHOT del estado real de la UTE al abrir el modal. Si mas
+            // tarde el servidor/firewall bloquea (403) una baja o alta de
+            // integrante, restauramos esta lista exacta en vez de dejar la UI
+            // mostrando algo que NO se guardo en la BD.
+            window.__snapshotIntegrantes = document.getElementById('lista-integrantes')
+                ? document.getElementById('lista-integrantes').innerHTML : '';
+
             fetch('<?= base_url("Inscripciones/ajax_detalle_ute/") ?>' + idUte)
             .then(response => parseJsonResponse(response))
             .then(ute => {
@@ -771,11 +808,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('id_ute', idUte);
                 formData.append('id_participante', idParticipante);
                 
-                fetch('<?= base_url("Inscripciones/ajax_eliminar_participante_ute") ?>', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => parseJsonResponse(response))
+                postAjaxUte('<?= base_url("Inscripciones/ajax_eliminar_participante_ute") ?>', formData)
                 .then(data => {
                     if (data.sesion_caida) {
                         alertar('Sesión expirada', data.error, 'warning').then(() => location.reload());
@@ -804,6 +837,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error:', error);
+                    // El servidor NO confirmo la baja: restaurar la lista real
+                    // para no mostrar un participante "quitado" que sigue en la BD.
+                    const tbody = document.getElementById('lista-integrantes');
+                    if (tbody && window.__snapshotIntegrantes !== undefined) {
+                        tbody.innerHTML = window.__snapshotIntegrantes;
+                    }
                     alertar('Error', (error && error.message ? error.message : 'Error al quitar el participante'), 'error');
                 });
             });
@@ -874,11 +913,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('id_ute', idUte);
         formData.append('id_participante', idParticipante);
         
-        fetch('<?= base_url("Inscripciones/ajax_agregar_participante_ute") ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => parseJsonResponse(response))
+        postAjaxUte('<?= base_url("Inscripciones/ajax_agregar_participante_ute") ?>', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -954,11 +989,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('nombre_ute', nombreNuevo);
         formData.append('genero', generoNuevo);
 
-        fetch('<?= base_url("Inscripciones/ajax_actualizar_ute") ?>', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => parseJsonResponse(response))
+        postAjaxUte('<?= base_url("Inscripciones/ajax_actualizar_ute") ?>', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -1028,11 +1059,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData();
                 formData.append('id_ute', idUte);
                 
-                fetch('<?= base_url("Inscripciones/ajax_eliminar_ute") ?>', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => parseJsonResponse(response))
+                postAjaxUte('<?= base_url("Inscripciones/ajax_eliminar_ute") ?>', formData)
                 .then(data => {
                     if (data.success) {
                         const fila = document.getElementById('ute-fila-' + idUte);

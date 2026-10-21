@@ -4,6 +4,20 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Inscripciones extends CI_Controller {
 
     public function __construct() {
+        // Blindaje de sesion para hostings tipo WNpower (CloudLinux + LiteSpeed):
+        // ahi las sesiones en /tmp se pierden o son "compartidas/reasignadas" y
+        // el navegador llega a mandar el session ID viejo sin cookie
+        // ci_session. Si existe nuestra copia app_sid_ref (seteada al hacer
+        // login), restaurarla como ci_session ANTES de que CodeIgniter lea la
+        // sesion; si no, los POST AJAX quedan "sin sesion" y el guard responde
+        // error (que detras de un WAF puede verse como 403 HTML -> "El
+        // servidor bloqueó la operación").
+        if (PHP_SAPI !== 'cli'
+            && !isset($_COOKIE['ci_session'])
+            && !empty($_COOKIE['app_sid_ref'])) {
+            $_COOKIE['ci_session'] = $_COOKIE['app_sid_ref'];
+        }
+
         parent::__construct();
         $this->load->library('Pdf');
         $this->load->model('Deporte_model');
@@ -524,6 +538,20 @@ class Inscripciones extends CI_Controller {
 
     // 3. Procesar el formulario de Login
     public function procesar_login() {
+        // Guardar una copia del session ID en una cookie propia (no depende
+        // de /tmp ni del handler del hosting). Sirve para recuperar la sesion
+        // si el servidor "olvida" ci_session entre requests (típico de
+        // LiteSpeed/CloudLinux con cleanup agresivo de sesiones).
+        @session_start();
+        $id_session = session_id();
+        if (!empty($id_session)) {
+            setcookie('app_sid_ref', $id_session, [
+                'path'     => '/',
+                'httponly' => TRUE,
+                'samesite' => 'Lax',
+            ]);
+        }
+
         $this->load->model('Usuario_model');
         $usuario = $this->input->post('usuario');
         $password = $this->input->post('password');
