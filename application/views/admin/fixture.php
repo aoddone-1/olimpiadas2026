@@ -476,53 +476,123 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         return Promise.resolve(window.alert(titulo + '\n\n' + texto));
     }
 
-    // No-cache en las peticiones AJAX: sin esto, el navegador puede servir la
-    // respuesta de ajax_fixture_todo desde el cache (o desde "bfcache" al volver
-    // atrás) y el listado no refleja los cambios hasta apretar F5.
-    const FETCH_NO_CACHE = { cache: 'no-store' };
+    /* ---------- POST/GET AJAX estilo gestión_deportes.php ----------
+       En Gestión Deportiva TODAS las modificaciones se hacen con <form
+       method="POST"> NATIVOS: el navegador envía la petición como
+       application/x-www-form-urlencoded, sin fetch(), sin cabeceras extra
+       (ni Accept: application/json, ni X-Requested-With) y sin query
+       "cache-buster" en la URL. Ese es justo el tipo de petición que los
+       firewalls/WAF de algunos hostings (nginx/LiteSpeed + ModSecurity) NO
+       bloquean, mientras que el fetch() con headers de API les parece
+       sospechoso y cortaba todo con 403 HTML ("403 Forbidden" de nginx).
+       Para replicar ese comportamiento 100% sin perder la experiencia de
+       "no recargar la página", cada acción crea un <form> oculto REAL con el
+       mismo action/method que usa gestión_deportes y lo envía a un IFRAME
+       invisible: la petición saliente es idéntica a la de un submit nativo
+       (urlencoded, sin headers custom). La respuesta JSON del servidor se
+       lee desde el iframe para seguir actualizando la tabla en vivo; si el
+       iframe devolviera HTML (firewall/sesión), se muestra el error amigable.
+       (Mismo mecanismo ya probado y funcionando en equipos.php.) */
+    function enviarFormularioNativoAiframe(url, formData, metodo) {
+        return new Promise(function (resolver, rejector) {
+            // Nombre único por petición para poder leer el iframe correcto
+            var nombreTarget = 'fx_frame_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+
+            // 1) Iframe invisible que recibe la respuesta (sin fetch ni headers)
+            var iframe = document.createElement('iframe');
+            iframe.name = nombreTarget;
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
+            // 2) Formulario real, igual a los de gestión_deportes.php
+            var form = document.createElement('form');
+            form.method = metodo;                 // 'POST' o 'GET', urlencoded nativo
+            form.action = url;                    // sin ?_=timestamp (eso era parte del patrón "API" que el WAF cortaba)
+            form.target = nombreTarget;
+            form.acceptCharset = 'UTF-8';
+            form.style.display = 'none';
+
+            if (formData) {
+                formData.forEach(function (valor, clave) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = clave;
+                    input.value = valor;
+                    form.appendChild(input);
+                });
+            }
+
+            document.body.appendChild(form);
+
+            // 3) Lectura de la respuesta desde el iframe
+            var resuelto = false;
+            function limpiar() {
+                setTimeout(function () {
+                    if (form.parentNode) form.parentNode.removeChild(form);
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                }, 1500);
+            }
+            function interpretarRespuesta() {
+                if (resuelto) return;
+                resuelto = true;
+                var texto = '';
+                try {
+                    var doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+                    if (doc && doc.body) {
+                        texto = doc.body.innerHTML;
+                        // Si el servidor devolvió JSON plano, algunos navegadores
+                        // lo muestran dentro de <pre>; sacamos el texto crudo.
+                        var pre = doc.querySelector('pre');
+                        if (pre && pre.textContent) texto = pre.textContent;
+                    }
+                } catch (err) {
+                    texto = '';
+                }
+                limpiar();
+                try {
+                    resolver(JSON.parse(texto));
+                } catch (e) {
+                    console.error('[fixture][AJAX] La respuesta de ' + url + ' no es JSON. Body recibido:\n' + texto);
+                    var errFinal = new Error('El servidor bloqueó la operación (403). Puede ser tu rol de solo lectura, la sesión expirada o el firewall del hosting.');
+                    if (/login|password|contraseña|contrasena/i.test(texto) && /^\s*</.test(texto)) {
+                        errFinal.message = 'Tu sesión expiró. Recargá la página e ingresá nuevamente.';
+                    } else if (/firewall|mod_?security|sucuri|blocked the request|abuse detection|403 forbidden/i.test(texto)) {
+                        errFinal.message = 'El firewall del hosting bloqueó esta petición (403). El body completo quedó en la consola (F12) para pasarlo al proveedor del hosting.';
+                    }
+                    rejector(errFinal);
+                }
+            }
+            // onload cubre todos los navegadores; readystatechange ayuda en IE/Edge viejo
+            iframe.addEventListener('load', interpretarRespuesta);
+            iframe.addEventListener('readystatechange', function () {
+                if (iframe.readyState === 'complete') interpretarRespuesta();
+            });
+            // Red de seguridad: si el hosting tarda muchísimo, no dejar el botón colgado
+            setTimeout(function () {
+                if (!resuelto) {
+                    resuelto = true;
+                    limpiar();
+                    rejector(new Error('El servidor tardó demasiado en responder. Recargá la página e intentá de nuevo.'));
+                }
+            }, 30000);
+
+            // 4) Submit NATIVO del formulario (idéntico a gestión_deportes.php)
+            form.submit();
+        });
+    }
 
     function post(url, datos) {
-        const form = new FormData();
-        Object.keys(datos).forEach(k => form.append(k, datos[k]));
-        // El timestamp en la query es un "cache-buster": algunos proxies y el
-        // propio navegador pueden cachear respuestas POST si la URL no cambia;
-        // con una URL única por petición eso no ocurre nunca más.
-        const sep = url.indexOf('?') === -1 ? '?' : '&';
-        return fetch(BASE + '/' + url + sep + '_=' + Date.now(),
-                     { method: 'POST', body: form, cache: 'no-store' })
-            .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
-            .then(({ status, txt }) => {
-                try {
-                    return JSON.parse(txt);
-                } catch (e) {
-                    console.error('Respuesta no-JSON de ' + url + ' (HTTP ' + status + '):', txt.slice(0, 2000));
-                    throw new Error('El servidor devolvió una respuesta inesperada (HTTP ' + status + ' en ' + url + '). Revisá la consola.');
-                }
-            });
+        var form = new FormData();
+        Object.keys(datos).forEach(function (k) { form.append(k, datos[k]); });
+        return enviarFormularioNativoAiframe(BASE + '/' + url, form, 'POST');
     }
 
     function getJSON(url) {
-        // Cache-buster en la URL: sin esto, el navegador/proxy puede devolver la
-        // respuesta anterior de ajax_fixture_todo y los cambios (alta/edición)
-        // recién se ven apretando F5. Se lee el texto primero: si CodeIgniter
-        // devolvió un error fatal (HTML), lo detectamos acá en vez de romper con
-        // "Unexpected token <" al parsear JSON.
-        const sep = url.indexOf('?') === -1 ? '?' : '&';
-        return fetch(BASE + '/' + url + sep + '_=' + Date.now(), {
-                headers: { 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' },
-                cache: 'no-store'
-            })
-            .then(r => r.text().then(txt => ({ status: r.status, txt: txt })))
-            .then(({ status, txt }) => {
-                try {
-                    return JSON.parse(txt);
-                } catch (e) {
-                    console.error('Respuesta no-JSON de ' + url + ' (HTTP ' + status + '):', txt.slice(0, 2000));
-                    const m = txt.match(/<title>([^<]*)<\/title>/i);
-                    throw new Error('El servidor respondió HTML (HTTP ' + status + ')' +
-                        (m ? ': ' + m[1] : '') + '. Revisá los logs de PHP.');
-                }
-            });
+        // GET nativo por iframe (como navegar un enlace normal): sin headers de
+        // API. Las cabeceras anti-cache del lado del servidor (ver
+        // _fixture_no_cache_headers en Inscripciones.php) reemplazan al viejo
+        // "?_=timestamp" de la URL, que era parte del patrón que el WAF cortaba.
+        return enviarFormularioNativoAiframe(BASE + '/' + url, null, 'GET');
     }
 
     function fechaArma(f) {
@@ -1073,8 +1143,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 if (!idsCats.length) { render(); return; }
 
                 Promise.all(idsCats.map(idCat =>
-                    fetch(BASE + '/ajax_fixture_categoria/' + idCat, { cache: 'no-store' })
-                        .then(r => r.json())
+                    getJSON('ajax_fixture_categoria/' + idCat)
                         .then(rr => ({ idCat: idCat, utes: rr.ok ? (rr.utes || []) : [] }))
                         .catch(() => ({ idCat: idCat, utes: [] }))
                 )).then(results => {
@@ -1106,11 +1175,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             if (cb) cb();
             return;
         }
-        // cache: 'no-store' → los equipos de la categoría se piden SIEMPRE
-        // frescos al servidor (si venía una respuesta cacheada, el modal de
-        // edición mostraba datos viejos y había que hacer F5).
-        fetch(BASE + '/ajax_fixture_categoria/' + idCategoria, { cache: 'no-store' })
-            .then(r => r.json())
+        // Los equipos de la categoría se piden SIEMPRE frescos al servidor con
+        // el submit nativo por iframe (igual que gestión_deportes.php): sin
+        // fetch() ni headers, el firewall del hosting no lo corta, y las
+        // cabeceras anti-cache del servidor evitan respuestas viejas (modal de
+        // edición con datos antiguos sin necesidad de F5).
+        getJSON('ajax_fixture_categoria/' + idCategoria)
             .then(res => {
                 const utes = (res.ok ? res.utes : []);
                 [sel1, sel2].forEach(sel => {
@@ -1121,6 +1191,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     });
                 });
                 if (cb) cb(utes);
+            })
+            .catch(err => {
+                console.error('[fixture]', err);
+                if (cb) cb([]);
             });
     }
 
@@ -1128,10 +1202,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     // Las categorías de cada deporte se cargan por AJAX al seleccionar el
     // deporte (endpoint Inscripciones/ajax_categorias_por_deporte/$id). Se
     // cachean por deporte para no repetir la consulta al abrir el modal.
-    // OJO: el cache es SOLO en memoria (CATS_CACHE); usamos 'no-store' en la
-    // fetch para que el navegador no devuelva una respuesta HTTP vieja — con
-    // una categoría recién creada, eso hacía que el modal no la mostrara hasta
-    // apretar F5.
+    // OJO: el cache es SOLO en memoria (CATS_CACHE); la petición va con submit
+    // nativo por iframe (igual que gestión_deportes.php) + cabeceras anti-cache
+    // del servidor — así el firewall no la corta y una categoría recién creada
+    // aparece sin necesidad de apretar F5.
     const CATS_CACHE = {};       // id_deporte -> array de categorías
     const CATS_PETICION = {};    // id_deporte -> Promise en vuelo / resuelta
     const selDeporteModal = document.getElementById('fx_modal_deporte');
@@ -1143,14 +1217,13 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         if (!idDeporte) return Promise.resolve([]);
         const key = String(idDeporte);
         if (CATS_PETICION[key]) return CATS_PETICION[key];
-        CATS_PETICION[key] = fetch(BASE + '/ajax_categorias_por_deporte/' + key, { cache: 'no-store' })
-            .then(r => r.json())
+        CATS_PETICION[key] = getJSON('ajax_categorias_por_deporte/' + key)
             .then(res => {
                 const cats = (res && res.ok) ? (res.categorias || []) : [];
                 CATS_CACHE[key] = cats;
                 return cats;
             })
-            .catch(() => { CATS_CACHE[key] = []; return []; });
+            .catch(() => { delete CATS_PETICION[key]; CATS_CACHE[key] = []; return []; });
         return CATS_PETICION[key];
     }
 
@@ -1369,7 +1442,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             } else {
                 mensaje(res.error, 'danger');
             }
-        });
+        }).catch(err => mensaje(err.message, 'danger'));
     });
 
     /* ---------- Selector de DÍA: botones solo para los días del calendario oficial ---------- */
