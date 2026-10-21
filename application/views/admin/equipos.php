@@ -444,50 +444,77 @@ document.addEventListener('DOMContentLoaded', function() {
             return JSON.parse(text);
         } catch (e) {
             // No era JSON: el servidor/firewall devolvio HTML. Registramos en
-            // consola un fragmento del cuerpo para diagnosticar CUAL capa
-            // bloqueo la peticion (ModSecurity, Cloudflare/AntiBot, pagina de
-            // login por sesion caida, error 500 con HTML, etc.).
-            const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 300);
-            console.warn('[parseJsonResponse] HTTP ' + response.status
+            // consola el cuerpo COMPLETO (no solo un fragmento) para poder ver
+            // quien corto la peticion: ModSecurity suele escribir en la propia
+            // pagina "web application firewall blocked the request" o similar,
+            // lo cual permite identificar la regla exacta que bloquea.
+            console.error('[equipos][AJAX] HTTP ' + response.status
                 + ' | URL: ' + response.url
-                + ' | Body (primeros 300 chars): ' + snippet);
+                + ' | Body completo:\n' + text);
 
+            const esPaginaWaf = /firewall|mod_?security|sucuri|blocked the request|abuse detection/i.test(text);
             const err = new Error('La respuesta del servidor no es valida (HTTP ' + response.status + ')');
             err.httpStatus = response.status;
-            if (response.status === 403 || /Forbidden/i.test(text)) {
-                err.message = 'El servidor bloqueó la operación (403). Puede ser tu rol de solo lectura, la sesión expirada o el firewall del hosting.';
+            if (esPaginaWaf) {
+                err.message = 'El firewall del hosting bloqueó esta petición ('
+                    + response.status + '). El body completo quedó en la consola (F12) para pasarlo al proveedor del hosting.';
+            } else if (response.status === 403 || /Forbidden/i.test(text)) {
+                err.message = 'El servidor bloqueó la operación (' + response.status + '). Puede ser tu rol de solo lectura, la sesión expirada o el firewall del hosting.';
             } else if (response.status === 401) {
                 err.message = 'Tu sesión expiró. Recargá la página e ingresá nuevamente.';
             } else if (/^\s*<(!doctype|html)/i.test(text)) {
-                err.message = 'El servidor devolvió una página de error en vez de datos (HTTP ' + response.status + '). Revisá si tu sesión sigue activa o contactá al administrador.';
+                // Pagina de login por sesion caida -> tratar como sesion caída
+                if (/login|password|contraseña|contrasena/i.test(text) && !/modalCrearUTE|cuerpo-tabla-utes/i.test(text)) {
+                    err.message = 'Tu sesión expiró. Recargá la página e ingresá nuevamente.';
+                } else {
+                    err.message = 'El servidor devolvió una página de error en vez de datos (HTTP ' + response.status + '). Revisá si tu sesión sigue activa o contactá al administrador.';
+                }
             }
             throw err;
         }
     }
 
-    /* ---------- POST AJAX "anti-WAF" para UTEs/Equipos ----------
-       Contexto: en hostings como WNpower el ModSecurity / AntiBot evalua los
-       POST y puede responder 403 Forbidden ANTES de que CodeIgniter ejecute
-       nada. Los endpoints ajax_* de Inscripciones SIEMPRE responden JSON con
-       status 200 cuando niegan el acceso (ver _ute_auth_write_json), por lo
-       que un 403 real casi seguro proviene del firewall del hosting, no de la
-       app. Esta funcion centraliza los POST con:
-         - cabeceras X-Requested-With / Accept (muchos WAF whitelisteaban XHR
-           con esas cabeceras y las trataban como peticion legitima de JS),
-         - cache: 'no-store' (evita respuestas raras de caches intermediarios),
-         - el mismo parseo defensivo de siempre. */
-    async function postAjaxUte(url, formData) {
-        const response = await fetch(url, {
+    /* ---------- Base del controlador (mismo patrón que fixture/premiacion/resultados) ---------- */
+    const BASE_UTE = '<?= base_url("Inscripciones") ?>';
+
+    /* ---------- Cache-buster ----------
+       Algunos proxies/firewalls de hostings (LiteSpeed + ModSecurity, tipo
+       WNpower) inspeccionan los POST y pueden bloquearlos con 403 HTML antes
+       de que CodeIgniter ejecute nada. En las pantallas que SIEMPRE funcionaron
+       (gestion de deportes via formularios POST nativos, fixture, resultados,
+       premiacion) las escrituras se envian como application/x-www-form-urlencoded
+       SIN cabecera Accept: application/json (que es justo la que hace que varios
+       WAF clasifiquen el request como "API sospechosa"). Aca replicamos ese
+       estilo exacto de peticion, y ademas sumamos un timestamp en la query
+       ("cache-buster") para que la URL sea unica por peticion: eso evita que
+       cualquier caché intermedia devuelva respuestas viejas o paginas de error. */
+    function urlConCacheBuster(url) {
+        const sep = url.indexOf('?') === -1 ? '?' : '&';
+        return url + sep + '_=' + Date.now();
+    }
+
+    /* ---------- POST AJAX estilo fixture/resultados para UTEs/Equipos ----------
+       Mismas caracteristicas que el post() de fixture.php (la pantalla que
+       funciona bien): FormData (urlencoded), sin cabecera Accept: application/json,
+       cache: 'no-store' y cache-buster en la URL. Se conserva el parseo
+       defensivo (parseJsonResponse) para detectar sesiones caidas o paginas
+       HTML del firewall en vez de romper con "Unexpected token '<'". */
+    function postAjaxUte(url, formData) {
+        return fetch(urlConCacheBuster(url), {
             method: 'POST',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
             body: formData,
-            credentials: 'same-origin',
             cache: 'no-store'
-        });
-        return parseJsonResponse(response);
+        })
+        .then(response => parseJsonResponse(response));
+    }
+
+    /* ---------- GET AJAX estilo fixture.php (getJSON) ---------- */
+    function getAjaxUte(url) {
+        return fetch(urlConCacheBuster(url), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Cache-Control': 'no-cache' },
+            cache: 'no-store'
+        })
+        .then(response => parseJsonResponse(response));
     }
 
     /* ---------- Limpieza anti-"pantalla gris bloqueada" ----------
@@ -596,7 +623,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('nombre_ute', nombreUte);
         formData.append('genero', generoUte);
         
-        postAjaxUte('<?= base_url("Inscripciones/ajax_crear_ute") ?>', formData)
+        postAjaxUte(BASE_UTE + '/ajax_crear_ute', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -744,8 +771,7 @@ document.addEventListener('DOMContentLoaded', function() {
             window.__snapshotIntegrantes = document.getElementById('lista-integrantes')
                 ? document.getElementById('lista-integrantes').innerHTML : '';
 
-            fetch('<?= base_url("Inscripciones/ajax_detalle_ute/") ?>' + idUte)
-            .then(response => parseJsonResponse(response))
+            getAjaxUte(BASE_UTE + '/ajax_detalle_ute/' + idUte)
             .then(ute => {
                 if (ute && ute.nombre_ute) {
                     document.getElementById('nombre-ute-modal').textContent = ute.nombre_ute;
@@ -808,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append('id_ute', idUte);
                 formData.append('id_participante', idParticipante);
                 
-                postAjaxUte('<?= base_url("Inscripciones/ajax_eliminar_participante_ute") ?>', formData)
+                postAjaxUte(BASE_UTE + '/ajax_eliminar_participante_ute', formData)
                 .then(data => {
                     if (data.sesion_caida) {
                         alertar('Sesión expirada', data.error, 'warning').then(() => location.reload());
@@ -868,13 +894,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const select = document.getElementById('select-participante-disponible');
             select.innerHTML = '<option value="">Cargando...</option>';
             
-            fetch('<?= base_url("Inscripciones/ajax_participantes_disponibles/") ?>' + idCategoria)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('HTTP error! status: ' + response.status);
-                }
-                return parseJsonResponse(response);
-            })
+            getAjaxUte(BASE_UTE + '/ajax_participantes_disponibles/' + idCategoria)
             .then(participantes => {
                 select.innerHTML = '<option value="">Seleccione un participante...</option>';
                 
@@ -913,7 +933,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('id_ute', idUte);
         formData.append('id_participante', idParticipante);
         
-        postAjaxUte('<?= base_url("Inscripciones/ajax_agregar_participante_ute") ?>', formData)
+        postAjaxUte(BASE_UTE + '/ajax_agregar_participante_ute', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -989,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', function() {
         formData.append('nombre_ute', nombreNuevo);
         formData.append('genero', generoNuevo);
 
-        postAjaxUte('<?= base_url("Inscripciones/ajax_actualizar_ute") ?>', formData)
+        postAjaxUte(BASE_UTE + '/ajax_actualizar_ute', formData)
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -1059,7 +1079,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const formData = new FormData();
                 formData.append('id_ute', idUte);
                 
-                postAjaxUte('<?= base_url("Inscripciones/ajax_eliminar_ute") ?>', formData)
+                postAjaxUte(BASE_UTE + '/ajax_eliminar_ute', formData)
                 .then(data => {
                     if (data.success) {
                         const fila = document.getElementById('ute-fila-' + idUte);

@@ -22,6 +22,25 @@ class Inscripciones extends CI_Controller {
         $this->load->library('Pdf');
         $this->load->model('Deporte_model');
         $this->load->model('Categoria_model');
+
+        // Mantener app_sid_ref sincronizada con el session ID ACTUAL en cada
+        // carga de pagina (no solo en el login). CodeIgniter regenera el ID de
+        // sesion periodicamente (sess_time_to_update) y en hostings con LiteSpeed/
+        // CloudLinux ese ID nuevo a veces se pierde entre requests. Si la copia
+        // app_sid_ref queda vieja, los POST AJAX (fetch) llegan "sin sesion" y
+        // el guard responde error, que detras del WAF se ve como el falso
+        // "El servidor bloqueó la operación (403)". Con la cookie siempre al dia,
+        // el blindaje de arriba puede restaurar la sesion aunque ci_session se pierda.
+        if (PHP_SAPI !== 'cli' && !$this->input->is_ajax_request()) {
+            $sid_actual = $this->session->userdata('ci_session') ?: session_id();
+            if (!empty($sid_actual)) {
+                setcookie('app_sid_ref', $sid_actual, [
+                    'path'     => '/',
+                    'httponly' => TRUE,
+                    'samesite' => 'Lax',
+                ]);
+            }
+        }
     }
 
     /**
