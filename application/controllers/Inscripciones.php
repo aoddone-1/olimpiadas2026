@@ -2412,8 +2412,16 @@ class Inscripciones extends CI_Controller {
     public function ajax_eliminar_participante_ute() {
         header('Content-Type: application/json');
         
+        // IMPORTANTE: en peticiones AJAX las respuestas de "sin permisos" SIEMPRE
+        // deben salir en JSON con status 200. Si se devuelve un 403 con pagina HTML
+        // (show_error / redirect), el fetch del navegador muestra "403 (Forbidden)"
+        // y el .json() falla con "Unexpected token '<'".
         if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+            echo json_encode([
+                'success'      => false,
+                'error'        => 'Tu sesión expiró o perdiste los permisos. Recargá la página e ingresá nuevamente.',
+                'sesion_caida' => TRUE,
+            ]);
             return;
         }
 
