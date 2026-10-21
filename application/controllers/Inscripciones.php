@@ -10,6 +10,41 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Categoria_model');
     }
 
+    /**
+     * ¿La petición actual es AJAX/fetch? (el frontend usa fetch(), no jQuery,
+     * por eso no basta con HTTP_X_REQUESTED_WITH).
+     */
+    private function _es_peticion_ajax() {
+        $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+        return strpos($accept, 'application/json') !== FALSE
+            || strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    }
+
+    /**
+     * Guard de sesión para endpoints AJAX. Devuelve TRUE si el usuario está
+     * autorizado (organizador autenticado), FALSE en caso contrario (y ya
+     * imprimió el JSON de error correspondiente).
+     *
+     * IMPORTANTE: nunca redirige ni muestra HTML. Si la sesión está caída o
+     * el hosting/firewall cortaría la request, el navegador vería un 403/302
+     * con página HTML y el fetch fallaría con "Unexpected token '<'".
+     */
+    private function _auth_json_or_fail($mensaje = NULL) {
+        if ($this->session->userdata('is_organizador')) {
+            return TRUE;
+        }
+        log_message('error', '[Auth AJAX] Sesión caída o inexistente. URI: '
+            . (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '?')
+            . ' | user_rol session: ' . var_export($this->session->userdata('user_rol'), TRUE));
+        header('Content-Type: application/json');
+        echo json_encode(array(
+            'success'      => FALSE,
+            'error'        => $mensaje ?: 'Tu sesión expiró o perdiste los permisos. Recargá la página e ingresá nuevamente.',
+            'sesion_caida' => TRUE,
+        ));
+        return FALSE;
+    }
+
     public function index() {
         redirect('Inscripciones/panel');
     }
@@ -718,16 +753,67 @@ class Inscripciones extends CI_Controller {
         if (!$this->es_solo_lectura()) {
             return;
         }
-        if ($es_json) {
-            header('Content-Type: application/json');
+        if ($es_json || $this->_es_peticion_ajax()) {
+            // NUNCA show_error() en requests AJAX: el navegador vería un 403
+            // con HTML ("Unexpected token '<'" en el fetch). Siempre JSON.
+            if (!headers_sent()) {
+                http_response_code(200);
+                header('Content-Type: application/json');
+            }
             echo json_encode([
-                'success' => false,
-                'error'   => 'Tu usuario es de solo lectura. No tenés permisos para modificar datos.'
+                'success'       => false,
+                'error'         => 'Tu usuario es de solo lectura. No tenés permisos para modificar datos.',
+                'solo_lectura'  => true
             ]);
             exit;
         }
         show_error('Tu usuario es de solo lectura. No tenés permisos para realizar esta acción.', 403);
         exit;
+    }
+
+    /**
+     * Guard de sesión + rol para los endpoints de UTEs/Equipos.
+     *
+     * Autorizados: 'superadmin' y cualquier organizador autenticado cuyo rol
+     * NO sea 'solo_lectura'. Se permite explícitamente 'admin' además de
+     * 'superadmin' porque el guard anterior pedía is_organizador sin filtro
+     * de rol; ahora se filtra por whitelist para que ante cambios de roles
+     * el error sea un JSON claro y no un 403 HTML inesperado.
+     *
+     * SIEMPRE responde JSON (status 200) cuando niega el acceso: jamás
+     * redirige ni muestra páginas HTML de error.
+     */
+    private function _ute_auth_write_json() {
+        if (!$this->session->userdata('is_organizador')) {
+            log_message('error', '[UTE] Sesión caída en escritura. URI: '
+                . (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '?'));
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'      => false,
+                'error'        => 'Tu sesión expiró o perdiste los permisos. Recargá la página e ingresá nuevamente.',
+                'sesion_caida' => TRUE,
+            ]);
+            return FALSE;
+        }
+        $rol = $this->session->userdata('user_rol');
+        if ($rol === 'solo_lectura') {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success'      => false,
+                'error'        => 'Tu usuario es de solo lectura. No tenés permisos para modificar equipos.',
+                'solo_lectura' => TRUE,
+            ]);
+            return FALSE;
+        }
+        if (!in_array($rol, ['superadmin', 'admin'], TRUE)) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Tu rol (' . htmlspecialchars((string) $rol) . ') no tiene permisos para gestionar equipos. Se requiere superadmin o admin.',
+            ]);
+            return FALSE;
+        }
+        return TRUE;
     }
 
     public function inscriptos() {
@@ -2296,13 +2382,10 @@ class Inscripciones extends CI_Controller {
     public function ajax_crear_ute() {
         header('Content-Type: application/json');
         
-        if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+        // Guard unificado: sesion + rol, SIEMPRE en JSON (nunca 403 HTML).
+        if (!$this->_ute_auth_write_json()) {
             return;
         }
-
-        // Seguridad solo_lectura: no puede crear UTEs
-        $this->bloqueo_solo_lectura(TRUE);
 
         $nombre_ute = $this->input->post('nombre_ute');
         $id_categoria = $this->input->post('id_categoria');
@@ -2329,13 +2412,10 @@ class Inscripciones extends CI_Controller {
     public function ajax_actualizar_ute() {
         header('Content-Type: application/json');
 
-        if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+        // Guard unificado: sesion + rol, SIEMPRE en JSON (nunca 403 HTML).
+        if (!$this->_ute_auth_write_json()) {
             return;
         }
-
-        // Seguridad solo_lectura: no puede modificar UTEs
-        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
         $nombre_ute = $this->input->post('nombre_ute');
@@ -2372,13 +2452,10 @@ class Inscripciones extends CI_Controller {
     public function ajax_agregar_participante_ute() {
         header('Content-Type: application/json');
         
-        if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+        // Guard unificado: sesion + rol, SIEMPRE en JSON (nunca 403 HTML).
+        if (!$this->_ute_auth_write_json()) {
             return;
         }
-
-        // Seguridad solo_lectura: no puede modificar la composición de las UTEs
-        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
@@ -2412,21 +2489,10 @@ class Inscripciones extends CI_Controller {
     public function ajax_eliminar_participante_ute() {
         header('Content-Type: application/json');
         
-        // IMPORTANTE: en peticiones AJAX las respuestas de "sin permisos" SIEMPRE
-        // deben salir en JSON con status 200. Si se devuelve un 403 con pagina HTML
-        // (show_error / redirect), el fetch del navegador muestra "403 (Forbidden)"
-        // y el .json() falla con "Unexpected token '<'".
-        if (!$this->session->userdata('is_organizador')) {
-            echo json_encode([
-                'success'      => false,
-                'error'        => 'Tu sesión expiró o perdiste los permisos. Recargá la página e ingresá nuevamente.',
-                'sesion_caida' => TRUE,
-            ]);
+        // Guard unificado: sesion + rol, SIEMPRE en JSON (nunca 403 HTML).
+        if (!$this->_ute_auth_write_json()) {
             return;
         }
-
-        // Seguridad solo_lectura: no puede quitar integrantes de las UTEs
-        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
         $id_participante = $this->input->post('id_participante');
@@ -2452,13 +2518,10 @@ class Inscripciones extends CI_Controller {
     public function ajax_eliminar_ute() {
         header('Content-Type: application/json');
         
-        if (!$this->session->userdata('is_organizador')) {
-            echo json_encode(['success' => false, 'error' => 'No tenés permisos']);
+        // Guard unificado: sesion + rol, SIEMPRE en JSON (nunca 403 HTML).
+        if (!$this->_ute_auth_write_json()) {
             return;
         }
-
-        // Seguridad solo_lectura: no puede eliminar UTEs
-        $this->bloqueo_solo_lectura(TRUE);
 
         $id_ute = $this->input->post('id_ute');
 
