@@ -432,6 +432,30 @@ document.addEventListener('DOMContentLoaded', function() {
         return Promise.resolve(window.alert(titulo + '\n\n' + texto));
     }
 
+    /* ---------- Parseo defensivo de respuestas JSON ----------
+       Si el servidor (o el firewall/WAF del hosting) responde con una pagina
+       HTML en vez de JSON (403 Forbidden, sesion caida con login, error 500),
+       response.json() rompia con "Unexpected token '<'" y el usuario veia un
+       error incomprensible. Esta funcion lee el texto primero, detecta esos
+       casos y devuelve un JSON de error amigable con el status HTTP real. */
+    async function parseJsonResponse(response) {
+        const text = await response.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            const err = new Error('La respuesta del servidor no es valida (HTTP ' + response.status + ')');
+            err.httpStatus = response.status;
+            if (response.status === 403 || /Forbidden/i.test(text)) {
+                err.message = 'El servidor bloqueó la operación (403). Puede ser tu rol de solo lectura, la sesión expirada o el firewall del hosting.';
+            } else if (response.status === 401) {
+                err.message = 'Tu sesión expiró. Recargá la página e ingresá nuevamente.';
+            } else if (/^\s*<(!doctype|html)/i.test(text)) {
+                err.message = 'El servidor devolvió una página de error en vez de datos (HTTP ' + response.status + '). Revisá si tu sesión sigue activa o contactá al administrador.';
+            }
+            throw err;
+        }
+    }
+
     /* ---------- Limpieza anti-"pantalla gris bloqueada" ----------
        Al encadenar Bootstrap modal + SweetAlert2 pueden quedar rezagados
        el backdrop de Bootstrap (.modal-backdrop), el overlay de Swal o las
@@ -542,7 +566,7 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => parseJsonResponse(response))
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -672,7 +696,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            alertar('Error', 'Error al crear la UTE', 'error');
+            alertar('Error', (error && error.message ? error.message : 'Error al crear la UTE'), 'error');
         });
     });
     
@@ -684,7 +708,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const idUte = this.getAttribute('data-id-ute');
             
             fetch('<?= base_url("Inscripciones/ajax_detalle_ute/") ?>' + idUte)
-            .then(response => response.json())
+            .then(response => parseJsonResponse(response))
             .then(ute => {
                 if (ute && ute.nombre_ute) {
                     document.getElementById('nombre-ute-modal').textContent = ute.nombre_ute;
@@ -751,8 +775,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => parseJsonResponse(response))
                 .then(data => {
+                    if (data.sesion_caida) {
+                        alertar('Sesión expirada', data.error, 'warning').then(() => location.reload());
+                        return;
+                    }
                     if (data.success) {
                         // Recargar modal o fila
                         btn.closest('tr').remove();
@@ -776,7 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alertar('Error', 'Error al quitar el participante', 'error');
+                    alertar('Error', (error && error.message ? error.message : 'Error al quitar el participante'), 'error');
                 });
             });
         }
@@ -806,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (!response.ok) {
                     throw new Error('HTTP error! status: ' + response.status);
                 }
-                return response.json();
+                return parseJsonResponse(response);
             })
             .then(participantes => {
                 select.innerHTML = '<option value="">Seleccione un participante...</option>';
@@ -850,7 +878,7 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => parseJsonResponse(response))
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -879,7 +907,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            alertar('Error', 'Error al agregar el participante', 'error');
+            alertar('Error', (error && error.message ? error.message : 'Error al agregar el participante'), 'error');
         });
     });
     
@@ -930,7 +958,7 @@ document.addEventListener('DOMContentLoaded', function() {
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => parseJsonResponse(response))
         .then(data => {
             if (data.success) {
                 // Cerrar modal + limpiar backdrop que Bootstrap deja rezagado
@@ -982,7 +1010,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error:', error);
-            alertar('Error', 'Error al actualizar la UTE', 'error');
+            alertar('Error', (error && error.message ? error.message : 'Error al actualizar la UTE'), 'error');
         });
     });
 
@@ -1004,7 +1032,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(response => parseJsonResponse(response))
                 .then(data => {
                     if (data.success) {
                         const fila = document.getElementById('ute-fila-' + idUte);
@@ -1023,7 +1051,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alertar('Error', 'Error al eliminar la UTE', 'error');
+                    alertar('Error', (error && error.message ? error.message : 'Error al eliminar la UTE'), 'error');
                 });
             });
         });
