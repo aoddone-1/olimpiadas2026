@@ -774,14 +774,17 @@ class Inscripciones extends CI_Controller {
     /**
      * Guard de sesión + rol para los endpoints de UTEs/Equipos.
      *
-     * Autorizados: 'superadmin' y cualquier organizador autenticado cuyo rol
-     * NO sea 'solo_lectura'. Se permite explícitamente 'admin' además de
-     * 'superadmin' porque el guard anterior pedía is_organizador sin filtro
-     * de rol; ahora se filtra por whitelist para que ante cambios de roles
-     * el error sea un JSON claro y no un 403 HTML inesperado.
+     * Reglas EXACTAMENTE como antes de la llegada del rol 'solo_lectura':
+     *   - Cualquier organizador autenticado puede escribir, con dos excepciones:
+     *     el rol 'solo_lectura' (bloqueado con mensaje claro) y el rol
+     *     'delegado' (que ni siquiera debería estar aquí).
+     *   - NO se usa una whitelist cerrada de roles: eso dejaba afuera a
+     *     staff/mesa_control/carga_resultados y rompía todas las operaciones
+     *     de la pantalla de Equipos.
      *
      * SIEMPRE responde JSON (status 200) cuando niega el acceso: jamás
-     * redirige ni muestra páginas HTML de error.
+     * redirige ni muestra páginas HTML de error (eso producía el
+     * "Unexpected token '<'" y el falso "el servidor bloqueó la petición").
      */
     private function _ute_auth_write_json() {
         if (!$this->session->userdata('is_organizador')) {
@@ -795,8 +798,8 @@ class Inscripciones extends CI_Controller {
             ]);
             return FALSE;
         }
-        $rol = $this->session->userdata('user_rol');
-        if ($rol === 'solo_lectura') {
+        $rol = (string) $this->session->userdata('user_rol');
+        if ($rol === 'solo_lectura' || $rol === 'delegado') {
             header('Content-Type: application/json');
             echo json_encode([
                 'success'      => false,
@@ -805,23 +808,18 @@ class Inscripciones extends CI_Controller {
             ]);
             return FALSE;
         }
-        if (!in_array($rol, ['superadmin', 'admin'], TRUE)) {
-            header('Content-Type: application/json');
-            echo json_encode([
-                'success' => false,
-                'error'   => 'Tu rol (' . htmlspecialchars((string) $rol) . ') no tiene permisos para gestionar equipos. Se requiere superadmin o admin.',
-            ]);
-            return FALSE;
-        }
+        // superadmin, admin, staff, mesa_control, carga_resultados... todos
+        // pueden gestionar equipos (comportamiento histórico del sistema).
         return TRUE;
     }
 
     public function inscriptos() {
-        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        // Seguridad: cualquier organizador autenticado (comportamiento
+        // histórico). El rol 'solo_lectura' entra pero en modo lectura; los
+        // bloqueos de ESCRITURA se hacen con bloqueo_solo_lectura() en cada
+        // acción. NO usar whitelist cerrada de roles acá: deja afuera a
+        // admin/staff/mesa_control y "no deja hacer ninguna modificación".
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login');
-        }
-        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -840,11 +838,10 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/inscripciones', $data);
     }
     public function fixture() {
-        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        // Seguridad: cualquier organizador autenticado (comportamiento
+        // histórico). 'solo_lectura' entra en modo lectura; las escrituras se
+        // bloquean con bloqueo_solo_lectura(). No usar whitelist cerrada.
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login');
-        }
-        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -870,8 +867,10 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/fixture', $data);
     }
     public function resultados() {
-        // Seguridad Superadmin
-        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
+        // Seguridad: cualquier organizador autenticado (comportamiento
+        // histórico). 'solo_lectura' entra en modo lectura; las escrituras se
+        // bloquean con bloqueo_solo_lectura(). No usar whitelist cerrada.
+        if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login');
         }
 
@@ -887,11 +886,12 @@ class Inscripciones extends CI_Controller {
         $this->load->view('admin/resultados', $data);
     }
     public function utes_equipos() {
-        // Seguridad: superadmin (como siempre) + solo_lectura (modo solo lectura)
+        // Seguridad: cualquier organizador autenticado (comportamiento
+        // histórico). 'solo_lectura' entra en modo lectura; las escrituras se
+        // bloquean con _ute_auth_write_json(). No usar whitelist cerrada de
+        // roles: dejaba afuera a admin/staff/mesa_control y no dejaba hacer
+        // ninguna modificación en la pantalla de Equipos.
         if (!$this->session->userdata('is_organizador')) {
-            redirect('Inscripciones/login');
-        }
-        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
             redirect('Inscripciones/login');
         }
 
@@ -945,8 +945,10 @@ class Inscripciones extends CI_Controller {
      * Resumen diario de las entregas de premios de las competencias cerradas.
      */
     public function premiacion() {
-        // Misma seguridad que Control Total (solo superadmin)
-        if (!in_array($this->session->userdata('user_rol'), array('superadmin', 'solo_lectura'), TRUE)) {
+        // Seguridad: cualquier organizador autenticado (comportamiento
+        // histórico). 'solo_lectura' entra en modo lectura; las escrituras se
+        // bloquean con bloqueo_solo_lectura(). No usar whitelist cerrada.
+        if (!$this->session->userdata('is_organizador')) {
             redirect('Inscripciones/login');
         }
 
