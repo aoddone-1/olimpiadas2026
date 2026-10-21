@@ -371,6 +371,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
+<?php if (!$solo_lectura): ?>
 <!-- Modal Agregar Integrante -->
 <div class="modal fade" id="modalAgregarIntegrante" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -398,6 +399,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -516,7 +518,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // ==========================================
     // CREAR UTE
     // ==========================================
-    document.getElementById('btn-guardar-ute').addEventListener('click', function() {
+    // IMPORTANTE (modo solo lectura): el modal "Crear UTE" y su botón NO se
+    // renderizan cuando el rol es 'solo_lectura'. getElementById devuelve null
+    // y, sin esta guarda, el TypeError cortaba TODO el DOMContentLoaded: por
+    // eso en ese rol no andaban ni los filtros de los selects ni la paginación.
+    const btnGuardarUte = document.getElementById('btn-guardar-ute');
+    if (btnGuardarUte) btnGuardarUte.addEventListener('click', function() {
         const idCategoria = document.getElementById('select-categoria-ute').value;
         const nombreUte = document.getElementById('nombre-ute-input').value.trim();
         const generoUte = document.getElementById('genero-ute-input').value;
@@ -686,6 +693,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         ute.nombre_deporte + ' - ' + ute.nombre_categoria + ' (' + generoUteDetalle + ')';
                     
                     const tbody = document.getElementById('lista-integrantes');
+                    if (!tbody) return;
                     tbody.innerHTML = '';
                     
                     if (ute.integrantes && ute.integrantes.length > 0) {
@@ -778,12 +786,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // AGREGAR INTEGRANTE
     // ==========================================
     document.addEventListener('click', function(e) {
-        if (e.target.closest('.btn-agregar-integrante')) {
-            const btn = e.target.closest('.btn-agregar-integrante');
-            const idUte = btn.getAttribute('data-id-ute');
-            const idCategoria = btn.getAttribute('data-id-categoria');
-            
-            document.getElementById('id-ute-agregar').value = idUte;
+        const btn = e.target.closest('.btn-agregar-integrante');
+        if (!btn) return;
+        // En modo solo lectura este botón no existe, pero por las dudas:
+        // si el modal no está renderizado, salir sin errores.
+        if (!document.getElementById('modalAgregarIntegrante')) return;
+
+        const idUte = btn.getAttribute('data-id-ute');
+        const idCategoria = btn.getAttribute('data-id-categoria');
+        
+        document.getElementById('id-ute-agregar').value = idUte;
             
             // Cargar participantes disponibles
             const select = document.getElementById('select-participante-disponible');
@@ -816,10 +828,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error:', error);
                 select.innerHTML = '<option value="" disabled>Error al cargar</option>';
             });
-        }
     });
     
-    document.getElementById('btn-agregar-participante').addEventListener('click', function() {
+    // El botón "Agregar" vive en el modal Agregar Integrante, que NO se
+    // renderiza para el rol solo_lectura -> guarda nula obligatoria.
+    const btnAgregarParticipante = document.getElementById('btn-agregar-participante');
+    if (btnAgregarParticipante) btnAgregarParticipante.addEventListener('click', function() {
         const idUte = document.getElementById('id-ute-agregar').value;
         const idParticipante = document.getElementById('select-participante-disponible').value;
         
@@ -875,6 +889,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.btn-editar-ute');
         if (!btn) return;
+        // En modo solo lectura el modal Editar UTE no existe -> salir sin errores.
+        if (!document.getElementById('modalEditarUTE')) return;
 
         document.getElementById('editar-id-ute').value = btn.getAttribute('data-id-ute');
         document.getElementById('editar-nombre-ute').value = btn.getAttribute('data-nombre-ute') || '';
@@ -892,7 +908,10 @@ document.addEventListener('DOMContentLoaded', function() {
         new bootstrap.Modal(document.getElementById('modalEditarUTE')).show();
     });
 
-    document.getElementById('btn-guardar-edicion-ute').addEventListener('click', function() {
+    // El botón "Guardar cambios" vive en el modal Editar UTE, que NO se
+    // renderiza para el rol solo_lectura -> guarda nula obligatoria.
+    const btnGuardarEdicionUte = document.getElementById('btn-guardar-edicion-ute');
+    if (btnGuardarEdicionUte) btnGuardarEdicionUte.addEventListener('click', function() {
         const idUte = document.getElementById('editar-id-ute').value;
         const nombreNuevo = document.getElementById('editar-nombre-ute').value.trim();
         const generoNuevo = document.getElementById('editar-genero-ute').value;
