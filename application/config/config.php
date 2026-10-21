@@ -387,7 +387,11 @@ $config['sess_driver'] = 'files';
 $config['sess_cookie_name'] = 'ci_session';
 $config['sess_samesite'] = 'Lax';
 $config['sess_expiration'] = 7200;
-$config['sess_save_path'] = 'C:\Webs\inscripciones\application\cache';
+// IMPORTANTE (produccion WNpower/Linux): la ruta absoluta de Windows hacia que
+// CI cayera al driver por defecto y las sesiones se guardaran en /tmp del
+// servidor, que LiteSpeed/CloudLinux purga agresivamente -> sesion caida a
+// los minutos y errores 403 en los POST AJAX. Guardarlas dentro de la app.
+$config['sess_save_path'] = APPPATH . 'cache/sessions';
 $config['sess_match_ip'] = FALSE;
 $config['sess_time_to_update'] = 300;
 $config['sess_regenerate_destroy'] = FALSE;
