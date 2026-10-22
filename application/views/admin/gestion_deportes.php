@@ -7,7 +7,7 @@
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link href="<?= base_url('css/style.css') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/style.css?20261022') ?>" rel="stylesheet">
     <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
