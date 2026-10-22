@@ -654,12 +654,16 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
    categoría tiene una sola largada, así que en vez de apilar
    "Categoria A → largada / Categoria B → largada..." se muestran
    lado a lado como cuadritos: Categoria A | B | C con su largada
-   adentro. La grilla acomoda solas 1 / 2 / 3 columnas según el
-   ancho de pantalla.
+   adentro. Cada cuadrito mide el ANCHO DE SU CONTENIDO (flex + width
+   automático), así los botones del pie nunca se salen de la tarjeta.
    ============================================================ */
 .fx-cats-unicas {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    /* En vez de grilla con columnas de ancho fijo, se usa flex-wrap: cada
+       cuadrito toma el ANCHO DE SU CONTENIDO (flex-basis auto) y así los
+       botones del pie nunca se salen de la tarjeta. */
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
     gap: .6rem;
 }
 .fx-cat-unica {
@@ -672,6 +676,14 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     display: flex;
     flex-direction: column;
     transition: transform .12s ease, box-shadow .12s ease;
+    /* El ancho lo manda el contenido: no se fija ni se estira a 1fr.
+       min-width:0 + max-width:100% evitan que un texto largo desborde la
+       pantalla; flex-grow permite que los cuadritos "hermanos" queden todos
+       del mismo alto (align-items:stretch). */
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
 }
 .fx-cat-unica:hover {
     transform: translateY(-2px);
@@ -698,14 +710,21 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 }
 /* Adentro del cuadrito, la tarjetita de la largada ocupa todo el ancho */
 .fx-cat-unica .fx-tarjetas {
-    grid-template-columns: 1fr;
+    /* Adentro del cuadrito ya no hace falta una grilla: una sola columna,
+       con ancho automático (lo manda el contenido de la tarjeta). */
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
 }
 .fx-cat-unica .fx-tarjetas.mb-2 { margin-bottom: 0 !important; }
 /* Los cuadritos de jornada única estiran su cuerpo al alto disponible, así
    el pie de la tarjeta de adentro (botones) nunca queda cortado. */
 .fx-cat-unica > .fx-cat-unica-cuerpo { flex: 1 1 auto; }
 @media (max-width: 576px) {
-    .fx-cats-unicas { grid-template-columns: 1fr; }
+    /* En pantallas chicas los cuadritos pasan a uno debajo del otro y ocupan
+       todo el ancho disponible. */
+    .fx-cats-unicas { flex-direction: column; }
+    .fx-cat-unica { width: 100%; }
 }
 
 /* ============================================================
@@ -720,16 +739,39 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     display: flex;
     flex-direction: column;
     overflow: visible;
+    /* Ancho automático: la tarjeta mide lo que mide su contenido (podio con
+       nombres largos, botones del pie) y nunca los empuja fuera de la vista. */
+    width: max-content;
+    max-width: 100%;
+}
+/* En celular sí conviene aprovechar todo el ancho disponible. */
+@media (max-width: 576px) {
+    .rs-cats-unicas .fx-cat-unica .fx-tarjeta { width: 100%; }
+}
+/* Los cruces (MARCADOR) sí se mantienen en su columna de texto, para que un
+   equipo larguísimo no estire el cuadrito; se ajustan al ancho disponible. */
+.rs-cats-unicas .fx-cat-unica .fx-tarjeta.rs-marcador-tarjeta { width: auto; }
+.rs-cats-unicas .fx-cat-unica .fx-tarjeta.rs-marcador-tarjeta .rs-equipo {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .rs-cats-unicas .fx-cat-unica .rs-podio-lista {
     min-height: 0;
     overflow: hidden;
 }
+/* El nombre del evento y las observaciones ya no se cortan con "…" porque el
+   cuadrito crece hasta el ancho que necesita su contenido; sólo se limita el
+   alto para que no ocupe media pantalla (con title="" se ve el texto completo). */
 .rs-cats-unicas .fx-cat-unica .fx-tarjeta-nombre,
 .rs-cats-unicas .fx-cat-unica .rs-obs {
-    white-space: nowrap;
-    -webkit-line-clamp: unset;
-    display: block;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 /* El "Mostrar más" queda como última fila del cuerpo (debajo de las
    tarjetas), no al lado. */
@@ -787,7 +829,14 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     min-width: 0;
 }
 .rs-podio-med { flex: 0 0 auto; }
-.rs-podio-nom { flex: 1 1 auto; min-width: 0; }
+.rs-podio-nom { flex: 0 1 auto; min-width: 0; }
+/* En los cuadritos de jornada única el nombre NO se trunca: la tarjeta crece
+   hasta el ancho que necesita (por eso los botones ya no se salen de pantalla). */
+.rs-cats-unicas .fx-cat-unica .rs-podio-nom.text-truncate {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+}
 .rs-podio-time { flex: 0 0 auto; font-size: .78rem; color: #555; }
 
 /* Cartelito inferior (ganador / empate / desempate) */

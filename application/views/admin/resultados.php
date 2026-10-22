@@ -635,7 +635,7 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                     var extraClaseTarjeta = '';
                 }
 
-        return `<div class="fx-tarjeta rs-tarjeta ${extraClaseTarjeta}">
+        return `<div class="fx-tarjeta rs-tarjeta ${extraClaseTarjeta}${r.tipo_resultado === 'MARCADOR' ? ' rs-marcador-tarjeta' : ''}">
             <div class="fx-tarjeta-top">
                 <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'}">${esc(r.tipo_resultado)}</span>
                 <span class="small text-muted"><i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}</span>
@@ -797,12 +797,11 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
         lista.querySelectorAll('.rs-detalle').forEach(b => b.addEventListener('click', () => abrirDetalle(b.dataset.id)));
 
         // Estética: en grupos con muchos resultados, mostrar solo los primeros 8 y plegar el resto.
-        // Adentro de un cuadrito de jornada única (fx-cat-unica) hay menos ancho
-        // disponible, así que se pliega más temprano (3 tarjetas) para que el
-        // botón "Mostrar más" y los botones de cada tarjeta nunca queden cortados.
+        // En jornada única ya no hace falta plegar antes: los cuadritos miden el
+        // ancho de su contenido, así que los botones nunca se salen de pantalla.
         lista.querySelectorAll('.rs-grupo').forEach(cont => {
             const compacto = cont.closest('.fx-cat-unica') !== null;
-            const umbral = compacto ? 3 : 8;
+            const umbral = 8;
             const itemsG = [...cont.children];
             if (itemsG.length <= umbral) return;
             const ocultos = itemsG.slice(umbral);
