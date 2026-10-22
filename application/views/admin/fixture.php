@@ -716,6 +716,22 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         const totalCats = Object.values(deportes).reduce((n, d) => n + Object.keys(d.cats).length, 0);
         const colapsarPorDefecto = totalCats > 4;
 
+        /* ---------- CATEGORÍAS DE "JORNADA ÚNICA" EN FILA ----------
+           Los deportes MASIVO / UN DIA (Atletismo, Natación, etc.) tienen
+           una sola largada por categoría: el formato "un bloque debajo del
+           otro" desperdicia la pantalla (categoría → largada → categoría →
+           largada...). Acá se detecta el caso y esas categorías se muestran
+           lado a lado en grilla: "Categoria A | Categoria B | Categoria C"
+           con su largada adentro de cada cuadrito. El resto (deportes
+           multidía con varias jornadas/cruces) conserva el listado vertical
+           de siempre dentro del bloque del deporte. */
+        function esCategoriaJornadaUnica(items) {
+            return (items || []).every(f =>
+                f.fase === 'JORNADA_UNICA'
+                || f.modalidad_competencia === 'MASIVO_TIEMPO'
+                || f.tipo_duracion === 'UNICO_DIA');
+        }
+
         let html = '';
         Object.keys(deportes).sort().forEach(deporte => {
             const bloque = deportes[deporte];
@@ -746,8 +762,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 <div class="collapse${colapsarPorDefecto ? '' : ' show'}" id="${idDepBlock}">
                 <div class="card-body py-2">`;
 
-            Object.keys(cats).sort().forEach(categoria => {
-                const items = cats[categoria];
+            /* Función que arma el bloque de UNA categoría (cabecera + jornadas
+               + grilla de tarjetitas). Se usa tanto en el listado vertical de
+               siempre como dentro de los cuadritos de las categorías de
+               "Jornada Única" (ver abajo). */
+            function bloqueCategoria(categoria, items, compacto) {
                 const primera = items[0];
                 const tipoTag = primera.modalidad_competencia === 'MASIVO_TIEMPO'
                     ? '<span class="badge bg-warning text-dark ms-2">Masivo / Un día</span>'
@@ -755,21 +774,15 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
                         : '<span class="badge bg-primary ms-2">Multidía</span>');
 
-                html += `<div class="border rounded bg-light-subtle mb-3">
-                    <div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
+                let h = `<div class="${compacto ? 'fx-cat-unica-cuerpo' : 'border rounded bg-light-subtle mb-3'}">
+                    ${compacto ? '' : `<div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
                         <span>
                             <span class="fw-semibold"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
                             ${tipoTag}
                             <span class="small text-muted ms-2">(${items.length} partido/s)</span>
                         </span>
-                    </div>
-                    <div class="p-2">
-                    <!-- A partir de acá los partidos no van más en formato
-                         "listado" (una fila debajo de la otra, difícil de
-                         escanear visualmente): se muestran como TARJETITAS
-                         ("cuadritos") en grilla — 2 o 3 por fila según el
-                         ancho de pantalla. Ver clases fx-tarjeta-* en
-                         css/style.css y el render dentro del forEach. -->`;
+                    </div>`}
+                    <div class="${compacto ? '' : 'p-2'}">`;
 
                 // Subagrupar por jornada
                 const jornadas = {};
@@ -786,16 +799,16 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     const iconoJornada = etiqueta.indexOf('Grupo') === 0 ? 'bi-diagram-3'
                         : (etiqueta.indexOf('Eliminatorias') === 0 ? 'bi-braces'
                             : (etiqueta.indexOf('Jornada Única') === 0 ? 'bi-sun' : 'bi-calendar-week'));
-                    // Subencabezado destacado: banner de color según el tipo de
-                    // jornada (así no queda "perdido" entre muchos partidos).
-                    html += `<div class="fx-jornada-header ${claseJornada}">` +
+                    // En modo compacto (cuadrito de jornada única) la categoría ya
+                    // dice todo arriba, así que se omite el banner de jornada.
+                    h += compacto ? '' : `<div class="fx-jornada-header ${claseJornada}">` +
                         `<span class="fx-jornada-icon"><i class="bi ${iconoJornada}"></i></span>` +
                         `<span class="fx-jornada-texto">${esc(etiqueta)}</span>` +
                         `<span class="fx-jornada-cuenta">${jornadas[num].length} partido/s</span>` +
                         `</div>`;
                     // Grilla de "cuadritos": las tarjetas se acomodan solas
                     // (1 / 2 / 3 columnas según el ancho — ver .fx-tarjetas en style.css)
-                    html += '<div class="fx-tarjetas mb-2">';
+                    h += '<div class="fx-tarjetas mb-2">';
                     jornadas[num].forEach(f => {
                     const esMasivo = f.fase === 'JORNADA_UNICA'
                                   || f.modalidad_competencia === 'MASIVO_TIEMPO';
@@ -840,7 +853,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                             </button>`;
                     }
 
-                    html += `<div class="fx-tarjeta ${claseEstado}">
+                    h += `<div class="fx-tarjeta ${claseEstado}">
                         <div class="fx-tarjeta-top">
                             <span class="badge bg-info text-dark">${esc(f.fase.replace('_',' '))}</span>
                             <span class="badge ${badge}" ${ev.auto ? 'title="Estado calculado automáticamente según la fecha y hora del partido"' : ''}>${esc(ev.estado.replace('_',' '))}</span>
@@ -868,11 +881,45 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         </div>
                     </div>`;
                 });
-                    html += '</div>';   // cierra la grilla fx-tarjetas de la jornada
+                    h += '</div>';   // cierra la grilla fx-tarjetas de la jornada
                 });                    // fin jornadas
 
-                html += '</div></div>'; // cierra p-2 y bloque de categoría
-            });                        // fin categorías
+                h += '</div></div>'; // cierra p-2 y bloque de categoría
+                return h;
+            }                            // fin bloqueCategoria
+
+            /* Separar las categorías: las de JORNADA ÚNICA (masivas / un día)
+               salen en fila lado a lado; las multidía van debajo, apiladas. */
+            const catsNames = Object.keys(cats).sort();
+            const catsUnicas = catsNames.filter(c => esCategoriaJornadaUnica(cats[c]));
+            const catsNormales = catsNames.filter(c => !esCategoriaJornadaUnica(cats[c]));
+
+            if (catsUnicas.length) {
+                html += '<div class="fx-cats-unicas mb-3">';
+                catsUnicas.forEach(categoria => {
+                    const items = cats[categoria];
+                    const primera = items[0];
+                    const tipoTag = primera.modalidad_competencia === 'MASIVO_TIEMPO'
+                        ? '<span class="badge bg-warning text-dark ms-2">Masivo / Un día</span>'
+                        : (primera.tipo_duracion === 'UNICO_DIA'
+                            ? '<span class="badge bg-info text-dark ms-2">Un día</span>'
+                            : '');
+                    // Cuadrito por categoría: cabecera con el NOMBRE de la
+                    // categoría bien visible y adentro la/s largada/s.
+                    html += `<div class="fx-cat-unica">
+                        <div class="fx-cat-unica-header">
+                            <span class="fx-cat-unica-nombre"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
+                            ${tipoTag}
+                        </div>
+                        ${bloqueCategoria(categoria, items, true)}
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            catsNormales.forEach(categoria => {
+                html += bloqueCategoria(categoria, cats[categoria], false);
+            });                       // fin categorías normales
 
             html += '</div></div></div>'; // cierra card-body, collapse y card del deporte
         });
