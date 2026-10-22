@@ -763,7 +763,13 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                             <span class="small text-muted ms-2">(${items.length} partido/s)</span>
                         </span>
                     </div>
-                    <div class="p-2">`;
+                    <div class="p-2">
+                    <!-- A partir de acá los partidos no van más en formato
+                         "listado" (una fila debajo de la otra, difícil de
+                         escanear visualmente): se muestran como TARJETITAS
+                         ("cuadritos") en grilla — 2 o 3 por fila según el
+                         ancho de pantalla. Ver clases fx-tarjeta-* en
+                         css/style.css y el render dentro del forEach. -->`;
 
                 // Subagrupar por jornada
                 const jornadas = {};
@@ -787,7 +793,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         `<span class="fx-jornada-texto">${esc(etiqueta)}</span>` +
                         `<span class="fx-jornada-cuenta">${jornadas[num].length} partido/s</span>` +
                         `</div>`;
-                    html += '<div class="list-group mb-2">';
+                    // Grilla de "cuadritos": las tarjetas se acomodan solas
+                    // (1 / 2 / 3 columnas según el ancho — ver .fx-tarjetas en style.css)
+                    html += '<div class="fx-tarjetas mb-2">';
                     jornadas[num].forEach(f => {
                     const esMasivo = f.fase === 'JORNADA_UNICA'
                                   || f.modalidad_competencia === 'MASIVO_TIEMPO';
@@ -804,56 +812,63 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     if (f.id_ute_1) nombresPorId[f.id_ute_1] = f.ute_1_nombre;
                     if (f.id_ute_2) nombresPorId[f.id_ute_2] = f.ute_2_nombre;
 
-                    let podioHtml = '';
+                    // ---- Tarjeta del partido ("cuadrito") ----
+                    // Antes: fila .list-group-item de ancho completo (listado largo,
+                    // difícil de escanear). Ahora: tarjeta compacta vertical con
+                    // cabecera de color según estado, hora grande, lugar, cruce
+                    // destacado y acciones abajo. Todo lo demás (fx-detalle,
+                    // fx-editar, fx-borrar) sigue igual para los handlers JS.
+                    const claseEstado = 'fx-tarjeta-' + ev.estado.toLowerCase().replace('_', '-');
+                    const horaTxt = esc((f.hora_inicio || '').slice(0, 5)) + '–' + esc((f.hora_fin || '').slice(0, 5));
+                    let cruceHtml;
                     if (esMasivo) {
-                        if (ordenGuardado.length) {
-                            podioHtml = '<div class="mt-1 small">' + ordenGuardado.slice(0, 5).map((id, i) => {
-                                const medalla = MEDALLAS[i] || (i + 1) + 'º';
-                                return `<span class="me-2">${medalla} ${esc(nombresPorId[id] || ('UTE #' + id))}</span>`;
-                            }).join('') + '</div>';
-                        } 
+                        cruceHtml = '<div class="fx-tarjeta-podio">' +
+                            (ordenGuardado.length
+                                ? ordenGuardado.slice(0, 3).map((id, i) => {
+                                    const medalla = MEDALLAS[i] || (i + 1) + 'º';
+                                    return `<div class="fx-tarjeta-podio-item"><span class="fx-tarjeta-medalla">${medalla}</span> ${esc(nombresPorId[id] || ('UTE #' + id))}</div>`;
+                                }).join('')
+                                : '<div class="fx-tarjeta-vacio">Sin orden de llegada aún</div>') +
+                            '</div>';
+                    } else if (f.ute_1_nombre && f.ute_2_nombre) {
+                        cruceHtml = `<button type="button" class="btn fx-tarjeta-cruce fw-semibold text-dark w-100 fx-detalle" data-id="${f.id_fixture}" title="Ver participantes del cruce">
+                                ${esc(f.ute_1_nombre)} <span class="fx-vs">vs</span> ${esc(f.ute_2_nombre)}
+                            </button>`;
+                    } else {
+                        cruceHtml = `<button type="button" class="btn fx-tarjeta-cruce fx-tarjeta-vacio fst-italic text-muted w-100 fx-detalle" data-id="${f.id_fixture}" title="Ver detalle">
+                                Cruce pendiente — ver detalle
+                            </button>`;
                     }
 
-                    html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <div style="min-width:260px">
-                            <span class="badge bg-info text-dark me-1">${esc(f.fase.replace('_',' '))}</span>
-                            <strong>${esc(f.nombre_prueba)}</strong>
-                            <div class="small text-muted">
-                                <i class="bi bi-clock me-1"></i>${fechaArma(f.fecha_competencia)} ${esc((f.hora_inicio||'').slice(0,5))}–${esc((f.hora_fin||'').slice(0,5))}
-                                &nbsp;<i class="bi bi-geo-alt me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}
-                            </div>
-                            ${esMasivo ? podioHtml : `<button type="button" class="btn btn-link p-0 mt-1 fx-detalle fw-semibold text-dark text-decoration-none" data-id="${f.id_fixture}" title="Ver participantes del cruce">
-                                ${(f.ute_1_nombre && f.ute_2_nombre) ? esc(f.ute_1_nombre) + '<br/> <span class="text-muted fw-normal">vs</span> ' + esc(f.ute_2_nombre) : '<span class="fst-italic text-muted fw-normal">Cruce pendiente — ver detalle</span>'}
-                            </button>`}
-                        </div>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                    html += `<div class="fx-tarjeta ${claseEstado}">
+                        <div class="fx-tarjeta-top">
+                            <span class="badge bg-info text-dark">${esc(f.fase.replace('_',' '))}</span>
                             <span class="badge ${badge}" ${ev.auto ? 'title="Estado calculado automáticamente según la fecha y hora del partido"' : ''}>${esc(ev.estado.replace('_',' '))}</span>
-                            ${ev.auto ? '<i class="bi bi-clock-history text-muted small" title="Estado en vivo (por horario), no guardado en la base"></i>' : ''}
-                            
-                            ${(!esMasivo && f.id_ute_1 && f.id_ute_2) ? `
-                                <span class="badge bg-light text-dark border" title="Equipos que se enfrentan">
-                                    <i class="bi bi-person-lines-fill me-1"></i>${esc(f.ute_1_nombre)} vs ${esc(f.ute_2_nombre)}
-                                </span>` : ''}
-                            <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
-                                <button class="btn btn-sm btn-light text-info-emphasis border-0 rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
+                        </div>
+                        <div class="fx-tarjeta-nombre" title="${esc(f.nombre_prueba)}">${esc(f.nombre_prueba)}</div>
+                        <div class="fx-tarjeta-datos">
+                            <span class="fx-tarjeta-hora"><i class="bi bi-clock-fill me-1"></i>${horaTxt}</span>
+                            <span class="fx-tarjeta-lugar" title="${esc(f.lugar_nombre || 'Sin lugar asignado')}"><i class="bi bi-geo-alt-fill me-1"></i>${esc(f.lugar_nombre || 'Sin lugar')}</span>
+                        </div>
+                        ${cruceHtml}
+                        <div class="fx-tarjeta-footer">
+                            <span class="small text-muted d-flex align-items-center gap-1">${ev.auto ? '<i class="bi bi-clock-history" title="Estado en vivo (por horario), no guardado en la base"></i><span class="fw-semibold">En vivo</span>' : '<i class="bi bi-people" style="color:#d9534f"></i>'}</span>
+                            <div class="d-inline-flex align-items-center fx-tarjeta-acciones">
+                                <button class="btn btn-sm rounded-circle fx-detalle" data-id="${f.id_fixture}" title="Ver quiénes participan">
                                     <i class="bi bi-search"></i>
                                 </button>
                                 ${SOLO_LECTURA ? '' : `
-                                <span class="vr mx-1 text-muted opacity-25"></span>
-                                <button class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
+                                <button class="btn btn-sm rounded-circle fx-editar" data-id="${f.id_fixture}" title="Editar">
                                     <i class="bi bi-pencil-fill"></i>
                                 </button>
-                                <span class="vr mx-1 text-muted opacity-25"></span>
-                                <button class="btn btn-sm btn-light text-danger border-0 rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
+                                <button class="btn btn-sm rounded-circle fx-borrar" data-id="${f.id_fixture}" title="Eliminar">
                                     <i class="bi bi-trash3-fill"></i>
                                 </button>`}
                             </div>
-                            
-                            
                         </div>
                     </div>`;
                 });
-                    html += '</div>';   // cierra list-group de la jornada
+                    html += '</div>';   // cierra la grilla fx-tarjetas de la jornada
                 });                    // fin jornadas
 
                 html += '</div></div>'; // cierra p-2 y bloque de categoría
