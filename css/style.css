@@ -647,3 +647,60 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
 .fx-tarjeta-en-curso   { border-left-color: #e2b93b; background: #fffdf5; }
 .fx-tarjeta-finalizado { border-left-color: #2f9e57; }
 .fx-tarjeta-suspendido { border-left-color: #d9534f; background: #fdf7f7; }
+
+/* ============================================================
+   CATEGORÍAS DE "JORNADA ÚNICA" EN FILA (fixture.php)
+   Deportes MASIVO / UN DIA (Atletismo, Natación...): cada
+   categoría tiene una sola largada, así que en vez de apilar
+   "Categoria A → largada / Categoria B → largada..." se muestran
+   lado a lado como cuadritos: Categoria A | B | C con su largada
+   adentro. La grilla acomoda solas 1 / 2 / 3 columnas según el
+   ancho de pantalla.
+   ============================================================ */
+.fx-cats-unicas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: .6rem;
+}
+.fx-cat-unica {
+    background: #fff;
+    border: 1px solid #e3ebf5;
+    border-top: 4px solid #d9a520; /* ámbar: mismo lenguaje de "Jornada Única" */
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(30, 60, 114, .07);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+.fx-cat-unica:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(30, 60, 114, .14);
+}
+.fx-cat-unica-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem;
+    padding: .45rem .7rem;
+    background: linear-gradient(90deg, #fdf6e3 0%, #fbf9f2 100%);
+    border-bottom: 1px solid #f0e6cd;
+}
+.fx-cat-unica-nombre {
+    font-weight: 700;
+    font-size: .92rem;
+    color: #7d5c14;
+    letter-spacing: .01em;
+}
+.fx-cat-unica .fx-cat-unica-cuerpo {
+    padding: .55rem .6rem;
+    flex: 1 1 auto;
+}
+/* Adentro del cuadrito, la tarjetita de la largada ocupa todo el ancho */
+.fx-cat-unica .fx-tarjetas {
+    grid-template-columns: 1fr;
+}
+.fx-cat-unica .fx-tarjetas.mb-2 { margin-bottom: 0 !important; }
+@media (max-width: 576px) {
+    .fx-cats-unicas { grid-template-columns: 1fr; }
+}
