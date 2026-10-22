@@ -2649,7 +2649,16 @@ class Inscripciones extends CI_Controller {
         // Deportes en los que la delegación compite: alimentan el filtro del
         // botón "Descargar reporte de fixture" (PDF, mismo formato que superadmin).
         $data['deportes_delegacion'] = $this->Participante_model->obtener_deportes_de_delegacion($user_nombre);
-        
+
+        // Equipos (UTEs) en los que juegan miembros de la delegación, con sus
+        // integrantes propios y próximos partidos del fixture.
+        $this->load->model('Fixture_model');
+        $data['equipos_delegacion'] = $this->Fixture_model->equipos_de_delegacion($user_nombre);
+
+        // Fixture SIMPLIFICADO de la delegación: próximos compromisos + lo ya
+        // jugado (con marcador si existe resultado cargado).
+        $data['fixture_resumido'] = $this->Fixture_model->fixture_resumido_delegacion($user_nombre, null, 40);
+
         $this->load->view('admin/panel_delegado', $data);
     }
     
