@@ -608,7 +608,9 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                     <span class="text-muted mx-1">›</span><span>${esc(partes[1])}</span>
                     <span class="small text-muted ms-2">(${cantidadEnGrupo} resultado/s)</span>
                 </div>
-                <div class="list-group list-group-flush rs-grupo">`;
+                <!-- Mismo formato de "cuadritos" del Fixture: grilla responsiva
+                     de tarjetas (clases fx-tarjetas / rs-tarjeta en style.css) -->
+                <div class="rs-grupo p-2"><div class="fx-tarjetas">`;
 
             grupos[clave].forEach(r => {
                 let cuerpo = '';
@@ -616,81 +618,98 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                 if (r.tipo_resultado === 'MARCADOR') {
                     const m = infoMarcador(det);
                     const desp = infoDesempate(r, m);
-                    // Resaltar al ganador en la lista rápida + cartelito con el resultado.
+                    // Franja lateral según quién ganó (lenguaje visual del Fixture):
+                    // verde si ganó el local (fila 1), azul si ganó el visitante,
+                    // gris en empate / rojo si hubo desempate resuelto.
+                    const claseEstado = desp ? 'rs-ganador-desempate'
+                        : (m.gan === 0 ? 'rs-ganador-local' : (m.gan === 1 ? 'rs-ganador-visita' : 'rs-empate'));
+                    // Resaltar al ganador + cartelito con el resultado.
                     // Con desempate: gana el del desempate; el otro queda atenuado.
                     const cls1 = desp ? (desp.ganador === m.e1 ? 'text-success' : 'text-muted')
                                       : (m.gan === 0 ? 'text-success' : (m.gan === 1 ? 'text-muted' : ''));
                     const cls2 = desp ? (desp.ganador === m.e2 ? 'text-success' : 'text-muted')
                                       : (m.gan === 1 ? 'text-success' : (m.gan === 0 ? 'text-muted' : ''));
                     const cartel = desp
-                        ? `<span class="badge rounded-pill bg-warning-subtle text-dark border ms-2">
+                        ? `<div class="rs-cartel mt-auto py-1 px-2 small">
                                <i class="bi bi-dash-lg me-1"></i>Empate · ${esc(desp.metodoTxt)} —
                                avanza <strong>${esc(desp.ganador)}</strong> 🏅
-                           </span>`
+                           </div>`
                         : (m.gan < 0
-                            ? '<span class="badge rounded-pill bg-secondary ms-2"><i class="bi bi-dash-lg me-1"></i>Empate</span>'
-                            : `<span class="badge rounded-pill bg-success-subtle text-success-emphasis border ms-2">
-                                   <i class="bi bi-trophy-fill me-1"></i>Ganador: ${esc(m.gan === 0 ? m.e1 : m.e2)}
-                               </span>`);
-                    cuerpo = `<div class="mt-1">
-                        <span class="fw-semibold ${cls1}">${(desp ? desp.ganador === m.e1 : m.gan === 0) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e1)}</span>
-                        <span class="badge bg-dark mx-2 fs-6">${m.s1} : ${m.s2}</span>
-                        <span class="fw-semibold ${cls2}">${(desp ? desp.ganador === m.e2 : m.gan === 1) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e2)}</span>
-                        ${cartel}
-                    </div>`;
+                            ? '<div class="rs-cartel mt-auto py-1 px-2 small"><i class="bi bi-dash-lg me-1"></i>Empate</div>'
+                            : `<div class="rs-cartel mt-auto py-1 px-2 small">
+                                   <i class="bi bi-trophy-fill me-1"></i>Ganador: <strong>${esc(m.gan === 0 ? m.e1 : m.e2)}</strong>
+                               </div>`);
+                    // Cruce compacto estilo "cuadrito": equipos uno arriba del otro
+                    // con el marcador al medio (en vez de la fila horizontal larga).
+                    cuerpo = `<div class="rs-marcador my-2">
+                        <div class="rs-equipo ${cls1} text-truncate" title="${esc(m.e1)}">
+                            ${(desp ? desp.ganador === m.e1 : m.gan === 0) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e1)}
+                        </div>
+                        <span class="rs-score">${m.s1} : ${m.s2}</span>
+                        <div class="rs-equipo ${cls2} text-truncate" title="${esc(m.e2)}">
+                            ${(desp ? desp.ganador === m.e2 : m.gan === 1) ? '<i class="bi bi-trophy-fill small me-1"></i>' : ''}${esc(m.e2)}
+                        </div>
+                    </div>
+                    ${cartel}`;
+                    // La tarjeta entera lleva la clase de estado (franja de color).
+                    var extraClaseTarjeta = claseEstado;
                 } else {
-                    // Solo los 3 primeros "a ojo"; el resto se ve en el detalle.
+                    // Podio vertical compacto: solo los 3 primeros "a ojo";
+                    // el resto se ve en el detalle.
                     const ordenados = [...det].sort((a, b) =>
                         (parseInt(a.posicion, 10) || 999) - (parseInt(b.posicion, 10) || 999));
                     const top = ordenados.slice(0, 3);
                     const resto = ordenados.length - top.length;
-                    cuerpo = '<div class="d-flex flex-wrap gap-2 mt-1">' + top.map(d => {
+                    cuerpo = '<div class="rs-podio-lista my-2">' + top.map(d => {
                         const pos = parseInt(d.posicion, 10);
                         const medalla = MEDALLAS[pos - 1] || (pos + 'º');
-                        return `<span class="badge rounded-pill bg-white border text-dark rs-podio">
-                                    ${medalla} <strong>${esc(nombreDet(d, ''))}</strong>${d.tiempo ? ' · <span class="font-monospace">' + (r.tipo_resultado === 'PUNTAJE' ? 'Pts: ' : '') + esc(d.tiempo) + '</span>' : ''}
-                                </span>`;
+                        return `<div class="rs-podio-item">
+                                    <span class="rs-podio-med">${medalla}</span>
+                                    <span class="rs-podio-nom text-truncate" title="${esc(nombreDet(d, ''))}"><strong>${esc(nombreDet(d, ''))}</strong></span>
+                                    ${d.tiempo ? '<span class="rs-podio-time font-monospace">' + (r.tipo_resultado === 'PUNTAJE' ? 'Pts: ' : '') + esc(d.tiempo) + '</span>' : ''}
+                                </div>`;
                     }).join('') +
                     (resto > 0
-                        ? `<span class="align-self-center small text-muted fst-italic">+ ${resto} puesto/s más <i class="bi bi-arrow-right-short"></i> Detalle</span>`
+                        ? `<div class="small text-muted fst-italic mt-1">+ ${resto} puesto/s más <i class="bi bi-arrow-right-short"></i> Detalle</div>`
                         : '') +
                     '</div>';
+                    var extraClaseTarjeta = '';
                 }
 
-                html += `<div class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                    <div style="min-width:260px">
-                        <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'} me-1">${esc(r.tipo_resultado)}</span>
-                        <strong>${esc(r.nombre_evento)}</strong>
-                        ${r.nombre_prueba ? `<span class="small text-muted ms-1"><i class="bi bi-calendar3 me-1"></i>${esc(r.nombre_prueba)}</span>` : ''}
-                        <div class="small text-muted">
-                            <i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}
-                            ${r.observaciones ? '&nbsp;<i class="bi bi-chat-left-text me-1"></i>' + esc(r.observaciones) : ''}
-                        </div>
-                        ${cuerpo}
+                html += `<div class="fx-tarjeta rs-tarjeta ${extraClaseTarjeta}">
+                    <div class="fx-tarjeta-top">
+                        <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'}">${esc(r.tipo_resultado)}</span>
+                        <span class="small text-muted"><i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}</span>
                     </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
-                            <i class="bi bi-eye-fill me-1"></i>Detalle
-                        </button>
-                        ${SOLO_LECTURA ? '' : `
-                        <button class="btn btn-sm btn-outline-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
-                            <i class="bi bi-x-lg"></i>
-                        </button>`}
+                    <div class="fx-tarjeta-nombre" title="${esc(r.nombre_evento)}">${esc(r.nombre_evento)}</div>
+                    ${r.nombre_prueba ? `<div class="small text-muted mb-1"><i class="bi bi-journal-text me-1"></i>${esc(r.nombre_prueba)}</div>` : ''}
+                    ${cuerpo}
+                    ${r.observaciones ? `<div class="rs-obs small text-muted mb-1" title="${esc(r.observaciones)}"><i class="bi bi-chat-left-text me-1"></i>${esc(r.observaciones)}</div>` : ''}
+                    <div class="fx-tarjeta-footer mt-auto d-flex justify-content-end">
+                        <div class="d-inline-flex align-items-center fx-tarjeta-acciones">
+                            <button class="btn btn-sm rounded-circle rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
+                                <i class="bi bi-search"></i>
+                            </button>
+                            ${SOLO_LECTURA ? '' : `
+                            <button class="btn btn-sm rounded-circle btn-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
+                                <i class="bi bi-trash3-fill"></i>
+                            </button>`}
+                        </div>
                     </div>
                 </div>`;
             });
 
-            html += '</div></div>';
+            html += '</div></div></div>';
         });
         lista.innerHTML = html;
 
         lista.querySelectorAll('.rs-detalle').forEach(b => b.addEventListener('click', () => abrirDetalle(b.dataset.id)));
 
-        // Estética: en grupos con muchos resultados, mostrar solo los primeros 5 y plegar el resto.
-        lista.querySelectorAll('.rs-grupo').forEach(grupo => {
-            const items = [...grupo.querySelectorAll('.list-group-item')];
-            if (items.length <= 5) return;
-            const ocultos = items.slice(5);
+        // Estética: en grupos con muchos resultados, mostrar solo los primeros 8 y plegar el resto.
+        lista.querySelectorAll('.rs-grupo .fx-tarjetas').forEach(cont => {
+            const items = [...cont.children];
+            if (items.length <= 8) return;
+            const ocultos = items.slice(8);
             ocultos.forEach(el => el.classList.add('d-none'));
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -702,12 +721,12 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                     : `<i class="bi bi-chevron-down me-1"></i>Mostrar ${items.length - visibles} resultado/s más`;
             };
             btn.addEventListener('click', () => {
-                const colapsado = items[5].classList.contains('d-none');
+                const colapsado = items[8].classList.contains('d-none');
                 ocultos.forEach(el => el.classList.toggle('d-none', !colapsado));
                 actualizarTexto();
             });
             actualizarTexto();
-            grupo.appendChild(btn);
+            cont.parentElement.appendChild(btn);
         });
 
         lista.querySelectorAll('.rs-borrar').forEach(b => b.addEventListener('click', () => {
