@@ -252,15 +252,35 @@
         <i class="fas fa-bars"></i>
     </button>
 
+    <?php
+    // Menú activo: lo define cada controlador vía $data['menu_activo'].
+    // Si no llega (vista cargada sin ese dato), se resuelve por la URL actual.
+    $menu_activo = isset($menu_activo) ? $menu_activo : '';
+    if ($menu_activo === '') {
+        $uri_actual = trim(current_url(), '/');
+        $segmentos = array_values(array_filter(explode('/', $uri_actual), function ($s) {
+            return strtolower($s) !== 'index.php';
+        }));
+        $ultimo = strtolower(end($segmentos) ?: '');
+        $mapa_uri = [
+            'login' => 'resumen', 'dashboard' => 'resumen',
+            'inscriptos' => 'inscriptos', 'fixture' => 'fixture',
+            'resultados' => 'resultados', 'premiacion' => 'premiacion',
+            'gestion_deportes' => 'deportes', 'utes_equipos' => 'deportes',
+            'gestion_usuarios' => 'usuarios',
+        ];
+        $menu_activo = $mapa_uri[$ultimo] ?? '';
+    }
+    ?>
     <ul class="nav-menu" id="navMenu">
-        <li class="active">
+        <li class="<?= $menu_activo === 'resumen' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/login') ?>">
                 <i class="fas fa-chart-bar"></i> Resumen
             </a>
         </li>
 
         <!-- Dropdown Gestión Deportiva -->
-        <li>
+        <li class="<?= $menu_activo === 'deportes' ? 'active' : '' ?>">
             <a href="#" onclick="toggleDropdown(event, this)">
                 <i class="fas fa-trophy"></i> Gestión Deportiva
                 <i class="fas fa-chevron-down" style="font-size:0.7rem;margin-left:4px;"></i>
@@ -275,29 +295,29 @@
             </ul>
         </li>
 
-        <li>
+        <li class="<?= $menu_activo === 'inscriptos' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/inscriptos') ?>">
                 <i class="fas fa-user-plus"></i> Inscriptos
             </a>
         </li>
-        <li>
+        <li class="<?= $menu_activo === 'fixture' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/fixture') ?>">
                 <i class="fas fa-calendar-alt"></i> Fixture
             </a>
         </li>
-        <li>
+        <li class="<?= $menu_activo === 'resultados' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/resultados') ?>">
                 <i class="fas fa-medal"></i> Resultados
             </a>
         </li>
-        <li>
+        <li class="<?= $menu_activo === 'premiacion' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/premiacion') ?>">
                 <i class="fas fa-award"></i> Premiación
             </a>
         </li>
 
         <?php if ($this->session->userdata('user_rol') === 'superadmin'): ?>
-        <li>
+        <li class="<?= $menu_activo === 'usuarios' ? 'active' : '' ?>">
             <a href="<?= base_url('Inscripciones/gestion_usuarios') ?>">
                 <i class="fas fa-user-shield"></i> Usuarios
             </a>
