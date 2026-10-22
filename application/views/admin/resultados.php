@@ -567,52 +567,11 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
         modalDetalle.show();
     }
 
-    /* ---------- Render: agrupa por Deporte → Categoría ---------- */
-    function render() {
-        const dep = filtroDeporte.value.toLowerCase().trim();
-        const cat = filtroCategoria.value;
-
-        const items = todosResultados.filter(r => {
-            if (dep && (r.nombre_deporte || '').toLowerCase().trim() !== dep) return false;
-            if (cat && String(r.id_categoria) !== String(cat)) return false;
-            return true;
-        });
-
-        if (!items.length) {
-            lista.innerHTML = '<div class="text-center text-muted py-4">' +
-                '<i class="bi bi-clipboard-x fs-1 d-block mb-2"></i>' +
-                (todosResultados.length
-                    ? 'No hay resultados que coincidan con los filtros elegidos.'
-                    : (SOLO_LECTURA
-                        ? 'No hay resultados cargados todavía.'
-                        : 'Todavía no cargaste ningún resultado. Usá el botón "Cargar resultado".')) +
-                '</div>';
-            return;
-        }
-
-        // Agrupar por deporte/categoría
-        const grupos = {};
-        items.forEach(r => {
-            const clave = (r.nombre_deporte || '?') + '|||' + (r.nombre_categoria || '?');
-            (grupos[clave] = grupos[clave] || []).push(r);
-        });
-
-        let html = '';
-        Object.keys(grupos).sort().forEach(clave => {
-            const partes = clave.split('|||');
-            const cantidadEnGrupo = grupos[clave].length;
-
-            html += `<div class="card mb-3 shadow-sm">
-                <div class="card-header bg-white py-2">
-                    <span><i class="bi bi-trophy me-1"></i>${esc(partes[0])}</span>
-                    <span class="text-muted mx-1">›</span><span>${esc(partes[1])}</span>
-                    <span class="small text-muted ms-2">(${cantidadEnGrupo} resultado/s)</span>
-                </div>
-                <!-- Mismo formato de "cuadritos" del Fixture: grilla responsiva
-                     de tarjetas (clases fx-tarjetas / rs-tarjeta en style.css) -->
-                <div class="rs-grupo p-2"><div class="fx-tarjetas">`;
-
-            grupos[clave].forEach(r => {
+    /* ---------- Tarjeta de un resultado ("cuadrito") ---------- */
+    // Se armaba adentro de render(); separada para poder reutilizarla tanto
+    // en la grilla lado a lado de las categorías de jornada única como en el
+    // bloque vertical de las categorías multidía (igual que en Fixture).
+    function tarjetaResultadoHtml(r) {
                 let cuerpo = '';
                 const det = r.detalle || [];
                 if (r.tipo_resultado === 'MARCADOR') {
@@ -676,52 +635,178 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                     var extraClaseTarjeta = '';
                 }
 
-                html += `<div class="fx-tarjeta rs-tarjeta ${extraClaseTarjeta}">
-                    <div class="fx-tarjeta-top">
-                        <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'}">${esc(r.tipo_resultado)}</span>
-                        <span class="small text-muted"><i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}</span>
-                    </div>
-                    <div class="fx-tarjeta-nombre" title="${esc(r.nombre_evento)}">${esc(r.nombre_evento)}</div>
-                    ${r.nombre_prueba ? `<div class="small text-muted mb-1"><i class="bi bi-journal-text me-1"></i>${esc(r.nombre_prueba)}</div>` : ''}
-                    ${cuerpo}
-                    ${r.observaciones ? `<div class="rs-obs small text-muted mb-1" title="${esc(r.observaciones)}"><i class="bi bi-chat-left-text me-1"></i>${esc(r.observaciones)}</div>` : ''}
-                    <div class="fx-tarjeta-footer mt-auto d-flex justify-content-end">
-                        <div class="d-inline-flex align-items-center fx-tarjeta-acciones">
-                            <button class="btn btn-sm rounded-circle rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
-                                <i class="bi bi-search"></i>
-                            </button>
-                            ${SOLO_LECTURA ? '' : `
-                            <button class="btn btn-sm rounded-circle btn-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
-                                <i class="bi bi-trash3-fill"></i>
-                            </button>`}
+        return `<div class="fx-tarjeta rs-tarjeta ${extraClaseTarjeta}">
+            <div class="fx-tarjeta-top">
+                <span class="badge ${BADGE_TIPO[r.tipo_resultado] || 'bg-secondary'}">${esc(r.tipo_resultado)}</span>
+                <span class="small text-muted"><i class="bi bi-calendar-event me-1"></i>${fechaArma(r.fecha_competencia || r.fecha_resultado)}</span>
+            </div>
+            <div class="fx-tarjeta-nombre" title="${esc(r.nombre_evento)}">${esc(r.nombre_evento)}</div>
+            ${r.nombre_prueba ? `<div class="small text-muted mb-1"><i class="bi bi-journal-text me-1"></i>${esc(r.nombre_prueba)}</div>` : ''}
+            ${cuerpo}
+            ${r.observaciones ? `<div class="rs-obs small text-muted mb-1" title="${esc(r.observaciones)}"><i class="bi bi-chat-left-text me-1"></i>${esc(r.observaciones)}</div>` : ''}
+            <div class="fx-tarjeta-footer mt-auto d-flex justify-content-end">
+                <div class="d-inline-flex align-items-center fx-tarjeta-acciones">
+                    <button class="btn btn-sm rounded-circle rs-detalle" data-id="${r.id_resultado}" title="Ver detalle del resultado">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    ${SOLO_LECTURA ? '' : `
+                    <button class="btn btn-sm rounded-circle btn-danger rs-borrar" data-id="${r.id_resultado}" title="Eliminar resultado">
+                        <i class="bi bi-trash3-fill"></i>
+                    </button>`}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    /* ---------- ¿Categoría de jornada única? (igual que en Fixture) ---------- */
+    // Los deportes MASIVO / UN DIA (Atletismo, Natación, etc.) tienen una sola
+    // largada por categoría: mostrar "Categoria A → cuadrito / Categoria B →
+    // cuadrito..." apilado desperdicia la pantalla. Esas categorías se muestran
+    // lado a lado: Categoria A | B | C cada una con su cuadrito adentro.
+    // Se decide por el tipo de resultado (TIEMPO/PUNTAJE = masivo) o porque la
+    // categoría tiene un solo resultado cargado (una única jornada).
+    function esCategoriaJornadaUnica(items) {
+        return (items || []).every(r =>
+            r.tipo_resultado === 'TIEMPO' || r.tipo_resultado === 'PUNTAJE' || items.length === 1);
+    }
+
+    /* ---------- Render: bloque de deporte → categorías (estilo Fixture) ---------- */
+    function render() {
+        const dep = filtroDeporte.value.toLowerCase().trim();
+        const cat = filtroCategoria.value;
+
+        const items = todosResultados.filter(r => {
+            if (dep && (r.nombre_deporte || '').toLowerCase().trim() !== dep) return false;
+            if (cat && String(r.id_categoria) !== String(cat)) return false;
+            return true;
+        });
+
+        if (!items.length) {
+            lista.innerHTML = '<div class="text-center text-muted py-4">' +
+                '<i class="bi bi-clipboard-x fs-1 d-block mb-2"></i>' +
+                (todosResultados.length
+                    ? 'No hay resultados que coincidan con los filtros elegidos.'
+                    : (SOLO_LECTURA
+                        ? 'No hay resultados cargados todavía.'
+                        : 'Todavía no cargaste ningún resultado. Usá el botón "Cargar resultado".')) +
+                '</div>';
+            return;
+        }
+
+        // Agrupar primero por DEPORTE, y adentro por CATEGORÍA (misma
+        // jerarquía visual que el Fixture, antes se mezclaba todo en una línea).
+        const deportes = {};
+        items.forEach(r => {
+            const d = r.nombre_deporte || '?';
+            const c = r.nombre_categoria || '?';
+            if (!deportes[d]) deportes[d] = {};
+            (deportes[d][c] = deportes[d][c] || []).push(r);
+        });
+
+        let html = '';
+        Object.keys(deportes).sort().forEach(deporte => {
+            const cats = deportes[deporte];
+            const resultadosDelDeporte = Object.values(cats).reduce((n, items) => n + items.length, 0);
+            const idDepBlock = 'rsdep_' + encodeURIComponent(deporte).replace(/%/g, '');
+
+            html += `<div class="card mb-4 border-success-subtle shadow-sm">
+                <div class="card-header bg-white py-2 d-flex flex-wrap justify-content-between align-items-center gap-1">
+                    <span class="d-flex align-items-center flex-wrap gap-1">
+                        <button class="btn btn-link text-decoration-none p-0 d-flex align-items-center gap-2 fx-deporte-titulo fw-bold"
+                                type="button" data-bs-toggle="collapse" data-bs-target="#${idDepBlock}" aria-expanded="true">
+                            <i class="bi bi-chevron-down fx-chev"></i>
+                            <i class="bi bi-trophy-fill text-success"></i>
+                            <span>${esc(deporte)}</span>
+                        </button>
+                        <span class="badge bg-success-subtle text-success ms-2">${Object.keys(cats).length} categoría/s</span>
+                        <span class="small opacity-75 ms-1">(${resultadosDelDeporte} resultado/s)</span>
+                    </span>
+                </div>
+                <div class="collapse show" id="${idDepBlock}">
+                <div class="card-body py-2">`;
+
+            // Bloque de UNA categoría: cabecera + grilla de cuadritos.
+            // En modo compacto (jornada única) la cabecera de la categoría va
+            // arriba del cuadrito y las tarjetas ocupan todo el ancho.
+            function bloqueCategoriaRs(categoria, rsArr, compacto) {
+                const h = `<div class="${compacto ? 'fx-cat-unica-cuerpo' : 'border rounded bg-light-subtle mb-3'}">` +
+                    (compacto ? '' : `<div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
+                        <span>
+                            <span class="fw-semibold"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
+                            <span class="small text-muted ms-2">(${rsArr.length} resultado/s)</span>
+                        </span>
+                    </div>`) +
+                    `<div class="${compacto ? '' : 'p-2'}"><div class="fx-tarjetas${compacto ? '' : ' mb-2'} rs-grupo">` +
+                        rsArr.map(tarjetaResultadoHtml).join('') +
+                    '</div></div>' +
+                '</div>';
+                return h;
+            }
+
+            /* Separar las categorías: las de JORNADA ÚNICA (masivas / un día)
+               salen en fila lado a lado; las multidía van debajo, apiladas. */
+            const catsNames = Object.keys(cats).sort();
+            const catsUnicas = catsNames.filter(c => esCategoriaJornadaUnica(cats[c]));
+            const catsNormales = catsNames.filter(c => !esCategoriaJornadaUnica(cats[c]));
+
+            if (catsUnicas.length) {
+                html += '<div class="fx-cats-unicas mb-3">';
+                catsUnicas.forEach(categoria => {
+                    html += `<div class="fx-cat-unica">
+                        <div class="fx-cat-unica-header">
+                            <span class="fx-cat-unica-nombre"><i class="bi bi-people me-1 text-muted"></i>${esc(categoria)}</span>
                         </div>
-                    </div>
-                </div>`;
+                        ${bloqueCategoriaRs(categoria, cats[categoria], true)}
+                    </div>`;
+                });
+                html += '</div>';
+            }
+
+            catsNormales.forEach(categoria => {
+                html += bloqueCategoriaRs(categoria, cats[categoria], false);
             });
 
-            html += '</div></div></div>';
+            html += '</div></div></div>'; // cierra card-body, collapse y card del deporte
         });
         lista.innerHTML = html;
+
+        // Rotar la flechita del header del deporte al abrir/cerrar (acordeón
+        // manual, mismo criterio que en Fixture: no usar data-bs-parent porque
+        // #rs_lista también contiene .collapse de otros modales).
+        lista.querySelectorAll('.collapse[id^="rsdep_"]').forEach(col => {
+            const chev = col.parentElement.querySelector('.fx-chev');
+            col.addEventListener('shown.bs.collapse', () => {
+                if (chev) chev.classList.replace('bi-chevron-right', 'bi-chevron-down');
+                lista.querySelectorAll('.collapse.show[id^="rsdep_"]').forEach(otro => {
+                    if (otro !== col && window.bootstrap && bootstrap.Collapse) {
+                        bootstrap.Collapse.getOrCreateInstance(otro).hide();
+                    }
+                });
+            });
+            col.addEventListener('hidden.bs.collapse', () => {
+                if (chev) chev.classList.replace('bi-chevron-down', 'bi-chevron-right');
+            });
+        });
 
         lista.querySelectorAll('.rs-detalle').forEach(b => b.addEventListener('click', () => abrirDetalle(b.dataset.id)));
 
         // Estética: en grupos con muchos resultados, mostrar solo los primeros 8 y plegar el resto.
-        lista.querySelectorAll('.rs-grupo .fx-tarjetas').forEach(cont => {
-            const items = [...cont.children];
-            if (items.length <= 8) return;
-            const ocultos = items.slice(8);
+        lista.querySelectorAll('.rs-grupo').forEach(cont => {
+            const itemsG = [...cont.children];
+            if (itemsG.length <= 8) return;
+            const ocultos = itemsG.slice(8);
             ocultos.forEach(el => el.classList.add('d-none'));
             const btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'btn btn-link btn-sm w-100 text-decoration-none fw-semibold';
             const actualizarTexto = () => {
-                const visibles = items.filter(el => !el.classList.contains('d-none')).length;
-                btn.innerHTML = visibles === items.length
+                const visibles = itemsG.filter(el => !el.classList.contains('d-none')).length;
+                btn.innerHTML = visibles === itemsG.length
                     ? '<i class="bi bi-chevron-up me-1"></i>Mostrar menos'
-                    : `<i class="bi bi-chevron-down me-1"></i>Mostrar ${items.length - visibles} resultado/s más`;
+                    : `<i class="bi bi-chevron-down me-1"></i>Mostrar ${itemsG.length - visibles} resultado/s más`;
             };
             btn.addEventListener('click', () => {
-                const colapsado = items[8].classList.contains('d-none');
+                const colapsado = itemsG[8].classList.contains('d-none');
                 ocultos.forEach(el => el.classList.toggle('d-none', !colapsado));
                 actualizarTexto();
             });
