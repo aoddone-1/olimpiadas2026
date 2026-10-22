@@ -701,9 +701,43 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     grid-template-columns: 1fr;
 }
 .fx-cat-unica .fx-tarjetas.mb-2 { margin-bottom: 0 !important; }
+/* Los cuadritos de jornada única estiran su cuerpo al alto disponible, así
+   el pie de la tarjeta de adentro (botones) nunca queda cortado. */
+.fx-cat-unica > .fx-cat-unica-cuerpo { flex: 1 1 auto; }
 @media (max-width: 576px) {
     .fx-cats-unicas { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+   RESULTADOS EN "JORNADA ÚNICA": las tarjetas TIEMPO/PUNTAJE son
+   más altas (llevan el podio + botones abajo), así que se muestra
+   TODO el contenido dentro del cuadrito y el texto largo se corta
+   con puntos suspensivos. Se usa flex en columna + min-height:0
+   para que el pie de la tarjeta (botones) quede siempre visible,
+   sin quedar fuera de la pantalla como pasaba antes.
+   ============================================================ */
+.rs-cats-unicas .fx-cat-unica .fx-tarjeta {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+}
+.rs-cats-unicas .fx-cat-unica .rs-podio-lista {
+    min-height: 0;
+    overflow: hidden;
+}
+.rs-cats-unicas .fx-cat-unica .fx-tarjeta-nombre,
+.rs-cats-unicas .fx-cat-unica .rs-obs {
+    white-space: nowrap;
+    -webkit-line-clamp: unset;
+    display: block;
+}
+/* El "Mostrar más" queda como última fila del cuerpo (debajo de las
+   tarjetas), no al lado. */
+.fx-cat-unica > .fx-cat-unica-cuerpo { flex-direction: column; }
+/* La grilla de tarjetas ocupa la fila disponible y el "Mostrar más" queda
+   siempre al pie del cuadrito. */
+.fx-cat-unica > .fx-cat-unica-cuerpo > .fx-tarjetas { flex: 1 1 auto; min-height: 0; align-content: start; }
+.fx-cat-unica > .fx-cat-unica-cuerpo > .btn { flex: 0 0 auto; }
 
 /* ============================================================
    RESULTADOS — "cuadritos" (mismo lenguaje visual del Fixture)

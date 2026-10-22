@@ -729,6 +729,11 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
             // En modo compacto (jornada única) la cabecera de la categoría va
             // arriba del cuadrito y las tarjetas ocupan todo el ancho.
             function bloqueCategoriaRs(categoria, rsArr, compacto) {
+                // En modo compacto la grilla de tarjetas estira el alto del
+                // cuadrito (flex + min-height:0), para que los botones del pie
+                // de cada tarjeta queden siempre dentro y visibles.
+                const cuerpo = `<div class="fx-tarjetas${compacto ? '' : ' mb-2'} rs-grupo">` +
+                    rsArr.map(tarjetaResultadoHtml).join('') + '</div>';
                 const h = `<div class="${compacto ? 'fx-cat-unica-cuerpo' : 'border rounded bg-light-subtle mb-3'}">` +
                     (compacto ? '' : `<div class="px-2 py-1 border-bottom bg-white rounded-top d-flex flex-wrap justify-content-between align-items-center gap-1">
                         <span>
@@ -736,9 +741,7 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                             <span class="small text-muted ms-2">(${rsArr.length} resultado/s)</span>
                         </span>
                     </div>`) +
-                    `<div class="${compacto ? '' : 'p-2'}"><div class="fx-tarjetas${compacto ? '' : ' mb-2'} rs-grupo">` +
-                        rsArr.map(tarjetaResultadoHtml).join('') +
-                    '</div></div>' +
+                    (compacto ? cuerpo : `<div class="p-2">${cuerpo}</div>`) +
                 '</div>';
                 return h;
             }
@@ -750,7 +753,10 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
             const catsNormales = catsNames.filter(c => !esCategoriaJornadaUnica(cats[c]));
 
             if (catsUnicas.length) {
-                html += '<div class="fx-cats-unicas mb-3">';
+                // .rs-cats-unicas: los cuadritos de resultados son más altos
+                // (podio + botones abajo); esta clase activa en el CSS que el
+                // contenido nunca se corte y los botones queden visibles.
+                html += '<div class="fx-cats-unicas rs-cats-unicas mb-3">';
                 catsUnicas.forEach(categoria => {
                     html += `<div class="fx-cat-unica">
                         <div class="fx-cat-unica-header">
@@ -791,14 +797,19 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
         lista.querySelectorAll('.rs-detalle').forEach(b => b.addEventListener('click', () => abrirDetalle(b.dataset.id)));
 
         // Estética: en grupos con muchos resultados, mostrar solo los primeros 8 y plegar el resto.
+        // Adentro de un cuadrito de jornada única (fx-cat-unica) hay menos ancho
+        // disponible, así que se pliega más temprano (3 tarjetas) para que el
+        // botón "Mostrar más" y los botones de cada tarjeta nunca queden cortados.
         lista.querySelectorAll('.rs-grupo').forEach(cont => {
+            const compacto = cont.closest('.fx-cat-unica') !== null;
+            const umbral = compacto ? 3 : 8;
             const itemsG = [...cont.children];
-            if (itemsG.length <= 8) return;
-            const ocultos = itemsG.slice(8);
+            if (itemsG.length <= umbral) return;
+            const ocultos = itemsG.slice(umbral);
             ocultos.forEach(el => el.classList.add('d-none'));
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn btn-link btn-sm w-100 text-decoration-none fw-semibold';
+            btn.className = 'btn btn-link btn-sm text-decoration-none fw-semibold' + (compacto ? '' : ' w-100');
             const actualizarTexto = () => {
                 const visibles = itemsG.filter(el => !el.classList.contains('d-none')).length;
                 btn.innerHTML = visibles === itemsG.length
@@ -806,12 +817,15 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
                     : `<i class="bi bi-chevron-down me-1"></i>Mostrar ${itemsG.length - visibles} resultado/s más`;
             };
             btn.addEventListener('click', () => {
-                const colapsado = itemsG[8].classList.contains('d-none');
+                const colapsado = itemsG[umbral].classList.contains('d-none');
                 ocultos.forEach(el => el.classList.toggle('d-none', !colapsado));
                 actualizarTexto();
             });
             actualizarTexto();
-            cont.parentElement.appendChild(btn);
+            // En compacto el botón va al lado de la grilla (ambas hijas del
+            // cuerpo flex del cuadrito); si no, debajo de todo.
+            if (compacto) cont.insertAdjacentElement('afterend', btn);
+            else cont.parentElement.appendChild(btn);
         });
 
         lista.querySelectorAll('.rs-borrar').forEach(b => b.addEventListener('click', () => {
