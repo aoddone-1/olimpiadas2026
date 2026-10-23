@@ -2654,6 +2654,38 @@ class Inscripciones extends CI_Controller {
     }
     
     /**
+     * Genera y descarga UN PDF con todos los deslindes de responsabilidad de la
+     * delegación del delegado logueado (un deslinde por hoja).
+     * Lo invoca el botón "Descargar Deslindes" del panel de delegado.
+     */
+    public function descargar_deslindes_delegacion() {
+        if (!$this->session->userdata('is_delegado')) {
+            redirect('Inscripciones/login');
+            return;
+        }
+
+        $this->load->model('Participante_model');
+
+        // Delegación del usuario logueado
+        $delegacion = $this->session->userdata('user_nombre');
+
+        // Participantes de la delegación (nombre_completo, dni, telefono,
+        // fecha_nacimiento, es_competidor), mismos datos que muestra el panel.
+        $participantes = $this->Participante_model->obtener_participantes_por_delegacion_completo($delegacion);
+
+        if (!$participantes) {
+            show_404();
+            return;
+        }
+
+        $data['participantes'] = $participantes;
+        $data['nombre_provincia'] = $delegacion;
+
+        // Vista que arma el PDF con TCPDF: una hoja por participante.
+        $this->load->view('deslindes_masivos_view', $data);
+    }
+
+    /**
      * Descarga la lista de inscriptos en formato CSV
      */
     public function descargar_csv_inscriptos() {
