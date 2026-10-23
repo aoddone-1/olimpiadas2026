@@ -2070,6 +2070,27 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Participante_model');
         $data = $this->Participante_model->obtener_detalle_participante($id_participante);
 
+        // UTEs/Equipos en los que está este participante (nombre, deporte y
+        // categoría). Se muestra en la sección "Disciplinas Deportivas" del
+        // modal de detalle (panel del delegado e inscriptos).
+        if ($data) {
+            $this->load->model('UTE_model');
+            // Se combinan ambas fuentes de relación participante<->UTE:
+            // participantes_utes (pantalla de gestión de equipos) y
+            // inscripciones_deportivas.id_ute (formulario de inscripción),
+            // deduplicando por id_ute.
+            $utes_por_id = array();
+            foreach ($this->UTE_model->obtener_utes_de_participante($id_participante) as $u) {
+                $utes_por_id[(int) $u['id_ute']] = $u;
+            }
+            foreach ($this->UTE_model->obtener_utes_por_inscripciones($id_participante) as $u) {
+                if (!isset($utes_por_id[(int) $u['id_ute']])) {
+                    $utes_por_id[(int) $u['id_ute']] = $u;
+                }
+            }
+            $data['utes'] = array_values($utes_por_id);
+        }
+
         // Seteamos la cabecera para decirle al navegador que es un JSON puro
         header('Content-Type: application/json');
         echo json_encode($data);
@@ -2649,7 +2670,12 @@ class Inscripciones extends CI_Controller {
         // Deportes en los que la delegación compite: alimentan el filtro del
         // botón "Descargar reporte de fixture" (PDF, mismo formato que superadmin).
         $data['deportes_delegacion'] = $this->Participante_model->obtener_deportes_de_delegacion($user_nombre);
-        
+
+        // UTEs/Equipos en los que están los participantes de la delegación:
+        // se muestran en la tabla "UTEs / Equipos de tu Delegación" del panel.
+        $this->load->model('UTE_model');
+        $data['utes_delegacion'] = $this->UTE_model->obtener_utes_de_delegacion($user_nombre);
+
         $this->load->view('admin/panel_delegado', $data);
     }
     
