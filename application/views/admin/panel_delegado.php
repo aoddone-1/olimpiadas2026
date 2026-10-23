@@ -71,6 +71,20 @@
             </div>
         </div>
 
+        <!-- Deslindes de responsabilidad: un PDF con todos los deslindes de la delegación -->
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #6f42c1;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">Deslindes</h6>
+                    <a href="<?= base_url('Inscripciones/descargar_deslindes_delegacion') ?>" class="btn btn-sm w-100 mt-1"
+                        style="background-color: #6f42c1; color: #fff;"
+                        title="PDF con TODOS los deslindes de responsabilidad de tu delegación (uno por hoja)">
+                        <i class="bi bi-file-earmark-text me-1"></i>Descargar Deslindes
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <!-- Reporte de fixture de la delegación (mismo formato PDF que superadmin) -->
         <div class="col-12 col-md-6 col-lg-5">
             <div class="card card-indicador shadow-sm" style="border-left-color: #dc3545;">
