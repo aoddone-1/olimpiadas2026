@@ -123,7 +123,7 @@
 
     <!-- Tarjetas de resumen -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
             <div class="card card-indicador shadow-sm" style="border-left-color: #28a745;">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Total Inscriptos</h6>
@@ -131,7 +131,15 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
+        <div class="col-6 col-md-2">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #fd7e14;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">UTEs / Equipos</h6>
+                    <h3 class="fw-bold m-0" style="color: #fd7e14;"><?= count($utes_delegacion) ?></h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
             <div class="card card-indicador shadow-sm" style="border-left-color: #0d6efd;">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Exportar Datos</h6>
@@ -157,7 +165,7 @@
         </div>
 
         <!-- Reporte de fixture de la delegación (mismo formato PDF que superadmin) -->
-        <div class="col-12 col-md-6 col-lg-5">
+        <div class="col-12 col-md-6 col-lg-3">
             <div class="card card-indicador shadow-sm" style="border-left-color: #dc3545;">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">Reporte de Fixture</h6>
@@ -183,15 +191,6 @@
             </div>
         </div>
 
-        <!-- UTEs/Equipos de la delegación -->
-        <div class="col-6 col-md-3">
-            <div class="card card-indicador shadow-sm" style="border-left-color: #fd7e14;">
-                <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">UTEs / Equipos</h6>
-                    <h3 class="fw-bold m-0" style="color: #fd7e14;"><?= count($utes_delegacion) ?></h3>
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- Pestañas: Inscriptos / Equipos -->
