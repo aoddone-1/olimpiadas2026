@@ -21,11 +21,8 @@ class MYPDF_MULTI extends TCPDF {
     /** Participantes ya depurados (UTF-8) que se van imprimiendo de a uno. */
     public $participantes = array();
 
-    /** Puntero del participante que toca en la página actual. */
-    private $indice = 0;
-
     /** Imagen del encabezado (se resuelve en tiempo de ejecución). */
-    private $imagen_header = '';
+    protected $imagen_header = '';
 
     public function __construct($participantes = array()) {
         parent::__construct('P', 'mm', 'LEGAL', true, 'UTF-8', false);
@@ -74,46 +71,57 @@ class MYPDF_MULTI extends TCPDF {
     }
 
     /**
-     * Agrega una hoja nueva (con su logo) y escribe el deslinde del participante
-     * indicado. Si el contenido no entra en la hoja, en vez de cortar el texto a
-     * la mitad se achica la fuente hasta que entre entero.
+     * Escribe el deslinde del participante indicado en su propia hoja.
+     *
+     * Primero intenta en una hoja nueva con el tamaño de letra normal (14pt,
+     * igual que el deslinde individual). Si el texto fuera tan largo que no
+     * entra (writeHTML cortaría y abriría una segunda hoja), descarta esa hoja
+     * extra y reintenta en una hoja limpia con una fuente más chica, hasta que
+     * el deslinde completo ocupe exactamente UNA hoja.
      */
     public function AddPageNewDeslinde($idx) {
-        $this->indice = $idx;
-        $this->AddPage('P', 'LEGAL');
-
-        if (is_readable($this->imagen_header)) {
-            $this->Image($this->imagen_header, 30, 15, 50, '', '', '', 'C', false, 50, '', false, false, 0, false, false, false);
+        if (!isset($this->participantes[$idx])) {
+            return FALSE;
         }
 
         $html = deslinde_html($this->participantes[$idx]);
 
-        // 14pt es la fuente con la que el deslinde individual ocupa poco más de
-        // media hoja LEGAL, así que entran holgadamente. Igual, si algún texto
-        // extra largo la supera, reducimos tamaño antes de partir la hoja.
         for ($size = 14; $size >= 7; $size -= 0.5) {
+            $this->nuevaHojaConLogo();
             $this->SetFont('dejavusans', '', $size, '', true);
-
-            $start_y = $this->y;
             $this->writeHTML($html, true, false, true, false, '');
 
-            if ($this->page === $this->numPages) {
+            if ($this->getPage() === $this->getNumPages()) {
                 return TRUE; // entró completo en esta hoja
             }
 
-            // Se cortó: descartamos las páginas extra y reintentamos más chico
-            while ($this->numPages > $this->page) {
-                $this->DeletePage($this->numPages);
+            // Se cortó: eliminamos TODAS las hojas generadas por este intento
+            // (la original + las que haya abierto el auto page break) y
+            // probamos de nuevo, más chico, en una hoja limpia.
+            while ($this->getNumPages() > 0) {
+                $this->deletePage($this->getNumPages());
             }
-            $this->SetY($start_y, TRUE, TRUE);
-            $this->x = $this->lMargin;
         }
 
-        // Último intento con el tamaño mínimo (puede terminar cortándose)
+        // No entró ni siquiera a 7pt (improbable): hoja única, tamaño mínimo.
+        $this->nuevaHojaConLogo();
         $this->SetFont('dejavusans', '', 7, '', true);
         $this->writeHTML($html, true, false, true, false, '');
 
         return FALSE;
+    }
+
+    /**
+     * Abre una hoja LEGAL limpia y le pinta el logo arriba (los márgenes son
+     * los mismos del deslinde individual). El logo se dibuja acá y no en
+     * Header() porque TCPDF invoca al header también cuando corta una hoja por
+     * exceso de texto, y eso duplicaría el encabezado dentro de un deslinde.
+     */
+    protected function nuevaHojaConLogo() {
+        $this->AddPage('P', 'LEGAL');
+        if (is_readable($this->imagen_header)) {
+            $this->Image($this->imagen_header, 30, 15, 50, '', '', '', 'C', false, 50, '', false, false, 0, false, false, false);
+        }
     }
 }
 
