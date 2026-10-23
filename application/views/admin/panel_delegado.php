@@ -71,6 +71,26 @@
             padding: 1.25rem;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
         }
+
+        /* --- Tablas responsivas en pantallas chicas ---
+           El overflow-hidden de las tarjetas (para los bordes redondeados)
+           choca con table-responsive y puede dejar columnas fuera de la vista.
+           Se fuerza el scroll horizontal y se le da ancho mínimo a la tabla
+           para que TODAS las columnas (incluida "Tus competidores") se vean,
+           desplazando con el dedo. */
+        .table-scroll-mobile {
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+        }
+        @media (max-width: 991.98px) {
+            .table-scroll-mobile > .table {
+                min-width: 800px;
+            }
+            /* Pista visual de que la tabla se puede deslizar */
+            .scroll-hint {
+                display: block !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -203,7 +223,7 @@
     
     <div id="lista-participantes">
         <?php if(!empty($participantes)): ?>
-            <div class="table-responsive bg-white rounded-3 shadow-sm overflow-hidden">
+            <div class="table-responsive table-scroll-mobile bg-white rounded-3 shadow-sm">
                 <table class="table table-bordered align-middle mb-0">
                     <thead >
                         <tr class="table-dark">
@@ -306,15 +326,15 @@
         </div>
 
         <?php if(!empty($utes_delegacion)): ?>
-            <div class="table-responsive bg-white rounded-3 shadow-sm overflow-hidden">
+            <div class="table-responsive table-scroll-mobile bg-white rounded-3 shadow-sm">
                 <table class="table table-bordered align-middle mb-0">
                     <thead>
                         <tr class="table-dark">
                             <th class="text-center" style="min-width: 200px;">Equipo / UTE</th>
-                            <th class="text-center">Deporte</th>
-                            <th class="d-none d-lg-table-cell text-center">Categoría</th>
-                            <th class="d-none d-md-table-cell text-center">Integrantes (delegación / total)</th>
-                            <th class="text-center" style="min-width: 220px;">Tus competidores en el equipo</th>
+                            <th class="text-center" style="min-width: 120px;">Deporte</th>
+                            <th class="d-none d-lg-table-cell text-center" style="min-width: 120px;">Categoría</th>
+                            <th class="d-none d-md-table-cell text-center" style="min-width: 150px;">Integrantes (delegación / total)</th>
+                            <th class="text-center" style="min-width: 240px;">Tus competidores en el equipo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -366,6 +386,9 @@
                     </tbody>
                 </table>
             </div>
+            <small class="text-muted scroll-hint d-none mt-2">
+                <i class="bi bi-arrow-left-right me-1"></i>Deslizá la tabla horizontalmente para ver todas las columnas.
+            </small>
         <?php else: ?>
             <div class="alert alert-info border-0 shadow-sm">
                 <i class="bi bi-info-circle-fill me-2"></i>
