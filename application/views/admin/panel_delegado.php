@@ -27,14 +27,49 @@
             color: #28a745;
             border: 1px solid #28a745;
         }
-        .panel-tabs .nav-link {
-            color: #6c757d;
-            font-weight: 600;
-            border-radius: 0.5rem;
+        /* Contenedor tipo "pestañas de navegador": barra con fondo propio
+           que se distingue del fondo de la página */
+        .panel-tabs-wrapper {
+            background: linear-gradient(180deg, #eef3ee 0%, #e3ece4 100%);
+            border: 1px solid #d7e2d8;
+            border-radius: 0.75rem 0.75rem 0 0;
+            padding: 0.6rem 0.75rem 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
         }
+        .panel-tabs .nav-item {
+            margin-right: 0.35rem;
+        }
+        .panel-tabs .nav-link {
+            color: #5a6b5d;
+            font-weight: 600;
+            background-color: transparent;
+            border: 1px solid transparent;
+            border-bottom: none;
+            border-radius: 0.6rem 0.6rem 0 0;
+            padding: 0.65rem 1.4rem;
+            position: relative;
+            top: 1px;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .panel-tabs .nav-link:hover {
+            color: #28a745;
+            background-color: rgba(40, 167, 69, 0.08);
+        }
+        /* Pestaña activa: se "fusiona" visualmente con el contenido blanco de abajo */
         .panel-tabs .nav-link.active {
-            background-color: #28a745;
-            color: #fff;
+            background-color: #ffffff;
+            color: #1e7e34;
+            border-color: #d7e2d8;
+            box-shadow: 0 -3px 0 0 #28a745 inset, 0 -2px 4px rgba(0, 0, 0, 0.03);
+        }
+        /* Caja del contenido de las pestañas: fondo blanco para que la
+           pestaña activa se conecte con ella y todo destaque sobre el fondo */
+        .panel-tab-content {
+            background-color: #ffffff;
+            border: 1px solid #d7e2d8;
+            border-radius: 0 0 0.75rem 0.75rem;
+            padding: 1.25rem;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
         }
     </style>
 </head>
@@ -133,20 +168,22 @@
     </div>
 
     <!-- Pestañas: Inscriptos / Equipos -->
-    <ul class="nav nav-pills panel-tabs mb-4" id="panelTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="tab-inscriptos-btn" data-bs-toggle="tab" data-bs-target="#tab-inscriptos" type="button" role="tab" aria-controls="tab-inscriptos" aria-selected="true">
-                <i class="bi bi-people-fill me-2"></i>Inscriptos (<?= count($participantes) ?>)
-            </button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="tab-equipos-btn" data-bs-toggle="tab" data-bs-target="#tab-equipos" type="button" role="tab" aria-controls="tab-equipos" aria-selected="false">
-                <i class="bi bi-diagram-3-fill me-2"></i>Equipos / UTEs (<?= count($utes_delegacion) ?>)
-            </button>
-        </li>
-    </ul>
+    <div class="panel-tabs-wrapper">
+        <ul class="nav nav-pills panel-tabs" id="panelTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-inscriptos-btn" data-bs-toggle="tab" data-bs-target="#tab-inscriptos" type="button" role="tab" aria-controls="tab-inscriptos" aria-selected="true">
+                    <i class="bi bi-people-fill me-2"></i>Inscriptos (<?= count($participantes) ?>)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-equipos-btn" data-bs-toggle="tab" data-bs-target="#tab-equipos" type="button" role="tab" aria-controls="tab-equipos" aria-selected="false">
+                    <i class="bi bi-diagram-3-fill me-2"></i>Equipos / UTEs (<?= count($utes_delegacion) ?>)
+                </button>
+            </li>
+        </ul>
+    </div>
 
-    <div class="tab-content" id="panelTabsContent">
+    <div class="tab-content panel-tab-content mb-4" id="panelTabsContent">
 
     <!-- ===== PESTAÑA 1: PARTICIPANTES INSCRIPTOS ===== -->
     <div class="tab-pane fade show active" id="tab-inscriptos" role="tabpanel" aria-labelledby="tab-inscriptos-btn">
