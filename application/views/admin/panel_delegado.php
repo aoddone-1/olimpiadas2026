@@ -63,32 +63,39 @@
             box-shadow: 0 -3px 0 0 #28a745 inset, 0 -2px 4px rgba(0, 0, 0, 0.03);
         }
         /* Caja del contenido de las pestañas: fondo blanco para que la
-           pestaña activa se conecte con ella y todo destaque sobre el fondo */
+           pestaña activa se conecte con ella y todo destaque sobre el fondo.
+           OJO: no usar overflow:hidden aqui o cortaria el scroll horizontal
+           de las tablas en movil. */
         .panel-tab-content {
             background-color: #ffffff;
             border: 1px solid #d7e2d8;
             border-radius: 0 0 0.75rem 0.75rem;
             padding: 1.25rem;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+            overflow: visible;
         }
 
         /* --- Tablas responsivas en pantallas chicas ---
-           El overflow-hidden de las tarjetas (para los bordes redondeados)
-           choca con table-responsive y puede dejar columnas fuera de la vista.
-           Se fuerza el scroll horizontal y se le da ancho mínimo a la tabla
-           para que TODAS las columnas (incluida "Tus competidores") se vean,
-           desplazando con el dedo. */
-        .table-scroll-mobile {
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch;
-        }
+           Antes la tabla tenia min-width fijo (800px): el scroll horizontal
+           existia pero habia que deslizar dentro de un area chica y en muchos
+           celulares el gesto no se activaba (choca con el scroll vertical).
+           Ahora, en movil cada equipo/participante se muestra como BLOQUES
+           (cards) que caben completos en pantalla — sin scrollear nada — y
+           la tabla tradicional queda solo para desktop. */
         @media (max-width: 991.98px) {
-            .table-scroll-mobile > .table {
-                min-width: 800px;
+            /* Ocultar la version tabla en movil */
+            .tabla-desktop {
+                display: none !important;
             }
-            /* Pista visual de que la tabla se puede deslizar */
+            /* Pista visual de deslizamiento ya no es necesaria */
             .scroll-hint {
-                display: block !important;
+                display: none !important;
+            }
+        }
+        @media (min-width: 992px) {
+            /* En desktop no se muestran los bloques de movil */
+            .bloques-mobile {
+                display: none !important;
             }
         }
     </style>
@@ -223,7 +230,7 @@
     
     <div id="lista-participantes">
         <?php if(!empty($participantes)): ?>
-            <div class="table-responsive table-scroll-mobile bg-white rounded-3 shadow-sm">
+            <div class="table-responsive tabla-desktop bg-white rounded-3 shadow-sm">
                 <table class="table table-bordered align-middle mb-0">
                     <thead >
                         <tr class="table-dark">
@@ -297,6 +304,53 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Version movil: bloques que caben completos en pantalla (sin scrollear) -->
+            <div class="bloques-mobile">
+                <?php foreach($participantes as $p): ?>
+                    <div class="card card-participante fila-participante shadow-sm mb-2 border-0 rounded-3"
+                         data-string="<?= strtoupper(htmlspecialchars($p['nombre_completo'] . ' ' . $p['dni'])) ?>">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-success bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-2"
+                                         style="width: 40px; height: 40px; min-width: 40px;">
+                                        <i class="bi bi-person-fill text-success"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark"><?= htmlspecialchars($p['nombre_completo']) ?></div>
+                                        <small class="text-muted d-block">DNI <?= htmlspecialchars($p['dni']) ?></small>
+                                        <small class="text-muted d-block text-break"><?= htmlspecialchars($p['email']) ?></small>
+                                    </div>
+                                </div>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-info flex-shrink-0"
+                                        title="Ver Detalles"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#modalDetalleInscripcion"
+                                        data-id="<?= $p['id_participante'] ?>">
+                                    <i class="bi bi-search"></i>
+                                </button>
+                            </div>
+                            <div class="mt-2">
+                                <?php if(isset($p['es_competidor']) && intval($p['es_competidor']) === 0): ?>
+                                    <span class="badge bg-info text-white">
+                                        <i class="bi bi-person-check-fill me-1"></i>Acompañante
+                                    </span>
+                                <?php elseif(!empty($p['deportes'])): ?>
+                                    <?php foreach($p['deportes'] as $dep): ?>
+                                        <span class="badge badge-deporte me-1 mb-1">
+                                            <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($dep['nombre_deporte']) ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <span class="text-muted small">Sin deportes</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php else: ?>
             <div class="alert alert-info border-0 shadow-sm">
                 <i class="bi bi-info-circle-fill me-2"></i>
@@ -326,7 +380,7 @@
         </div>
 
         <?php if(!empty($utes_delegacion)): ?>
-            <div class="table-responsive table-scroll-mobile bg-white rounded-3 shadow-sm">
+            <div class="table-responsive tabla-desktop bg-white rounded-3 shadow-sm">
                 <table class="table table-bordered align-middle mb-0">
                     <thead>
                         <tr class="table-dark">
@@ -386,9 +440,55 @@
                     </tbody>
                 </table>
             </div>
-            <small class="text-muted scroll-hint d-none mt-2">
-                <i class="bi bi-arrow-left-right me-1"></i>Deslizá la tabla horizontalmente para ver todas las columnas.
-            </small>
+
+            <!-- Version movil: cada equipo es un bloque que entra completo en pantalla -->
+            <div class="bloques-mobile">
+                <?php foreach($utes_delegacion as $ute): ?>
+                    <div class="card fila-ute shadow-sm mb-2 border-0 rounded-3"
+                         style="border-left: 4px solid #ffc107 !important;"
+                         data-string="<?= strtoupper(htmlspecialchars($ute['nombre_ute'] . ' ' . $ute['nombre_deporte'] . ' ' . $ute['nombre_categoria'])) ?>">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-2"
+                                         style="width: 40px; height: 40px; min-width: 40px;">
+                                        <i class="bi bi-people-fill text-warning"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold text-dark"><?= htmlspecialchars($ute['nombre_ute']) ?></div>
+                                        <?php if(!empty($ute['genero'])): ?>
+                                            <small class="text-muted"><?= htmlspecialchars($ute['genero']) ?></small>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <span class="badge bg-warning text-dark flex-shrink-0">
+                                    <?= count($ute['integrantes_delegacion']) ?>/<?= (int) $ute['cantidad_integrantes'] ?>
+                                </span>
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge badge-deporte me-1">
+                                    <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($ute['nombre_deporte']) ?>
+                                </span>
+                                <span class="badge bg-light text-dark border"><?= htmlspecialchars($ute['nombre_categoria']) ?></span>
+                            </div>
+                            <div class="mt-2 border-top pt-2">
+                                <?php if(!empty($ute['integrantes_delegacion'])): ?>
+                                    <small class="text-uppercase fw-bold text-muted d-block mb-1" style="font-size: 0.7rem;">Tus competidores en el equipo</small>
+                                    <?php foreach($ute['integrantes_delegacion'] as $ip): ?>
+                                        <div class="small">
+                                            <i class="bi bi-person-fill text-success me-1"></i>
+                                            <?= htmlspecialchars($ip['nombre_completo']) ?>
+                                            <span class="text-muted">(DNI <?= htmlspecialchars($ip['dni']) ?>)</span>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <span class="text-muted small">Sin integrantes de tu delegación</span>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php else: ?>
             <div class="alert alert-info border-0 shadow-sm">
                 <i class="bi bi-info-circle-fill me-2"></i>
@@ -549,8 +649,10 @@ document.addEventListener('DOMContentLoaded', function() {
             let encontrados = 0;
 
             filas.forEach(fila => {
+                // tr necesita table-row; los bloques de movil (card div) usan flex
+                const displayActivo = fila.tagName.toLowerCase() === 'tr' ? 'table-row' : 'flex';
                 if (fila.getAttribute('data-string').includes(query)) {
-                    fila.style.setProperty('display', 'table-row', 'important');
+                    fila.style.setProperty('display', displayActivo, 'important');
                     encontrados++;
                 } else {
                     fila.style.setProperty('display', 'none', 'important');
@@ -573,8 +675,10 @@ document.addEventListener('DOMContentLoaded', function() {
         buscadorUtes.addEventListener('input', function() {
             const query = this.value.toUpperCase();
             filasUtes.forEach(fila => {
+                // tr necesita table-row; los bloques de movil (card div) usan block
+                const displayActivo = fila.tagName.toLowerCase() === 'tr' ? 'table-row' : 'block';
                 if (fila.getAttribute('data-string').includes(query)) {
-                    fila.style.setProperty('display', 'table-row', 'important');
+                    fila.style.setProperty('display', displayActivo, 'important');
                 } else {
                     fila.style.setProperty('display', 'none', 'important');
                 }
