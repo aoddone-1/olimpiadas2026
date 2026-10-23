@@ -27,6 +27,15 @@
             color: #28a745;
             border: 1px solid #28a745;
         }
+        .panel-tabs .nav-link {
+            color: #6c757d;
+            font-weight: 600;
+            border-radius: 0.5rem;
+        }
+        .panel-tabs .nav-link.active {
+            background-color: #28a745;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -117,15 +126,30 @@
             <div class="card card-indicador shadow-sm" style="border-left-color: #fd7e14;">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-1">UTEs / Equipos</h6>
-                    <a href="#seccion-utes" class="btn btn-sm w-100 mt-1"
-                        style="background-color: #fd7e14; color: #fff;"
-                        title="Ver los equipos/UTEs en los que están tus participantes">
-                        <i class="bi bi-diagram-3-fill me-1"></i>Ver Equipos
-                    </a>
+                    <h3 class="fw-bold m-0" style="color: #fd7e14;"><?= count($utes_delegacion) ?></h3>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Pestañas: Inscriptos / Equipos -->
+    <ul class="nav nav-pills panel-tabs mb-4" id="panelTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-inscriptos-btn" data-bs-toggle="tab" data-bs-target="#tab-inscriptos" type="button" role="tab" aria-controls="tab-inscriptos" aria-selected="true">
+                <i class="bi bi-people-fill me-2"></i>Inscriptos (<?= count($participantes) ?>)
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-equipos-btn" data-bs-toggle="tab" data-bs-target="#tab-equipos" type="button" role="tab" aria-controls="tab-equipos" aria-selected="false">
+                <i class="bi bi-diagram-3-fill me-2"></i>Equipos / UTEs (<?= count($utes_delegacion) ?>)
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="panelTabsContent">
+
+    <!-- ===== PESTAÑA 1: PARTICIPANTES INSCRIPTOS ===== -->
+    <div class="tab-pane fade show active" id="tab-inscriptos" role="tabpanel" aria-labelledby="tab-inscriptos-btn">
 
     <!-- Lista de participantes -->
     <div class="mb-4 search-container">
@@ -224,8 +248,12 @@
         <?php endif; ?>
     </div>
 
-    <!-- UTEs / Equipos de la delegación -->
-    <div id="seccion-utes" class="mt-5">
+    </div><!-- /tab-inscriptos -->
+
+    <!-- ===== PESTAÑA 2: UTEs / EQUIPOS ===== -->
+    <div class="tab-pane fade" id="tab-equipos" role="tabpanel" aria-labelledby="tab-equipos-btn">
+
+        <div id="seccion-utes">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="fw-bold text-secondary m-0">
                 <i class="bi bi-diagram-3-fill me-2 text-warning"></i>UTEs / Equipos de tu Delegación
@@ -307,7 +335,11 @@
                 Tus participantes todavía no forman parte de ninguna UTE/Equipo. Cuando la organización arme los equipos, aparecerán acá.
             </div>
         <?php endif; ?>
-    </div>
+    </div><!-- /seccion-utes -->
+
+    </div><!-- /tab-equipos -->
+
+    </div><!-- /tab-content -->
 
 </div>
 
