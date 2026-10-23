@@ -111,6 +111,20 @@
                 </div>
             </div>
         </div>
+
+        <!-- UTEs/Equipos de la delegación -->
+        <div class="col-6 col-md-3">
+            <div class="card card-indicador shadow-sm" style="border-left-color: #fd7e14;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-1">UTEs / Equipos</h6>
+                    <a href="#seccion-utes" class="btn btn-sm w-100 mt-1"
+                        style="background-color: #fd7e14; color: #fff;"
+                        title="Ver los equipos/UTEs en los que están tus participantes">
+                        <i class="bi bi-diagram-3-fill me-1"></i>Ver Equipos
+                    </a>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Lista de participantes -->
@@ -206,6 +220,91 @@
             <div class="alert alert-info border-0 shadow-sm">
                 <i class="bi bi-info-circle-fill me-2"></i>
                 No hay participantes inscriptos para tu delegación aún.
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <!-- UTEs / Equipos de la delegación -->
+    <div id="seccion-utes" class="mt-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold text-secondary m-0">
+                <i class="bi bi-diagram-3-fill me-2 text-warning"></i>UTEs / Equipos de tu Delegación
+            </h5>
+            <span class="badge bg-warning text-dark px-2 py-1.5 rounded"><?= count($utes_delegacion) ?></span>
+        </div>
+
+        <div class="mb-3 search-container">
+            <div class="input-group shadow-sm rounded-3 overflow-hidden">
+                <span class="input-group-text bg-white border-0 text-muted ps-3"><i class="bi bi-search"></i></span>
+                <input type="text" id="buscador-utes" class="form-control border-0 p-3 shadow-none" placeholder="Buscar equipo por Nombre, Deporte o Categoría...">
+            </div>
+        </div>
+
+        <?php if(!empty($utes_delegacion)): ?>
+            <div class="table-responsive bg-white rounded-3 shadow-sm overflow-hidden">
+                <table class="table table-bordered align-middle mb-0">
+                    <thead>
+                        <tr class="table-dark">
+                            <th class="text-center" style="min-width: 200px;">Equipo / UTE</th>
+                            <th class="text-center">Deporte</th>
+                            <th class="d-none d-lg-table-cell text-center">Categoría</th>
+                            <th class="d-none d-md-table-cell text-center">Integrantes (delegación / total)</th>
+                            <th class="text-center" style="min-width: 220px;">Tus competidores en el equipo</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($utes_delegacion as $ute): ?>
+                            <tr class="fila-ute"
+                                data-string="<?= strtoupper(htmlspecialchars($ute['nombre_ute'] . ' ' . $ute['nombre_deporte'] . ' ' . $ute['nombre_categoria'])) ?>"
+                                style="border-bottom: 1px solid #f0f0f0;">
+                                <td class="ps-4">
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-warning bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center me-3"
+                                             style="width: 40px; height: 40px; min-width: 40px;">
+                                            <i class="bi bi-people-fill text-warning"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-dark"><?= htmlspecialchars($ute['nombre_ute']) ?></div>
+                                            <?php if(!empty($ute['genero'])): ?>
+                                                <small class="text-muted"><?= htmlspecialchars($ute['genero']) ?></small>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge badge-deporte">
+                                        <i class="bi bi-trophy me-1"></i><?= htmlspecialchars($ute['nombre_deporte']) ?>
+                                    </span>
+                                </td>
+                                <td class="d-none d-lg-table-cell text-center">
+                                    <span class="text-muted"><?= htmlspecialchars($ute['nombre_categoria']) ?></span>
+                                </td>
+                                <td class="d-none d-md-table-cell text-center">
+                                    <span class="badge bg-warning text-dark"><?= count($ute['integrantes_delegacion']) ?></span>
+                                    <span class="text-muted small">/ <?= (int) $ute['cantidad_integrantes'] ?></span>
+                                </td>
+                                <td>
+                                    <?php if(!empty($ute['integrantes_delegacion'])): ?>
+                                        <?php foreach($ute['integrantes_delegacion'] as $ip): ?>
+                                            <div class="small">
+                                                <i class="bi bi-person-fill text-success me-1"></i>
+                                                <?= htmlspecialchars($ip['nombre_completo']) ?>
+                                                <span class="text-muted">(DNI <?= htmlspecialchars($ip['dni']) ?>)</span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    <?php else: ?>
+                                        <span class="text-muted small">Sin integrantes de tu delegación</span>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info border-0 shadow-sm">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                Tus participantes todavía no forman parte de ninguna UTE/Equipo. Cuando la organización arme los equipos, aparecerán acá.
             </div>
         <?php endif; ?>
     </div>
@@ -375,6 +474,22 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Buscador de la tabla de UTEs/Equipos de la delegación
+    const buscadorUtes = document.getElementById('buscador-utes');
+    if (buscadorUtes) {
+        const filasUtes = document.querySelectorAll('.fila-ute');
+        buscadorUtes.addEventListener('input', function() {
+            const query = this.value.toUpperCase();
+            filasUtes.forEach(fila => {
+                if (fila.getAttribute('data-string').includes(query)) {
+                    fila.style.setProperty('display', 'table-row', 'important');
+                } else {
+                    fila.style.setProperty('display', 'none', 'important');
+                }
+            });
+        });
+    }
+
     // Manejo del modal de detalles para delegados
     const modalElemento = id => document.getElementById(id);
     const modalDetalle = document.getElementById('modalDetalleInscripcion');
@@ -483,6 +598,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         // Es competidor con deportes: mostrar tabla
                         mensajeAcompanante.classList.add('d-none');
                         tablaDeportesContainer.style.display = 'block';
+                        // Mapeo categoría -> nombre de UTE real (viene en data.utes
+                        // desde detalle_ajax) para mostrar el equipo del participante.
+                        const uteNombrePorCategoria = {};
+                        (data.utes || []).forEach(u => {
+                            if (u.id_categoria !== undefined && u.id_categoria !== null) {
+                                uteNombrePorCategoria[u.id_categoria] = u.nombre_ute;
+                            }
+                        });
                         data.deportes.forEach(dep => {
                             const row = document.createElement('tr');
                             const tieneUte = parseInt(dep.tiene_ute) === 1;
@@ -500,7 +623,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <td>${dep.nombre_deporte || '-'}</td>
                                 <td>${dep.nombre_categoria || '-'}</td>
                                 <td class="text-center">${badgeUte}</td>
-                                <td>${dep.detalle_ute  || '-'}</td>
+                                <td>${uteNombrePorCategoria[dep.id_categoria] || dep.detalle_ute  || '-'}</td>
                             `;
                             tbodyDeportes.appendChild(row);
                         });

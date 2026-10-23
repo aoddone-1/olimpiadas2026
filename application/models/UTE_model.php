@@ -75,6 +75,135 @@ class UTE_model extends CI_Model {
     }
 
     /**
+     * Obtener las UTEs/Equipos en los que participan integrantes de una
+     * delegación dada. Se usa en el panel del delegado para que pueda ver
+     * los equipos de su delegación sin acceder a la pantalla de gestión.
+     * Devuelve cada UTE con deporte, categoría, género, cantidad total de
+     * integrantes y los integrantes que son de ESA delegación.
+     */
+    public function obtener_utes_de_delegacion($delegacion) {
+        if ($delegacion === NULL || trim((string) $delegacion) === '') {
+            return array();
+        }
+
+        // 1. UTEs de la delegación: por integrantes registrados en
+        // participantes_utes O por inscripciones que referencian el nombre
+        // de la UTE en detalle_ute (fallback, mismo criterio que Fixture_model).
+        $this->db->select('
+            u.id_ute,
+            u.nombre_ute,
+            u.genero,
+            c.id_categoria,
+            c.nombre_categoria,
+            d.id_deporte,
+            d.nombre_deporte
+        ', FALSE);
+        $this->db->distinct();
+        $this->db->from('utes u');
+        $this->db->join('categorias c', 'c.id_categoria = u.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->join('participantes_utes pu', 'pu.id_ute = u.id_ute', 'left');
+        $this->db->join('participantes pd', 'pd.id_participante = pu.id_participante', 'left');
+        $this->db->join('inscripciones_deportivas i', 'i.id_categoria = u.id_categoria AND TRIM(UPPER(i.detalle_ute)) = TRIM(UPPER(u.nombre_ute))', 'left');
+        $this->db->join('participantes pi', 'pi.id_participante = i.id_participante', 'left');
+        $this->db->group_start();
+        $this->db->where('pd.delegacion', $delegacion);
+        $this->db->or_where('pi.delegacion', $delegacion);
+        $this->db->group_end();
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria, u.nombre_ute', 'ASC');
+
+        $utes = $this->db->get()->result_array();
+
+        // 2. Completar totales e integrantes propios de la delegación
+        foreach ($utes as &$ute) {
+            // Total de integrantes de la UTE (todas las delegaciones)
+            $this->db->where('id_ute', $ute['id_ute']);
+            $ute['cantidad_integrantes'] = (int) $this->db->count_all_results('participantes_utes');
+
+            // Integrantes de la delegación del delegado: primero los
+            // registrados en participantes_utes; si no hay ninguno, se usa
+            // el fallback por detalle_ute (compatibilidad con datos viejos).
+            $this->db->select('p.id_participante, p.nombre_completo, p.dni');
+            $this->db->from('participantes_utes pu');
+            $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+            $this->db->where('pu.id_ute', $ute['id_ute']);
+            $this->db->where('p.delegacion', $delegacion);
+            $this->db->order_by('p.nombre_completo', 'ASC');
+            $integrantes = $this->db->get()->result_array();
+
+            if (empty($integrantes)) {
+                $this->db->select('p.id_participante, p.nombre_completo, p.dni');
+                $this->db->distinct();
+                $this->db->from('inscripciones_deportivas i');
+                $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+                $this->db->where('i.id_categoria', $ute['id_categoria']);
+                $this->db->where('TRIM(UPPER(i.detalle_ute))', strtoupper(trim($ute['nombre_ute'])));
+                $this->db->where('p.delegacion', $delegacion);
+                $this->db->order_by('p.nombre_completo', 'ASC');
+                $integrantes = $this->db->get()->result_array();
+            }
+
+            if ((int) $ute['cantidad_integrantes'] === 0) {
+                $ute['cantidad_integrantes'] = count($integrantes);
+            }
+            $ute['integrantes_delegacion'] = $integrantes;
+        }
+        unset($ute);
+
+        return $utes;
+    }
+
+    /**
+     * Obtener las UTEs/Equipos en los que está inscripto un participante
+     * concreto, con su deporte y categoría. Se usa para mostrar el equipo de
+     * cada competidor en el modal de detalle de inscripción.
+     */
+    public function obtener_utes_de_participante($id_participante) {
+        $this->db->select('
+            u.id_ute,
+            u.nombre_ute,
+            u.genero,
+            u.id_categoria,
+            c.nombre_categoria,
+            d.nombre_deporte
+        ', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('utes u', 'u.id_ute = pu.id_ute', 'inner');
+        $this->db->join('categorias c', 'c.id_categoria = u.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('pu.id_participante', $id_participante);
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
+
+        return $this->db->get()->result_array();
+    }
+
+    /**
+     * Obtener las UTEs/Equipos de un participante resueltas por sus
+     * inscripciones (inscripciones_deportivas.id_ute). Cubre el caso de los
+     * equipos cargados desde el formulario de inscripción, donde la relación
+     * se guarda en la inscripción y no en participantes_utes.
+     */
+    public function obtener_utes_por_inscripciones($id_participante) {
+        $this->db->select('
+            u.id_ute,
+            u.nombre_ute,
+            u.genero,
+            u.id_categoria,
+            c.nombre_categoria,
+            d.nombre_deporte
+        ', FALSE);
+        $this->db->distinct();
+        $this->db->from('inscripciones_deportivas i');
+        $this->db->join('utes u', 'u.id_ute = i.id_ute', 'inner');
+        $this->db->join('categorias c', 'c.id_categoria = u.id_categoria', 'inner');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
+        $this->db->where('i.id_participante', $id_participante);
+        $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
+
+        return $this->db->get()->result_array();
+    }
+
+    /**
      * Obtener participantes disponibles para una categoría específica
      * (los que están inscriptos en esa categoría pero no tienen UTE aún)
      */
