@@ -492,6 +492,7 @@ class Inscripciones extends CI_Controller {
             $data['total_inscriptos'] = count($data['participantes']);
             $data['total_kits'] = $this->Participante_model->contar_kits_entregados();
             $data['menu_activo'] = 'resumen';
+            $this->_agregar_resumen_diario($data);
             // Cargamos la vista principal (limpia)
             $this->load->view('admin/dashboard', $data);
             return;
@@ -518,8 +519,57 @@ class Inscripciones extends CI_Controller {
         $data['total_inscriptos'] = count($data['participantes']);
         $data['total_kits'] = $this->Participante_model->contar_kits_entregados();
         $data['menu_activo'] = 'resumen';
-        
+
+        $this->_agregar_resumen_diario($data);
+
         $this->load->view('admin/dashboard', $data);
+    }
+
+    /**
+     * Arma el RESUMEN DEL DIA que muestra el dashboard. El dia se puede elegir
+     * por query string (?dia=YYYY-MM-DD); por defecto es HOY. Segun la fecha:
+     *   - Antes de la apertura (1 nov): foco en inscripciones/acreditacion.
+     *   - Durante las jornadas: disciplinas en juego, partidos y resultados.
+     * Los modelos usados responden arrays vacios si aun no hay datos, por lo
+     * que la vista siempre recibe claves validas.
+     */
+    private function _agregar_resumen_diario(&$data) {
+        // ---- Calendario olimpico (La Pampa 2026) ----
+        $fecha_apertura = '2026-11-02';           // inicio de las competencias
+        $dias_juego     = array('2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05');
+
+        $dia = (string) $this->input->get('dia');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dia)) {
+            $dia = date('Y-m-d');
+        }
+
+        $data['dia_seleccionado']    = $dia;
+        $data['fecha_apertura']      = $fecha_apertura;
+        $data['es_dia_acreditacion'] = ($dia < $fecha_apertura);
+        $data['es_dia_de_juego']     = ($dia >= $fecha_apertura);
+
+        // ---- Movimiento de inscripciones (sirve cualquier dia) ----
+        $inscriptos_por_dia = $this->Participante_model->conteo_inscriptos_por_dia();
+        $data['nuevos_inscriptos_hoy'] = isset($inscriptos_por_dia[$dia]) ? $inscriptos_por_dia[$dia] : 0;
+
+        // ---- Actividad deportiva del dia (fixture) ----
+        $this->load->model('Fixture_model');
+        $data['actividad_dia'] = $this->Fixture_model->actividad_del_dia($dia);
+
+        // ---- Resultados cargados en el dia ----
+        $this->load->model('Resultado_model');
+        $data['resultados_dia'] = $this->Resultado_model->resultados_del_dia($dia);
+
+        // ---- Premiaciones de la noche (solo a partir de la apertura) ----
+        $data['premios_noche'] = array();
+        if ($data['es_dia_de_juego']) {
+            $this->load->model('Premiacion_model');
+            try {
+                $data['premios_noche'] = $this->Premiacion_model->obtener_resumen_noche($dia);
+            } catch (Throwable $e) {
+                $data['premios_noche'] = array();
+            }
+        }
     }
 
     // --- NUEVA PANTALLA: GESTIÓN DE DEPORTES ---

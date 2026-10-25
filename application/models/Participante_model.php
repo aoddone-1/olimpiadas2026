@@ -640,6 +640,57 @@ class Participante_model extends CI_Model {
         return $this->db->count_all_results('participantes');
     }
 
+    /**
+     * Resumen del movimiento de inscripciones por DÍA calendario
+     * (fecha_inscripcion). Devuelve: [ 'Y-m-d' => cantidad ].
+     * Lo usa el resumen diario del dashboard para mostrar "nuevos inscriptos".
+     */
+    public function conteo_inscriptos_por_dia() {
+        $this->db->select("DATE(fecha_inscripcion) AS dia, COUNT(*) AS cantidad", FALSE);
+        $this->db->group_by('dia');
+        $out = array();
+        foreach ($this->db->get('participantes')->result_array() as $r) {
+            if (!empty($r['dia'])) $out[$r['dia']] = (int) $r['cantidad'];
+        }
+        return $out;
+    }
+
+    /**
+     * Cantidad de participantes SIN delegación cargada (controles de calidad
+     * para el resumen del dashboard).
+     */
+    public function inscriptos_sin_delegacion() {
+        $this->db->group_start();
+        $this->db->where('delegacion IS NULL', NULL, FALSE);
+        $this->db->or_where('delegacion', '');
+        $this->db->group_end();
+        return $this->db->count_all_results('participantes');
+    }
+
+    /**
+     * Resumen diario de ACTIVIDAD REAL de acreditación/kits: cuántos kits se
+     * entregaron en cada día calendario. Se apoya en la marca de asistencia
+     * más reciente que quedó junto con la entrega del kit (fecha_hora de
+     * inscripciones_deportivas) — si no hay datos suficientes devuelve array
+     * vacío y el dashboard lo tolera.
+     */
+    public function conteo_kits_por_dia() {
+        // No hay una columna "fecha entrega kit" en participantes: se usa la
+        // asistencia a cualquier deporte como proxy (fecha_hora de
+        // inscripciones_deportivas cuando asistio = 1). Se agrupa por día.
+        $this->db->select("DATE(id.fecha_hora) AS dia, COUNT(DISTINCT p.id_participante) AS cantidad", FALSE);
+        $this->db->from('participantes p');
+        $this->db->join('inscripciones_deportivas id', 'id.id_participante = p.id_participante', 'inner');
+        $this->db->where('p.kit_entregado', 1);
+        $this->db->where('id.asistio', 1);
+        $this->db->group_by('dia');
+        $out = array();
+        foreach ($this->db->get()->result_array() as $r) {
+            if (!empty($r['dia'])) $out[$r['dia']] = (int) $r['cantidad'];
+        }
+        return $out;
+    }
+
     public function obtener_detalle_participante($id_participante) {
         // 1. Traemos los datos base del participante
         // REVISIÓN: Asegurate de que todas estas columnas existan tal cual en tu tabla 'participantes'

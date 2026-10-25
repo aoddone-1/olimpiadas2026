@@ -808,6 +808,33 @@ class Resultado_model extends CI_Model {
      *  CONSULTAS
      * ============================================================ */
 
+    /**
+     * Resultados cargados durante un DÍA concreto (para el resumen diario del
+     * dashboard). Devuelve filas con deporte, categoría, nombre del evento y
+     * tipo de resultado. $fecha en formato Y-m-d; si viene vacía usa hoy.
+     */
+    public function resultados_del_dia($fecha = null) {
+        $fecha = trim((string) $fecha);
+        if (!$fecha || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) {
+            $fecha = date('Y-m-d');
+        }
+
+        $this->db->select('r.id_resultado, r.nombre_evento, r.tipo_resultado,
+                           c.nombre_categoria, d.nombre_deporte', FALSE);
+        $this->db->from('resultados r');
+        $this->db->join('categorias c', 'c.id_categoria = r.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        // Por fecha del resultado O por fecha de creación (si alguien cargó
+        // hoy un partido de ayer cuenta como actividad de HOY).
+        $this->db->group_start();
+        $this->db->where('r.fecha_resultado', $fecha);
+        $this->db->or_where('DATE(r.creado_en)', $fecha, FALSE);
+        $this->db->group_end();
+        $this->db->order_by('r.creado_en', 'DESC');
+        $this->db->limit(100);
+        return $this->db->get()->result_array();
+    }
+
     /** Todos los resultados con su deporte/categoría (para la pestaña). */
     public function obtener_todos_los_resultados() {
         $con_desempate = $this->_existe_columna_desempate();
