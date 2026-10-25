@@ -35,18 +35,23 @@ class Rep_Locutor_PDF extends TCPDF {
     const GRIS   = array(108, 117, 125);
 
     public function Header() {
-        // Cabezal discreto en todas las hojas (el locutor siempre sabe qué noche tiene en la mano).
-        if ($this->getPage() === 1) return; // la carátula ya tiene su propio encabezado
+        //(80, 50, 50);
         $this->SetFont('dejavusans', 'B', 8);
         $this->SetTextColor(108, 117, 125);
-        $this->Cell(0, 5, 'GUION DE PREMIACION · ' . strtoupper($this->_fecha_larga()), 0, 1, 'R');
+        $this->Image('assets/img/header.jpg', $this->lMargin, $this->GetY(), 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
+        
+        $this->Cell(0, 80, 'GUION DE PREMIACION · ' . strtoupper($this->_fecha_larga()), 0, 1, 'R');
+        
         $this->SetDrawColor(203, 213, 225);
         $this->SetLineWidth(0.2);
-        $this->Line($this->lMargin, $this->GetY(), $this->w - $this->rMargin, $this->GetY());
+        $this->Line($this->lMargin, $this->GetY(), $this->w - $this->rMargin,$this->GetY());
         $this->SetY($this->GetY() + 4);
+        
+        
     }
 
     public function Footer() {
+        // Pie de página: separador, nombre del sitio a la izquierda y paginación a la derecha
         $this->SetY(-16);
         $this->SetDrawColor(203, 213, 225);
         $this->SetLineWidth(0.2);
@@ -54,8 +59,8 @@ class Rep_Locutor_PDF extends TCPDF {
 
         $this->SetFont('dejavusans', '', 7);
         $this->SetTextColor(127, 140, 141);
-        $this->Cell(0, 8, NOMBRE_SITIO . ' · Documento para el locutor de la ceremonia', 0, 0, 'L');
-        $this->Cell(0, 8, 'Pagina ' . $this->getAliasNumPage() . ' de ' . $this->getAliasNbPages(), 0, 0, 'R');
+        $this->Cell(0, 8, NOMBRE_SITIO, 0, 0, 'L');
+        $this->Cell(0, 8, 'Página ' . $this->getAliasNumPage() . ' de ' . $this->getAliasNbPages(), 0, 0, 'R');
     }
 
     private function _fecha_larga() {
@@ -104,10 +109,8 @@ class Rep_Locutor_PDF extends TCPDF {
         // ========================================
         // TÍTULO COMO HEADER / CUADRO DE SECCIÓN
         // ========================================
-        $titulo = strtoupper($b['deporte']) . ' — ' . strtoupper($b['categoria']);
-        if ($b['genero'] !== '') {
-            $titulo .= ' (' . strtoupper($b['genero']) . ')';
-        }
+        $titulo = strtoupper($b['deporte']) . ' — Cat. ' . strtoupper($b['categoria']);
+        
 
         // Fondo y borde del header
         $this->SetFillColor(232, 232, 240);      // Gris azulado suave
@@ -129,13 +132,7 @@ class Rep_Locutor_PDF extends TCPDF {
             $this->Ln(2);
         }
 
-        // Etiqueta atrasada
-        if (!empty($b['atraso'])) {
-            $this->SetFont('dejavusans', 'I', 8);
-            $this->SetTextColor(180, 120, 0);
-            $this->Cell(0, 6, '     (Entrega atrasada: premio de otra noche)', 0, 1, 'L');
-            $this->Ln(2);
-        }
+        
 
         // ========================================
         // LISTA DE GANADORES (1°, 2°, 3°)
@@ -215,7 +212,7 @@ class Rep_Locutor_PDF extends TCPDF {
             }
         }
 
-        $this->Output($this->nombre_archivo, 'I');
+        $this->Output($this->nombre_archivo, 'D');
     }
 }
 
@@ -236,7 +233,7 @@ $pdf->SetSubject('Ceremonia de premiacion');
 $pdf->SetKeywords('LOCUTOR, PREMIACION, CEREMONIA');
 
 $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-$pdf->SetMargins(80, 50, 50);
+$pdf->SetMargins(80, 100, 50);
 $pdf->SetHeaderMargin(8);
 $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
