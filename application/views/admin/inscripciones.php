@@ -464,6 +464,30 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                                 <span class="vr mx-1 text-muted opacity-25"></span>
 
+                                <?php
+                                // Estado de la credencial (columna credencial_impresa):
+                                //  - NULL  -> nunca se imprimió (o se habilitó su reimpresión):
+                                //           entra en el PDF "Imprimir NO impresas".
+                                //  - fecha -> ya fue impresa: el botón permite "Habilitar
+                                //           reimpresión" (vuelve a ponerla en NULL).
+                                $cred_impressa = !empty($ins['credencial_impresa']);
+                                ?>
+                                <button type="button"
+
+                                        class="btn btn-sm btn-light border-0 rounded-circle js-btn-accion <?= $cred_impressa ? 'js-btn-habilitar-reimpresion text-success-emphasis' : 'text-muted' ?>"
+
+                                        <?= $cred_impressa ? 'data-id="' . $ins['id_participante'] . '" data-nombre="' . htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') . '"' : '' ?>
+
+                                        title="<?= $cred_impressa
+                                            ? 'Credencial impresa el ' . htmlspecialchars($ins['credencial_impresa'], ENT_QUOTES, 'UTF-8') . ' — clic para habilitar reimpresión'
+                                            : 'Credencial NO impresa (pendiente para el PDF \"Imprimir no impresas\")' ?>">
+
+                                    <i class="bi <?= $cred_impressa ? 'bi-printer-fill' : 'bi-printer' ?>"></i>
+
+                                </button>
+
+                                <span class="vr mx-1 text-muted opacity-25"></span>
+
                                 <a href="<?= base_url('Inscripciones/modificar_inscripcion/'.$ins['id_participante']) ?>" 
 
                                    class="btn btn-sm btn-light text-warning-emphasis border-0 rounded-circle js-btn-accion" 
@@ -1466,7 +1490,71 @@ document.addEventListener('DOMContentLoaded', function () {
 
     });
 
-    
+
+    // ==========================================
+    // HABILITAR REIMPRESIÓN DE CREDENCIAL (AJAX)
+    // Pone credencial_impresa = NULL para que la credencial vuelva a quedar
+    // pendiente dentro del PDF "Imprimir NO impresas" del modal de
+    // Credenciales. En ese modo la delegación es OPCIONAL: no hace falta
+    // volver a elegir la provincia, el botón re-habilita la fila y el
+    // próximo PDF global ("todas las provincias") ya la incluye.
+    // ==========================================
+    tablaElemento.addEventListener('click', function(e) {
+
+        const botonReimpresion = e.target.closest('.js-btn-habilitar-reimpresion[data-id]');
+
+        if (!botonReimpresion) return;
+
+        const idParticipante = botonReimpresion.getAttribute('data-id');
+        const nombreParticipante = botonReimpresion.getAttribute('data-nombre');
+
+        confirmarAccion(
+            `¿Habilitar la reimpresión de la credencial de ${nombreParticipante}? Volverá a incluirse en el PDF "Imprimir no impresas".`,
+            'question',
+            'Sí, habilitar',
+            'Cancelar'
+        ).then(function (confirmado) {
+
+            if (!confirmado) return;
+
+            const iconoOriginal = botonReimpresion.innerHTML;
+            botonReimpresion.disabled = true;
+            botonReimpresion.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+            fetch(`<?= base_url('Inscripciones/habilitar_reimpresion_ajax/') ?>${idParticipante}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Actualizar el botón sin recargar la página: pasa a
+                    // estado "NO impresa" (gris, sin data-id).
+                    botonReimpresion.classList.remove('js-btn-habilitar-reimpresion', 'text-success-emphasis');
+                    botonReimpresion.classList.add('text-muted');
+                    botonReimpresion.removeAttribute('data-id');
+                    botonReimpresion.removeAttribute('data-nombre');
+                    botonReimpresion.title = 'Credencial NO impresa (pendiente para el PDF "Imprimir no impresas")';
+                    botonReimpresion.innerHTML = '<i class="bi bi-printer"></i>';
+                    alertar(data.mensaje || 'Reimpresión habilitada.', 'success', '¡Listo!');
+                } else {
+                    alertar('Error: ' + (data.error || 'No se pudo habilitar la reimpresión'), 'error', 'Error');
+                    botonReimpresion.disabled = false;
+                    botonReimpresion.innerHTML = iconoOriginal;
+                }
+            })
+            .catch(error => {
+                console.error("❌ ERROR EN FETCH (habilitar reimpresión):", error);
+                alertar('Ocurrió un error al habilitar la reimpresión: ' + error.message, 'error', 'Error');
+                botonReimpresion.disabled = false;
+                botonReimpresion.innerHTML = iconoOriginal;
+            });
+
+        });
+
+    });
 
 });
 
