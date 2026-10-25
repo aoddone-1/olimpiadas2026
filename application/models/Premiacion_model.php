@@ -1225,4 +1225,89 @@ class Premiacion_model extends CI_Model {
         $this->db->where('id_categoria', (int) $id_categoria);
         return $this->db->delete('premiaciones');
     }
+
+    /* ============================================================
+     *  REPORTE DEL LOCUTOR (guion de la ceremonia de premiación)
+     * ============================================================ */
+
+    /**
+     * Arma el "guion" de la noche para el locutor de la cena: una lista
+     * ordenada de las competencias a premiar con sus medallistas ya resueltos
+     * (incluye las categorías cerradas pendientes y las ya entregadas ese día,
+     * más los atrasos si se piden). Los nombres salen del mismo podio que ve
+     * el organizador — en jornada única / largada masiva con el formato
+     * "PROVINCIA (NOMBRE)" (ver _normalizar_nombres_provincia()).
+     */
+    public function obtener_guion_locutor($fecha, $incluir_atrasos = true) {
+        $pedido = $this->_norm_fecha($fecha);
+        if (!$pedido) return array('fecha' => null, 'bloques' => array(), 'total_medallas' => 0);
+
+        $items = $this->obtener_resumen_noche($pedido);
+        if ($incluir_atrasos) {
+            foreach ($this->obtener_atrasos_hasta($pedido) as $it) {
+                $items[] = array_merge($it, array('atraso' => true));
+            }
+        }
+
+        $bloques = array();
+        $total_medallas = 0;
+        foreach ($items as $it) {
+            $podio = $it['podio'];
+            $entregados = array();
+            foreach ($it['entregadas'] as $e) {
+                $entregados[(int) $e['puesto']] = $e;
+            }
+            $puestos = array();
+            foreach (array(1, 2, 3) as $pos) {
+                $p = isset($podio[$pos]) ? $podio[$pos] : null;
+                $reg = isset($entregados[$pos]) ? $entregados[$pos] : null;
+                $nombre = null;
+                if ($reg && trim((string) $reg['nombre']) !== '') {
+                    $nombre = trim((string) $reg['nombre']);
+                } elseif ($p && trim((string) $p['nombre']) !== '') {
+                    $nombre = trim((string) $p['nombre']);
+                }
+                if ($nombre === null || $nombre === '') continue;
+                $puestos[$pos] = array(
+                    'nombre'    => $nombre,
+                    'desempate' => ($p && !empty($p['desempate'])) ? $p['desempate'] : null,
+                    'extra'     => ($p && !empty($p['extra'])) ? $p['extra'] : null,
+                );
+                $total_medallas++;
+            }
+            if (!$puestos) continue; // sin medallistas resueltos: no va al guion
+
+            $c = $it['categoria'];
+            $bloques[] = array(
+                'id_categoria'  => (int) $c['id_categoria'],
+                'deporte'       => trim((string) $c['nombre_deporte']),
+                'categoria'     => trim((string) $c['nombre_categoria']),
+                'genero'        => trim((string) ($c['genero'] ?? '')),
+                'modalidad'     => trim((string) ($c['modalidad_competencia'] ?? '')),
+                'masiva'        => ($c['modalidad_competencia'] === 'MASIVO_TIEMPO'),
+                'origen'        => $it['origen'],
+                'fecha_entrega' => $it['fecha_entrega'],
+                'atraso'        => !empty($it['atraso']),
+                'entregada'     => !empty($entregados) && count(array_intersect_key($entregados, $puestos)) >= count($puestos),
+                'puestos'       => $puestos,
+                // Nota para el locutor: en jornadas únicas / largada masiva los
+                // nombres salen como "PROVINCIA (NOMBRE)": se anuncia la
+                // PROVINCIA y el nombre queda como referencia escrita.
+                'anunciar'      => ($it['origen'] === 'TIEMPO' || $c['modalidad_competencia'] === 'MASIVO_TIEMPO')
+                    ? 'provincia' : 'nombre',
+            );
+        }
+
+        // Orden del guion: deporte -> categoría -> género (para leerlo seguido).
+        usort($bloques, function ($a, $b) {
+            return [strtolower($a['deporte']), strtolower($a['categoria']), strtolower($a['genero'])]
+                 <=> [strtolower($b['deporte']), strtolower($b['categoria']), strtolower($b['genero'])];
+        });
+
+        return array(
+            'fecha'         => $pedido,
+            'bloques'       => $bloques,
+            'total_medallas' => $total_medallas,
+        );
+    }
 }

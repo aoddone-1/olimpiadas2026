@@ -114,6 +114,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 <button id="pm_btn_refrescar" class="btn btn-outline-primary btn-sm">
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
+                <a id="pm_btn_locutor" class="btn btn-warning btn-sm fw-bold text-dark" href="#"
+                   title="Descarga el guion en PDF de las premiaciones de la noche para el locutor de la cena">
+                    <i class="bi bi-mic-fill me-1"></i>Reporte del Locutor
+                </a>
             </div>
         </div>
     </div>
@@ -508,6 +512,15 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         $fecha.value = HOY;
         cargar();
     });
+    // Reporte del locutor: baja el PDF con el guion de la noche seleccionada.
+    const $btnLoc = document.getElementById('pm_btn_locutor');
+    if ($btnLoc) {
+        $btnLoc.href = BASE + '/descargar_reporte_locutor?fecha=' + encodeURIComponent($fecha.value || HOY);
+        $btnLoc.addEventListener('click', () => {
+            $btnLoc.href = BASE + '/descargar_reporte_locutor?fecha='
+                + encodeURIComponent($fecha.value || HOY);
+        });
+    }
     $fecha.addEventListener('change', cargar);
 
     cargar();

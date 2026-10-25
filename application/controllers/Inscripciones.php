@@ -1992,6 +1992,49 @@ class Inscripciones extends CI_Controller {
         }
     }
 
+    /**
+     * REPORTE DEL LOCUTOR (PDF): "guion" de la ceremonia de premiación de la
+     * noche, pensado para alguien ajeno a la organización — el locutor de la
+     * cena. Se descarga desde la pestaña Premiación.
+     *   ?fecha=AAAA-MM-DD        noche a imprimir (por defecto, hoy)
+     *   ?atrasos=0               no incluir entregas atrasadas de otras noches
+     * Diseño en application/views/admin/rep_locutor_view.php (TCPDF).
+     */
+    public function descargar_reporte_locutor() {
+        if (!$this->session->userdata('is_organizador')
+            || !in_array($this->session->userdata('user_rol'), array('superadmin', 'admin', 'solo_lectura'))) {
+            redirect('Inscripciones/login');
+        }
+
+        $this->load->model('Premiacion_model');
+        if (!$this->Premiacion_model->tablas_existentes()) {
+            show_error('Falta la tabla de premiaciones. Ejecutá el script sql/premiaciones.sql y recargá la página.', 500);
+            return;
+        }
+
+        $fecha = trim((string) $this->input->get('fecha'));
+        $ts = $fecha ? strtotime($fecha) : strtotime('today');
+        if (!$ts) $ts = strtotime('today');
+        $fecha = date('Y-m-d', $ts);
+        $incluir_atrasos = $this->input->get('atrasos') !== '0';
+
+        try {
+            $guion = $this->Premiacion_model->obtener_guion_locutor($fecha, $incluir_atrasos);
+        } catch (Throwable $e) {
+            show_error('No se pudo generar el reporte del locutor: ' . $e->getMessage(), 500);
+            return;
+        }
+
+        $nombre_archivo = 'reporte_locutor_' . $fecha . '.pdf';
+
+        $this->load->vars(array(
+            'guion'          => $guion,
+            'fecha'          => $fecha,
+            'nombre_archivo' => $nombre_archivo,
+        ));
+        $this->load->view('admin/rep_locutor_view');
+    }
+
     /** Confirma la entrega del podio de una categoría en la noche indicada. */
     public function ajax_confirmar_premiacion() {
         try {
