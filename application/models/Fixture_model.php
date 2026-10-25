@@ -1669,6 +1669,93 @@ class Fixture_model extends CI_Model {
         return $this->db->delete('fixtures');
     }
 
+    /**
+     * Actividad deportiva de un DÍA concreto (para el resumen diario del
+     * dashboard). Devuelve:
+     *   - disciplinas: [ ['deporte','cantidad_partidos','horarios','sedes'], ... ]
+     *       (agrupado por DEPORTE, sin entrar en categorías: "Running", "MTB"...)
+     *   - total_partidos / finalizados / programados / en_curso / suspendidos
+     *   - primeras_horas: hora más temprana del día
+     *   - lugares: nombres de sedes con actividad
+     */
+    public function actividad_del_dia($fecha) {
+        $out = array(
+            'disciplinas'   => array(),
+            'total_partidos' => 0,
+            'finalizados'   => 0,
+            'programados'   => 0,
+            'en_curso'      => 0,
+            'suspendidos'   => 0,
+            'primeras_horas' => array(),
+            'lugares'       => array(),
+        );
+        $fecha = trim((string) $fecha);
+        if (!$fecha || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fecha)) return $out;
+
+        $this->db->select('
+            d.nombre_deporte, d.modalidad_competencia,
+            f.estado, f.hora_inicio, l.nombre AS lugar_nombre
+        ', FALSE);
+        $this->db->from('fixtures f');
+        $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
+        $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'left');
+        $this->db->join('lugares l', 'l.id = f.id_lugar', 'left');
+        $this->db->where('f.fecha_competencia', $fecha);
+        $this->db->order_by('d.nombre_deporte, f.hora_inicio', 'ASC');
+        $filas = $this->db->get()->result_array();
+
+        if (!$filas) return $out;
+
+        $por_deporte = array();
+        foreach ($filas as $r) {
+            $dep = trim((string) ($r['nombre_deporte'] ?? ''));
+            if ($dep === '') $dep = '(sin deporte)';
+            if (!isset($por_deporte[$dep])) {
+                $por_deporte[$dep] = array(
+                    'deporte'  => $dep,
+                    'partidos' => 0,
+                    'horas'    => array(),
+                    'sedes'    => array(),
+                );
+            }
+            $por_deporte[$dep]['partidos']++;
+            $hora = substr((string) ($r['hora_inicio'] ?? ''), 0, 5);
+            if ($hora !== '' && $hora !== ':00') $por_deporte[$dep]['horas'][$hora] = true;
+            $lugar = trim((string) ($r['lugar_nombre'] ?? ''));
+            if ($lugar !== '') $por_deporte[$dep]['sedes'][$lugar] = true;
+
+            $estado = strtoupper((string) ($r['estado'] ?? 'PROGRAMADO'));
+            switch ($estado) {
+                case 'FINALIZADO':  $out['finalizados']++;  break;
+                case 'EN_CURSO':    $out['en_curso']++;     break;
+                case 'SUSPENDIDO':  $out['suspendidos']++;  break;
+                default:            $out['programados']++;  break;
+            }
+            if ($hora !== '') $out['primeras_horas'][$hora] = true;
+            if ($lugar !== '') $out['lugares'][$lugar] = true;
+            $out['total_partidos']++;
+        }
+
+        ksort($por_deporte, SORT_NATURAL | SORT_FLAG_CASE);
+        foreach ($por_deporte as $k => $v) {
+            $horas = array_keys($v['horas']);
+            sort($horas);
+            $sedes = array_keys($v['sedes']);
+            sort($sedes);
+            $out['disciplinas'][$k] = array(
+                'deporte'  => $v['deporte'],
+                'partidos' => $v['partidos'],
+                'horario'  => $horas ? reset($horas) : '',           // primera hora
+                'ultima_hora' => $horas ? end($horas) : '',          // última hora
+                'sedes'    => $sedes,
+            );
+        }
+        $out['lugares'] = array_keys($out['lugares']);
+        sort($out['lugares']);
+
+        return $out;
+    }
+
     /* ============================================================
      *  HELPERS
      * ============================================================ */

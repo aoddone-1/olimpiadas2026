@@ -16,6 +16,19 @@
 <div class="container mb-5">
 
     <?php
+        // ---- CALENDARIO OLIMPICO (ajustar aqui si cambian las fechas) ----
+        $INI_ACREDITACION = '2026-11-01';   // acreditacion / entrega de kits
+        $APERTURA         = '2026-11-02';   // primer dia de competencia
+        $FIN_JUEGO        = '2026-11-05';   // ultimo dia de competencia
+
+        // Dia consultado: por defecto HOY; se puede cambiar con el selector (?dia=...)
+        $dia_actual = isset($dia_seleccionado) ? $dia_seleccionado : date('Y-m-d');
+        $es_dia_acreditacion = ($dia_actual < $APERTURA);
+        $nuevos_inscriptos = isset($nuevos_inscriptos_hoy) ? (int) $nuevos_inscriptos_hoy : 0;
+        $actividad_dia = isset($actividad_dia) ? $actividad_dia : array();
+        $resultados_dia = isset($resultados_dia) ? $resultados_dia : array();
+        $premios_noche = isset($premios_noche) ? $premios_noche : array();
+
         // ---- RESUMEN GENERAL DEL DASHBOARD (se calcula desde la lista ya cargada) ----
         $total_participantes = isset($total_inscriptos) ? (int) $total_inscriptos : count($participantes);
         $kits_entregados = isset($total_kits) ? (int) $total_kits : 0;
@@ -45,6 +58,46 @@
         $porc_kits = $total_participantes > 0 ? round(($kits_entregados / $total_participantes) * 100) : 0;
     ?>
 
+    <?php
+        // ---- SELECTOR DE DIA DEL RESUMEN (agrupa el contenido segun la fecha) ----
+        $dias_resumen = array();
+        if ($INI_ACREDITACION < $APERTURA) $dias_resumen[] = $INI_ACREDITACION;
+        for ($d = $APERTURA; $d <= $FIN_JUEGO; $d = date('Y-m-d', strtotime($d . ' +1 day'))) {
+            $dias_resumen[] = $d;
+        }
+        if (!in_array($dia_actual, $dias_resumen)) {
+            $dias_resumen[] = $dia_actual; // permite ver cualquier otro dia via ?dia=
+        }
+        setlocale(LC_TIME, 'es_ES.UTF-8', 'es_ES', 'spanish');
+        $DIAS_SEMANA = array('Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado');
+        $MESES = array(1=>'enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre');
+        $formato_dia_largo = function ($f) use ($DIAS_SEMANA, $MESES) {
+            $ts = strtotime($f);
+            return $DIAS_SEMANA[(int) date('w', $ts)] . ' ' . (int) date('j', $ts) . ' de ' . $MESES[(int) date('n', $ts)];
+        };
+    ?>
+    <div class="card shadow-sm border-0 rounded-3 mb-3">
+        <div class="card-body p-2 p-md-3 d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-bold text-dark small me-1"><i class="bi bi-calendar3 me-1"></i>Resumen del día:</span>
+            <?php foreach ($dias_resumen as $d): ?>
+                <?php $activo = ($d === $dia_actual); ?>
+                <a href="<?= base_url('Inscripciones/dashboard?dia=' . $d) ?>"
+                   class="btn btn-sm <?= $activo ? 'btn-dark' : 'btn-light border' ?> rounded-pill px-3">
+                    <?= $formato_dia_largo($d) ?>
+                </a>
+            <?php endforeach; ?>
+            <span class="ms-auto small text-muted d-none d-lg-inline">
+                <?php if ($dia_actual < $INI_ACREDITACION): ?>
+                    <i class="bi bi-info-circle me-1"></i>Día previo a la acreditación: se muestra el estado general de inscripciones
+                <?php elseif ($es_dia_acreditacion): ?>
+                    <i class="bi bi-person-check me-1"></i>Jornada de acreditación y entrega de kits
+                <?php else: ?>
+                    <i class="bi bi-flag-fill me-1"></i>Jornada de competencia
+                <?php endif; ?>
+            </span>
+        </div>
+    </div>
+
     <div class="row g-3 mb-3">
         <div class="col-6 col-md-3">
             <div class="card card-indicador shadow-sm h-100">
@@ -73,23 +126,38 @@
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-3">
-            <div class="card card-indicador shadow-sm h-100" style="border-left-color: #03551f;">
-                <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Exportar Datos</h6>
-                    <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" class="btn btn-success btn-sm w-100 mt-1">
-                        <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
-                    </a>
+        <?php if ($es_dia_acreditacion): ?>
+            <div class="col-6 col-md-3">
+                <div class="card card-indicador shadow-sm h-100" style="border-left-color: #03551f;">
+                    <div class="card-body p-3">
+                        <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-calendar-event me-1"></i<?= $dia_actual === date('Y-m-d') ? ' title="Día seleccionado"' : '' ?>>Exportar Datos</h6>
+                        <a href="<?= base_url('Inscripciones/descargar_csv_todos_inscriptos') ?>" class="btn btn-success btn-sm w-100 mt-1">
+                            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Descargar CSV
+                        </a>
+                    </div>
                 </div>
             </div>
-        </div>
+        <?php else: ?>
+            <div class="col-6 col-md-3">
+                <div class="card card-indicador shadow-sm h-100" style="border-left-color: #0d6efd;">
+                    <div class="card-body p-3">
+                        <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-whistle me-1"></i>Actividad del día</h6>
+                        <h3 class="fw-bold text-dark m-0"><?= (int) ($actividad_dia['total_partidos'] ?? 0) ?><small class="fs-6 text-muted"> presentaciones</small></h3>
+                        <small class="text-muted d-block mt-1">
+                            <?= (int) ($actividad_dia['finalizados'] ?? 0) ?> finalizadas ·
+                            <?= (int) ($actividad_dia['programados'] ?? 0) ?> programadas
+                        </small>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col-md-6">
             <div class="card shadow-sm h-100 border-0 rounded-3">
                 <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-diagram-3 me-1"></i>Competidores por delegación</h6>
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-diagram-3 me-1"></i>Competidores por delegación<?= $es_dia_acreditacion ? '' : ' <span class="badge bg-secondary-subtle text-secondary ms-1" title="Total histórico (no depende del día)">total</span>' ?></h6>
                     <?php if (!empty($delegaciones)): ?>
                         <?php $i = 0; foreach ($delegaciones as $del => $d): ?>
                             <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?> <?= $i >= 8 ? 'd-none delegacion-extra' : '' ?>">
@@ -108,6 +176,7 @@
             </div>
         </div>
         <div class="col-md-6">
+            <?php if ($es_dia_acreditacion): ?>
             <div class="card shadow-sm h-100 border-0 rounded-3">
                 <div class="card-body p-3">
                     <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-box-seam me-1"></i>Delegaciones con kits entregados</h6>
@@ -135,8 +204,86 @@
                     </div>
                 </div>
             </div>
+            <?php else: ?>
+            <div class="card shadow-sm h-100 border-0 rounded-3">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-trophy me-1"></i>Premios de la noche (<?= $formato_dia_largo($dia_actual) ?>)</h6>
+                    <?php if (!empty($premios_noche)): ?>
+                        <?php $i = 0; foreach ($premios_noche as $pn): ?>
+                            <?php
+                                $nombre_dep = $pn['categoria']['nombre_deporte'] ?? '';
+                                $nombre_cat = $pn['categoria']['nombre_categoria'] ?? '';
+                            ?>
+                            <div class="d-flex justify-content-between align-items-center py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                                <span class="small fw-semibold text-dark"><i class="bi bi-medal-fill text-warning me-1"></i><?= htmlspecialchars($nombre_dep . ($nombre_cat ? ' › ' . $nombre_cat : ''), ENT_QUOTES, 'UTF-8') ?></span>
+                                <span class="badge bg-success-subtle text-success border-0">podio confirmado</span>
+                            </div>
+                            <?php $i++; ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Aún no hay podios confirmados para esta noche. Se cargan desde Premiación.</small>
+                    <?php endif; ?>
+                    <div class="mt-2 pt-2 border-top">
+                        <a href="<?= base_url('Inscripciones/premiacion') ?>" class="small text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>Ir a Premiación</a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
+
+    <?php if (!$es_dia_acreditacion): ?>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100 border-0 rounded-3" style="border-left: 5px solid #0d6efd;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-flag-fill me-1"></i>Disciplinas en juego hoy</h6>
+                    <?php if (!empty($actividad_dia['disciplinas'])): ?>
+                        <?php foreach ($actividad_dia['disciplinas'] as $dis): ?>
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-1 py-2 border-top <?= $dis === reset($actividad_dia['disciplinas']) ? 'border-top-0' : '' ?>">
+                                <div>
+                                    <span class="fw-semibold text-dark"><?= htmlspecialchars($dis['deporte'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <div class="small text-muted">
+                                        <?php if (!empty($dis['horario'])): ?><i class="bi bi-clock me-1"></i><?= htmlspecialchars($dis['horario'], ENT_QUOTES, 'UTF-8') ?><?php if (!empty($dis['ultima_hora']) && $dis['ultima_hora'] !== $dis['horario']): ?> – <?= htmlspecialchars($dis['ultima_hora'], ENT_QUOTES, 'UTF-8') ?><?php endif; ?><?php endif; ?>
+                                        <?php if (!empty($dis['sedes'])): ?><span class="ms-1"><i class="bi bi-geo-alt me-1"></i><?= htmlspecialchars(implode(', ', array_slice($dis['sedes'], 0, 2)) . (count($dis['sedes']) > 2 ? ' +' . (count($dis['sedes']) - 2) : ''), ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
+                                    </div>
+                                </div>
+                                <span class="badge bg-primary-subtle text-primary border-0"><?= (int) $dis['partidos'] ?> <?= $dis['partidos'] == 1 ? 'presentación' : 'presentaciones' ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php if (!empty($actividad_dia['suspendidos'])): ?>
+                            <div class="alert alert-warning py-1 px-2 mt-2 small mb-0"><i class="bi bi-exclamation-triangle me-1"></i><?= (int) $actividad_dia['suspendidos'] ?> presentación(es) suspendida(s) hoy.</div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <small class="text-muted"><i class="bi bi-calendar-x me-1"></i>No hay competencias cargadas en el fixture para este día. Podés armarlas en <a href="<?= base_url('Inscripciones/fixture') ?>" class="text-decoration-none">Fixture</a>.</small>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-5">
+            <div class="card shadow-sm h-100 border-0 rounded-3" style="border-left: 5px solid #198754;">
+                <div class="card-body p-3">
+                    <h6 class="text-muted small text-uppercase mb-2"><i class="bi bi-list-columns-reverse me-1"></i>Resultados cargados hoy</h6>
+                    <?php if (!empty($resultados_dia)): ?>
+                        <?php $i = 0; foreach (array_slice($resultados_dia, 0, 8) as $res): ?>
+                            <div class="py-1 <?= $i > 0 ? 'border-top' : '' ?>">
+                                <div class="small fw-semibold text-dark"><?= htmlspecialchars(($res['nombre_deporte'] ?? '') . ($res['nombre_categoria'] ? ' › ' . $res['nombre_categoria'] : ''), ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="small text-muted"><?= htmlspecialchars($res['nombre_evento'], ENT_QUOTES, 'UTF-8') ?> <span class="badge bg-light text-dark border ms-1"><?= htmlspecialchars($res['tipo_resultado'], ENT_QUOTES, 'UTF-8') ?></span></div>
+                            </div>
+                            <?php $i++; ?>
+                        <?php endforeach; ?>
+                        <?php if (count($resultados_dia) > 8): ?>
+                            <div class="mt-2 pt-1 border-top small text-muted">+<?= count($resultados_dia) - 8 ?> resultado(s) más</div>
+                        <?php endif; ?>
+                        <div class="mt-2"><a href="<?= base_url('Inscripciones/resultados') ?>" class="small text-decoration-none"><i class="bi bi-box-arrow-up-right me-1"></i>Ver todos los resultados</a></div>
+                    <?php else: ?>
+                        <small class="text-muted"><i class="bi bi-inbox me-1"></i>Todavía no se cargaron resultados en esta jornada.</small>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="mb-4 search-container">
         <div class="input-group shadow-sm rounded-3 overflow-hidden">
