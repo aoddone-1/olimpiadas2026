@@ -363,8 +363,11 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        // Obtenemos los participantes de la delegación/provincia (ordenados por nombre)
-        $participantes = $this->Participante_model->obtener_participantes_por_delegacion_completo($delegacion);
+        // Obtenemos los participantes de la delegación/provincia (ordenados por nombre).
+        // "modo=no_impresas": solo las credenciales con credencial_impresa NULL
+        // (nunca impresas o re-habilitadas para reimpresión).
+        $solo_no_impresas = ($this->input->post('modo') === 'no_impresas');
+        $participantes = $this->Participante_model->obtener_participantes_por_delegacion_completo($delegacion, $solo_no_impresas);
 
         if (!$participantes) {
             show_404();
@@ -375,6 +378,89 @@ class Inscripciones extends CI_Controller {
         $data['participantes'] = $participantes;
 
         $this->load->view('admin/acreditaciones_view', $data);
+    }
+
+    /**
+     * Feedback del PDF masivo de acreditaciones: el navegador llama a este
+     * endpoint apenas recibe el PDF y aquí marcamos credencial_impresa = NOW()
+     * para TODOS los participantes que se incluyeron en ese PDF. Así quedan
+     * excluidos del próximo "Imprimir NO impresas".
+     */
+    public function marcar_credenciales_impresas() {
+        if (!$this->_auth_json_or_fail()) return;
+        $this->bloqueo_solo_lectura();
+
+        $ids_raw = (string) $this->input->post('ids');
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', explode(',', $ids_raw)),
+            function ($v) { return $v > 0; }
+        )));
+
+        $this->load->model('Participante_model');
+        $afectados = $this->Participante_model->marcar_credenciales_impresas($ids);
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => TRUE, 'marcadas' => $afectados]);
+    }
+
+    /**
+     * "Habilitar reimpresión" desde la tabla de Inscriptos: pone
+     * credencial_impresa en NULL para que el participante vuelva a aparecer
+     * en el PDF de "Imprimir NO impresas" de su delegación.
+     */
+    public function habilitar_reimpresion_ajax($id_participante = NULL) {
+        if (!$this->_auth_json_or_fail()) return;
+        $this->bloqueo_solo_lectura();
+
+        $id_participante = (int) ($id_participante ?: $this->input->post('id_participante'));
+        if (empty($id_participante)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'error' => 'Participante no válido.']);
+            return;
+        }
+
+        $this->load->model('Participante_model');
+        $ok = $this->Participante_model->habilitar_reimpresion_credencial($id_participante);
+
+        header('Content-Type: application/json');
+        if ($ok) {
+            echo json_encode([
+                'success' => TRUE,
+                'mensaje' => 'Reimpresión habilitada: la credencial volverá a incluirse en el PDF de "NO impresas".'
+            ]);
+        } else {
+            echo json_encode(['success' => FALSE, 'error' => 'No se pudo habilitar la reimpresión.']);
+        }
+    }
+
+    /**
+     * Devuelve los id_participante que irían en el PDF de acreditaciones de
+     * una delegación (todos o solo los no impresos). Se usa junto con
+     * marcar_credenciales_impresas() para registrar la impresión masiva:
+     * el modal pide el PDF al servidor y, en paralelo, consulta esta lista
+     * para saber exactamente a quién marcarle credencial_impresa.
+     */
+    public function contar_participantes_delegacion() {
+        if (!$this->_auth_json_or_fail()) return;
+
+        $delegacion = $this->input->post('delegacion');
+        $solo_no_impresas = ($this->input->post('modo') === 'no_impresas');
+
+        $ids = array();
+        if ($delegacion && is_string($delegacion)) {
+            $this->load->model('Participante_model');
+            $this->db->select('id_participante');
+            $this->db->where('delegacion', $delegacion);
+            if ($solo_no_impresas) {
+                $this->db->where('credencial_impresa IS NULL');
+            }
+            $ids = array_map('intval', array_column(
+                $this->db->get('participantes')->result_array(), 'id_participante'
+            ));
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => TRUE, 'ids' => $ids]);
     }
 
 
@@ -702,6 +788,12 @@ class Inscripciones extends CI_Controller {
         if (empty($participante)) {
             show_error('Participante no encontrado', 404);
         }
+
+        // Registro de impresión: guardamos la fecha/hora en la que se generó
+        // esta credencial (columna credencial_impresa). Si el organizador
+        // necesita reimprimirla, debe "habilitar la reimpresión" desde la
+        // pantalla de Inscriptos (vuelve el campo a NULL).
+        $this->Participante_model->marcar_credencial_impresa($participante['id_participante']);
 
         // El reporte de acreditaciones (acreditaciones_view.php) espera un ARRAY
         // de participantes; le pasamos solo la credencial del inscripto pulsado.

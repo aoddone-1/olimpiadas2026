@@ -96,13 +96,24 @@
             </div>
             <div class="modal-body p-4">
                 <p class="text-muted small mb-3">
-                    Seleccioná la delegación para generar el PDF con las acreditaciones
-                    de todos sus participantes (rectángulos de 8.5 × 13 cm listos para recortar).
+                    Seleccioná la delegación y el modo de impresión para generar el PDF
+                    con las acreditaciones (rectángulos de 8.5 × 13 cm listos para recortar):
                 </p>
+                <ul class="list-group list-group-flush mb-3 small">
+                    <li class="list-group-item px-0">
+                        <i class="bi bi-printer-fill text-primary me-1"></i>
+                        <strong>Todas:</strong> genera el PDF con las credenciales de todos los participantes de la delegación.
+                    </li>
+                    <li class="list-group-item px-0">
+                        <i class="bi bi-file-earmark-x-fill text-warning-emphasis me-1"></i>
+                        <strong>No impresas:</strong> solo las que tienen <code>credencial_impresa</code> en NULL
+                        (nunca imprimidas o con reimpresión habilitada desde Inscriptos).
+                    </li>
+                </ul>
                 <label for="selDelegacionCredenciales" class="form-label fw-semibold">
                     <i class="bi bi-geo-alt-fill text-primary me-1"></i>Delegación / Provincia
                 </label>
-                <select id="selDelegacionCredenciales" class="form-select">
+                <select id="selDelegacionCredenciales" class="form-select mb-3">
                     <option value="">— Elegí una delegación —</option>
                     <?php if (!empty($delegaciones)): ?>
                         <?php foreach ($delegaciones as $deleg): ?>
@@ -112,6 +123,17 @@
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </select>
+                <label class="form-label fw-semibold d-block">
+                    <i class="bi bi-funnel-fill text-primary me-1"></i>Modo de impresión
+                </label>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill fw-semibold sel-modo-credenciales active" data-modo="todas">
+                        <i class="bi bi-collection-fill me-1"></i>Todas
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-warning rounded-pill fw-semibold sel-modo-credenciales" data-modo="no_impresas">
+                        <i class="bi bi-printer-fill me-1"></i>Imprimir no impresas
+                    </button>
+                </div>
             </div>
             <div class="modal-footer bg-light border-top py-2">
                 <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cancelar</button>
@@ -128,6 +150,20 @@ document.addEventListener('DOMContentLoaded', function () {
     const selDeleg = document.getElementById('selDelegacionCredenciales');
     const btnDescargar = document.getElementById('btnDescargarCredenciales');
     if (!selDeleg || !btnDescargar) return;
+
+    // Modo de impresión seleccionado en el modal ("todas" | "no_impresas")
+    let modoCredenciales = 'todas';
+    const botonesModo = document.querySelectorAll('.sel-modo-credenciales');
+    botonesModo.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            modoCredenciales = this.getAttribute('data-modo') || 'todas';
+            botonesModo.forEach(function (b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            btnDescargar.innerHTML = (modoCredenciales === 'no_impresas')
+                ? '<i class="bi bi-printer-fill me-1"></i>Descargar NO impresas'
+                : '<i class="bi bi-file-earmark-pdf-fill me-1"></i>Descargar PDF';
+        });
+    });
 
     // Habilitar/deshabilitar el botón según selección
     selDeleg.addEventListener('change', function () {
@@ -158,9 +194,43 @@ document.addEventListener('DOMContentLoaded', function () {
         input.value = delegacion;
         form.appendChild(input);
 
+        // "modo": todas las credenciales o solo las NO impresas
+        // (credencial_impresa IS NULL).
+        const inputModo = document.createElement('input');
+        inputModo.type = 'hidden';
+        inputModo.name = 'modo';
+        inputModo.value = modoCredenciales;
+        form.appendChild(inputModo);
+
         document.body.appendChild(form);
         form.submit();
         form.remove();
+
+        // FEEDBACK DE IMPRESIÓN: marcamos credencial_impresa = NOW() para los
+        // participantes incluidos en el PDF recién generado. Así quedan fuera
+        // del próximo "Imprimir no impresas". El conteo se hace DESPUÉS de
+        // enviar el formulario (la pestaña nueva ya empezó a descargar el PDF;
+        // esta petición fetch corre en paralelo y no lo retrasa).
+        const urlConteo = '<?= base_url('Inscripciones/contar_participantes_delegacion') ?>';
+        setTimeout(function () {
+            fetch(urlConteo, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: 'delegacion=' + encodeURIComponent(delegacion)
+                    + '&modo=' + encodeURIComponent(modoCredenciales)
+            })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data && data.success && data.ids.length > 0) {
+                    return fetch('<?= base_url('Inscripciones/marcar_credenciales_impresas') ?>', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: 'ids=' + encodeURIComponent(data.ids.join(','))
+                    });
+                }
+            })
+            .catch(function (err) { console.warn('No se pudo registrar la impresión de credenciales:', err); });
+        }, 1500);
     });
 });
 </script>

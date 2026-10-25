@@ -549,6 +549,46 @@ class Participante_model extends CI_Model {
     }
 
     /**
+     * Registra la impresión de la credencial de un participante poniendo la
+     * fecha/hora actual en "credencial_impresa". Se usa tanto desde la
+     * credencial individual como desde el PDF masivo de acreditaciones.
+     */
+    public function marcar_credencial_impresa($id_participante) {
+        if (empty($id_participante)) {
+            return FALSE;
+        }
+        $this->db->where('id_participante', $id_participante);
+        return $this->db->update('participantes', [
+            'credencial_impresa' => date('Y-m-d H:i:s')
+        ]);
+    }
+
+    /**
+     * Marca como impresas TODAS las credenciales de una lista de IDs
+     * (feedback del PDF masivo). Devuelve la cantidad afectada.
+     */
+    public function marcar_credenciales_impresas(array $ids) {
+        if (empty($ids)) {
+            return 0;
+        }
+        $this->db->where_in('id_participante', $ids);
+        $this->db->update('participantes', ['credencial_impresa' => date('Y-m-d H:i:s')]);
+        return $this->db->affected_rows();
+    }
+
+    /**
+     * "Habilitar reimpresión": pone credencial_impresa en NULL para que el
+     * participante vuelva a aparecer en el PDF de "Imprimir NO impresas".
+     */
+    public function habilitar_reimpresion_credencial($id_participante) {
+        if (empty($id_participante)) {
+            return FALSE;
+        }
+        $this->db->where('id_participante', $id_participante);
+        return $this->db->update('participantes', ['credencial_impresa' => NULL]);
+    }
+
+    /**
      * Marca (o desmarca) la entrega del kit para TODOS los participantes de
      * una delegación. Se usa desde la mesa de control cuando el delegado de
      * la delegación retira los kits del grupo.
@@ -691,13 +731,19 @@ class Participante_model extends CI_Model {
     /**
      * Obtiene todos los participantes de una delegación específica con campo es_competidor
      */
-    public function obtener_participantes_por_delegacion_completo($delegacion) {
+    public function obtener_participantes_por_delegacion_completo($delegacion, $solo_no_impresas = FALSE) {
         // token_qr y tipo_empleado se incluyen porque las acreditaciones (PDF)
         // los necesitan para el QR de control de mesa y el detalle del empleado.
         // es_delegado se incluye para que las acreditaciones puedan mostrar el
         // badge "Delegado de la delegación" en los participantes que lo son.
         $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor, es_delegado, sexo, fecha_nacimiento, token_qr, tipo_empleado');
         $this->db->where('delegacion', $delegacion);
+        if ($solo_no_impresas) {
+            // Modal "Imprimir NO impresas": solo los participantes cuya
+            // credencial nunca fue impresa (o fue re-habilitada para
+            // reimpresión desde la pantalla de Inscriptos).
+            $this->db->where('credencial_impresa IS NULL');
+        }
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');
         

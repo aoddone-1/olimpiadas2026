@@ -104,6 +104,7 @@ CREATE TABLE `participantes` (
   `token_qr` varchar(100) DEFAULT NULL,
   `kit_entregado` tinyint(1) DEFAULT '0',
   `fecha_inscripcion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `credencial_impresa` timestamp NULL DEFAULT NULL COMMENT 'Fecha/hora de la última impresión de la credencial; NULL = pendiente o habilitada para reimpresión',
   PRIMARY KEY (`id_participante`),
   UNIQUE KEY `dni` (`dni`),
   UNIQUE KEY `token_qr` (`token_qr`)
