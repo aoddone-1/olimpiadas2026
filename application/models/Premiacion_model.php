@@ -461,7 +461,69 @@ class Premiacion_model extends CI_Model {
         foreach ($this->_filas_seguras('resultado_detalle') as $d) {
             $out[(int) $d['id_resultado']][] = $d;
         }
+        // Jornada única / largada masiva: en Premiación también rige el
+        // formato "PROVINCIA (NOMBRE)" (antes se mostraba "NOMBRE (DNI)").
+        $this->_normalizar_nombres_provincia($out);
         return $out;
+    }
+
+    /**
+     * Convierte los nombres "NOMBRE (DNI)" del detalle de resultados
+     * TIEMPO/PUNTAJE al formato "PROVINCIA (NOMBRE)", buscando la
+     * provincia/delegación del participante (inscripción con id negativo).
+     * Solo afecta el texto mostrado; Resultado_model además lo persiste al
+     * leer los resultados. Tolerante a fallos: si algo falla, deja los
+     * nombres como están.
+     */
+    private function _normalizar_nombres_provincia(&$detalles_por_res) {
+        $ins_ids = array();
+        foreach ($detalles_por_res as $det) {
+            foreach ($det as $d) {
+                $id = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if ($id < 0) $ins_ids[] = -$id;
+            }
+        }
+        if (!$ins_ids) return;
+
+        $prov_por_ins = array();
+        try {
+            $this->db->select('i.id_inscripcion, p.delegacion', FALSE);
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where_in('i.id_inscripcion', array_unique($ins_ids));
+            foreach ($this->db->get()->result_array() as $r) {
+                $prov_por_ins[(int) $r['id_inscripcion']] = $r['delegacion'];
+            }
+        } catch (Throwable $e) {
+            return; // base sin columna delegacion: mostrar como viene
+        }
+
+        foreach ($detalles_por_res as &$det) {
+            foreach ($det as &$d) {
+                $nom = trim((string) ($d['nombre_libre'] ?? ''));
+                if ($nom === '') continue;
+                $id = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if ($id >= 0) continue;
+                $prov = isset($prov_por_ins[-$id]) ? $prov_por_ins[-$id] : null;
+                if ($prov === null || trim((string) $prov) === '') continue;
+                // Sufijo numérico (DNI) o sin sufijo -> PROVINCIA (NOMBRE).
+                if (!preg_match('/^(.*)\(([^()]*)\)$/u', $nom, $m)) {
+                    $cuerpo = $nom;
+                    $sufijo = null;
+                } else {
+                    $cuerpo = trim($m[1]);
+                    $sufijo = trim($m[2]);
+                }
+                if ($cuerpo === '') $cuerpo = $nom;
+                $prov_norm = mb_strtoupper(trim(preg_replace('/\s+/u', ' ', (string) $prov)), 'UTF-8');
+                if ($sufijo !== null && strcasecmp($cuerpo, $prov_norm) === 0) continue; // ya normalizado
+                if ($sufijo === null || preg_match('/^[\d.\-]+$/', $sufijo)) {
+                    $d['nombre_libre'] = $prov_norm . ' (' . $cuerpo . ')';
+                }
+            }
+            unset($d);
+        }
+        unset($det);
     }
 
     /* ============================================================
