@@ -103,17 +103,21 @@
                     <li class="list-group-item px-0">
                         <i class="bi bi-printer-fill text-primary me-1"></i>
                         <strong>Todas:</strong> genera el PDF con las credenciales de todos los participantes de la delegación.
+                        (Requiere elegir una delegación.)
                     </li>
                     <li class="list-group-item px-0">
                         <i class="bi bi-file-earmark-x-fill text-warning-emphasis me-1"></i>
                         <strong>No impresas:</strong> solo las que tienen <code>credencial_impresa</code> en NULL
                         (nunca imprimidas o con reimpresión habilitada desde Inscriptos).
+                        <strong>No hace falta elegir delegación:</strong> si la dejás vacía, se genera un único PDF
+                        con las pendientes de TODAS las provincias.
                     </li>
                 </ul>
                 <label for="selDelegacionCredenciales" class="form-label fw-semibold">
                     <i class="bi bi-geo-alt-fill text-primary me-1"></i>Delegación / Provincia
+                    <span id="lblDelegacionOpcional" class="text-muted fw-normal small d-none">(opcional en modo "No impresas")</span>
                 </label>
-                <select id="selDelegacionCredenciales" class="form-select mb-3">
+                <select id="selDelegacionCredenciales" class="form-select mb-1">
                     <option value="">— Elegí una delegación —</option>
                     <?php if (!empty($delegaciones)): ?>
                         <?php foreach ($delegaciones as $deleg): ?>
@@ -123,6 +127,10 @@
                         <?php endforeach; ?>
                     <?php endif; ?>
                 </select>
+                <!-- Contador de credenciales pendientes (solo modo "no impresas") -->
+                <div id="contadorNoImpresas" class="small text-muted mb-3 d-none">
+                    <i class="bi bi-hourglass-split me-1"></i><span id="contadorNoImpresasTexto"></span>
+                </div>
                 <label class="form-label fw-semibold d-block">
                     <i class="bi bi-funnel-fill text-primary me-1"></i>Modo de impresión
                 </label>
@@ -151,28 +159,83 @@ document.addEventListener('DOMContentLoaded', function () {
     const btnDescargar = document.getElementById('btnDescargarCredenciales');
     if (!selDeleg || !btnDescargar) return;
 
+    const lblOpcional = document.getElementById('lblDelegacionOpcional');
+    const divContador = document.getElementById('contadorNoImpresas');
+    const spanContador = document.getElementById('contadorNoImpresasTexto');
+
     // Modo de impresión seleccionado en el modal ("todas" | "no_impresas")
     let modoCredenciales = 'todas';
+
+    // Estado del botón "Descargar PDF":
+    //  - modo "todas": requiere delegación seleccionada (como siempre).
+    //  - modo "no_impresas": la delegación es OPCIONAL; sin delegación se
+    //    descargan las pendientes de todas las provincias.
+    function actualizarBoton() {
+        btnDescargar.disabled = (modoCredenciales === 'todas' && selDeleg.value === '');
+        btnDescargar.innerHTML = (modoCredenciales === 'no_impresas')
+            ? (selDeleg.value === ''
+                ? '<i class="bi bi-printer-fill me-1"></i>Descargar NO impresas (todas las provincias)'
+                : '<i class="bi bi-printer-fill me-1"></i>Descargar NO impresas')
+            : '<i class="bi bi-file-earmark-pdf-fill me-1"></i>Descargar PDF';
+    }
+
+    // Consulta cuántas credenciales hay pendientes para el modo/delegación
+    // actuales y muestra el contador en el modal. Reutiliza el endpoint de
+    // conteo que ya se usa para marcar la impresión tras descargar.
+    let ultimoConteo = 0;
+    function actualizarContador() {
+        if (modoCredenciales !== 'no_impresas') {
+            divContador.classList.add('d-none');
+            return;
+        }
+        fetch('<?= base_url('Inscripciones/contar_participantes_delegacion') ?>', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: 'delegacion=' + encodeURIComponent(selDeleg.value)
+                + '&modo=no_impresas'
+        })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (data) {
+            if (!data || !data.success) return;
+            ultimoConteo = data.ids.length;
+            spanContador.textContent = (selDeleg.value === '')
+                ? ultimoConteo + ' credenciales pendientes en todas las provincias.'
+                : ultimoConteo + ' credenciales pendientes en ' + selDeleg.value + '.';
+            divContador.classList.remove('d-none');
+            if (ultimoConteo === 0) {
+                btnDescargar.disabled = true;
+                btnDescargar.innerHTML = '<i class="bi bi-check2-circle me-1"></i>No hay pendientes';
+            } else {
+                actualizarBoton();
+            }
+        })
+        .catch(function () { /* el contador es informativo: si falla, no bloquea */ });
+    }
+
     const botonesModo = document.querySelectorAll('.sel-modo-credenciales');
     botonesModo.forEach(function (btn) {
         btn.addEventListener('click', function () {
             modoCredenciales = this.getAttribute('data-modo') || 'todas';
             botonesModo.forEach(function (b) { b.classList.remove('active'); });
             this.classList.add('active');
-            btnDescargar.innerHTML = (modoCredenciales === 'no_impresas')
-                ? '<i class="bi bi-printer-fill me-1"></i>Descargar NO impresas'
-                : '<i class="bi bi-file-earmark-pdf-fill me-1"></i>Descargar PDF';
+            lblOpcional.classList.toggle('d-none', modoCredenciales !== 'no_impresas');
+            actualizarBoton();
+            actualizarContador();
         });
     });
 
     // Habilitar/deshabilitar el botón según selección
     selDeleg.addEventListener('change', function () {
-        btnDescargar.disabled = (this.value === '');
+        actualizarBoton();
+        if (modoCredenciales === 'no_impresas') actualizarContador();
     });
 
     btnDescargar.addEventListener('click', function () {
         const delegacion = selDeleg.value;
-        if (!delegacion) return;
+        // En modo "todas" la delegación es obligatoria; en "no_impresas" puede
+        // ir vacía (= todas las provincias).
+        if (modoCredenciales !== 'no_impresas' && !delegacion) return;
+        if (modoCredenciales === 'no_impresas' && ultimoConteo === 0) return;
         // IMPORTANTE: se envía como POST en un formulario oculto (no por GET).
         // Razones:
         //  1) CodeIgniter filtra los caracteres de la URI (permitted_uri_chars),
