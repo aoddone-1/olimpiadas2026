@@ -349,24 +349,30 @@ class Inscripciones extends CI_Controller {
         if (!$delegacion) {
             $delegacion = $this->input->get('delegacion');
         }
+        $delegacion = is_string($delegacion) ? trim($delegacion) : '';
 
-        if (!$delegacion || !is_string($delegacion)) {
+        // Obtenemos los participantes de la delegación/provincia (ordenados por nombre).
+        // "modo=no_impresas": solo las credenciales con credencial_impresa NULL
+        // (nunca impresas o re-habilitadas para reimpresión). En este modo la
+        // delegación es OPCIONAL: si viene vacía se genera el PDF con las
+        // pendientes de TODAS las provincias.
+        $solo_no_impresas = ($this->input->post('modo') === 'no_impresas');
+
+        if (!$delegacion && !$solo_no_impresas) {
             show_404();
             return;
         }
 
         // Validar que la delegación exista realmente antes de generar el PDF
         $this->load->model('Participante_model');
-        $delegaciones_validas = $this->Participante_model->obtener_todas_las_delegaciones();
-        if (!in_array($delegacion, $delegaciones_validas)) {
-            show_404();
-            return;
+        if ($delegacion) {
+            $delegaciones_validas = $this->Participante_model->obtener_todas_las_delegaciones();
+            if (!in_array($delegacion, $delegaciones_validas)) {
+                show_404();
+                return;
+            }
         }
 
-        // Obtenemos los participantes de la delegación/provincia (ordenados por nombre).
-        // "modo=no_impresas": solo las credenciales con credencial_impresa NULL
-        // (nunca impresas o re-habilitadas para reimpresión).
-        $solo_no_impresas = ($this->input->post('modo') === 'no_impresas');
         $participantes = $this->Participante_model->obtener_participantes_por_delegacion_completo($delegacion, $solo_no_impresas);
 
         if (!$participantes) {
@@ -374,7 +380,7 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        $data['nombre_provincia'] = $delegacion;
+        $data['nombre_provincia'] = $delegacion ?: 'Todas (no impresas)';
         $data['participantes'] = $participantes;
 
         $this->load->view('admin/acreditaciones_view', $data);
@@ -444,13 +450,18 @@ class Inscripciones extends CI_Controller {
         if (!$this->_auth_json_or_fail()) return;
 
         $delegacion = $this->input->post('delegacion');
+        $delegacion = is_string($delegacion) ? trim($delegacion) : '';
         $solo_no_impresas = ($this->input->post('modo') === 'no_impresas');
 
         $ids = array();
-        if ($delegacion && is_string($delegacion)) {
+        // En modo "no_impresas" la delegación es opcional: si viene vacía se
+        // cuentan las pendientes de TODAS las provincias (igual que el PDF).
+        if (($delegacion && is_string($delegacion)) || $solo_no_impresas) {
             $this->load->model('Participante_model');
             $this->db->select('id_participante');
-            $this->db->where('delegacion', $delegacion);
+            if ($delegacion) {
+                $this->db->where('delegacion', $delegacion);
+            }
             if ($solo_no_impresas) {
                 $this->db->where('credencial_impresa IS NULL');
             }

@@ -318,7 +318,9 @@ if (count($pdf->participantes) === 1) {
     $nombre_md   = str_replace(' ', '_', trim($p_unico['nombre_completo'] ?? 'credencial'));
     $archivo_pdf = 'credencial_' . preg_replace('/[^A-Za-z0-9_]/', '', $nombre_md) . '.pdf';
 } else {
-    $archivo_pdf = 'acreditaciones_' . str_replace(' ', '_', $nombre_provincia) . '.pdf';
+    // PDF masivo de "no impresas" sin delegación: nombre genérico.
+    $nombre_prov = !empty($nombre_provincia) ? $nombre_provincia : 'todas_no_impresas';
+    $archivo_pdf = 'acreditaciones_' . str_replace(' ', '_', $nombre_prov) . '.pdf';
 }
 
 $pdf->Output($archivo_pdf, 'I');

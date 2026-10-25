@@ -729,7 +729,10 @@ class Participante_model extends CI_Model {
     }
 
     /**
-     * Obtiene todos los participantes de una delegación específica con campo es_competidor
+     * Obtiene todos los participantes de una delegación específica con campo es_competidor.
+     * Con $solo_no_impresas = TRUE y $delegacion vacía/NULL se ignoran por completo
+     * los filtros de delegación: devuelve las credenciales NO impresas de TODAS
+     * las provincias (ordenadas primero por delegación y luego por nombre).
      */
     public function obtener_participantes_por_delegacion_completo($delegacion, $solo_no_impresas = FALSE) {
         // token_qr y tipo_empleado se incluyen porque las acreditaciones (PDF)
@@ -737,12 +740,23 @@ class Participante_model extends CI_Model {
         // es_delegado se incluye para que las acreditaciones puedan mostrar el
         // badge "Delegado de la delegación" en los participantes que lo son.
         $this->db->select('id_participante, dni, nombre_completo, email, delegacion, es_competidor, es_delegado, sexo, fecha_nacimiento, token_qr, tipo_empleado');
-        $this->db->where('delegacion', $delegacion);
+        if (!$solo_no_impresas) {
+            // Modo "Todas": la delegación es obligatoria como siempre.
+            $this->db->where('delegacion', $delegacion);
+        } elseif (!empty($delegacion)) {
+            // Modo "No impresas" CON delegación seleccionada: solo las de esa provincia.
+            $this->db->where('delegacion', $delegacion);
+        }
+        // Modo "No impresas" SIN delegación: no se filtra por provincia,
+        // se toman las pendientes de todas las delegaciones.
         if ($solo_no_impresas) {
             // Modal "Imprimir NO impresas": solo los participantes cuya
             // credencial nunca fue impresa (o fue re-habilitada para
             // reimpresión desde la pantalla de Inscriptos).
             $this->db->where('credencial_impresa IS NULL');
+        }
+        if ($solo_no_impresas && empty($delegacion)) {
+            $this->db->order_by('delegacion', 'ASC');
         }
         $this->db->order_by('nombre_completo', 'ASC');
         $query = $this->db->get('participantes');
