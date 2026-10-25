@@ -1214,17 +1214,29 @@ window.SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
         const tr = document.createElement('tr');
         const c = competidor || null;
         const esPuntaje = (selTipo.value === 'PUNTAJE');
+        // Jornada única / largada masiva: formato "PROVINCIA (NOMBRE)".
+        let nombreBase = c ? (c.nombre || '') : '';
+        if (c && c.delegacion) {
+            const prov = String(c.delegacion).trim().toUpperCase();
+            const m = nombreBase.match(/^(.*)\(([^()]*)\)$/);
+            const cuerpo = m ? m[1].trim() : nombreBase.trim();
+            const sufijo = m ? m[2].trim() : null;
+            const esDni = (sufijo === null || /^[\d.\-]+$/.test(sufijo));
+            if (esDni && !(sufijo !== null && cuerpo.toUpperCase() === prov)) {
+                nombreBase = prov + ' (' + (cuerpo || nombreBase.trim()) + ')';
+            }
+        }
         const nombreTxt = c
-            ? esc(c.nombre)
+            ? esc(nombreBase)
               + (c.integrantes ? ' <span class="text-muted small fw-normal">(' + esc(c.integrantes) + ')</span>' : '')
-              + (!c.integrantes && c.dni ? ' <span class="text-muted small fw-normal">(' + esc(c.dni) + ')</span>' : '')
+              + (!c.integrantes && c.dni && !c.delegacion ? ' <span class="text-muted small fw-normal">(' + esc(c.dni) + ')</span>' : '')
             : '<span class="text-muted fst-italic small">participante sin nombre</span>';
         tr.innerHTML = `
             <td class="text-muted small fw-bold">${pos}º</td>
             <td class="small fw-semibold text-truncate" style="max-width:260px">${nombreTxt}</td>
             <td>
                 <input type="hidden" name="comp_id[]" value="${c ? esc(String(c.id)) : ''}">
-                <input type="hidden" name="comp_nombre[]" value="${c ? esc(c.nombre || '') : ''}">
+                <input type="hidden" name="comp_nombre[]" value="${c ? esc(nombreBase) : ''}">
                 ${esPuntaje
                     ? '<input type="number" step="any" min="0" inputmode="decimal" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 8500">'
                     : '<input type="text" name="comp_tiempo[]" class="form-control form-control-sm" placeholder="Ej: 18:42">'}

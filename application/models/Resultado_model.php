@@ -29,6 +29,146 @@ class Resultado_model extends CI_Model {
         return $ok;
     }
 
+    /* ============================================================
+     *  FORMATO DE COMPETIDORES (jornada única / largada masiva)
+     * ============================================================ */
+
+    /** Nombres de las columnas candidates para la provincia/delegación. */
+    private static $provincia_cols = array('delegacion', 'provincia');
+
+    /**
+     * Normaliza un nombre de competidor al formato "PROVINCIA (NOMBRE)":
+     *   - "LOPEZ, MARIA FERNANDA (35087017)"  -> "CATAMARCA (LOPEZ, MARIA FERNANDA)"
+     *   - "LOPEZ, MARIA FERNANDA" + prov      -> "CATAMARCA (LOPEZ, MARIA FERNANDA)"
+     *   - "CATAMARCA (LOPEZ, MARIA FERNANDA)" -> igual (ya normalizado)
+     * Si no hay provincia conocida, devuelve el nombre tal como está.
+     */
+    public function formatear_competidor_provincia($nombre, $provincia) {
+        $nombre = trim((string) $nombre);
+        if ($nombre === '') return $nombre;
+        $prov = mb_strtoupper(trim(preg_replace('/\s+/u', ' ', (string) $provincia)), 'UTF-8');
+        if ($prov === '') return $nombre;
+
+        // ¿Ya tiene el sufijo "(...)"? Separamos cuerpo y sufijo.
+        $cuerpo = $nombre;
+        $sufijo = null;
+        if (preg_match('/^(.*)\(([^()]*)\)$/u', $nombre, $m)) {
+            $cuerpo = trim($m[1]);
+            $sufijo = trim($m[2]);
+        }
+        if ($cuerpo === '') $cuerpo = $nombre;
+
+        // Caso ya normalizado: el cuerpo es la provincia y el sufijo el nombre.
+        if ($sufijo !== null && strcasecmp($cuerpo, $prov) === 0) {
+            return $cuerpo . ' (' . $sufijo . ')';
+        }
+
+        // Sufijo numérico (DNI de formatos viejos) o vacío: se reemplaza por el nombre.
+        $es_dni = ($sufijo === null || preg_match('/^[\d.\-]+$/', $sufijo));
+        if ($es_dni) {
+            return $prov . ' (' . $cuerpo . ')';
+        }
+        // Sufijo con texto (ej: integrantes de una UTE): no es un DNI, no tocar.
+        return $nombre;
+    }
+
+    /**
+     * Resuelve la provincia/delegación de un competidor elegido en la planilla
+     * masiva (llegada por id): >0 UTE/equipo, <0 inscripción personal.
+     * Devuelve null si no se puede determinar (o si la columna no existe en la
+     * base — tolera schemas viejos sin `delegacion`).
+     */
+    private function _provincia_del_competidor($id_cat, $id_comp) {
+        $id_comp = (int) $id_comp;
+        foreach (self::$provincia_cols as $col) {
+            try {
+                if ($id_comp > 0) {
+                    $this->db->select($col);
+                    $this->db->where('id_ute', $id_comp)->where('id_categoria', $id_cat);
+                    $r = $this->db->get('utes')->row_array();
+                } else {
+                    $this->db->select('p.' . $col, FALSE);
+                    $this->db->from('inscripciones_deportivas i');
+                    $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+                    $this->db->where('i.id_inscripcion', -$id_comp)->where('i.id_categoria', $id_cat);
+                    $r = $this->db->get()->row_array();
+                }
+            } catch (Throwable $e) {
+                continue; // columna inexistente: probar la siguiente / seguir
+            }
+            if ($r && isset($r[$col]) && trim((string) $r[$col]) !== '') {
+                return trim((string) $r[$col]);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Repara en la base los nombres guardados con el formato viejo
+     * "NOMBRE (DNI)" de los resultados TIEMPO/PUNTAJE (jornada única /
+     * largada masiva), convirtiéndolos a "PROVINCIA (NOMBRE)". Se ejecuta al
+     * leer los resultados, así la vista muestra siempre el formato nuevo aun
+     * con datos históricos. Es idempotente: solo actualiza cuando la
+     * transformación cambia el texto.
+     */
+    private function _normalizar_nombres_masivos(&$detalles_por_res) {
+        static $listos = false;
+        if ($listos) return;
+        $listos = true;
+
+        // ids negativos del detalle = inscripciones personales (-id_inscripcion)
+        $ins_ids = array();
+        foreach ($detalles_por_res as $det) {
+            foreach ($det as $d) {
+                $id = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                if ($id < 0) $ins_ids[] = -$id;
+            }
+        }
+        if (!$ins_ids) return;
+
+        // Provincia por inscripción (tolera bases sin la columna delegacion).
+        $prov_por_ins = array();
+        $columna_ok = true;
+        try {
+            $this->db->select('i.id_inscripcion, p.delegacion', FALSE);
+            $this->db->from('inscripciones_deportivas i');
+            $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
+            $this->db->where_in('i.id_inscripcion', array_unique($ins_ids));
+            foreach ($this->db->get()->result_array() as $r) {
+                $prov_por_ins[(int) $r['id_inscripcion']] = $r['delegacion'];
+            }
+        } catch (Throwable $e) {
+            $columna_ok = false;
+        }
+        if (!$columna_ok) return;
+
+        $updates = array();
+        foreach ($detalles_por_res as &$det) {
+            foreach ($det as &$d) {
+                $nom = trim((string) ($d['nombre_libre'] ?? ''));
+                if ($nom === '') continue;
+                $id = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                $prov = ($id < 0 && isset($prov_por_ins[-$id])) ? $prov_por_ins[-$id] : null;
+                $nuevo = $this->formatear_competidor_provincia($nom, $prov);
+                if ($nuevo !== '' && $nuevo !== $nom) {
+                    $d['nombre_libre'] = $nuevo;
+                    $updates[(int) $d['id_detalle']] = $nuevo;
+                }
+            }
+            unset($d);
+        }
+        unset($det);
+
+        foreach ($updates as $id_detalle => $nuevo) {
+            try {
+                $this->db->where('id_detalle', $id_detalle);
+                $this->db->update('resultado_detalle', array('nombre_libre' => $nuevo));
+            } catch (Throwable $e) {
+                log_message('error', '[Resultados] no se pudo normalizar nombre_detalle #' . $id_detalle . ': ' . $e->getMessage());
+            }
+        }
+    }
+
     /** Modalidad_competencia del deporte asociado a una categoría. */
     public function modalidad_de_categoria($id_categoria) {
         $this->db->select('d.modalidad_competencia');
@@ -649,6 +789,12 @@ class Resultado_model extends CI_Model {
         $this->db->where('i.id_inscripcion', -$id_comp)->where('i.id_categoria', $id_cat);
         $r = $this->db->get()->row_array();
         if (!$r) throw new Exception('El participante seleccionado no pertenece a esa categoría.');
+        // Jornada única / largada masiva: se muestra "PROVINCIA (NOMBRE)".
+        // Si la provincia no está cargada, se conserva el DNI entre paréntesis.
+        $prov = $this->_provincia_del_competidor($id_cat, $id_comp);
+        if ($prov !== null && trim($prov) !== '') {
+            return array('nombre' => $this->formatear_competidor_provincia($r['nombre_completo'], $prov));
+        }
         return array('nombre' => $r['nombre_completo'] . ' (' . $r['dni'] . ')');
     }
 
@@ -690,6 +836,13 @@ class Resultado_model extends CI_Model {
         foreach ($detalles as $d) {
             $por_res[(int) $d['id_resultado']][] = $d;
         }
+
+        // Formato "PROVINCIA (NOMBRE)" en jornada única / largada masiva:
+        // repara en la base los nombres guardados con el formato viejo
+        // "NOMBRE (DNI)" para que Resultados y Premiación muestren siempre
+        // la provincia primero y el nombre entre paréntesis.
+        $this->_normalizar_nombres_masivos($por_res);
+
         foreach ($rows as &$r) {
             $det = isset($por_res[(int) $r['id_resultado']])
                 ? $por_res[(int) $r['id_resultado']] : array();
