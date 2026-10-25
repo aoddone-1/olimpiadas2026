@@ -93,10 +93,10 @@ class Rep_Locutor_PDF extends TCPDF {
         return array('principal' => $cuerpo, 'referencia' => $sufijo);
     }
 
-    /** Un bloque = una competencia con su podio. */
+    /** Un bloque = una competencia con su podio (formato texto con viñetas). */
     private function _bloque_entrega($b, $num) {
-        // Evitar que un recuadro se parta entre dos hojas.
-        $alt_estimado = 26 + 16 * max(1, count($b['puestos']));
+        // Evitar que un bloque se parta entre dos hojas.
+        $alt_estimado = 14 + 10 * max(1, count($b['puestos']));
         if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
             $this->AddPage();
         }
@@ -106,68 +106,80 @@ class Rep_Locutor_PDF extends TCPDF {
         $es_prueba_ind = (isset($b['anunciar']) && $b['anunciar'] === 'provincia');
         if ($es_prueba_ind) $titulo .= '  ·  PRUEBA INDIVIDUAL: se ANUNCIA LA PROVINCIA';
 
-        // Linea azul: qué competencia es.
-        $this->SetFillColor(20, 33, 61);
-        $this->SetTextColor(255, 255, 255);
+        // Título de la competencia: texto en negrita, sin fondo de color.
+        $this->SetTextColor(20, 33, 61);
         $this->SetFont('dejavusans', 'B', 11);
-        $this->Cell(0, 8, $num . '.  ' . $titulo, 0, 1, 'L', true);
+        $this->Write(6, $num . '.- ' . $titulo);
+        $this->Ln(7);
 
         // Etiqueta atrasada (para el locutor, en lenguaje claro).
         if (!empty($b['atraso'])) {
-            $this->SetFillColor(255, 193, 7);
-            $this->SetTextColor(33, 37, 41);
-            $this->SetFont('dejavusans', 'B', 8);
-            $this->Cell(70, 5, '  ENTREGA ATRASADA (premio de otra noche)', 0, 1, 'L', true);
+            $this->SetFont('dejavusans', 'BI', 8);
+            $this->SetTextColor(180, 120, 0);
+            $this->Write(4.5, '     (Entrega atrasada: premio de otra noche)');
+            $this->Ln(5.5);
+            $this->SetTextColor(20, 33, 61);
         }
 
-        // Medallistas: bronce -> plata -> oro (orden del anuncio).
+        // Medallistas: bronce -> plata -> oro (orden del anuncio), como viñetas de texto.
         $orden = array(3, 2, 1);
         $etiquetas = array(
-            1 => 'ORO  ·  CAMPEON/A',
-            2 => 'PLATA  ·  SEGUNDO/A PUESTO',
-            3 => 'BRONCE  ·  TERCER/A PUESTO',
+            1 => 'ORO',
+            2 => 'PLATA',
+            3 => 'BRONCE',
         );
-        $fondos = array(1 => array(255, 248, 219), 2 => array(238, 242, 246), 3 => array(251, 238, 226));
 
         foreach ($orden as $pos) {
             if (!isset($b['puestos'][$pos])) continue;
             $p = $b['puestos'][$pos];
             $sep = $this->_separar_nombre($p['nombre']);
 
-            $rgb = $fondos[$pos];
-            $this->SetFillColor($rgb[0], $rgb[1], $rgb[2]);
-            $this->SetDrawColor(203, 213, 225);
+            // Viñeta: "• BRONCE: NOMBRE (ref.)"
+            $this->SetFont('dejavusans', '', 10);
+            $this->SetTextColor(108, 117, 125);
+            $this->Write(5.5, '   • ');
+
+            $this->SetFont('dejavusans', 'B', 10);
             $this->SetTextColor(20, 33, 61);
+            $this->Write(5.5, $etiquetas[$pos] . ': ');
 
-            $this->SetFont('dejavusans', 'B', 9);
-            $this->Cell(52, 7, '   ' . $etiquetas[$pos], 1, 0, 'L', true);
-
-            // Nombre principal en grande (esto es lo que se anuncia).
-            $this->SetFont('dejavusans', 'B', 13);
-            $resto_w = $this->w - $this->lMargin - $this->rMargin - 52;
-            $principal = $sep['principal'];
+            // Nombre principal (lo que se anuncia en voz alta).
+            $this->SetFont('dejavusans', 'B', 12);
+            $this->SetTextColor(20, 33, 61);
+            $linea = $sep['principal'];
             if ($sep['referencia'] !== '') {
-                $principal .= '   (ref.: ' . $sep['referencia'] . ')';
+                $linea .= '  ';
             }
-            $this->MultiCell($resto_w, 7, $principal, 1, 'L', true);
+            $this->Write(5.5, $linea);
+
+            // Referencia en tamaño menor y gris, en la misma línea.
+            if ($sep['referencia'] !== '') {
+                $this->SetFont('dejavusans', '', 9);
+                $this->SetTextColor(108, 117, 125);
+                $this->Write(5.5, '(ref.: ' . $sep['referencia'] . ')');
+            }
 
             // Nota de desempate, traducida a lenguaje simple.
             if (!empty($p['desempate'])) {
+                $this->Ln(6);
                 $this->SetFont('dejavusans', 'I', 8);
                 $this->SetTextColor(120, 90, 10);
-                $this->Cell(0, 5, '   Se definio en ' . strtoupper($p['desempate']) . '.', 0, 1, 'L', false);
+                $this->Write(4.5, '        Se definio en ' . strtoupper($p['desempate']) . '.');
                 $this->SetTextColor(20, 33, 61);
             }
+
+            $this->Ln(6);
         }
 
         if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
             $this->SetFont('dejavusans', 'I', 9);
             $this->SetTextColor(108, 117, 125);
-            $this->Cell(0, 6, '   Sin galardonados definidos: NO anunciar esta entrega.', 0, 1, 'L');
+            $this->Write(5, '   • Sin galardonados definidos: NO anunciar esta entrega.');
+            $this->Ln(6);
             $this->SetTextColor(20, 33, 61);
         }
 
-        $this->Ln(4);
+        $this->Ln(3);
     }
 
     public function Body() {
