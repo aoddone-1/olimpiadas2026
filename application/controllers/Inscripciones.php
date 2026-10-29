@@ -1830,6 +1830,11 @@ class Inscripciones extends CI_Controller {
         // (en vez de Deporte → Categoría → Fecha → Hora).
         $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
 
+        // "¿Cuándo?" del filtro de días del panel: con ?cuando=hoy el cuadro
+        // arranca en la fecha actual (no imprime días ya jugados); con
+        // ?cuando=inicio (o sin parámetro) salen TODOS los días del calendario.
+        $cuando_reporte = $this->input->get('cuando') === 'hoy' ? 'hoy' : 'inicio';
+
         // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
         // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),
         // para que el delegado vea bien quiénes juegan; con ?nombres=cortos se
@@ -1854,6 +1859,7 @@ class Inscripciones extends CI_Controller {
             'nombre_archivo'    => $nombre_archivo,
             'deporte_filtro'    => $nombre_deporte_filtro,
             'orden_reporte'     => $orden_reporte,
+            'cuando_reporte'    => $cuando_reporte,
             'delegacion_filtro' => $delegacion,
             // Nombres de los integrantes: completos por defecto (el reporte
             // general del superadmin igual solo imprime el nombre del equipo).
