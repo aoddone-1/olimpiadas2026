@@ -1714,7 +1714,34 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     });
 
     /* Al iniciar, mostrar TODO el fixture ya cargado */
-    cargarTodo();
+    cargarTodo().then(() => {
+        // Si llegamos desde Gestión Deportiva con ?deporte=X o ?categoria=Y en la URL,
+        // aplicamos ese filtro automáticamente (ej. botón "Ver en Fixture").
+        aplicarFiltrosDesdeURL();
+    });
+
+    function aplicarFiltrosDesdeURL() {
+        const qs = new URLSearchParams(window.location.search);
+        const idDep = qs.get('deporte');
+        const idCat = qs.get('categoria');
+        let aplicado = false;
+
+        if (idDep) {
+            const optDep = Array.from(selFiltroDeporte.options).find(o => o.value === String(idDep));
+            if (optDep) { selFiltroDeporte.value = optDep.value; aplicado = true; }
+        }
+        if (idCat) {
+            // Recargar las opciones de categoría según el deporte filtrado y elegir la categoría pedida
+            actualizarOpcionesFiltroCategoria();
+            const optCat = Array.from(selFiltroCategoria.options).find(o => o.value === String(idCat));
+            if (optCat) { selFiltroCategoria.value = optCat.value; aplicado = true; }
+        }
+
+        if (aplicado) {
+            actualizarEstadoBtnBorrar();
+            render();
+        }
+    }
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

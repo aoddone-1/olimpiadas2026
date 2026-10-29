@@ -13,16 +13,24 @@ class Deporte_model extends CI_Model {
 
         // Contamos las filas de fixtures por deporte (fixtures -> categorias.id_deporte)
         // para poder mostrar si cada disciplina tiene o no cronograma cargado.
-        $this->db->select('c.id_deporte, COUNT(f.id_fixture) as total_fixtures', FALSE);
+        // A la vez contamos por CATEGORÍA: así en "Listado de Categorías" podemos
+        // reemplazar el día/hora del cronograma por un enlace "Ver en Fixture".
+        $this->db->select('c.id_deporte, c.id_categoria, COUNT(f.id_fixture) as total_fixtures', FALSE);
         $this->db->from('fixtures f');
         $this->db->join('categorias c', 'c.id_categoria = f.id_categoria', 'left');
-        $this->db->group_by('c.id_deporte');
+        $this->db->group_by('c.id_deporte, c.id_categoria');
         $filas_fixture = $this->db->get()->result_array();
 
         $fixtures_por_deporte = array();
+        $fixtures_por_categoria = array();
         foreach ($filas_fixture as $fx) {
+            $cant = intval($fx['total_fixtures']);
             if (!empty($fx['id_deporte'])) {
-                $fixtures_por_deporte[intval($fx['id_deporte'])] = intval($fx['total_fixtures']);
+                $fixtures_por_deporte[intval($fx['id_deporte'])] =
+                    ($fixtures_por_deporte[intval($fx['id_deporte'])] ?? 0) + $cant;
+            }
+            if (!empty($fx['id_categoria'])) {
+                $fixtures_por_categoria[intval($fx['id_categoria'])] = $cant;
             }
         }
 
@@ -63,6 +71,10 @@ class Deporte_model extends CI_Model {
                 $resultado = $this->db->get()->row_array();
 
                 $categorias[$cat_key]['cantidad_inscriptos'] = intval($resultado['cantidad_inscriptos'] ?? 0);
+
+                // Partidos del fixture cargados para ESTA categoría (0 si aún no tiene)
+                $categorias[$cat_key]['total_fixtures_categoria'] =
+                    intval($fixtures_por_categoria[intval($c['id_categoria'])] ?? 0);
 
                 $total_inscriptos += intval($resultado['cantidad_inscriptos'] ?? 0);
                 $total_mujeres    += intval($resultado['inscriptas_mujeres'] ?? 0);
