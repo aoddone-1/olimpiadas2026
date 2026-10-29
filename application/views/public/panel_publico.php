@@ -178,6 +178,10 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 /* JORNADA clásica (mezcla de fases): azul */
 .jornada-clasica{background:linear-gradient(90deg,#1c2c4f 0%,#152138 100%);color:#bcd4ff;border-left-color:#4d7fff}
 .jornada-clasica .jornada-icon{color:#8fb4ff}
+/* Chip de día dentro del bloque "sin grupos" (Jornada Única / todos contra todos):
+   reemplaza al encabezado grande de día cuando ya no hay banners de grupo. */
+.dia-chip{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border:1px solid var(--line);
+          color:var(--acento);font-weight:700;font-size:13px;border-radius:999px;padding:3px 12px;margin:10px 0 8px}
 .partido{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
 .partido .meta{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
 .badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700}
@@ -407,6 +411,20 @@ function pp_letra_grupo($n) {
     return chr(64 + intdiv($n - 1, 26)) . '-' . $abecedario[($n - 1) % 26];
 }
 
+/** ¿La categoría tiene fase de grupos/cruces (merece banners Grupo/Eliminatorias)?
+    Si todos sus partidos son masivos / de un día / JORNADA_UNICA, NO: van uno al
+    lado del otro, sin banner (como estaba antes), separados solo por día. */
+function pp_categoria_con_grupos($items) {
+    foreach ($items as $f) {
+        $fase = trim(strtoupper((string) (isset($f['fase']) ? $f['fase'] : '')));
+        if ($fase === 'JORNADA_UNICA') continue;
+        if ((string) (isset($f['modalidad_competencia']) ? $f['modalidad_competencia'] : '') === 'MASIVO_TIEMPO') continue;
+        if ((string) (isset($f['tipo_duracion']) ? $f['tipo_duracion'] : '') === 'UNICO_DIA') continue;
+        return true; // hay al menos un partido "normal" → la categoría usa grupos
+    }
+    return false;
+}
+
 /** Etiqueta "mágica" de la jornada dentro de una categoría:
     Grupo X / Eliminatorias N / Jornada Única / Jornada N. */
 function pp_etiqueta_jornada($items, $num_jornada) {
@@ -480,9 +498,12 @@ function pp_tarjeta_partido($fx) {
 
     // Fecha chiquita en la tarjeta: con el agrupamiento por deporte/categoría,
     // una misma categoría puede tener partidos en varios días y hace falta
-    // distinguarlos (antes el día era el encabezado grande).
+    // distinguarlos (antes el día era el encabezado grande). En las categorías
+    // SIN grupos el día ya se muestra como chip arriba del bloque, así que
+    // alcanza con la hora.
+    $con_dia = pp_categoria_con_grupos(array($fx));
     $fecha_ts = strtotime((string) $fx['fecha_competencia']);
-    $fecha_txt = $fecha_ts ? date('d/m', $fecha_ts) : '';
+    $fecha_txt = ($con_dia && $fecha_ts) ? date('d/m', $fecha_ts) : '';
 
     ob_start(); ?>
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
@@ -549,34 +570,71 @@ function pp_tarjeta_partido($fx) {
         </div>
 
         <?php foreach ($cats as $categoria => $items):
-            /* Subagrupar la categoría por numero_fecha (la "jornada" que en realidad
-               es el grupo A/B/C... o la ronda eliminatoria). Orden numérico. */
-            $jornadas = array();
-            foreach ($items as $f) {
-                $nf = (int) (isset($f['numero_fecha']) ? $f['numero_fecha'] : 0);
-                if (!isset($jornadas[$nf])) $jornadas[$nf] = array();
-                $jornadas[$nf][] = $f;
+            /* ¿La categoría juega con grupos/cruces? Solo ahí tiene sentido el
+               subagrupamiento por numero_fecha (la "jornada" que en realidad es
+               el Grupo A/B/C... o la ronda eliminatoria). Si es masiva / de un
+               día (Jornada Única), los partidos van uno al lado del otro, sin
+               banner, separados únicamente por DÍA (como estaba antes). */
+            $con_grupos = pp_categoria_con_grupos($items);
+
+            if ($con_grupos) {
+                $jornadas = array();
+                foreach ($items as $f) {
+                    $nf = (int) (isset($f['numero_fecha']) ? $f['numero_fecha'] : 0);
+                    if (!isset($jornadas[$nf])) $jornadas[$nf] = array();
+                    $jornadas[$nf][] = $f;
+                }
+                ksort($jornadas);
+            } else {
+                // Agrupar por fecha_competencia, ordenada cronológicamente.
+                $dias = array();
+                foreach ($items as $f) {
+                    $dia = trim((string) (isset($f['fecha_competencia']) ? $f['fecha_competencia'] : ''));
+                    if (!isset($dias[$dia])) $dias[$dia] = array();
+                    $dias[$dia][] = $f;
+                }
+                uksort($dias, function ($a, $b) {
+                    $ta = strtotime((string) $a); $tb = strtotime((string) $b);
+                    return (($ta === false) ? PHP_INT_MAX : $ta) <=> (($tb === false) ? PHP_INT_MAX : $tb);
+                });
             }
-            ksort($jornadas);
         ?>
           <!-- BLOQUE DE LA CATEGORÍA 👥 -->
           <div class="fx-cat">
             <div class="fx-cat-nombre">👥 <?= htmlspecialchars($categoria) ?></div>
 
-            <?php foreach ($jornadas as $num_jornada => $partidos_jornada):
-                $etiqueta = pp_etiqueta_jornada($items, $num_jornada);
-                list($clase_j, $icono_j) = pp_estilo_jornada($etiqueta);
-            ?>
-              <!-- Banner Grupo A / Grupo B / Eliminatorias / Jornada Única -->
-              <div class="jornada-header <?= $clase_j ?>">
-                <span class="jornada-icon"><?= $icono_j ?></span>
-                <span class="jornada-texto"><?= htmlspecialchars($etiqueta) ?></span>
-                <span class="jornada-cuenta"><?= count($partidos_jornada) ?> partido/s</span>
-              </div>
-              <div class="partidos">
-                <?php foreach ($partidos_jornada as $fx) echo pp_tarjeta_partido($fx); ?>
-              </div>
-            <?php endforeach; ?>
+            <?php if ($con_grupos): ?>
+              <?php foreach ($jornadas as $num_jornada => $partidos_jornada):
+                  $etiqueta = pp_etiqueta_jornada($items, $num_jornada);
+                  list($clase_j, $icono_j) = pp_estilo_jornada($etiqueta);
+              ?>
+                <!-- Banner Grupo A / Grupo B / Eliminatorias (solo si hay grupos) -->
+                <div class="jornada-header <?= $clase_j ?>">
+                  <span class="jornada-icon"><?= $icono_j ?></span>
+                  <span class="jornada-texto"><?= htmlspecialchars($etiqueta) ?></span>
+                  <span class="jornada-cuenta"><?= count($partidos_jornada) ?> partido/s</span>
+                </div>
+                <div class="partidos">
+                  <?php foreach ($partidos_jornada as $fx) echo pp_tarjeta_partido($fx); ?>
+                </div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <!-- SIN banner (Jornada Única / masiva): tarjetas una al lado de la
+                   otra, agrupadas por día con un chip discreto. -->
+              <?php
+              $dias_es = array('Sunday' => 'Domingo', 'Monday' => 'Lunes', 'Tuesday' => 'Martes',
+                               'Wednesday' => 'Miércoles', 'Thursday' => 'Jueves', 'Friday' => 'Viernes',
+                               'Saturday' => 'Sábado');
+              foreach ($dias as $dia => $partidos_dia):
+                  $ts_dia = strtotime((string) $dia);
+                  $etiqueta_dia = $ts_dia ? ($dias_es[date('l', $ts_dia)] . ' ' . date('d/m', $ts_dia)) : $dia;
+              ?>
+                <div class="dia-chip">📆 <?= htmlspecialchars($etiqueta_dia) ?></div>
+                <div class="partidos">
+                  <?php foreach ($partidos_dia as $fx) echo pp_tarjeta_partido($fx); ?>
+                </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
           </div>
         <?php endforeach; ?>
       </div>
