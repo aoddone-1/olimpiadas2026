@@ -21,6 +21,17 @@ class MYPDF extends TCPDF {
     public $orden_reporte = 'deporte';
     /** Flag del controlador: TRUE cuando el reporte lo descarga un delegado. */
     public $modo_delegado = FALSE;
+    /** Rango oficial de la competencia (AAAA-MM-DD). El cuadro del fixture usa
+     *  TODOS los días del calendario como columnas —aunque no tengan partidos—
+     *  y no solo los días cargados. Mismo criterio que el selector de días de
+     *  la pantalla admin/fixture.php (INICIO_COMPETENCIA / FIN_COMPETENCIA);
+     *  si algún partido cae fuera del rango, su día se agrega igual. */
+    public $fecha_inicio_competencia = '2026-11-02';
+    public $fecha_fin_competencia    = '2026-11-06';
+    /** Cuándo se genera el PDF: 'inicio' (por defecto) recorre el calendario
+     *  oficial desde su primer día; 'hoy' arranca en la fecha actual (siempre
+     *  que caiga dentro del rango) para no imprimir días ya jugados. */
+    public $cuando_reporte = 'inicio';
     /** Título alternativo para formato 'planilla' (mesas de control). */
     public $titulo_planilla = null;
     /**
@@ -238,8 +249,31 @@ class MYPDF extends TCPDF {
             return NULL;
         };
 
-        /** Días presentes en los datos */
+        /** DÍAS DEL CUADRO: calendario oficial de la competencia (inicio→fin),
+         *  no solo los días que tienen partidos cargados. Así un día sin
+         *  actividad sigue apareciendo como columna con su nombre en el
+         *  encabezado (LUN | MAR | MIÉ ...), con las celdas vacías. Si algún
+         *  partido cae fuera del rango oficial, su día se agrega igual para
+         *  que no quede invisible (mismo criterio que el selector de días de
+         *  la pantalla de fixture). En modo filtro por día (?dia=...) se imprime
+         *  únicamente ese día. */
         $dias = array();
+        $ini_cal = (string) $this->fecha_inicio_competencia;
+        $fin_cal = (string) $this->fecha_fin_competencia;
+        if ($this->dia_filtro === null
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $ini_cal)
+            && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fin_cal)) {
+            // "¿Cuándo?" del filtro de días de la pantalla: 'hoy' arranca el
+            // calendario en la fecha actual (si cae dentro del rango oficial);
+            // con 'inicio' se imprimen todos los días de la competencia.
+            if ((string) $this->cuando_reporte === 'hoy') {
+                $hoy = date('Y-m-d');
+                if ($hoy > $ini_cal && $hoy <= $fin_cal) $ini_cal = $hoy;
+            }
+            for ($ts = strtotime($ini_cal); $ts <= strtotime($fin_cal); $ts = strtotime('+1 day', $ts)) {
+                $dias[date('Y-m-d', $ts)] = true;
+            }
+        }
         foreach ($this->datos as $fila) {
             $f = substr((string) ($fila['fecha_competencia'] ?? ''), 0, 10);
             if ($f !== '') $dias[$f] = true;
@@ -1121,6 +1155,11 @@ $pdf->deporte_filtro = isset($deporte_filtro) ? $deporte_filtro : null;
 $pdf->delegacion_filtro = isset($delegacion_filtro) ? $delegacion_filtro : null;
 $pdf->modo_delegado = !empty($modo_delegado);
 $pdf->nombres_completos = !empty($nombres_completos);
+// Rango oficial de la competencia (si el controlador lo manda) y "cuándo":
+// con cuando='hoy' el cuadro arranca en la fecha actual en vez del día 1.
+$pdf->fecha_inicio_competencia = !empty($fecha_inicio_competencia) ? $fecha_inicio_competencia : $pdf->fecha_inicio_competencia;
+$pdf->fecha_fin_competencia    = !empty($fecha_fin_competencia) ? $fecha_fin_competencia : $pdf->fecha_fin_competencia;
+$pdf->cuando_reporte = (isset($cuando_reporte) && $cuando_reporte === 'hoy') ? 'hoy' : 'inicio';
 $pdf->ancho_franja = $ancho_franja;
 $pdf->nombre_archivo = $nombre_archivo;
 $pdf->titulo_planilla = isset($titulo_planilla) ? $titulo_planilla : null;
