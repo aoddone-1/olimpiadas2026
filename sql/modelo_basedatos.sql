@@ -14,6 +14,8 @@ CREATE TABLE `categorias` (
   `sistema_definicion` enum('FASE_FINAL','PUNTAJE') NOT NULL DEFAULT 'FASE_FINAL' COMMENT 'Solo ENFRENTAMIENTO, POR CATEGORÍA: FASE_FINAL = podio por FINAL + TERCER_PUESTO. PUNTAJE = podio por tabla de puntos del torneo de la categoría (3 pts ganador, 1 pt por lado en empate, 0 perdedor)',
   `puntosVictoria` int NOT NULL DEFAULT 3 COMMENT 'Puntos al ganador de un enfrentamiento en esta categoría (sistema PUNTAJE)',
   `puntosEmpate` int NOT NULL DEFAULT 1 COMMENT 'Puntos por equipo en empate en esta categoría (sistema PUNTAJE; 0 si no admite empate)',
+  `premiacion_regla` text COMMENT 'JSON: puestos que se premian y tipo de premio de cada uno. Ej: [{"puesto":1,"premio":"Trofeo"},{"puesto":2,"premio":"Medalla"}]. NULL = default (1º,2º,3º con podio clásico). Ver sql/migracion_premiacion_categoria.sql',
+  `dia_premiacion_sugerido` date DEFAULT NULL COMMENT 'Día sugerido para la entrega de premios de esta categoría (opcional; si es NULL se deriva del fixture)',
   PRIMARY KEY (`id_categoria`),
   KEY `fk_deporte_cat` (`id_deporte`),
   KEY `fk_lugar_cat` (`id_lugar`),
@@ -139,6 +141,14 @@ CREATE TABLE `premiaciones` (
   KEY `idx_fecha_entrega` (`fecha_entrega`),
   CONSTRAINT `fk_prem_categoria` FOREIGN KEY (`id_categoria`) REFERENCES `categorias` (`id_categoria`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=latin1 COMMENT='Entrega diaria de premios (podios)';
+
+CREATE TABLE `premio_tipo` (
+  `id_premio_tipo` int NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(50) NOT NULL COMMENT 'Ej: Trofeo, Medalla, Diploma',
+  `icono` varchar(16) DEFAULT NULL COMMENT 'Emoji/icono para mostrar en pantalla (🏆 🎖️ 📜)',
+  PRIMARY KEY (`id_premio_tipo`),
+  UNIQUE KEY `uq_premio_tipo_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Tipos de premio disponibles (trofeo, medalla, etc.)';
 
 CREATE TABLE `resultados` (
   `id_resultado` int NOT NULL AUTO_INCREMENT,

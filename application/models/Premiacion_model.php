@@ -10,8 +10,24 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *  - Deportes UNICO_DIA: cierran el mismo día -> se premian esa noche.
  *  - Deportes MULTIDIA: cierran el día de la definición (fecha de la FINAL /
  *    última jornada) -> se premian esa noche.
- *  - TIEMPO / PUNTAJE (MASIVO_TIEMPO): se premia a los puestos 1, 2 y 3 del
+ *  - TIEMPO / PUNTAJE (MASIVO_TIEMPO): se premian los puestos que diga la
+ *    REGLA DE PREMIACIÓN de la categoría (por defecto 1, 2 y 3) tomados del
  *    resultado con más posiciones cargadas.
+ *  - REGLA DE PREMIACIÓN POR CATEGORÍA (categorias.premiacion_regla, JSON —
+ *    ver sql/migracion_premiacion_categoria.sql): cada categoría define
+ *    cuántos puestos premia y qué tipo de premio recibe cada uno, p. ej.:
+ *      [{"puesto":1,"premio":"Trofeo"},{"puesto":2,"premio":"Medalla"},
+ *       {"puesto":3,"premio":"Medalla"}]
+ *      [{"puesto":1,"premio":"Trofeo"}]                          -> solo el 1º
+ *      [{"puesto":1,"premio":"Trofeo"},{"puesto":2,"premio":"Trofeo"}]
+ *    Si la columna es NULL o está vacía, se usa el default clásico:
+ *    1º/2º/3º con medallas Oro/Plata/Bronce (compatibilidad total).
+ *    El catálogo de tipos de premio vive en la tabla `premio_tipo` (Trofeo,
+ *    Medalla, Diploma, ...); si no existe, se usan nombres libres.
+ *  - DÍA SUGERIDO DE ENTREGA (categorias.dia_premiacion_sugerido): si está
+ *    configurado, la noche de premiación de esa categoría es ESE día (el
+ *    organizador lo eligió como ceremonia). Si no, la noche se deriva del
+ *    fixture exactamente como antes.
  *  - MARCADOR (ENFRENTAMIENTO): el podio es el del TORNEO COMPLETO, no del
  *    último partido. Hay DOS sistemas, definidos POR CATEGORÍA en
  *    categorias.sistema_definicion (ver sql/migracion_puntaje_categoria.sql;
@@ -147,6 +163,144 @@ class Premiacion_model extends CI_Model {
     }
 
     /* ============================================================
+     *  REGLA DE PREMIACIÓN POR CATEGORÍA
+     * ============================================================ */
+
+    /** Puestos que premia una categoría cuando NO tiene regla configurada. */
+    const PUESTOS_DEFAULT = array(1, 2, 3);
+
+    /** Tipos de premio "por defecto" (si la tabla premio_tipo no existe). */
+    private static $PREMIOS_DEFAULT = array('Trofeo', 'Medalla', 'Diploma');
+
+    /** Íconos conocidos por nombre de premio (para mostrar en pantalla). */
+    private static $ICONOS_PREMIO = array(
+        'trofeo'  => '🏆',
+        'medalla' => '🎖️',
+        'diploma' => '📜',
+        'copa'    => '🏆',
+        'certificado' => '📜',
+        'premio'  => '🎁',
+    );
+
+    /**
+     * Catálogo de tipos de premio (tabla `premio_tipo`). Si la tabla todavía
+     * no existe (base sin la migración), devuelve los nombres hardcodeados
+     * para que la configuración de premios nunca quede bloqueada.
+     */
+    public function obtener_tipos_premio() {
+        if ($this->_tabla_existe('premio_tipo')) {
+            $out = array();
+            foreach ($this->_filas_seguras('premio_tipo') as $t) {
+                $nombre = trim((string) $t['nombre']);
+                if ($nombre === '') continue;
+                $out[] = array(
+                    'nombre' => $nombre,
+                    'icono'  => trim((string) ($t['icono'] ?? '')) ?: $this->icono_premio($nombre),
+                );
+            }
+            if ($out) return $out;
+        }
+        $out = array();
+        foreach (self::$PREMIOS_DEFAULT as $n) {
+            $out[] = array('nombre' => $n, 'icono' => $this->icono_premio($n));
+        }
+        return $out;
+    }
+
+    /** Ícono sugerido para un tipo de premio por su nombre. */
+    public function icono_premio($nombre) {
+        $clave = mb_strtolower(trim(preg_replace('/\s+/u', '', (string) $nombre)), 'UTF-8');
+        return isset(self::$ICONOS_PREMIO[$clave]) ? self::$ICONOS_PREMIO[$clave] : '🏅';
+    }
+
+    /** Regla default clásica: 1º/2º/3º con medallas Oro/Plata/Bronce. */
+    public function regla_default() {
+        return array(
+            array('puesto' => 1, 'premio' => 'Medalla', 'etiqueta' => 'Oro'),
+            array('puesto' => 2, 'premio' => 'Medalla', 'etiqueta' => 'Plata'),
+            array('puesto' => 3, 'premio' => 'Medalla', 'etiqueta' => 'Bronce'),
+        );
+    }
+
+    /**
+     * Lee la regla de premiación de una categoría y la normaliza.
+     * Acepta el JSON guardado en categorias.premiacion_regla:
+     *   [{"puesto":1,"premio":"Trofeo"},{"puesto":2,"premio":"Medalla"}]
+     * Tolera variantes (clave "pos"/"puesto", campo extra "etiqueta").
+     * Si está vacía o es inválida, devuelve la regla default (1º/2º/3º).
+     *
+     * @return array lista ordenada de puestos:
+     *   [{puesto:int, premio:string, etiqueta:string|null, icono:string}]
+     */
+    public function parsear_regla_premiacion($json) {
+        if (is_array($json)) {
+            $data = $json;
+        } else {
+            $json = trim((string) $json);
+            if ($json === '') return $this->regla_default();
+            $data = json_decode($json, true);
+            if (!is_array($data)) return $this->regla_default();
+        }
+
+        $regla = array();
+        foreach ($data as $item) {
+            if (!is_array($item)) continue;
+            $pos = isset($item['puesto']) ? (int) $item['puesto']
+                 : (isset($item['pos']) ? (int) $item['pos'] : 0);
+            if ($pos < 1 || $pos > 99) continue;
+            $premio = trim((string) ($item['premio'] ?? ''));
+            if ($premio === '') $premio = 'Puesto';
+            $regla[$pos] = array(
+                'puesto'   => $pos,
+                'premio'   => mb_substr($premio, 0, 50),
+                'etiqueta' => isset($item['etiqueta']) && trim((string) $item['etiqueta']) !== ''
+                    ? mb_substr(trim((string) $item['etiqueta']), 0, 40) : null,
+                'icono'    => $this->icono_premio($premio),
+            );
+        }
+        if (!$regla) return $this->regla_default();
+        ksort($regla);
+        return array_values($regla);
+    }
+
+    /** Regla de una categoría ya cargada (fila con 'premiacion_regla'). */
+    public function regla_de_categoria($cat) {
+        return $this->parsear_regla_premiacion($cat['premiacion_regla'] ?? null);
+    }
+
+    /** Puestos que premia la regla (ej: [1,2,3] o [1] o [1,2]). */
+    public function puestos_de_regla($regla) {
+        $out = array();
+        foreach ((array) $regla as $r) {
+            $out[] = (int) $r['puesto'];
+        }
+        return $out;
+    }
+
+    /** ¿La regla es la default (podio clásico con medallas)? */
+    public function regla_es_default($regla) {
+        $default = $this->regla_default();
+        return count($regla) === count($default)
+            && json_encode($regla, JSON_UNESCAPED_UNICODE) === json_encode($default, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * Resumen legible de la regla para mostrar en pantalla / guion:
+     * "1º 🏆 Trofeo · 2º 🎖️ Medalla · 3º 🎖️ Medalla".
+     */
+    public function texto_regla_premiacion($regla) {
+        $partes = array();
+        foreach ((array) $regla as $r) {
+            $txt = $r['puesto'] . 'º';
+            if (!empty($r['icono'])) $txt .= ' ' . $r['icono'];
+            $txt .= ' ' . $r['premio'];
+            if (!empty($r['etiqueta'])) $txt .= ' (' . $r['etiqueta'] . ')';
+            $partes[] = $txt;
+        }
+        return implode(' · ', $partes);
+    }
+
+    /* ============================================================
      *  PODIOS (resolución desde resultados / fixture)
      * ============================================================ */
 
@@ -181,17 +335,20 @@ class Premiacion_model extends CI_Model {
         return compact('eqA', 'eqB');
     }
 
-    /** Podio de un resultado TIEMPO / PUNTAJE: posiciones 1, 2 y 3 del detalle. */
-    private function _podio_desde_tiempo($resultado) {
+    /** Podio de un resultado TIEMPO / PUNTAJE: los puestos que diga la regla. */
+    private function _podio_desde_tiempo($resultado, $puestos = array(1, 2, 3)) {
         $es_puntaje = (isset($resultado['tipo_resultado']) && $resultado['tipo_resultado'] === 'PUNTAJE');
         $ordenadas = $resultado['detalle'];
         usort($ordenadas, function ($a, $b) {
             return (int) $a['posicion'] - (int) $b['posicion'];
         });
+        $necesita = max($puestos); // solo hay que recorrer hasta el último puesto premiado
+        $maximo = min(count($ordenadas), max(0, $necesita));
         $nombres = array();
-        foreach (array_slice($ordenadas, 0, 3) as $i => $d) {
+        for ($i = 0; $i < $maximo; $i++) {
+            $d = $ordenadas[$i];
             $pos = (int) $d['posicion'];
-            if ($pos < 1 || $pos > 3) continue;
+            if (!in_array($pos, $puestos, true)) continue;
             $nombres[$pos] = array(
                 'id'     => $d['id_ute'] !== null ? (int) $d['id_ute'] : null,
                 'nombre' => trim((string) $d['nombre_libre']),
@@ -557,13 +714,22 @@ class Premiacion_model extends CI_Model {
         } elseif ($this->_columna_existe('deportes', 'puntosEmpate')) {
             $this->db->select(', IFNULL(NULLIF(d.puntosEmpate, -1), 1) AS puntos_empate', FALSE);
         }
+        // Regla de premiación POR CATEGORÍA (JSON con puestos + tipo de premio)
+        // y día sugerido de entrega: sql/migracion_premiacion_categoria.sql.
+        // Se agregan solo si existen, para no romper en bases sin el ALTER.
+        if ($this->_columna_existe('categorias', 'premiacion_regla')) {
+            $this->db->select(', c.premiacion_regla', FALSE);
+        }
+        if ($this->_columna_existe('categorias', 'dia_premiacion_sugerido')) {
+            $this->db->select(', c.dia_premiacion_sugerido', FALSE);
+        }
         $this->db->from('categorias c');
         $this->db->join('deportes d', 'd.id_deporte = c.id_deporte', 'inner');
         $this->db->order_by('d.nombre_deporte, c.nombre_categoria', 'ASC');
         return $this->_filas_seguras();
     }
 
-    /** ¿Existe una columna en una tabla? (tolera bases sin el ALTER). */
+    /** ¿Existe una columna? (tolera bases sin el ALTER). */
     private function _columna_existe($tabla, $columna) {
         static $cache = array();
         $key = strtolower((string) $tabla) . '.' . strtolower((string) $columna);
@@ -583,6 +749,14 @@ class Premiacion_model extends CI_Model {
             }
         }
         return $cache[$key];
+    }
+
+    /**
+     * ¿Existe una columna en `resultados`? (tolera bases sin el ALTER).
+     * Atajo de _columna_existe() para la tabla resultados.
+     */
+    private function _columna_resultado_existe($columna) {
+        return $this->_columna_existe('resultados', $columna);
     }
 
     /* ============================================================
@@ -783,13 +957,15 @@ class Premiacion_model extends CI_Model {
         );
     }
 
-    /** Podio desde la tabla de puntaje: puestos 1, 2 y 3. */
-    private function _podio_desde_tabla($info) {
+    /** Podio desde la tabla de puntaje: los puestos que diga la regla. */
+    private function _podio_desde_tabla($info, $puestos = array(1, 2, 3)) {
         $out = array();
         $extra_base = 'Tabla de puntos: ' . $info['puntos_victoria']
             . ' pts victoria / ' . $info['puntos_empate'] . ' pts empate / 0 derrota';
-        foreach (array_slice($info['tabla'], 0, 3) as $i => $e) {
-            $out[$i + 1] = array(
+        foreach ($info['tabla'] as $i => $e) {
+            $pos = $i + 1;
+            if (!in_array($pos, $puestos, true)) continue;
+            $out[$pos] = array(
                 'id' => $e['id'],
                 'nombre' => $e['nombre'],
                 'extra' => $extra_base . ' · ' . $e['puntos'] . ' pts ('
@@ -873,6 +1049,11 @@ class Premiacion_model extends CI_Model {
             if (!$resultados) continue; // sin resultados no hay nada que premiar
 
             $es_masiva = ($cat['modalidad_competencia'] === 'MASIVO_TIEMPO');
+            // REGLA DE PREMIACIÓN de la categoría: puestos que se premian y
+            // tipo de premio de cada uno (default clásico 1º/2º/3º si no está
+            // configurada o la base todavía no tiene la columna).
+            $regla = $this->parsear_regla_premiacion($cat['premiacion_regla'] ?? null);
+            $puestos_regla = $this->puestos_de_regla($regla);
             // ENFRENTAMIENTO que define por tabla de puntos (3/1/0) en lugar
             // de FINAL + Tercer puesto: categorias.sistema_definicion = 'PUNTAJE'
             // (es configuración de LA CATEGORÍA, no del deporte).
@@ -907,18 +1088,21 @@ class Premiacion_model extends CI_Model {
                     }
                 }
                 if (!$mejor) continue;
-                $podio_nombres = $this->_podio_desde_tiempo($mejor);
+                $podio_nombres = $this->_podio_desde_tiempo($mejor, $puestos_regla);
                 foreach ($podio_nombres as $pos => $p) {
                     $podio[$pos] = array_merge($p, array('id_resultado_ref' => (int) $mejor['id_resultado']));
                 }
             } elseif ($define_por_puntaje) {
                 // Podio = tabla de puntos del torneo completo (3/1/0).
                 $info_tabla = $this->_tabla_puntaje($id_cat, $resultados, $cat, $fixtures);
-                $podio = $this->_podio_desde_tabla($info_tabla);
+                $podio = $this->_podio_desde_tabla($info_tabla, $puestos_regla);
                 if (!isset($podio[1])) continue; // todavía no hay ningún partido computable
             } else {
                 $podio = $this->_podio_marcador_categoria($id_cat);
                 if (!isset($podio[1])) continue; // sin final resuelta todavía no se premia
+                // El podio "bruto" de enfrentamiento trae 1º/2º/3º: se recorta
+                // a los puestos que la regla de la categoría decida premiar.
+                $podio = array_intersect_key($podio, array_flip($puestos_regla));
             }
 
             // ---------- ¿cerró la categoría? ----------
@@ -1035,6 +1219,17 @@ class Premiacion_model extends CI_Model {
                 $motivo = 'Sin fecha de competencia: cargá el día de la FINAL en el Fixture de esta categoría.';
             }
 
+            // ---------- DÍA SUGERIDO DE PREMIACIÓN (configurable) ----------
+            // Si la categoría tiene `dia_premiacion_sugerido`, ESA es la noche
+            // de su ceremonia (el organizador decide, por ejemplo, premiar todo
+            // el viernes aunque la final se haya jugado el jueves). No cambia
+            // el cierre: solo reasigna la noche de entrega.
+            $dia_sugerido = $this->_norm_fecha($cat['dia_premiacion_sugerido'] ?? null);
+            if ($cerrada && $dia_sugerido) {
+                $fecha_entrega = $dia_sugerido;
+                $motivo .= ' · premiación sugerida para el ' . date('d/m/Y', strtotime($dia_sugerido));
+            }
+
             $ya = isset($entregadas_por_cat[$id_cat]) ? $entregadas_por_cat[$id_cat] : array();
             $items[] = array(
                 'categoria'     => $cat,
@@ -1044,6 +1239,12 @@ class Premiacion_model extends CI_Model {
                 'origen'        => $origen,
                 'podio'         => $podio,
                 'entregadas'    => $ya,
+                // REGLA DE PREMIACIÓN de la categoría (puestos + tipo de
+                // premio). La vista/locutor la usan para dibujar cada puesto.
+                'regla'         => $regla,
+                'regla_default' => $this->regla_es_default($regla),
+                'texto_regla'   => $this->texto_regla_premiacion($regla),
+                'dia_sugerido'  => $dia_sugerido,
                 // Tabla de puntos completa (solo en deportes por puntaje):
                 // la vista puede mostrarla como tooltip/mini-tabla.
                 'tabla_puntaje' => $define_por_puntaje ? $info_tabla['tabla'] : null,
@@ -1106,7 +1307,9 @@ class Premiacion_model extends CI_Model {
             $fe = $this->_norm_fecha($it['fecha_entrega']);
             if (!$fe || $fe >= $pedido) continue; // no es anterior / sin fecha
             // si ya tiene todos los puestos registrados, no es un atraso
-            $puestos_esperados = array_keys($it['podio']);
+            $puestos_esperados = $this->puestos_de_regla(
+                isset($it['regla']) ? $it['regla'] : $this->regla_default()
+            );
             $entregados = array();
             foreach ($it['entregadas'] as $e) $entregados[(int) $e['puesto']] = $e;
             $completa = !empty($puestos_esperados);
@@ -1153,7 +1356,8 @@ class Premiacion_model extends CI_Model {
      * ============================================================ */
 
     /**
-     * Confirma la premiación de una categoría (los 3 puestos resueltos).
+     * Confirma la premiación de una categoría (los puestos que define su
+     * REGLA DE PREMIACIÓN).
      * $puestos llega del frontend: [{puesto, nombre, id_ute}, ...].
      */
     public function confirmar_podio($id_categoria, $puestos, $fecha_entrega, $id_usuario = null, $observaciones = null) {
@@ -1177,17 +1381,31 @@ class Premiacion_model extends CI_Model {
             throw new Exception('La competencia todavía no cerró: no corresponde premiarla esta noche.');
         }
 
+        // Solo se pueden registrar los puestos definidos en la regla de la
+        // categoría (default 1º/2º/3º si no está configurada).
+        $regla = isset($item['regla']) ? $item['regla'] : $this->regla_default();
+        $permitidos = $this->puestos_de_regla($regla);
+        $premio_por_puesto = array();
+        foreach ($regla as $r) $premio_por_puesto[(int) $r['puesto']] = $r['premio'];
+
         $registrados = array();
+        $ignorados = 0;
         foreach ((array) $puestos as $p) {
             $pos = (int) ($p['puesto'] ?? 0);
             $nom = trim((string) ($p['nombre'] ?? ''));
-            if ($pos < 1 || $pos > 3 || $nom === '') continue;
+            if ($pos < 1 || $nom === '') continue;
+            if (!in_array($pos, $permitidos, true)) { $ignorados++; continue; }
             $registrados[$pos] = array(
                 'nombre' => mb_substr($nom, 0, 150),
                 'id_ute' => !empty($p['id_ute']) ? (int) $p['id_ute'] : null,
             );
         }
-        if (!$registrados) throw new Exception('No hay ningún puesto para confirmar.');
+        if (!$registrados) {
+            throw new Exception($ignorados
+                ? 'Ningún puesto enviado corresponde a la regla de premiación de esta categoría ('
+                  . $this->texto_regla_premiacion($regla) + ').'
+                : 'No hay ningún puesto para confirmar.');
+        }
 
         foreach ($registrados as $pos => $dato) {
             $ref = isset($item['podio'][$pos]) ? ($item['podio'][$pos]['id_resultado_ref'] ?? null) : null;
@@ -1205,6 +1423,12 @@ class Premiacion_model extends CI_Model {
                     ? mb_substr(trim((string) $observaciones), 0, 255) : null,
                 'creado_por'       => $id_usuario ? (int) $id_usuario : null,
             );
+            // La columna `tipo_premio` existe desde sql/migracion_premiacion_
+            // categoria.sql: guarda qué recibió cada puesto (Trofeo/Medalla/...).
+            // Se agrega solo si está, para no romper bases sin el ALTER.
+            if ($this->_columna_existe('premiaciones', 'tipo_premio')) {
+                $payload['tipo_premio'] = $premio_por_puesto[$pos] ?? null;
+            }
             $this->db->where('id_categoria', $id_cat);
             $this->db->where('puesto', $pos);
             $existe = $this->db->get('premiaciones')->num_rows();
