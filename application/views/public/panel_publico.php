@@ -151,9 +151,12 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .badge.EN_CURSO{background:var(--verde-800);color:var(--verde-300)}
 .badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
 .badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
-/* Etiqueta "Grupo A / Grupo B..." en la línea de categoría de la card */
-.badge.GRUPO{background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
-             color:var(--acento);margin-left:6px}
+/* Chip de fase en el HEADER de la card del fixture: "GRUPO A", "ELIMINATORIA"...
+   Llama más la atención que ir suelto en la línea de abajo. */
+.fase-chip{display:inline-block;background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
+           color:var(--acento);font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;
+           border-radius:8px;padding:2px 8px}
+.fase-chip.elim{background:#3a2f14;border-color:#8a6d2f;color:#ffd76e}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
 .vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
@@ -435,16 +438,27 @@ foreach ($grupos_idx as $clave => $g) {
         $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
         $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
 
-        // Etiqueta de grupo ("Grupo A", "Grupo B", ...) para los partidos de
-        // fase GRUPO, con la misma regla que fixture.php/reporte_fixture.php:
-        // numero_fecha de la jornada → letra sucesiva.
+        // Chip de fase en el header de la card: "GRUPO A/B/..." (numero_fecha →
+        // letra, misma regla que fixture.php/reporte_fixture.php) o
+        // "ELIMINATORIA" para cualquier otra fase (SEMIFINAL, FINAL, OCTAVOS...).
         $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
                   . (int) (isset($fx['numero_fecha']) ? $fx['numero_fecha'] : 0);
         $grupo_txt = isset($grupo_etiqueta[$clave_fx]) ? $grupo_etiqueta[$clave_fx] : null;
+        $fase_raw = strtoupper(trim((string) (isset($fx['fase']) ? $fx['fase'] : '')));
+        if ($grupo_txt !== null) {
+            $chip_fase = 'Grupo ' . substr($grupo_txt, 6); // "Grupo A"
+            $chip_elim = false;
+        } elseif ($fase_raw !== '' && $fase_raw !== 'JORNADA_UNICA') {
+            $chip_fase = 'Eliminatoria';
+            $chip_elim = true;
+        } else {
+            $chip_fase = null;
+            $chip_elim = false;
+        }
     ?>
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
         <div class="meta">
-          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
+          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if ($chip_fase !== null): ?> <span class="fase-chip<?= $chip_elim ? ' elim' : '' ?>"><?= htmlspecialchars($chip_fase) ?></span><?php endif; ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
           <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
         </div>
         <?php if ($es_masivo): ?>
@@ -459,8 +473,7 @@ foreach ($grupos_idx as $clave => $g) {
         <div class="categoria-linea">
           <span class="deporte-chip"><?= htmlspecialchars((string) $fx['nombre_deporte']) ?></span>
           <?php if (!empty($fx['nombre_categoria'])): ?><span style="opacity:.75"><?= htmlspecialchars((string) $fx['nombre_categoria']) ?></span><?php endif; ?>
-          <?php if ($grupo_txt !== null): ?><span class="badge GRUPO"><?= htmlspecialchars($grupo_txt) ?></span><?php endif; ?>
-          <?php if (!empty($fx['fase']) && $grupo_txt === null): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
+          <?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
         </div>
       </div>
     <?php endforeach; if ($dia_actual !== null) echo "</div></div>"; ?>
