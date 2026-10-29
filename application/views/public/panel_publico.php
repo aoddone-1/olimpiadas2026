@@ -151,12 +151,15 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .badge.EN_CURSO{background:var(--verde-800);color:var(--verde-300)}
 .badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
 .badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
-/* Chip de fase en el HEADER de la card del fixture: "GRUPO A", "ELIMINATORIA"...
-   Llama más la atención que ir suelto en la línea de abajo. */
-.fase-chip{display:inline-block;background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
-           color:var(--acento);font-weight:700;font-size:11px;letter-spacing:.5px;text-transform:uppercase;
-           border-radius:8px;padding:2px 8px}
-.fase-chip.elim{background:#3a2f14;border-color:#8a6d2f;color:#ffd76e}
+/* Franja de fase como HEADER real de la card del fixture: "GRUPO A", "ELIMINATORIA"...
+   Banda ancha arriba de la tarjeta (sin hueco arriba) para que llame la atención. */
+.fase-header{margin:-12px -14px 10px;padding:6px 14px;font-size:12px;font-weight:800;
+             letter-spacing:1.2px;text-transform:uppercase;text-align:center;
+             background:linear-gradient(90deg, rgba(132,204,22,.35), rgba(132,204,22,.10));
+             color:var(--acento);border-bottom:1px solid rgba(132,204,22,.45);
+             border-radius:12px 12px 0 0}
+.fase-header.elim{background:linear-gradient(90deg, #4a3b18, rgba(74,59,24,.35));
+                  color:#ffd76e;border-bottom-color:#8a6d2f}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
 .vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
@@ -457,8 +460,11 @@ foreach ($grupos_idx as $clave => $g) {
         }
     ?>
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
+        <?php if ($chip_fase !== null): ?>
+        <div class="fase-header<?= $chip_elim ? ' elim' : '' ?>"><?= htmlspecialchars($chip_fase) ?></div>
+        <?php endif; ?>
         <div class="meta">
-          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if ($chip_fase !== null): ?> <span class="fase-chip<?= $chip_elim ? ' elim' : '' ?>"><?= htmlspecialchars($chip_fase) ?></span><?php endif; ?><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
+          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
           <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
         </div>
         <?php if ($es_masivo): ?>
