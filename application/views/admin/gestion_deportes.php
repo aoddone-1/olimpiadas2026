@@ -180,7 +180,20 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                                         <small class="text-muted text-uppercase" style="font-size:0.7rem;"><?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></small>
                                                     </td>
                                                     <td class="text-center">
-                                                        <small class="d-block text-nowrap"><i class="bi bi-calendar3 me-1 text-muted"></i><?= !empty($c['dia_competencia']) ? date('d/m', strtotime($c['dia_competencia'])) : '--/--' ?> <i class="bi bi-clock me-1 ms-2 text-muted"></i><?= !empty($c['hora_competencia']) ? date('H:i', strtotime($c['hora_competencia'])) : '--:--' ?> hs</small>
+                                                        <?php $fx_categoria = intval($c['total_fixtures_categoria'] ?? 0); ?>
+                                                        <?php if ($fx_categoria > 0): ?>
+                                                            <!-- La categoría ya tiene fixture cargado: en lugar del día/hora
+                                                                 del cronograma mostramos un acceso directo al Fixture filtrado -->
+                                                            <a class="btn btn-sm btn-success rounded-pill px-3 text-nowrap fw-semibold"
+                                                               style="font-size:0.72rem;"
+                                                               href="<?= base_url('Inscripciones/fixture?categoria=' . intval($c['id_categoria'])) ?>"
+                                                               title="Esta categoría ya tiene fixture cargado (<?= $fx_categoria ?> partido/s). Hacé clic para verlo en el Fixture">
+                                                                <i class="bi bi-calendar-check-fill me-1"></i>Ver en Fixture
+                                                            </a>
+                                                            <small class="d-block text-muted mt-1" style="font-size:0.65rem;"><?= $fx_categoria ?> partido<?= $fx_categoria === 1 ? '' : 's' ?> cargado<?= $fx_categoria === 1 ? '' : 's' ?></small>
+                                                        <?php else: ?>
+                                                            <small class="d-block text-nowrap"><i class="bi bi-calendar3 me-1 text-muted"></i><?= !empty($c['dia_competencia']) ? date('d/m', strtotime($c['dia_competencia'])) : '--/--' ?> <i class="bi bi-clock me-1 ms-2 text-muted"></i><?= !empty($c['hora_competencia']) ? date('H:i', strtotime($c['hora_competencia'])) : '--:--' ?> hs</small>
+                                                        <?php endif; ?>
                                                         <small class="d-block text-muted text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($c['nombre_lugar'] ?? '', ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-geo-alt-fill me-1"></i><?= !empty($c['nombre_lugar']) ? htmlspecialchars($c['nombre_lugar'], ENT_QUOTES, 'UTF-8') : 'Sin lugar asignado' ?></small>
                                                     </td>
                                                     <?php if (!$solo_lectura): ?>
