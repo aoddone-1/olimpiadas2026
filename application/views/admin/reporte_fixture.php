@@ -175,7 +175,18 @@ class MYPDF extends TCPDF {
                     $lista_txt = implode(' - ', $out);
                     // El nombre del equipo SIEMPRE va delante: el delegado tiene
                     // que ver qué equipo enfrenta a cuál, y debajo sus integrantes.
-                    return $equipo !== '' ? '' . $lista_txt . '' : $lista_txt;
+                    // En modo delegado (tabla del fixture) el equipo va en NEGRITA
+                    // y los integrantes aparte, en gris "muted" (#7f8c8d), más
+                    // chico (6pt vs 7pt de la celda) e inclinado —el equivalente
+                    // al estilo "mute" del resto del reporte—, para que la lista
+                    // de participantes no compita visualmente con el nombre del
+                    // equipo. En otros contextos se mantiene "Equipo (jugadores)".
+                    if ($this->modo_delegado && $equipo !== '') {
+                        return '<b>' . $equipo . '</b><br/>'
+                            . '<span style="color:#7f8c8d; font-size:6pt; font-style:italic;">'
+                            . $lista_txt . '</span>';
+                    }
+                    return $equipo !== '' ? $equipo . ' (' . $lista_txt . ')' : $lista_txt;
                 }
                 // Sin integrantes cargados: se muestra el nombre del equipo.
                 return $equipo;
@@ -185,12 +196,23 @@ class MYPDF extends TCPDF {
 
         /** Enfrentamiento en HTML: el reporte GENERAL (superadmin/admin) siempre
          *  muestra el EQUIPO ("Equipo A vs Equipo B"). El reporte del DELEGADO
-         *  muestra los INTEGRANTES de cada equipo. */
-        $equipos = function ($f) use ($integrantes_lado) {
+         *  muestra los INTEGRANTES de cada equipo.
+         *  OJO: $integrantes_lado() ahora puede devolver HTML (<b>, <span>) en
+         *  modo delegado; por eso se escapa SOLO cuando no trae etiquetas, para
+         *  que el marcado no se imprima literalmente en la tabla del fixture. */
+        $sanear_lado = function ($v) {
+            if ($v === '') return '';
+            // Ya viene escapado/etiquetado por integrantes_lado (HTML propio).
+            if (strpos($v, '<b>') !== FALSE || strpos($v, '<span') !== FALSE) {
+                return $v;
+            }
+            return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
+        };
+        $equipos = function ($f) use ($integrantes_lado, $sanear_lado) {
             $e1 = $this->modo_delegado ? $integrantes_lado($f, 1) : trim((string) ($f['ute_1_nombre'] ?? ''));
             $e2 = $this->modo_delegado ? $integrantes_lado($f, 2) : trim((string) ($f['ute_2_nombre'] ?? ''));
-            $e1 = $e1 !== '' ? htmlspecialchars($e1, ENT_QUOTES, 'UTF-8') : '';
-            $e2 = $e2 !== '' ? htmlspecialchars($e2, ENT_QUOTES, 'UTF-8') : '';
+            $e1 = $sanear_lado($e1);
+            $e2 = $sanear_lado($e2);
 
             if ($e1 !== '' && $e2 !== '') return $e1 . ' <br/><span style="color:#95a5a6;">vs</span> <br/>' . $e2;
             if ($e2 !== '') return $e2;
@@ -198,10 +220,18 @@ class MYPDF extends TCPDF {
             return NULL;
         };
 
-        /** Variante en texto plano (sin HTML) del enfrentamiento. */
-        $equipos_texto = function ($f) use ($integrantes_lado) {
-            $t1 = $this->modo_delegado ? $integrantes_lado($f, 1) : trim((string) ($f['ute_1_nombre'] ?? ''));
-            $t2 = $this->modo_delegado ? $integrantes_lado($f, 2) : trim((string) ($f['ute_2_nombre'] ?? ''));
+        /** Variante en texto plano (sin HTML) del enfrentamiento. Si el lado
+         *  vino con HTML (modo delegado), se le quitan las etiquetas y se
+         *  separa el nombre del equipo de sus integrantes con un guion largo. */
+        $a_texto = function ($v) use ($sanear_lado) {
+            $v = $sanear_lado($v);
+            $txt = str_replace(array('<br/>', '<br />'), ' — ', $v);
+            $txt = strip_tags($txt);
+            return trim(preg_replace('/\s+/u', ' ', html_entity_decode($txt, ENT_QUOTES, 'UTF-8')));
+        };
+        $equipos_texto = function ($f) use ($integrantes_lado, $a_texto) {
+            $t1 = $this->modo_delegado ? $a_texto($integrantes_lado($f, 1)) : trim((string) ($f['ute_1_nombre'] ?? ''));
+            $t2 = $this->modo_delegado ? $a_texto($integrantes_lado($f, 2)) : trim((string) ($f['ute_2_nombre'] ?? ''));
             if ($t1 !== '' && $t2 !== '') return $t1 . ' vs ' . $t2;
             if ($t2 !== '') return $t2;
             if ($t1 !== '') return $t1;
