@@ -151,6 +151,9 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .badge.EN_CURSO{background:var(--verde-800);color:var(--verde-300)}
 .badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
 .badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
+/* Etiqueta "Grupo A / Grupo B..." en la línea de categoría de la card */
+.badge.GRUPO{background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
+             color:var(--acento);margin-left:6px}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
 .vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
@@ -351,6 +354,39 @@ $metodos_txt = array(
     'PUNTOS_DE_ORO' => 'puntos de oro', 'MUERTE_SUBITA' => 'la muerte súbita',
     'LANZAMIENTO_TIRLIBRE' => 'el lanzamiento tirlibre', 'OTRO' => 'el desempate',
 );
+
+/* "TRAMPITA DE LAS JORNADAS" (espejo de fixture.php / reporte_fixture.php):
+   numero_fecha se usa como divisor de grupos — Jornada 1 → Grupo A,
+   Jornada 2 → Grupo B, ... Para saber si una jornada es TODA de fase GRUPO
+   primero se indexan las filas por categoría + numero_fecha. */
+$letra_grupo = function ($n) {
+    static $abecedario = array('A','B','C','D','E','F','G','H','I','J','K','L','M',
+                               'N','O','P','Q','R','S','T','U','V','W','X','Y','Z');
+    if ($n >= 1 && $n <= count($abecedario)) return $abecedario[$n - 1];
+    return chr(64 + intdiv($n - 1, 26)) . '-' . $abecedario[($n - 1) % 26];
+};
+$grupos_idx = array(); // clave "categoria|numero_fecha" → ['hay_grupo'=>bool,'todas_grupo'=>bool]
+foreach ($fixture as $fxx) {
+    $num_f = (int) (isset($fxx['numero_fecha']) ? $fxx['numero_fecha'] : 0);
+    $clave = (int) (isset($fxx['id_categoria']) ? $fxx['id_categoria'] : 0) . '|' . $num_f;
+    if (!isset($grupos_idx[$clave])) {
+        $grupos_idx[$clave] = array('hay_grupo' => FALSE, 'todas_grupo' => TRUE);
+    }
+    if (strtoupper(trim((string) (isset($fxx['fase']) ? $fxx['fase'] : ''))) === 'GRUPO') {
+        $grupos_idx[$clave]['hay_grupo'] = TRUE;
+    } else {
+        $grupos_idx[$clave]['todas_grupo'] = FALSE;
+    }
+}
+// Solo las jornadas que son TODAS de fase GRUPO tienen letra de grupo:
+// Grupo A (fecha 1), Grupo B (fecha 2), ... (si se agota la Z, sigue AA...).
+$grupo_etiqueta = array(); // clave "categoria|numero_fecha" → 'Grupo A' | null
+foreach ($grupos_idx as $clave => $g) {
+    $num_f = (int) substr($clave, strpos($clave, '|') + 1);
+    $grupo_etiqueta[$clave] = ($g['todas_grupo'] && $g['hay_grupo'] && $num_f > 0)
+        ? 'Grupo ' . $letra_grupo($num_f)
+        : null;
+}
 ?>
 <!-- ============ FIXTURE ============ -->
 <div id="tab-fixture" class="panel-tab visible">
@@ -398,6 +434,13 @@ $metodos_txt = array(
         // y el horario de fin no interesan al público).
         $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
         $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
+
+        // Etiqueta de grupo ("Grupo A", "Grupo B", ...) para los partidos de
+        // fase GRUPO, con la misma regla que fixture.php/reporte_fixture.php:
+        // numero_fecha de la jornada → letra sucesiva.
+        $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
+                  . (int) (isset($fx['numero_fecha']) ? $fx['numero_fecha'] : 0);
+        $grupo_txt = isset($grupo_etiqueta[$clave_fx]) ? $grupo_etiqueta[$clave_fx] : null;
     ?>
       <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
         <div class="meta">
@@ -416,7 +459,8 @@ $metodos_txt = array(
         <div class="categoria-linea">
           <span class="deporte-chip"><?= htmlspecialchars((string) $fx['nombre_deporte']) ?></span>
           <?php if (!empty($fx['nombre_categoria'])): ?><span style="opacity:.75"><?= htmlspecialchars((string) $fx['nombre_categoria']) ?></span><?php endif; ?>
-          <?php if (!empty($fx['fase'])): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
+          <?php if ($grupo_txt !== null): ?><span class="badge GRUPO"><?= htmlspecialchars($grupo_txt) ?></span><?php endif; ?>
+          <?php if (!empty($fx['fase']) && $grupo_txt === null): ?>· <?= htmlspecialchars($fx['fase']) ?><?php endif; ?><?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
         </div>
       </div>
     <?php endforeach; if ($dia_actual !== null) echo "</div></div>"; ?>
