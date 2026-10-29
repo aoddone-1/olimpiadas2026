@@ -1015,7 +1015,7 @@ class MYPDF extends TCPDF {
                 if (!empty($f['numero_fecha']) && stripos($fase, 'grupo') !== false) {
                     $fase .= ' · F' . (int) $f['numero_fecha'];
                 }
-                $horario = substr((string) ($f['hora_inicio'] ?? ''), 0, 5)
+                $horario = date('d/m/Y', strtotime((string) ($f['fecha_competencia'] ?? 'now'))).' '.substr((string) ($f['hora_inicio'] ?? ''), 0, 5)
                          . '–' . substr((string) ($f['hora_fin'] ?? ''), 0, 5);
                 $bg = ($n % 2) ? '#ffffff' : '#f8f9fa';
 
