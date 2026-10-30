@@ -67,8 +67,9 @@ $route['panel-publico']                    = 'Publico/index';
 //   /publico/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
 // CI evalúa estas claves como REGEX (van delimitadas por //), por eso el
 // carácter "/" dentro del regex debe escribirse escapado: \/.
-$route['publico(?:\/(?:delegacion|deporte|categoria|dia|buscar|disciplina)\/[^\/]+){1,6}'] = 'Publico/index';
-$route['panel-publico(?:\/(?:delegacion|deporte|categoria|dia|buscar|disciplina)\/[^\/]+){1,6}'] = 'Publico/index';
+// NOTA: ya no existen rutas con filtros por segmento (/publico/dia/...):
+// el panel mantiene la URL SIEMPRE limpia ("/publico" y nada más).
+// Los filtros viajan por POST y el día/búsqueda se aplican en el cliente.
 
 // Endpoints JSON (se sirven desde la ruta base; ya no se usan desde el panel).
 $route['panel-publico/fixture']            = 'Publico/fixture_json';

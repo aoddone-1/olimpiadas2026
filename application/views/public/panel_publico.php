@@ -1,36 +1,12 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed');
 
-/* ===== URL limpia: lectura de los segmentos extra de /publico/... =====
-   Antes el panel usaba query string y se veía así:
-     /publico?delegacion=Formosa&deporte=13&categoria=56&dia=mi-ercoles-04-11&q=#tab-fixture
-   Ahora cada filtro viaja como segmento "legible":
-     /publico/delegacion/formosa/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
-   El controlador (Publico::index) ya pasó estos valores por $data; si no
-   vienen, se releen de los segmentos por compatibilidad. */
-$__ci = isset($this) ? $this : (isset($_CI) ? $_CI : NULL);
-$__seg = function ($clave) use ($__ci) {
-    if (!$__ci || !isset($__ci->uri)) return '';
-    // OJO: el método real de CI3 es segment_array() (no existe uri_segments()).
-    // Llamar al nombre equivocado era la causa del HTTP 500 en esta vista.
-    if (!method_exists($__ci->uri, 'segment_array')) return '';
-    $parts = $__ci->uri->segment_array();       // ['panel-publico','delegacion','formosa',...]
-    $n = count($parts);
-    for ($i = 0; $i < $n - 1; $i++) {
-        if (strtolower((string) $parts[$i]) === strtolower($clave)) {
-            $v = (string) $parts[$i + 1];
-            // Un separador real "/" nunca llega crudo: solo aceptamos el valor
-            // inmediatamente siguiente al nombre del filtro.
-            return ($v === '' || strpos($v, '/') !== FALSE) ? '' : rawurldecode($v);
-        }
-    }
-    return '';
-};
-$delegacion_uri   = isset($delegacion_url)   ? (string) $delegacion_url   : $__seg('delegacion');
-$deporte_uri      = isset($deporte_url)      ? (string) $deporte_url      : $__seg('deporte');
-$categoria_uri    = isset($categoria_url)    ? (string) $categoria_url    : $__seg('categoria');
-$dia_uri          = isset($dia_url)          ? (string) $dia_url          : $__seg('dia');
-$buscar_uri       = isset($buscar_url)       ? (string) $buscar_url       : $__seg('buscar');
-$disciplina_uri   = isset($disciplina_url)   ? (string) $disciplina_url   : $__seg('disciplina');
+/* ===== Panel público: URL SIEMPRE limpia =====
+   La barra de direcciones solo muestra la ruta base (/publico o
+   /panel-publico). Ningún filtro viaja por la URL: ni query string (?dia=&q=)
+   ni segmentos (/dia/viernes-06-11), y tampoco el hash de las pestañas.
+   - Delegación / Deporte / Categoría: se envían por POST desde el formulario.
+   - Día y búsqueda: se aplican en el cliente (todo el fixture se renderiza
+     oculto y el JS muestra lo que corresponde). */
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -45,6 +21,9 @@ $disciplina_uri   = isset($disciplina_url)   ? (string) $disciplina_url   : $__s
 <style>
 /* Ajustes locales de la integración (solo esta vista). */
 .venue-name{display:inline}
+/* "Limpiar filtros" es un <button> que envía el formulario por POST:
+   se ve igual que el enlace original de la maqueta. */
+button.reset-button{font:inherit;line-height:inherit}
 .discipline-group[open] .discipline-arrow svg{transform:rotate(180deg)}
 @media(max-width:680px){.bottom-note a{margin-left:0}}
 /* Filtros client-side (JS del panel): días y búsqueda ocultan, nunca borran. */
@@ -318,9 +297,9 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 <?php
 /* ===== Diseño nuevo (Entrega-Fixture-Olimpiadas) =====
    Claves de día y disciplina normalizadas, a la manera de la maqueta:
-   sin tildes, sin distinción de mayúsculas. Se usan para armar los enlaces
-   ?dia= / #disciplina-... y para que el JS recuerde qué días/disciplinas
-   quedaron abiertos al navegar con filtros o búsqueda. */
+   sin tildes, sin distinción de mayúsculas. Se usan como identificadores
+   data-day / data-discipline del fixture y para que el JS recuerde qué
+   días/disciplinas quedaron abiertos al filtrar o buscar. */
 $norm = function ($txt) {
     $txt = trim((string) $txt);
     if (function_exists('iconv')) {
@@ -357,19 +336,19 @@ $norm = function ($txt) {
       <p>Elegí una delegación, un deporte o una categoría.</p>
     </div>
     <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
-    <a class="reset-button" href="<?= site_url('panel-publico') ?>">
+    <!-- "Limpiar filtros" también va por POST: la barra sigue siendo "/publico". -->
+    <button type="submit" class="reset-button" form="filters-form" name="limpiar" value="1">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.8 7.1M4 4v6h6"/></svg>Limpiar filtros
-    </a>
+    </button>
     <?php endif; ?>
   </div>
-  <!-- URL limpia: el formulario NO usa query string (?a=b&c=d). Cada select
-       arma su propio enlace "limpio" (/publico/delegacion/<nombre>,
-       /publico/deporte/<id>/categoria/<id>, ...) y el JS navega con él.
-       Así la barra de direcciones queda legible y compartible. -->
-  <form method="get" action="<?= site_url('panel-publico') ?>" id="filters-form" class="filters-form">
+  <!-- Los filtros viajan por POST: la barra de direcciones NUNCA se ensucia
+       (ni "?delegacion=..." ni "/delegacion/formosa"). El servidor recibe los
+       valores en $_POST y renderiza la misma URL limpia. -->
+  <form method="post" action="<?= site_url('panel-publico') ?>" id="filters-form" class="filters-form">
     <div class="filter-field">
       <label for="filtroDelegacion">Delegación</label>
-      <select name="delegacion" id="filtroDelegacion" data-base="<?= site_url('panel-publico') ?>" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
+      <select name="delegacion" id="filtroDelegacion" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
         <option value="">Todas (vista general)</option>
         <?php foreach ($delegaciones as $d): ?>
           <option value="<?= rawurlencode($d) ?>" data-slug="<?= htmlspecialchars(rawurlencode($d)) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
@@ -537,88 +516,17 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                   'short' => $dias_curtos[(int) date('w', $ts0)])
           : array('full' => $f0, 'short' => $f0);
   }
-  /* Día elegido: ahora viene por SEGMENTO de URL limpia (/publico/dia/2026-11-04)
-     y no por query string. Se acepta también la forma antigua (?dia=) para que
-     los enlaces guardados/compartidos antes sigan funcionando. */
-  $get_dia = trim((string) $dia_uri);
-  if ($get_dia === '' && isset($_GET['dia'])) $get_dia = trim((string) $_GET['dia']);
-  $dia_sel  = '';
-  if ($get_dia !== '') {
-      foreach ($dias_disp as $fecha_x => $info_x) {
-          if ($get_dia === $fecha_x || $norm($get_dia) === $norm($info_x['full'])) { $dia_sel = $fecha_x; break; }
-      }
-      if ($get_dia === 'all') $dia_sel = 'all';
-  }
-  if ($dia_sel === '' && !empty($dias_disp)) $dia_sel = (string) array_key_first($dias_disp);
-  elseif (empty($dias_disp)) $dia_sel = 'all';
+  /* Día mostrado al cargar: SIEMPRE el primero del calendario. El cambio de
+     día es 100% en el cliente (JS), así que nunca aparece en la URL. Lo mismo
+     con la búsqueda (arranca vacía) y las disciplinas (todas cerradas). */
+  $dia_sel = !empty($dias_disp) ? (string) array_key_first($dias_disp) : 'all';
+  $q_uri = '';
+  $disc_plana = '';
+  $disc_fecha = '';
 
-  /* Búsqueda: igualmente por segmento (/publico/buscar/futbol) o ?q= antiguo. */
-  $q_uri = trim((string) $buscar_uri);
-  if ($q_uri === '' && isset($_GET['q'])) $q_uri = trim((string) $_GET['q']);
-
-  /* Disciplina anclada por #disciplina-<clave> (o segmento disciplina/...): entra abierta. */
-  $hash_get = trim((string) $disciplina_uri);
-  if ($hash_get === '' && isset($_GET['disciplina'])) $hash_get = trim((string) $_GET['disciplina']);
-  $disc_plana = $hash_get !== '' ? $norm($hash_get) : '';
-  $disc_fecha = $hash_get !== '' && strpos($hash_get, '-') !== FALSE
-      ? substr($hash_get, strrpos($hash_get, '-') + 1) : '';
-  if ($disc_plana === '' && $disc_fecha !== '') $disc_plana = $norm(substr($hash_get, 0, strrpos($hash_get, '-')));
-
-  /* Base sobre la que el JS arma las URLs limpias al cambiar un filtro. */
-  $url_base_filtros = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
-  /* Clave legible del día seleccionado (para /panel-publico/dia/<clave>). */
-  $dia_key_actual = ($dia_sel === 'all') ? 'all' : $norm($dias_disp[$dia_sel]['full']);
-
-  /* URL "limpia" de esta misma vista (sin query string), para que el JS pueda
-     normalizar la barra al cargar. Se arma con los mismos segmentos que ya se
-     están mostrando: si llegó ?dia=…&q=… de un enlace viejo, queda /.../dia/<clave>. */
-  $__seg_base = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
-  $__seg_parts = array();
-  if ($delegacion_uri !== '') {
-      $t = trim($delegacion_uri);
-      if (function_exists('iconv')) { $d = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $t); if ($d !== false) $t = $d; }
-      $t = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($t)), '-');
-      if ($t !== '') $__seg_parts[] = array('delegacion', $t);
-  }
-  if ($deporte_uri   !== '' && (int) $deporte_uri   > 0) $__seg_parts[] = array('deporte',   (string)(int) $deporte_uri);
-  if ($categoria_uri !== '' && (int) $categoria_uri > 0) $__seg_parts[] = array('categoria', (string)(int) $categoria_uri);
-  if ($dia_key_actual !== 'all')                         $__seg_parts[] = array('dia', $dia_key_actual);
-  $url_canonica = $__seg_base . (count($__seg_parts) ? '/' . implode('/', array_map(
-      function ($p) { return rawurlencode($p[0]) . '/' . rawurlencode($p[1]); }, $__seg_parts)) : '');
-
-  /* Redirección 301 de URLs sucias → ruta limpia equivalente.
-     Con enable_query_strings = FALSE, CI no llena $_GET desde la query string,
-     así que aquí se parsea QUERY_STRING a mano. Un enlace guardado tipo
-     "/publico?dia=viernes-06-11&q=futbol#tab-fixture" pasa a ser
-     "/panel-publico/dia/viernes-06-11#tab-fixture": sin "?", sin "q=" y sin
-     hash duplicado. El hash lo conserva el navegador al redirigir. */
-  if (!headers_sent()) {
-      $__q_raw = isset($_SERVER['QUERY_STRING']) ? (string) $_SERVER['QUERY_STRING'] : '';
-      if ($__q_raw !== '') {
-          $__qs = array();
-          parse_str($__q_raw, $__qs);
-          // Solo se redirige si TODOS los parámetros son filtros conocidos:
-          // cualquier otro valor se respeta tal cual (no se pierde información).
-          $__known = array('delegacion', 'deporte', 'categoria', 'dia', 'q', 'disciplina');
-          if (array_diff(array_keys($__qs), $__known) === array()) {
-              $__redir = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
-              foreach ($__seg_parts as $__p) {
-                  $__redir .= '/' . rawurlencode($__p[0]) . '/' . rawurlencode($__p[1]);
-              }
-              // Búsqueda antigua (?q=): se filtra en cliente, no va en la URL.
-              header('Location: ' . $__redir, TRUE, 301);
-              exit;
-          }
-      }
-  }
-  ?>
-  <script>
-  // Estado inicial del día elegido, para que el JS rearme bien la ruta limpia.
-  window.__diaKeyActual = <?= json_encode($dia_key_actual) ?>;
-  window.__urlCanonica  = <?= json_encode($url_canonica) ?>;
-  </script>
+?>
   <div class="schedule-tools">
-    <nav class="day-nav" id="day-nav" aria-label="Filtrar por día" data-base="<?= htmlspecialchars($url_base_filtros) ?>">
+    <nav class="day-nav" id="day-nav" aria-label="Filtrar por día">
       <?php foreach ($dias_disp as $fecha_d => $info_d):
           $clave_d = $norm($info_d['full']); ?>
         <button type="button" class="day-button"
@@ -1026,13 +934,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     Array.prototype.forEach.call(document.querySelectorAll('main .panel'), function (panel) {
       panel.hidden = panel.id !== id;
     });
-    /* Ojo con el hash: si se asigna SIEMPRE ('#' + id), cada click acumula otro
-       "#tab-fixture" en la barra (…#tab-fixture#tab-fixture#tab-fixture…).
-       Aquí se normaliza: la URL termina con UN solo #tab, y cualquier resto de
-       versión anterior (p. ej. "?dia=…&q=…") se limpia con replaceState. */
-    if (!history.replaceState) return;
-    var destino = (window.__urlCanonica || (location.pathname + location.search));
-    history.replaceState(null, '', destino + '#' + id);
+    /* La barra NO cambia al navegar entre pestañas: nada de "#tab-fixture"
+       (las versiones anteriores acumulaban hashes o escribían filtros en la
+       URL). Acá solo se borra cualquier resto heredado de URL sucia. */
+    if (history.replaceState && (location.search || location.hash)) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    }
   }
   tabButtons.forEach(function (button, index) {
     button.addEventListener('click', function () { setTab(button.dataset.tab); });
@@ -1047,14 +954,8 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       setTab(tabButtons[next].dataset.tab, true);
     });
   });
-  // El hash puede venir sucio (p. ej. "#tab-fixture#tab-fixture" de versiones
-  // anteriores): se toma la última parte válida.
-  var hashPartes = (location.hash || '').replace(/^#/, '').split('#').filter(Boolean);
-  var initialTab = hashPartes.length ? hashPartes[hashPartes.length - 1] : '';
-  if (['tab-fixture', 'tab-resultados', 'tab-medallero'].indexOf(initialTab) < 0) {
-    initialTab = 'tab-fixture';
-  }
-  setTab(initialTab);
+  // Sin hash en la barra: siempre se abre Fixture (la URL queda limpia).
+  setTab('tab-fixture');
 
   /* ---------- Fixture: filtro por día y búsqueda (sin recargar) ---------- */
   var schedule = document.getElementById('schedule');
@@ -1148,8 +1049,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         b.setAttribute('aria-pressed', String(b === button));
       });
       selectedDay = button.dataset.date;
-      applyFilters(true);
-      updateURL();
+      applyFilters(true);   // solo en memoria: la URL no cambia
     });
   }
 
@@ -1157,7 +1057,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   if (searchBox) {
     searchBox.addEventListener('input', function () {
       clearTimeout(searchTimer);
-      searchTimer = setTimeout(function () { applyFilters(true); updateURL(); }, 150);
+      searchTimer = setTimeout(function () { applyFilters(true); }, 150);
     });
   }
 
@@ -1181,85 +1081,29 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     });
   }
 
-  /* ---------- Día / búsqueda: URL limpia, SIN query string ----------
-     Antes esto escribía ?dia=…&q=… en la barra (el origen de las URLs feas).
-     Día y búsqueda se aplican en el cliente, así que basta con rearmar la
-     ruta legible /panel-publico/.../dia/<clave>/buscar/<q> con pushState —
-     sin recargar la página. */
-  function updateURL() {
-    var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
-    var diaKey = (!pressed || pressed.dataset.day === 'all') ? '' : pressed.dataset.day;
-    if (window) window.__diaKeyActual = diaKey || 'all';
-    navegarFiltros({ dia: diaKey || 'all' });
-  }
-
-  /* ---------- Filtros server-side → URL limpia (sin query string) ----------
-     Delegación / Deporte / Categoría cambian datos del servidor: el JS arma la
-     ruta /panel-publico/delegacion/<nombre>/deporte/<id>/categoria/<id>
-     /dia/<clave>/buscar/<q> y navega con location.href. La barra queda legible
-     y compartible, sin "?a=b&c=d". */
+  /* ---------- Filtros del servidor: POST, sin tocar la barra ----------
+     Delegación / Deporte / Categoría cambian datos del servidor. El formulario
+     los envía por POST a la misma ruta (/publico), así que la URL NUNCA lleva
+     parámetros: queda solo "…/publico". Día y búsqueda no se envían: ya se
+     aplican en cliente con applyFilters(). */
   var selDep = document.getElementById('filtroDeporte');
   var selCat = document.getElementById('filtroCategoria');
   var selDel = document.getElementById('filtroDelegacion');
   var filtersForm = document.getElementById('filters-form');
 
-  var PANEL_BASE = (dayNav ? dayNav.getAttribute('data-base') : '') || '';
-
-  // Estado actual de los filtros "de servidor" (los selects) y de los
-  // "de cliente" (día y búsqueda), para poder rearmar la ruta completa.
-  function estadoFiltrosRuta(sobrescribir) {
-    var s = {
-      delegacion: selDel ? selDel.value : '',                       // nombre crudo (se sluguea abajo)
-      deporte:    selDep ? selDep.value : '',
-      categoria:  selCat ? selCat.value : '',
-      dia:        window.__diaKeyActual || 'all',
-      buscar:     searchBox ? searchBox.value.trim() : ''
-    };
-    if (sobrescribir) for (var k in sobrescribir) s[k] = sobrescribir[k];
-    return s;
+  function submitFilters() {
+    if (filtersForm) filtersForm.submit();
   }
 
-  // "San Miguel de Tucumán" → "san-miguel-de-tucuman" (solo ASCII seguro:
-  // CI filtra la URI por permitted_uri_chars = a-z 0-9 ~ % . _ : -).
-  function slug(txt) {
-    try { txt = String(txt).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
-    return String(txt).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  }
+  // "Limpiar filtros" es un <button type=submit> asociado al formulario con el
+  // atributo form="filters-form". El navegador, antes de enviar, pondría los
+  // selects en su primera opción (reset automático); no importa: el controlador
+  // ve limpiar=1 en el POST e ignora todos los filtros del lado del servidor.
 
-  function urlLimpia(s) {
-    var seg = [];
-    if (s.delegacion) seg.push('delegacion', slug(s.delegacion));
-    if (s.deporte)    seg.push('deporte', encodeURIComponent(s.deporte));
-    if (s.categoria)  seg.push('categoria', encodeURIComponent(s.categoria));
-    if (s.dia && s.dia !== 'all') seg.push('dia', encodeURIComponent(s.dia));
-    // La búsqueda NO viaja por la URL: se filtra en el cliente. Meterla en la
-    // barra era parte de lo que ensuciaba la dirección.
-    var url = PANEL_BASE + (seg.length ? '/' + seg.join('/') : '');
-    var tab = document.querySelector('.primary-tabs [role="tab"].activo');
-    return url + (tab ? '#' + tab.dataset.tab : '');
-  }
-
-  function navegarFiltros(s) {
-    var url = urlLimpia(s);
-    // Si el usuario solo cambió día/búsqueda, no recargar: aplicar en cliente.
-    if (url === location.pathname + location.hash) return;
-    // IMPORTANTE: pushState exige mismo origen. Si el sitio se ve por IP o
-    // detrás de un proxy y PANEL_BASE apunta a otro host, lanzaría SecurityError
-    // y rompería los filtros. Se comprueba antes de usar la History API.
-    var mismoOrigen = false;
-    try { mismoOrigen = new URL(url, location.href).origin === location.origin; } catch (e) {}
-    if (history.pushState && mismoOrigen) {
-      // Día y búsqueda ya se aplicaron en memoria (applyFilters): basta con
-      // actualizar la barra sin pedir nada al servidor → URL limpia y rápida.
-      history.pushState({ filtros: s }, '', url);
-      return;
-    }
-    location.href = url;
-  }
-
-  function submitFilters(overrides) {
-    if (!PANEL_BASE) { if (filtersForm) filtersForm.submit(); return; }
-    navegarFiltros(estadoFiltrosRuta(overrides));
+  // Al enviar por POST, el navegador mostraría un aviso raro si se recarga;
+  // además, para mantener la barra idéntica, normalizamos el path al cargar.
+  if (history.replaceState && (location.search || location.hash)) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
   }
 
   if (selDep && selCat) {
@@ -1293,24 +1137,13 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
 
   applyFilters(false);
 
-  /* ---------- Normalizar la barra al cargar (enlaces viejos con ?dia=&q=) ----------
-     Si llegamos con query string heredado, se reemplaza por la ruta limpia
-     equivalente sin recargar; y si el hash viene duplicado (#tab-x#tab-x),
-     queda un solo #tab-x. */
-  (function () {
-    if (!window.history || !history.replaceState) return;
-    var canon = window.__urlCanonica || '';
-    if (!canon) return;
-    var mismoOrigen = false;
-    try { mismoOrigen = new URL(canon, location.href).origin === location.origin; } catch (e) {}
-    if (!mismoOrigen) return;
-    var h = (location.hash || '').replace(/^#/, '').split('#').filter(Boolean);
-    var tabActiva = document.querySelector('.primary-tabs [role="tab"].activo');
-    var target = canon + (h.length ? '#' + h[h.length - 1] : (tabActiva ? '#' + tabActiva.dataset.tab : ''));
-    if (target !== location.pathname + location.search + location.hash) {
-      history.replaceState(null, '', target);
-    }
-  })();
+  /* ---------- Al cargar: borrar cualquier resto de URL sucia ----------
+     Enlaces guardados o versiones anteriores pueden traer ?dia=…&q=… o
+     #tab-… en la barra. Se limpia con replaceState (sin recargar), dejando
+     solo la ruta base: "…/publico". */
+  if (history.replaceState && (location.search || location.hash)) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  }
 })();
 </script>
 </body>
