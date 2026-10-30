@@ -6,6 +6,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= htmlspecialchars($titulo_evento) ?> — Panel Público</title>
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
+<!-- Diseño del panel publico: maqueta aprobada (Entrega-Fixture-Olimpiadas).
+     Hoja exclusiva de esta vista: usa selectores globales (body, .container, svg). -->
+<link rel="stylesheet" href="<?= base_url('css/panel-publico.css') ?>?v=20261030">
 <style>
 :root{
   --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
