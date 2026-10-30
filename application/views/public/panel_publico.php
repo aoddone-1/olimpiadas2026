@@ -2,7 +2,7 @@
 
 /* ===== Panel público: URL SIEMPRE limpia =====
    La barra de direcciones solo muestra la ruta base (/publico o
-   /panel-publico). Ningún filtro viaja por la URL: ni query string (?dia=&q=)
+   /publico). Ningún filtro viaja por la URL: ni query string (?dia=&q=)
    ni segmentos (/dia/viernes-06-11), y tampoco el hash de las pestañas.
    - Delegación / Deporte / Categoría: se envían por POST desde el formulario.
    - Día y búsqueda: se aplican en el cliente (todo el fixture se renderiza
@@ -345,7 +345,7 @@ $norm = function ($txt) {
   <!-- Los filtros viajan por POST: la barra de direcciones NUNCA se ensucia
        (ni "?delegacion=..." ni "/delegacion/formosa"). El servidor recibe los
        valores en $_POST y renderiza la misma URL limpia. -->
-  <form method="post" action="<?= site_url('panel-publico') ?>" id="filters-form" class="filters-form">
+  <form method="post" action="<?= site_url('publico') ?>" id="filters-form" class="filters-form">
     <div class="filter-field">
       <label for="filtroDelegacion">Delegación</label>
       <select name="delegacion" id="filtroDelegacion" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
@@ -552,7 +552,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       <div class="empty-icon" aria-hidden="true">⌕</div>
       <h3>No encontramos competencias</h3>
       <p><?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>Con estos filtros todavía no hay partidos programados. Probá limpiar los filtros o cambiar la categoría.<?php else: ?>El fixture del evento todavía está vacío. Volvé más tarde para ver la agenda completa.<?php endif; ?></p>
-      <a class="secondary-button" href="<?= site_url('panel-publico') ?>">Ver todas las competencias</a>
+      <a class="secondary-button" href="<?= site_url('publico') ?>">Ver todas las competencias</a>
     </div>
   <?php else: ?>
     <?php
