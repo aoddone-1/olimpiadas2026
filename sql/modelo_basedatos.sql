@@ -148,7 +148,7 @@ CREATE TABLE `premio_tipo` (
   `icono` varchar(16) DEFAULT NULL COMMENT 'Emoji/icono para mostrar en pantalla (🏆 🎖️ 📜)',
   PRIMARY KEY (`id_premio_tipo`),
   UNIQUE KEY `uq_premio_tipo_nombre` (`nombre`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Tipos de premio disponibles (trofeo, medalla, etc.)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tipos de premio disponibles (trofeo, medalla, etc.)';
 
 CREATE TABLE `resultados` (
   `id_resultado` int NOT NULL AUTO_INCREMENT,

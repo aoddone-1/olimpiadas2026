@@ -18,13 +18,22 @@ CREATE TABLE IF NOT EXISTS `premio_tipo` (
   `icono` varchar(16) DEFAULT NULL COMMENT 'Emoji/icono para mostrar en pantalla (🏆 🥇 🎖️ 📜)',
   PRIMARY KEY (`id_premio_tipo`),
   UNIQUE KEY `uq_premio_tipo_nombre` (`nombre`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='Tipos de premio disponibles (trofeo, medalla, etc.)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Tipos de premio disponibles (trofeo, medalla, etc.)';
 
+-- IMPORTANTE: la tabla usa utf8mb4 porque los emojis (🏆 🎖️ 📜 🏅) son
+-- caracteres de 4 bytes que latin1/utf8 (3 bytes) NO pueden almacenar.
+-- Si la tabla ya existía en otra codificación, la convertimos abajo.
+ALTER TABLE `premio_tipo`
+  CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- ON DUPLICATE KEY evita errores si la migración se ejecuta más de una vez
+-- (la columna `nombre` tiene índice único).
 INSERT INTO `premio_tipo` (`nombre`, `icono`) VALUES
   ('Trofeo',   '🏆'),
   ('Medalla',  '🎖️'),
   ('Diploma',  '📜'),
-  ('Puesto',   '🏅');
+  ('Puesto',   '🏅')
+ON DUPLICATE KEY UPDATE `icono` = VALUES(`icono`);
 
 -- Regla de premiación POR CATEGORÍA (JSON) + día sugerido de entrega.
 -- Formato del JSON: un array con un objeto por puesto premiado, en orden:
