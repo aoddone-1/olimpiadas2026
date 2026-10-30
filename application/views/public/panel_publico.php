@@ -608,7 +608,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           <summary class="discipline-summary">
             <span class="discipline-symbol" aria-hidden="true"><?= $svg_disciplina ?></span>
             <span class="discipline-label">
-              <span class="discipline-name"><?= htmlspecialchars($lower_name($dep_key)) ?></span>
+              <span class="discipline-name"><?= htmlspecialchars($dep_key) ?></span>
               <span class="discipline-description"><?= htmlspecialchars($desc_d) ?></span>
             </span>
             <span class="discipline-count"><?= $n_items . ' ' . ($n_items === 1 ? 'competencia' : 'competencias') ?></span>
@@ -902,13 +902,14 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   <?php endif; ?>
 </section>
 
-<div class="workspace-bottom">
+
+  </div><!-- /.workspace -->
+  <div class="workspace-bottom">
   <footer>
     <img class="mascota" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Pampito, la mascota de las olimpiadas">
     Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales
   </footer>
 </div>
-  </div><!-- /.workspace -->
 </main>
 
 <script>
