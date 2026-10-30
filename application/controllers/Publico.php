@@ -28,10 +28,10 @@ class Publico extends CI_Controller {
     /** Panel principal: resumen + pestañas Fixture / Resultados / Medallero. */
     public function index() {
         // Filtros por URL LIMPIA (segmentos), p. ej.:
-        //   /publico/delegacion/formosa/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
+        //   /panel-publico/delegacion/formosa/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
         // Antes se usaba query string y la barra quedaba ilegible
         // (/publico?delegacion=Formosa&deporte=13&...&q=#tab-fixture).
-        $segmentos = $this->uri->uri_segments();
+        $segmentos = $this->_segmentos_filtros();
         $filtros_url = $this->_filtros_por_segmentos($segmentos);
 
         $delegacion   = $filtros_url['delegacion'];
@@ -75,6 +75,30 @@ class Publico extends CI_Controller {
         );
 
         $this->load->view('public/panel_publico', $data);
+    }
+
+    /**
+     * Segmentos "crudos" que contienen los filtros, sin el nombre de la ruta.
+     * Con $route['panel-publico'] = 'Publico/index', CI deja en uri->uri_string()
+     * la URI ORIGINAL: 'panel-publico/delegacion/formosa/...'. Aquí se quita ese
+     * primer tramo para que _filtros_por_segmentos vea solo pares clave/valor.
+     *
+     * Nota (causa del HTTP 500): CodeIgniter tiene uri_segments(); NO existe
+     * url_segments(). Llamar al nombre equivocado lanza "Call to an undefined
+     * method" y CI lo traduce en un error 500 en producción.
+     */
+    private function _segmentos_filtros() {
+        $segments = isset($this->uri->segments) && is_array($this->uri->segments)
+            ? array_values($this->uri->segments)
+            : array();
+        // Quitar el prefijo de la ruta ('panel-publico' / 'publico').
+        if (!empty($segments)) {
+            $primero = strtolower((string) $segments[0]);
+            if ($primero === 'panel-publico' || $primero === 'publico') {
+                array_shift($segments);
+            }
+        }
+        return $segments;
     }
 
     /**
