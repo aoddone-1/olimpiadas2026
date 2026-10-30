@@ -27,16 +27,21 @@ class Publico extends CI_Controller {
 
     /** Panel principal: resumen + pestañas Fixture / Resultados / Medallero. */
     public function index() {
-        // Filtros por URL LIMPIA (segmentos), p. ej.:
-        //   /panel-publico/delegacion/formosa/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
-        // Antes se usaba query string y la barra quedaba ilegible
-        // (/publico?delegacion=Formosa&deporte=13&...&q=#tab-fixture).
-        $segmentos = $this->_segmentos_filtros();
-        $filtros_url = $this->_filtros_por_segmentos($segmentos);
-
-        $delegacion   = $filtros_url['delegacion'];
-        $id_deporte   = $filtros_url['deporte'];
-        $id_categoria = $filtros_url['categoria'];
+        // ===== URL SIEMPRE limpia: "/publico" y nada más =====
+        // Los filtros de servidor (Delegación / Deporte / Categoría) llegan por
+        // POST desde el formulario del panel: viajan en el cuerpo de la petición,
+        // no en la barra de direcciones. Día y búsqueda se aplican en el cliente
+        // (el fixture completo se renderiza oculto y el JS muestra lo que toca),
+        // así que tampoco aparecen nunca en la URL.
+        // "Limpiar filtros" (botón del formulario): ignora todos los filtros.
+        $limpiar = (string) $this->input->post('limpiar');
+        if ($limpiar !== '') {
+            $delegacion = $id_deporte = $id_categoria = null;
+        } else {
+            $delegacion   = $this->_delegacion_filtro();
+            $id_deporte   = $this->_deporte_filtro();
+            $id_categoria = $this->_categoria_filtro();
+        }
 
         // Cada consulta va envuelta en try/catch: si falta una tabla/columna
         // (migraciones no aplicadas) el panel se muestra igual, con esa sección
@@ -64,104 +69,13 @@ class Publico extends CI_Controller {
             'resultados'     => $this->_resultados_del_fixture($delegacion, $id_deporte, $id_categoria, $fixture),
             'medallero'      => $this->_seguro(fn() => $this->Publico_model->obtener_medallero(), array()),
             'ahora'          => date('d/m/Y H:i'),
-            // Segmentos "informativos" de la URL limpia (los lee la vista para
-            // saber qué día/búsqueda/disciplina mostrar y para armar enlaces).
-            'dia_url'        => $filtros_url['dia'],
-            'buscar_url'     => $filtros_url['buscar'],
-            'disciplina_url' => $filtros_url['disciplina'],
+            // Informativos para la vista (sin filtros de URL: todo por POST/cliente).
             'delegacion_url' => $delegacion,
             'deporte_url'    => $id_deporte !== null ? (string) $id_deporte : '',
             'categoria_url'  => $id_categoria !== null ? (string) $id_categoria : '',
         );
 
         $this->load->view('public/panel_publico', $data);
-    }
-
-    /**
-     * Segmentos "crudos" que contienen los filtros, sin el nombre de la ruta.
-     * Con $route['panel-publico'] = 'Publico/index', CI deja en uri->uri_string()
-     * la URI ORIGINAL: 'panel-publico/delegacion/formosa/...'. Aquí se quita ese
-     * primer tramo para que _filtros_por_segmentos vea solo pares clave/valor.
-     *
-     * Nota (causa del HTTP 500): CodeIgniter tiene uri_segments(); NO existe
-     * url_segments(). Llamar al nombre equivocado lanza "Call to an undefined
-     * method" y CI lo traduce en un error 500 en producción.
-     */
-    private function _segmentos_filtros() {
-        $segments = isset($this->uri->segments) && is_array($this->uri->segments)
-            ? array_values($this->uri->segments)
-            : array();
-        // Quitar el prefijo de la ruta ('panel-publico' / 'publico').
-        if (!empty($segments)) {
-            $primero = strtolower((string) $segments[0]);
-            if ($primero === 'panel-publico' || $primero === 'publico') {
-                array_shift($segments);
-            }
-        }
-        return $segments;
-    }
-
-    /**
-     * Convierte los segmentos pares clave/valor de la URL en filtros listos.
-     * Delegación: se valida contra las delegaciones reales comparando la forma
-     * normalizada (así "formosa", "Formosa" o "San Miguel de Tucumán" funcionan
-     * indistintamente). Deporte/Categoría: enteros. Día/Buscar/Disciplina: texto.
-     */
-    private function _filtros_por_segmentos($parts) {
-        $vals = array();
-        $n = is_array($parts) ? count($parts) : 0;
-        for ($i = 0; $i < $n - 1; $i++) {
-            $k = strtolower(trim((string) $parts[$i]));
-            if ($k === '') continue;
-            $v = trim((string) $parts[$i + 1]);
-            // Un valor nunca debe contener "/" (vendría de otra ruta): lo ignoramos.
-            if ($v === '' || strpos($v, '/') !== FALSE) continue;
-            $v = rawurldecode($v);
-            if (!isset($vals[$k])) $vals[$k] = $v;
-            $i++; // consume el valor
-        }
-
-        $norm = function ($txt) {
-            $t = mb_strtolower(trim((string) $txt), 'UTF-8');
-            if (function_exists('iconv')) {
-                $deg = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $t);
-                if ($deg !== false) $t = $deg;
-            }
-            $t = preg_replace('/[^a-z0-9]+/', '-', $t);
-            return trim($t, '-');
-        };
-
-        // --- Delegación (nombre legible en la URL) ---
-        $delegacion = null;
-        if (!empty($vals['delegacion'])) {
-            $pedido = trim((string) $vals['delegacion']);
-            $reales = $this->_seguro(fn() => $this->Publico_model->obtener_delegaciones(), array());
-            foreach ($reales as $real) {
-                if (strcasecmp($pedido, $real) === 0) { $delegacion = $real; break; }
-            }
-            if ($delegacion === null) {
-                $np = $norm($pedido);
-                foreach ($reales as $real) {
-                    if ($np !== '' && $np === $norm($real)) { $delegacion = $real; break; }
-                }
-            }
-            if ($delegacion === null) {
-                log_message('error', 'Publico::_filtros_por_segmentos — delegación desconocida: ' . $pedido);
-            }
-        }
-
-        // --- Deporte / Categoría (ids numéricos) ---
-        $id_deporte   = isset($vals['deporte'])   && (int) $vals['deporte'] > 0   ? (int) $vals['deporte']   : null;
-        $id_categoria = isset($vals['categoria']) && (int) $vals['categoria'] > 0 ? (int) $vals['categoria'] : null;
-
-        return array(
-            'delegacion' => $delegacion,
-            'deporte'    => $id_deporte,
-            'categoria'  => $id_categoria,
-            'dia'        => isset($vals['dia']) ? $vals['dia'] : '',
-            'buscar'     => isset($vals['buscar']) ? $vals['buscar'] : '',
-            'disciplina' => isset($vals['disciplina']) ? $vals['disciplina'] : '',
-        );
     }
 
     /**
@@ -254,17 +168,10 @@ class Publico extends CI_Controller {
      *  de index() para no duplicar la validación de delegaciones reales.
      * ============================================================ */
 
-    /** Filtros desde los segmentos de la URL limpia (comparte la lógica con index()). */
-    private function _filtros_actuales() {
-        return $this->_filtros_por_segmentos($this->_segmentos_filtros());
-    }
-
+    /** Los filtros del panel llegan por POST (body de la petición), nunca por
+     *  la URL. input->post() devuelve NULL si la petición fue GET normal. */
     private function _delegacion_filtro() {
-        // 1) URL limpia: /publico/delegacion/<nombre>
-        $f = $this->_filtros_actuales();
-        if (!empty($f['delegacion'])) return $f['delegacion'];
-        // 2) Query string clásico (compatibilidad): ?delegacion=<nombre exacto>
-        $delegacion = trim((string) $this->input->get('delegacion'));
+        $delegacion = trim((string) $this->input->post('delegacion'));
         if ($delegacion === '') return null;
         try {
             // Validar que sea una delegación real (evita inyección de texto
@@ -278,17 +185,12 @@ class Publico extends CI_Controller {
     }
 
     private function _deporte_filtro() {
-        // URL limpia primero (/publico/deporte/<id>), luego ?deporte=<id>.
-        $f = $this->_filtros_actuales();
-        if (!empty($f['deporte'])) return (int) $f['deporte'];
-        $id_deporte = (int) $this->input->get('deporte');
+        $id_deporte = (int) $this->input->post('deporte');
         return $id_deporte > 0 ? $id_deporte : null;
     }
 
     private function _categoria_filtro() {
-        $f = $this->_filtros_actuales();
-        if (!empty($f['categoria'])) return (int) $f['categoria'];
-        $id_categoria = (int) $this->input->get('categoria');
+        $id_categoria = (int) $this->input->post('categoria');
         return $id_categoria > 0 ? $id_categoria : null;
     }
 }
