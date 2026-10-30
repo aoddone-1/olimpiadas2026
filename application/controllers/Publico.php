@@ -249,9 +249,21 @@ class Publico extends CI_Controller {
 
     /* ============================================================
      *  Helpers de filtros (GET sanitizados)
+     *  Los endpoints JSON siguen aceptando ?delegacion=..., pero el panel
+     *  ahora usa URLs limpias por segmentos: se reutiliza el mismo parser
+     *  de index() para no duplicar la validación de delegaciones reales.
      * ============================================================ */
 
+    /** Filtros desde los segmentos de la URL limpia (comparte la lógica con index()). */
+    private function _filtros_actuales() {
+        return $this->_filtros_por_segmentos($this->_segmentos_filtros());
+    }
+
     private function _delegacion_filtro() {
+        // 1) URL limpia: /publico/delegacion/<nombre>
+        $f = $this->_filtros_actuales();
+        if (!empty($f['delegacion'])) return $f['delegacion'];
+        // 2) Query string clásico (compatibilidad): ?delegacion=<nombre exacto>
         $delegacion = trim((string) $this->input->get('delegacion'));
         if ($delegacion === '') return null;
         try {
@@ -266,11 +278,16 @@ class Publico extends CI_Controller {
     }
 
     private function _deporte_filtro() {
+        // URL limpia primero (/publico/deporte/<id>), luego ?deporte=<id>.
+        $f = $this->_filtros_actuales();
+        if (!empty($f['deporte'])) return (int) $f['deporte'];
         $id_deporte = (int) $this->input->get('deporte');
         return $id_deporte > 0 ? $id_deporte : null;
     }
 
     private function _categoria_filtro() {
+        $f = $this->_filtros_actuales();
+        if (!empty($f['categoria'])) return (int) $f['categoria'];
         $id_categoria = (int) $this->input->get('categoria');
         return $id_categoria > 0 ? $id_categoria : null;
     }
