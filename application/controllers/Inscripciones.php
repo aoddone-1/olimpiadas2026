@@ -2124,8 +2124,21 @@ class Inscripciones extends CI_Controller {
                     'atraso'        => !empty($it['atraso']),
                     // Tabla de puntos (deportes ENFRENTAMIENTO por puntaje 3/1/0)
                     'tabla_puntaje' => isset($it['tabla_puntaje']) ? $it['tabla_puntaje'] : null,
+                    // REGLA DE PREMIACIÓN de la categoría: puestos que se
+                    // premian + tipo de premio de cada uno. La vista dibuja
+                    // cards/modal/guion a partir de esto (no más 1/2/3 fijo).
+                    'regla'         => isset($it['regla']) ? $it['regla'] : $this->Premiacion_model->regla_default(),
+                    'texto_regla'   => isset($it['texto_regla']) ? $it['texto_regla'] : '',
+                    'regla_default' => !empty($it['regla_default']),
+                    'dia_sugerido'  => isset($it['dia_sugerido']) ? $it['dia_sugerido'] : null,
                 );
-                $puestos_esperados = array_keys($it['podio']);
+                // "Completa" = todos los puestos de la REGLA confirmados
+                // (antes se comparaba contra el podio resuelto, que puede
+                // traer menos/más posiciones que las que la regla premia).
+                $puestos_esperados = array();
+                foreach ($fila['regla'] as $r) {
+                    $puestos_esperados[] = (int) $r['puesto'];
+                }
                 $completa = !empty($puestos_esperados);
                 foreach ($puestos_esperados as $p) {
                     if (!isset($entregados[$p])) { $completa = false; break; }
@@ -2236,6 +2249,88 @@ class Inscripciones extends CI_Controller {
             $this->output
                 ->set_content_type('application/json')
                 ->set_output(json_encode(array('ok' => true, 'mensaje' => 'Premiación anulada.')));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /**
+     * Catálogo de tipos de premio + regla actual de una categoría (JSON).
+     * Alimenta el modal "Regla de premiación" de la pantalla Premiación.
+     */
+    public function ajax_regla_premiacion($id_categoria = null) {
+        try {
+            if (!$this->_premiacion_auth_json()) return;
+
+            $id_cat = (int) ($id_categoria !== null ? $id_categoria : $this->input->get('id_categoria'));
+            if (!$id_cat) throw new Exception('Categoría inválida.');
+
+            $this->db->where('id_categoria', $id_cat);
+            $cat = $this->db->get('categorias')->row_array();
+            if (!$cat) throw new Exception('La categoría no existe.');
+
+            $regla = $this->Premiacion_model->parsear_regla_premiacion($cat['premiacion_regla'] ?? null);
+
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok'         => true,
+                    'id_categoria' => $id_cat,
+                    'categoria'  => array(
+                        'nombre_categoria' => $cat['nombre_categoria'] ?? '',
+                        'genero'           => $cat['genero'] ?? '',
+                    ),
+                    'tipos'      => $this->Premiacion_model->obtener_tipos_premio(),
+                    'regla'      => $regla,
+                    'texto_regla' => $this->Premiacion_model->texto_regla_premiacion($regla),
+                    'dia_sugerido' => !empty($cat['dia_premiacion_sugerido'])
+                        ? substr((string) $cat['dia_premiacion_sugerido'], 0, 10) : null,
+                )));
+        } catch (Throwable $e) {
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array('ok' => false, 'error' => $e->getMessage())));
+        }
+    }
+
+    /**
+     * Guarda la REGLA DE PREMIACIÓN de una categoría (puestos + tipo de premio
+     * de cada uno) y opcionalmente su DÍA SUGERIDO de entrega.
+     *   POST id_categoria, regla=[{puesto,premio,etiqueta?},...] (JSON string),
+     *        dia_sugerido='YYYY-MM-DD' | '' (vacío = sin día sugerido)
+     */
+    public function ajax_guardar_regla_premiacion() {
+        try {
+            if (!$this->_premiacion_auth_json()) return;
+            // Las escrituras se bloquean aparte para el rol solo_lectura.
+            $this->bloqueo_solo_lectura(true);
+
+            $id_cat = (int) $this->input->post('id_categoria');
+            if (!$id_cat) throw new Exception('Categoría inválida.');
+
+            $regla_raw = $this->input->post('regla');
+            $regla = is_string($regla_raw) ? json_decode(stripslashes($regla_raw), true) : $regla_raw;
+            if (!is_array($regla)) {
+                throw new Exception('Formato de regla inválido.');
+            }
+
+            $dia = $this->input->post('dia_sugerido');
+            $res = $this->Premiacion_model->guardar_regla_categoria(
+                $id_cat, $regla, $dia === null ? null : trim((string) $dia)
+            );
+
+            $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode(array(
+                    'ok' => true,
+                    'mensaje' => 'Regla guardada: ' . $res['texto_regla']
+                        . ($res['dia_sugerido'] ? ' · entrega sugerida ' . date('d/m/Y', strtotime($res['dia_sugerido'])) : ''),
+                    'regla' => $res['regla'],
+                    'texto_regla' => $res['texto_regla'],
+                    'dia_sugerido' => $res['dia_sugerido'],
+                )));
         } catch (Throwable $e) {
             $this->output
                 ->set_content_type('application/json')
