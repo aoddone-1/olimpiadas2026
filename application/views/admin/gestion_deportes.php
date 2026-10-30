@@ -160,6 +160,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                 <tr>
                                     <th>Categoría / Deporte</th>
                                     <th class="text-center">Cronograma</th>
+                                    <?php if (!empty($reglas_categoria)): ?>
+                                    <th class="text-center" title="Cómo se premia cada categoría (puestos + tipo de premio + día sugerido)">Premiación</th>
+                                    <?php endif; ?>
                                     <?php if (!$solo_lectura): ?>
                                     <th class="text-end">Acciones</th>
                                     <?php endif; ?>
@@ -196,9 +199,43 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                                         <?php endif; ?>
                                                         <small class="d-block text-muted text-truncate" style="max-width: 180px;" title="<?= htmlspecialchars($c['nombre_lugar'] ?? '', ENT_QUOTES, 'UTF-8') ?>"><i class="bi bi-geo-alt-fill me-1"></i><?= !empty($c['nombre_lugar']) ? htmlspecialchars($c['nombre_lugar'], ENT_QUOTES, 'UTF-8') : 'Sin lugar asignado' ?></small>
                                                     </td>
+                                                    <td class="text-center">
+                                                        <?php
+                                                        // Chip de la REGLA DE PREMIACIÓN configurada (si la base ya migró)
+                                                        $rc = !empty($reglas_categoria) ? ($reglas_categoria[intval($c['id_categoria'])] ?? null) : null;
+                                                        if ($rc):
+                                                            $_txt_regla_gd = '';
+                                                            foreach ($rc['regla'] as $_r_gd) {
+                                                                $_p_gd = intval($_r_gd['puesto']);
+                                                                $_ord_gd = ($_p_gd === 1) ? '1º' : (($_p_gd === 2) ? '2º' : (($_p_gd === 3) ? '3º' : $_p_gd . 'º'));
+                                                                $_txt_regla_gd .= ($_txt_regla_gd !== '' ? ' · ' : '')
+                                                                    . $_ord_gd . ' ' . htmlspecialchars($_r_gd['premio'], ENT_QUOTES, 'UTF-8')
+                                                                    . (!empty($_r_gd['etiqueta']) ? ' (' . htmlspecialchars($_r_gd['etiqueta'], ENT_QUOTES, 'UTF-8') . ')' : '');
+                                                            }
+                                                        ?>
+                                                            <span class="badge <?= $rc['default'] ? 'bg-light text-muted border' : 'bg-warning-subtle text-dark border border-warning-subtle' ?>"
+                                                                  style="font-size:0.65rem;"
+                                                                  title="<?= $rc['default'] ? 'Regla clásica (no configurada todavía). Hacé clic en el trofeo 🏅 para cambiarla.' : 'Regla configurada para esta categoría' ?>">
+                                                                <i class="bi bi-trophy-fill me-1"></i><?= $_txt_regla_gd ?>
+                                                            </span>
+                                                            <?php if (!empty($rc['dia_sugerido'])): ?>
+                                                                <small class="d-block text-primary fw-semibold" style="font-size:0.65rem;">
+                                                                    <i class="bi bi-calendar-heart-fill me-1"></i>Premiación: <?= date('d/m/Y', strtotime($rc['dia_sugerido'])) ?>
+                                                                </small>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <?php if (!$solo_lectura): ?>
                                                     <td class="text-end">
                                                         <div class="d-flex justify-content-end gap-2">
+                                                            <?php if (!empty($reglas_categoria)): $rc_gd = $reglas_categoria[intval($c['id_categoria'])] ?? null; ?>
+                                                            <button type="button" class="text-muted btn-accion-panel btn-premiar btn-regla-premiacion"
+                                                                    data-id="<?= $c['id_categoria'] ?>"
+                                                                    data-nombre="<?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>"
+                                                                    title="Configurar cómo se premia esta categoría (puestos + tipo de premio + día sugerido)">
+                                                                <i class="bi bi-trophy-fill fs-6"></i>
+                                                            </button>
+                                                            <?php endif; ?>
                                                             <button type="button" class="text-muted btn-accion-panel btn-editar" 
                                                                     data-bs-toggle="modal" 
                                                                     data-bs-target="#modalEditarCategoria"
@@ -228,7 +265,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                     endforeach;
                                 endif;
                                 if(!$hay_categorias): ?>
-                                    <tr><td colspan="<?= $solo_lectura ? 2 : 3 ?>" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
+                                    <tr><td colspan="<?= (1 + 1 + (!empty($reglas_categoria) ? 1 : 0) + ($solo_lectura ? 0 : 1)) ?>" class="text-center text-muted py-3">No hay categorías registradas.</td></tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>

@@ -119,9 +119,16 @@ class Premiacion_model extends CI_Model {
         static $cache = array();
         if (!isset($cache[$tabla])) {
             try {
-                $cache[$tabla] = (bool) $this->db->table_exists($tabla);
+                // SHOW TABLES LIKE: a diferencia de information_schema,
+                // funciona también con el driver pdo de CodeIgniter.
+                $q = $this->db->query('SHOW TABLES LIKE "' . str_replace('"', '', (string) $tabla) . '"');
+                $cache[$tabla] = (bool) ($q && $q->num_rows() > 0);
             } catch (Throwable $e) {
-                $cache[$tabla] = false;
+                try {
+                    $cache[$tabla] = (bool) $this->db->table_exists($tabla);
+                } catch (Throwable $e2) {
+                    $cache[$tabla] = false;
+                }
             }
         }
         return $cache[$tabla];
@@ -266,6 +273,46 @@ class Premiacion_model extends CI_Model {
     /** Regla de una categoría ya cargada (fila con 'premiacion_regla'). */
     public function regla_de_categoria($cat) {
         return $this->parsear_regla_premiacion($cat['premiacion_regla'] ?? null);
+    }
+
+    /**
+     * ¿La tabla `categorias` ya tiene las columnas de configuración de
+     * premiación? (sql/migracion_premiacion_categoria.sql). Lo usa Gestión
+     * Deportiva para mostrar u ocultar el editor de reglas sin explotar.
+     */
+    public function columnas_regla_existentes() {
+        return $this->_columna_existe('categorias', 'premiacion_regla');
+    }
+
+    /**
+     * Regla guardada + día sugerido de UNA categoría (para el modal editor de
+     * Gestión Deportiva / Premiación). Si la columna no existe todavía,
+     * devuelve la default sin día sugerido.
+     */
+    public function obtener_regla_categoria($id_categoria) {
+        $id_cat = (int) $id_categoria;
+        if (!$id_cat) throw new Exception('Categoría inválida.');
+
+        $fila = null;
+        if ($this->columnas_regla_existentes()) {
+            $this->db->select('nombre_categoria, premiacion_regla, dia_premiacion_sugerido');
+            $this->db->where('id_categoria', $id_cat);
+            $fila = $this->_fila_segura('categorias');
+        }
+        if (!$fila) {
+            $this->db->select('nombre_categoria');
+            $this->db->where('id_categoria', $id_cat);
+            $fila = $this->_fila_segura('categorias');
+        }
+        if (!$fila) throw new Exception('La categoría no existe.');
+
+        return array(
+            'id_categoria' => $id_cat,
+            'regla'        => $this->parsear_regla_premiacion($fila['premiacion_regla'] ?? null),
+            'dia_sugerido' => !empty($fila['dia_premiacion_sugerido'])
+                ? substr((string) $fila['dia_premiacion_sugerido'], 0, 10) : '',
+            'default'      => empty(trim((string) ($fila['premiacion_regla'] ?? ''))),
+        );
     }
 
     /** Puestos que premia la regla (ej: [1,2,3] o [1] o [1,2]). */
