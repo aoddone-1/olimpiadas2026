@@ -20,6 +20,12 @@
   --line:#2b4361;--surface:#14263b;--bg:#0d1b2a;--radius:14px;color-scheme:dark
 }
 
+/* Regla de caja del diseño original (*{box-sizing:border-box}), acotada a los
+   elementos del panel para no pisar otras hojas del sitio (bootstrap etc.). */
+*,*::before,*::after{box-sizing:border-box}
+#contenido *,#contenido *::before,#contenido *::after,
+header.masthead *,footer.footer *,main *,section *,article *,details *,summary *{box-sizing:border-box}
+
 html,body{margin:0}
 body{background:linear-gradient(155deg,#0d1b2a,#10243b 65%,#0d1b2a);color:var(--ink);
      font-family:'Segoe UI',Arial,system-ui,sans-serif;font-size:16px;line-height:1.5}
@@ -28,6 +34,12 @@ button,a,select,summary{-webkit-tap-highlight-color:transparent}
 button,select,summary{cursor:pointer}
 button{color:inherit}
 a{color:inherit}
+/* Todos los <svg> del panel se dibujan como "iconos de línea" (igual que en
+   la maqueta: `svg{width:21px;height:21px;fill:none;stroke:currentColor}`).
+   Sin esta regla los íconos salen negros/rellenos y el botón "Limpiar
+   filtros" queda invisible sobre el fondo oscuro. */
+svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 .panel-svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;
            stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
 [hidden]{display:none!important}
@@ -38,7 +50,10 @@ a{color:inherit}
 :focus-visible{outline:3px solid #bef264;outline-offset:4px}
 
 /* ---------- Encabezado (masthead) ---------- */
-.masthead{background:#0d1b2a;color:white;border-bottom:4px solid var(--lime)}
+/* En el diseño entregado la línea verde del encabezado NO existe en el tema
+   oscuro final (theme-original.css usa `.masthead{border:0}`): solo van las
+   franjitas de color dentro del sello "EDICIÓN". */
+.masthead{background:#0d1b2a;color:white;border:0}
 .masthead-inner{display:flex;align-items:center;gap:34px;padding:22px 0 25px}
 .official-logo{display:block;object-fit:contain;width:216px;height:132px;flex-shrink:0;
                filter:drop-shadow(0 4px 14px rgba(0,0,0,.45))}
@@ -179,6 +194,7 @@ a{color:inherit}
 .partido .meta{order:3;border-top:1px solid #344c65;margin-top:13px;padding-top:10px;display:flex;
                align-items:flex-start;justify-content:space-between;gap:10px;font-size:12px;color:#b6cadd}
 .partido .meta>span:first-child{display:flex;flex-direction:column;gap:2px;font-size:12px;text-transform:capitalize}
+.venue-name{font-size:12px;color:#b6cadd;line-height:1.4}
 .hora-inicio{font-size:20px;font-weight:700;letter-spacing:-.4px;color:#edf4fa;font-variant-numeric:tabular-nums}
 .badge{align-self:flex-start;display:inline-block;border-radius:5px;border:1px solid #45607b;padding:3px 7px;
        background:#253d57;color:#cbdded;font-size:10px;font-weight:650;letter-spacing:.02em;white-space:nowrap}

@@ -108,28 +108,37 @@ foreach ($fixture as $fx) {
     if (!isset($order_days[$day_id])) $order_days[$day_id] = $day_title;
 
     /* Estado del marcador */
-    $mar = $fx['marcador'];
-    $eq1_nombre = $fx['ute_1_nombre'] ?: '<span class="pendiente">Por definir</span>';
-    $eq2_nombre = $fx['ute_2_nombre'] ?: '<span class="pendiente">Por definir</span>';
+    $mar = isset($fx['marcador']) ? $fx['marcador'] : null;
+    $eq1_raw = (isset($fx['ute_1_nombre']) && trim((string) $fx['ute_1_nombre']) !== '') ? (string) $fx['ute_1_nombre'] : '';
+    $eq2_raw = (isset($fx['ute_2_nombre']) && trim((string) $fx['ute_2_nombre']) !== '') ? (string) $fx['ute_2_nombre'] : '';
+    $eq1_nombre = $e($eq1_raw);
+    $eq2_nombre = $e($eq2_raw);
+    if ($eq1_nombre === '') $eq1_nombre = '<span class="pendiente">Por definir</span>';
+    if ($eq2_nombre === '') $eq2_nombre = '<span class="pendiente">Por definir</span>';
     $marcador_txt = '';
     $g1 = false; $g2 = false;
-    if ($mar && count($mar['equipos']) >= 2) {
+    if (is_array($mar) && isset($mar['equipos']) && count($mar['equipos']) >= 2) {
         $a = $mar['equipos'][0]; $b = $mar['equipos'][1];
-        $marcador_txt = $a['a_favor'] . ' – ' . $a['en_contra'];
-        if ((int)$a['a_favor'] > (int)$a['en_contra']) $g1 = true;
-        elseif ((int)$a['en_contra'] > (int)$a['a_favor']) $g2 = true;
+        $af = (int) (isset($a['a_favor']) ? $a['a_favor'] : 0);
+        $ac = (int) (isset($a['en_contra']) ? $a['en_contra'] : 0);
+        $bf = (int) (isset($b['a_favor']) ? $b['a_favor'] : 0);
+        $bc = (int) (isset($b['en_contra']) ? $b['en_contra'] : 0);
+        $marcador_txt = $af . ' – ' . $bc;
+        if ($af > $bc) $g1 = true;
+        elseif ($bc > $af) $g2 = true;
         if (!empty($mar['hubo_desempate'])) { $g1 = false; $g2 = false; }
-    } elseif ($fx['estado'] === 'FINALIZADO' && !empty($fx['resultado'])) {
+    } elseif ((string) (isset($fx['estado']) ? $fx['estado'] : '') === 'FINALIZADO' && !empty($fx['resultado'])) {
         $marcador_txt = 'Final';
     }
 
     /* Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos. */
-    $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
+    $es_masivo = ((string) (isset($fx['fase']) ? $fx['fase'] : '') === 'JORNADA_UNICA')
               || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
 
     /* Hora de comienzo hh:mm */
-    $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
-    $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
+    $hora_raw = isset($fx['hora_inicio']) ? trim((string) $fx['hora_inicio']) : '';
+    $hora_ts = $hora_raw !== '' ? strtotime('today ' . $hora_raw) : false;
+    $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr($hora_raw, 0, 5);
 
     /* Chip de fase: "Grupo A" o "Eliminatoria" */
     $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
@@ -317,7 +326,7 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
       </div>
       <div class="filter-field">
         <label for="filtroDeporte">Deporte</label>
-        <select id="filtroDeporte" name="deporte" onchange="onFiltroDeporte(this)">
+        <select id="filtroDeporte" name="deporte">
           <option value="">Todos los deportes</option>
           <?php foreach ($deportes as $dep): ?>
             <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
