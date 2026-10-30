@@ -135,11 +135,14 @@ class Rep_Locutor_PDF extends TCPDF {
         
 
         // ========================================
-        // LISTA DE GANADORES (1°, 2°, 3°)
+        // LISTA DE GANADORES (según la regla de la categoría)
         // ========================================
-        $orden = array(1, 2, 3); // 1° primero, luego 2°, luego 3°
+        // El guion ya trae solo los puestos que premia esta categoría, según
+        // su REGLA DE PREMIACIÓN (1º / 1º+2º / 1º+2º+3º, etc.).
+        $orden = array_keys($b['puestos']);
+        sort($orden);
         
-        $etiquetas = array(1 => '1°', 2 => '2°', 3 => '3°');
+        $etiquetas = array();
         
         // Colores distintivos
         $colores = array(
@@ -151,6 +154,8 @@ class Rep_Locutor_PDF extends TCPDF {
         foreach ($orden as $pos) {
             if (!isset($b['puestos'][$pos])) continue;
             $p = $b['puestos'][$pos];
+            $etiquetas[$pos] = $pos . '°';
+            if (!isset($colores[$pos])) $colores[$pos] = array(90, 90, 90); // puesto extra: gris neutro
             
             // Obtener nombre y referencia
             if (method_exists($this, '_separar_nombre')) {
@@ -187,11 +192,20 @@ class Rep_Locutor_PDF extends TCPDF {
                 $this->SetTextColor(20, 33, 61);
             }
             
+            // Qué premio recibe (según la regla de la categoría): "TROFEO", "MEDALLA (Oro)"...
+            if (!empty($p['premio'])) {
+                $this->SetFont('dejavusans', '', 8);
+                $this->SetTextColor(108, 117, 125);
+                $this->Cell(12, 5, '', 0, 0, 'R');
+                $this->MultiCell(0, 5, '→ ' . strtoupper(mb_convert_encoding($p['premio'], 'UTF-8', 'UTF-8')), 0, 'L', 0, 1);
+                $this->SetTextColor(20, 33, 61);
+            }
+
             $this->Ln(2);
         }
 
         // Sin galardonados
-        if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
+        if (empty($b['puestos'])) {
             $this->SetFont('dejavusans', 'I', 9);
             $this->SetTextColor(108, 117, 125);
             $this->Cell(12, 6, '', 0, 0, 'R');
