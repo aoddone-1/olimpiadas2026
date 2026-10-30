@@ -171,20 +171,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             </div>
             <div class="modal-body">
                 <div id="pm_modal_info" class="mb-3"></div>
-                <div class="row g-3">
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold">🥇 1º puesto (Oro)</label>
-                        <input type="text" id="pm_in_1" class="form-control pm-input-puesto" style="--color-medalla:#f1c40f" placeholder="Nombre del ganador">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold">🥈 2º puesto (Plata)</label>
-                        <input type="text" id="pm_in_2" class="form-control pm-input-puesto" style="--color-medalla:#b9c2cc" placeholder="Segundo puesto">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label small fw-bold">🥉 3º puesto (Bronce)</label>
-                        <input type="text" id="pm_in_3" class="form-control pm-input-puesto" style="--color-medalla:#cd8b52" placeholder="Tercer puesto">
-                    </div>
-                </div>
+                <!-- Inputs de puestos: se generan dinámicamente según la
+                     REGLA DE PREMIACIÓN de la categoría (pueden ser 1, 2, 3 o
+                     más puestos, con el tipo de premio de cada uno). -->
+                <div class="row g-3" id="pm_modal_puestos"></div>
                 <div class="row g-2 mt-2 align-items-end">
                     <div class="col-md-5">
                         <label class="form-label small fw-bold">Noche de entrega</label>
@@ -210,13 +200,93 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
+<!-- MODAL: regla de premiación de la categoría -->
+<div class="modal fade" id="modalRegla" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header" style="background:linear-gradient(135deg,#14213d,#3a2f7c); color:#fff;">
+                <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>Regla de premiación de la categoría</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pm_regla_info" class="mb-3"></div>
+                <div class="alert alert-secondary small py-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Definí <strong>qué puestos se premian</strong> y <strong>qué recibe cada uno</strong>.
+                    El día sugerido es opcional: si lo cargás, esa categoría aparecerá para premiar
+                    en esa noche (sino se usa el día en que se compitió).
+                </div>
+                <div id="pm_regla_filas"></div>
+                <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+                    <button type="button" id="pm_regla_agregar" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i>Agregar puesto
+                    </button>
+                    <button type="button" id="pm_regla_default" class="btn btn-link btn-sm text-muted">Restaurar 1º/2º/3º clásico</button>
+                </div>
+                <div class="row g-2 mt-3 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold">🗓️ Día sugerido de premiación</label>
+                        <input type="date" id="pm_regla_dia" class="form-control">
+                    </div>
+                    <div class="col-md-6 text-md-end align-self-center">
+                        <button type="button" class="btn btn-link btn-sm text-muted" id="pm_regla_borrar_dia">Sin día sugerido</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="pm_btn_guardar_regla" class="btn btn-primary fw-bold">
+                    <i class="bi bi-save me-1"></i>Guardar regla
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 (function () {
     const BASE = '<?= base_url("Inscripciones") ?>';
     const HOY = '<?= date('Y-m-d') ?>';
-    const MEDALLAS = { 1: '🥇', 2: '🥈', 3: '🥉' };
-    const CLASES   = { 1: 'pm-oro', 2: 'pm-plata', 3: 'pm-bronce' };
-    const LABELS   = { 1: 'Campeón', 2: 'Subcampeón', 3: '3er puesto' };
+    const SOLO_LECTURA = <?= $solo_lectura ? 'true' : 'false' ?>;
+    const MEDALLAS   = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const CLASES     = { 1: 'pm-oro', 2: 'pm-plata', 3: 'pm-bronce' };
+    const LABELS     = { 1: 'Campeón', 2: 'Subcampeón', 3: '3er puesto' };
+    // Colores para puestos 4º en adelante (los clásicos 1/2/3 usan las clases de arriba).
+    const COLORES_EXTRA = ['#7f8fa6', '#9b59b6', '#16a085', '#e67e22', '#2980b9'];
+
+    /* Regla default clásica (si el servidor no la envía en el item). */
+    function reglaDe(it) {
+        if (it && it.regla && it.regla.length) return it.regla;
+        return [
+            { puesto: 1, premio: 'Medalla', etiqueta: 'Oro',    icono: '🎖️' },
+            { puesto: 2, premio: 'Medalla', etiqueta: 'Plata',  icono: '🎖️' },
+            { puesto: 3, premio: 'Medalla', etiqueta: 'Bronce', icono: '🎖️' }
+        ];
+    }
+    /** Disco/emoji para un puesto según su regla y posición. */
+    function discoPara(regla, puesto) {
+        const r = (regla || []).find(x => x.puesto === puesto);
+        if (MEDALLAS[puesto]) return MEDALLAS[puesto];
+        return (r && r.icono) ? r.icono : '🏅';
+    }
+    function claseDe(puesto) {
+        return CLASES[puesto] ? CLASES[puesto] : '';
+    }
+    function colorDe(puesto) {
+        if (puesto <= 3) return null; // usa clases pm-oro/plata/bronce
+        return COLORES_EXTRA[(puesto - 4) % COLORES_EXTRA.length];
+    }
+    /** Texto del label para modal/cards: "1º · Campeón: 🏆 Trofeo" etc. */
+    function textoPuesto(item, puesto) {
+        const r = reglaDe(item).find(x => x.puesto === puesto);
+        let t = puesto + 'º';
+        if (LABELS[puesto]) t += ' · ' + LABELS[puesto];
+        if (r) {
+            t += ': ' + (r.icono || '') + ' ' + r.premio;
+            if (r.etiqueta) t += ' (' + r.etiqueta + ')';
+        }
+        return t.trim();
+    }
 
     const $pend = document.getElementById('pm_pendientes');
     const $ent  = document.getElementById('pm_entregadas');

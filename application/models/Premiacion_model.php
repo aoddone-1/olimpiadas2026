@@ -1429,6 +1429,66 @@ class Premiacion_model extends CI_Model {
     }
 
     /* ============================================================
+     *  CONFIGURACIÓN DE LA REGLA POR CATEGORÍA (edición en pantalla)
+     * ============================================================ */
+
+    /**
+     * Guarda la regla de premiación (y opcionalmente el día sugerido de
+     * entrega) de una categoría en `categorias`.
+     *
+     * @param mixed $regla array [{puesto, premio, etiqueta?}, ...] o JSON ya
+     *                     armado. NULL/vacío = volver a la regla default.
+     * @param mixed $dia_sugerido 'YYYY-MM-DD' | '' (lo borra) | null (no toca).
+     * @return array resumen guardado: regla normalizada + texto legible.
+     */
+    public function guardar_regla_categoria($id_categoria, $regla, $dia_sugerido = null) {
+        if (!$this->_columna_existe('categorias', 'premiacion_regla')) {
+            throw new Exception(
+                'La tabla categorías todavía no tiene la columna "premiacion_regla". '
+                . 'Ejecutá sql/migracion_premiacion_categoria.sql y recargá la página.'
+            );
+        }
+        $id_cat = (int) $id_categoria;
+        if (!$id_cat) throw new Exception('Categoría inválida.');
+
+        $this->db->where('id_categoria', $id_cat);
+        $fila = $this->_fila_segura('categorias');
+        if (!$fila) throw new Exception('La categoría no existe.');
+
+        // Normalizar la regla enviada (acepta array o JSON de string).
+        $regla_norm = $this->parsear_regla_premiacion($regla);
+        // parsear_regla_premiacion() devuelve la default si viene vacía: para
+        // poder "limpiar" la regla se guarda NULL explícitamente abajo cuando
+        // el input estaba vacío.
+        $input_vacio = ($regla === null || $regla === '' || (is_array($regla) && count($regla) === 0));
+
+        $update = array(
+            'premiacion_regla' => $input_vacio ? null : json_encode($regla_norm, JSON_UNESCAPED_UNICODE),
+        );
+
+        if ($dia_sugerido !== null && $this->_columna_existe('categorias', 'dia_premiacion_sugerido')) {
+            $norm = $this->_norm_fecha($dia_sugerido);
+            if ((string) $dia_sugerido !== '' && !$norm) {
+                throw new Exception('Fecha de premiación sugerida inválida.');
+            }
+            $update['dia_premiacion_sugerido'] = $norm ?: null;
+        }
+
+        $this->db->where('id_categoria', $id_cat);
+        $this->db->update('categorias', $update);
+
+        return array(
+            'id_categoria'    => $id_cat,
+            'regla'           => $regla_norm,
+            'texto_regla'     => $this->texto_regla_premiacion($regla_norm),
+            'regla_default'   => $input_vacio || $this->regla_es_default($regla_norm),
+            'dia_sugerido'    => array_key_exists('dia_premiacion_sugerido', $update)
+                ? $update['dia_premiacion_sugerido']
+                : (isset($fila['dia_premiacion_sugerido']) ? $this->_norm_fecha($fila['dia_premiacion_sugerido']) : null),
+        );
+    }
+
+    /* ============================================================
      *  REPORTE DEL LOCUTOR (guion de la ceremonia de premiación)
      * ============================================================ */
 
