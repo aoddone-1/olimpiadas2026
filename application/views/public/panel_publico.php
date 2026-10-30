@@ -8,8 +8,14 @@
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <!-- Diseño del panel publico: maqueta aprobada (Entrega-Fixture-Olimpiadas).
      Hoja exclusiva de esta vista: usa selectores globales (body, .container, svg). -->
-<link rel="stylesheet" href="<?= base_url('css/panel-publico.css') ?>?v=20261030">
+<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261030a">
 <style>
+/* Ajustes locales de la integración (solo esta vista). */
+.venue-name{display:inline}
+.discipline-group[open] .discipline-arrow svg{transform:rotate(180deg)}
+@media(max-width:680px){.bottom-note a{margin-left:0}}
+</style>
+<style disabled id="estilos-clasicos-panel">
 :root{
   --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
   --txt:#eaf1f9; --muted:#8fa8c4; --acento:#84cc16; --ok:#2dd4a7;
@@ -270,84 +276,117 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
 </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip" href="#contenido">Ir al contenido</a>
 
-<header>
-  <div class="titulo-row">
-    <img class="logo-evento" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>">
-    
+<?php
+/* ===== Diseño nuevo (Entrega-Fixture-Olimpiadas) =====
+   Claves de día y disciplina normalizadas, a la manera de la maqueta:
+   sin tildes, sin distinción de mayúsculas. Se usan para armar los enlaces
+   ?dia= / #disciplina-... y para que el JS recuerde qué días/disciplinas
+   quedaron abiertos al navegar con filtros o búsqueda. */
+$norm = function ($txt) {
+    $txt = trim((string) $txt);
+    if (function_exists('iconv')) {
+        $t = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $txt);
+        if ($t !== false) $txt = $t;
+    }
+    $txt = strtolower(preg_replace('/[^\p{L}\p{N}]+/u', '-', $txt));
+    return trim($txt, '-');
+};
+?>
+<header class="masthead">
+  <div class="container masthead-inner">
+    <img class="official-logo" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Logo <?= htmlspecialchars($titulo_evento) ?>" width="220" height="130">
+    <div class="masthead-copy">
+      <p class="eyebrow"><?= htmlspecialchars($lugar_olimpico) ?> <span aria-hidden="true">/</span> PANEL PÚBLICO</p>
+      <h1>Agenda y resultados</h1>
+      <p>Toda la competencia, en un solo lugar.</p>
+    </div>
+    <div class="event-mark">
+      <span class="event-mark-label"><?= htmlspecialchars(defined('EDICION') ? EDICION . ' EDICIÓN' : 'PANEL PÚBLICO') ?></span>
+      <span>Nos une el deporte.</span>
+      <div class="color-stripes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    </div>
   </div>
-  <p class="lugar">📍 <?= htmlspecialchars($lugar_olimpico) ?></p>
-  <p class="sub">
-    <?php if (!empty($delegacion)): ?>
-      Viendo: <span class="chip-delegacion"><?= htmlspecialchars($delegacion) ?></span>
-    <?php else: ?>
-      Seguimiento en vivo del evento · actualizado <?= htmlspecialchars($ahora) ?>
-    <?php endif; ?>
-  </p>
 </header>
 
+<main id="contenido" class="container">
+
 <!-- Filtros -->
-<form method="get" action="<?= site_url('publico') ?>" class="filtros">
-  <div class="filtro-grupo">
-    <label>Delegación:</label>
-    <select name="delegacion" onchange="this.form.submit()">
-      <option value="">— Todas (vista general) —</option>
-      <?php foreach ($delegaciones as $d): ?>
-        <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
-          <?= htmlspecialchars($d) ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
+<section class="filters-card" aria-labelledby="filters-title">
+  <div class="filters-heading">
+    <div>
+      <h2 id="filters-title">Encontrá tu competencia</h2>
+      <p>Elegí una delegación, un deporte o una categoría.</p>
+    </div>
+    <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
+    <a class="reset-button" href="<?= site_url('publico') ?>">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.8 7.1M4 4v6h6"/></svg>Limpiar filtros
+    </a>
+    <?php endif; ?>
   </div>
-  <div class="filtro-grupo">
-    <label>Deporte:</label>
-    <select name="deporte" id="filtroDeporte" onchange="onFiltroDeporte(this)">
-      <option value="">— Todos —</option>
-      <?php foreach ($deportes as $dep): ?>
-        <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
-          <?= htmlspecialchars($dep['nombre_deporte']) ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <div class="filtro-grupo">
-    <label>Categoría:</label>
-    <select name="categoria" id="filtroCategoria">
-      <option value="">— Todas —</option>
-      <?php foreach ($deportes as $dep): ?>
-        <?php foreach (isset($dep['categorias']) ? $dep['categorias'] : array() as $cat): ?>
-          <?php if (empty($cat['id_categoria'])) continue; ?>
-          <option value="<?= (int)$cat['id_categoria'] ?>"
-                  data-deporte="<?= (int)$dep['id_deporte'] ?>"
-                  <?= ((int)$id_categoria === (int)$cat['id_categoria']) ? 'selected' : '' ?>>
-            <?= empty($id_deporte) ?  htmlspecialchars($dep['nombre_deporte'])  : '' ?> - <?= htmlspecialchars($cat['nombre_categoria']) ?>
+  <form method="get" action="<?= site_url('publico') ?>" id="filters-form" class="filters-form">
+    <div class="filter-field">
+      <label for="filtroDelegacion">Delegación</label>
+      <select name="delegacion" id="filtroDelegacion" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
+        <option value="">Todas (vista general)</option>
+        <?php foreach ($delegaciones as $d): ?>
+          <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($d) ?>
           </option>
         <?php endforeach; ?>
-      <?php endforeach; ?>
-    </select>
-  </div>
-  <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
-    <a class="limpiar" href="<?= site_url('publico') ?>">✕ Quitar filtros</a>
-  <?php endif; ?>
-</form>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="filtroDeporte">Deporte</label>
+      <select name="deporte" id="filtroDeporte" <?= !empty($id_deporte) ? 'class="has-filter"' : '' ?>>
+        <option value="">Todos</option>
+        <?php foreach ($deportes as $dep): ?>
+          <option value="<?= (int)$dep['id_deporte'] ?>" <?= ((int)$id_deporte === (int)$dep['id_deporte']) ? 'selected' : '' ?>>
+            <?= htmlspecialchars($dep['nombre_deporte']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="filtroCategoria">Categoría</label>
+      <select name="categoria" id="filtroCategoria" <?= !empty($id_categoria) ? 'class="has-filter"' : '' ?>>
+        <option value="">Todas</option>
+        <?php foreach ($deportes as $dep): ?>
+          <?php foreach (isset($dep['categorias']) ? $dep['categorias'] : array() as $cat): ?>
+            <?php if (empty($cat['id_categoria'])) continue; ?>
+            <option value="<?= (int)$cat['id_categoria'] ?>"
+                    data-deporte="<?= (int)$dep['id_deporte'] ?>"
+                    <?= ((int)$id_categoria === (int)$cat['id_categoria']) ? 'selected' : '' ?>>
+              <?= empty($id_deporte) ?  htmlspecialchars($dep['nombre_deporte'])  : '' ?> - <?= htmlspecialchars($cat['nombre_categoria']) ?>
+            </option>
+          <?php endforeach; ?>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <input type="hidden" name="dia" id="filtro-dia" value="">
+    <input type="hidden" name="q" id="filtro-q" value="">
+    <noscript><div style="grid-column:1/-1;margin-top:6px"><button type="submit" class="secondary-button">Aplicar filtros</button></div></noscript>
+  </form>
+</section>
 
 <!-- Resumen -->
-<div class="resumen">
+<section class="stats" aria-label="Resumen general del evento">
   <div class="stat"><b><?= (int)$resumen['delegaciones'] ?></b><span>Delegaciones</span></div>
   <div class="stat"><b><?= (int)$resumen['deportes'] ?></b><span>Deportes</span></div>
   <div class="stat"><b><?= (int)$resumen['categorias'] ?></b><span>Categorías</span></div>
-  <div class="stat"><b><?= (int)$resumen['finalizados'] ?>/<?= (int)$resumen['partidos'] ?></b><span>Partidos jugados</span></div>
+  <div class="stat"><b><?= (int)$resumen['finalizados'] ?><small>/<?= (int)$resumen['partidos'] ?></small></b><span>Partidos jugados</span></div>
   <div class="stat"><b><?= (int)$resumen['resultados'] ?></b><span>Resultados</span></div>
   <div class="stat"><b><?= (int)$resumen['premiados'] ?></b><span>Medallas entregadas</span></div>
-</div>
+</section>
 
-<!-- Tabs -->
-<div class="tabs">
-  <button class="tab-btn activo" data-tab="tab-fixture">📅 Fixture</button>
-  <button class="tab-btn" data-tab="tab-resultados">🏁 Resultados</button>
-  <button class="tab-btn" data-tab="tab-medallero">🏅 Medallero</button>
-</div>
+<div class="workspace">
+  <!-- Tabs -->
+  <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
+    <button type="button" role="tab" id="button-fixture" class="tab-btn activo" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
+    <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
+    <button type="button" role="tab" id="button-medallero" class="tab-btn" aria-controls="tab-medallero" aria-selected="false" data-tab="tab-medallero" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>Medallero</button>
+  </nav>
 
 <?php
 /* Etiquetas legibles (mismo criterio que pase_valido.php): fases del fixture y
@@ -396,98 +435,299 @@ foreach ($grupos_idx as $clave => $g) {
         ? 'Grupo ' . $letra_grupo($num_f)
         : null;
 }
+
+/* ===== Helpers de presentación (diseño de la maqueta) ===== */
+$dias_es = array('Sunday'=>'Domingo','Monday'=>'Lunes','Tuesday'=>'Martes','Wednesday'=>'Miércoles','Thursday'=>'Jueves','Friday'=>'Viernes','Saturday'=>'Sábado');
+
+// Nombre propio en minúsculas, excepto siglas como MTB / PÁDEL / PADI.
+$lower_name = function ($txt) {
+    $t = trim((string) $txt);
+    if ($t === '') return '';
+    if (preg_match('/^(?!.*[a-záéíóúüñ])[A-ZÁÉÍÓÚÜÑ0-9&\/\x{b4}\s\.\-\(\)]+$/u', $t)) return $t;
+    $out = preg_replace_callback('/[\p{L}\p{M}]+/u', function ($m) {
+        $w = $m[0];
+        if (mb_strlen($w, 'UTF-8') <= 3) return $w; // "de", "3x3"... se respetan
+        return mb_strtolower(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, null, 'UTF-8');
+    }, $t);
+    return trim($out);
+};
+
+// Horario de la disciplina: rango entre la primera y la última hora del día.
+$rango_horas = function ($horas) {
+    $hs = array_values(array_unique(array_filter($horas)));
+    sort($hs);
+    if (!$hs) return 'Horario a confirmar';
+    return count($hs) === 1 ? $hs[0] : $hs[0] . '–' . $hs[count($hs) - 1];
+};
+
+// Icono genérico de disciplina (banderín, como en la maqueta).
+$svg_disciplina = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V5m0 0c5-4 9 4 14 0v9c-5 4-9-4-14 0"/></svg>';
+$svg_pin        = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+$svg_search     = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';
+$svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+$svg_flag       = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>';
+$svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>';
 ?>
 <!-- ============ FIXTURE ============ -->
-<div id="tab-fixture" class="panel-tab visible">
+<section class="panel panel-tab visible" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">LA AGENDA</p>
+      <h2>Fixture de competencias</h2>
+      <p id="fixture-description"><?php if (!empty($delegacion)): ?>Agenda de <?= htmlspecialchars($delegacion) ?>. Abrí una disciplina para ver sus competencias.<?php else: ?>Abrí una disciplina para ver horarios, categorías y encuentros.<?php endif; ?></p>
+    </div>
+  </div>
+
+  <?php
+  /* Días disponibles (con los filtros del servidor ya aplicados sobre $fixture),
+     en el orden de la consulta. */
+  $dias_disp = array();   // fecha → etiqueta legible ("Sábado 31/10")
+  foreach ($fixture as $fx0) {
+      $f0 = (string) $fx0['fecha_competencia'];
+      if ($f0 === '' || isset($dias_disp[$f0])) continue;
+      $ts0 = strtotime($f0);
+      $dias_disp[$f0] = $ts0 ? ($dias_es[date('l', $ts0)] . ' ' . date('d/m', $ts0)) : $f0;
+  }
+  /* Día elegido por enlace ?dia= (clave normalizada o fecha cruda). Si no hay o
+     no coincide, se abre el primer día disponible — igual que la maqueta. */
+  $get_dia = isset($_GET['dia']) ? trim((string) $_GET['dia']) : '';
+  $dia_sel  = '';
+  if ($get_dia !== '') {
+      foreach ($dias_disp as $fecha_x => $etiqueta_x) {
+          if ($get_dia === $fecha_x || $norm($get_dia) === $norm($etiqueta_x)) { $dia_sel = $fecha_x; break; }
+      }
+      if ($get_dia === 'all') $dia_sel = 'all';
+  }
+  if ($dia_sel === '' && !empty($dias_disp)) $dia_sel = (string) array_key_first($dias_disp);
+  elseif (empty($dias_disp)) $dia_sel = 'all';
+
+  /* Disciplina anclada por #disciplina-<clave> (o ?disciplina=): entra abierta. */
+  $hash_get = isset($_GET['disciplina']) ? trim((string) $_GET['disciplina']) : '';
+  $disc_plana = $hash_get !== '' ? $norm($hash_get) : '';
+  $disc_fecha = $hash_get !== '' && strpos($hash_get, '-') !== FALSE
+      ? substr($hash_get, strrpos($hash_get, '-') + 1) : '';
+  if ($disc_plana === '' && $disc_fecha !== '') $disc_plana = $norm(substr($hash_get, 0, strrpos($hash_get, '-')));
+  ?>
+  <div class="schedule-tools">
+    <nav class="day-nav" aria-label="Filtrar por día">
+      <?php foreach ($dias_disp as $fecha_d => $etiqueta_d):
+          $partes = explode(' ', $etiqueta_d, 2);
+          $clave_d = $norm($etiqueta_d); ?>
+        <button type="button" class="day-button<?= $dia_sel === (string) $fecha_d ? ' sel' : '' ?>"
+                data-day="<?= htmlspecialchars($clave_d) ?>" data-date="<?= htmlspecialchars((string) $fecha_d) ?>"
+                aria-pressed="<?= $dia_sel === (string) $fecha_d ? 'true' : 'false' ?>"
+                aria-label="<?= htmlspecialchars($etiqueta_d) ?>">
+          <span><?= htmlspecialchars(substr($partes[0], 0, 3)) ?></span><strong><?= htmlspecialchars(isset($partes[1]) ? $partes[1] : '') ?></strong>
+        </button>
+      <?php endforeach; ?>
+      <?php if (!empty($dias_disp)): ?>
+        <button type="button" class="day-button all-days<?= $dia_sel === 'all' ? ' sel' : '' ?>" data-day="all" data-date="all" aria-pressed="<?= $dia_sel === 'all' ? 'true' : 'false' ?>">Todos<br>los días</button>
+      <?php endif; ?>
+    </nav>
+    <label class="search-box"><?= $svg_search ?><input id="search" type="search" placeholder="Buscar equipo o sede" aria-label="Buscar equipo, sede o categoría" autocomplete="off" value="<?= htmlspecialchars(isset($_GET['q']) ? (string) $_GET['q'] : '') ?>"></label>
+  </div>
+  <div class="fixture-meta">
+    <p id="fixture-count" aria-live="polite" role="status"></p>
+    <button id="expand-disciplines" type="button">Desplegar disciplinas <span aria-hidden="true">↓</span></button>
+  </div>
+
   <?php if (empty($fixture)): ?>
-    <div class="vacio">No hay partidos programados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?> todavía.</div>
+    <div class="empty-state" id="search-empty">
+      <div class="empty-icon" aria-hidden="true">⌕</div>
+      <h3>No encontramos competencias</h3>
+      <p><?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>Con estos filtros todavía no hay partidos programados. Probá limpiar los filtros o cambiar la categoría.<?php else: ?>El fixture del evento todavía está vacío. Volvé más tarde para ver la agenda completa.<?php endif; ?></p>
+      <a class="secondary-button" href="<?= site_url('publico') ?>">Ver todas las competencias</a>
+    </div>
   <?php else: ?>
     <?php
-      $dia_actual = null;
-      foreach ($fixture as $i => $fx):
-        $dia = $fx['fecha_competencia'];
-        $nuevo_dia = ($dia !== $dia_actual);
-        if ($nuevo_dia):
-            if ($dia_actual !== null) echo "</div></div>";
-            $dia_actual = $dia;
-            $ts = strtotime($dia);
-            $dias_es = array('Sunday'=>'Domingo','Monday'=>'Lunes','Tuesday'=>'Martes','Wednesday'=>'Miércoles','Thursday'=>'Jueves','Friday'=>'Viernes','Saturday'=>'Sábado');
-            $etiqueta_dia = $ts ? ($dias_es[date('l', $ts)] . ' ' . date('d/m', $ts)) : $dia;
-            echo '<div class="grupo-dia"><h3>' . htmlspecialchars($etiqueta_dia) . '</h3><div class="partidos">';
-        endif;
-
-        // Estado del marcador
-        $mar = $fx['marcador'];
-        $eq1_nombre = $fx['ute_1_nombre'] ?: '<span class="pendiente">Por definir</span>';
-        $eq2_nombre = $fx['ute_2_nombre'] ?: '<span class="pendiente">Por definir</span>';
-        $marcador_txt = '';
-        $g1 = false; $g2 = false;
-        if ($mar && count($mar['equipos']) >= 2) {
-            $a = $mar['equipos'][0]; $b = $mar['equipos'][1];
-            $marcador_txt = $a['a_favor'] . ' – ' . $a['en_contra'];
-            // Determinar ganador por goles a favor (y desempate si hubo)
-            if ((int)$a['a_favor'] > (int)$a['en_contra']) $g1 = true;
-            elseif ((int)$a['en_contra'] > (int)$a['a_favor']) $g2 = true;
-            if (!empty($mar['hubo_desempate'])) { $g1 = false; $g2 = false; }
-        } elseif ($fx['estado'] === 'FINALIZADO' && !empty($fx['resultado'])) {
-            $marcador_txt = 'Final';
-        }
-
-        // Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos,
-        // NO llevan rivales ni marcador "VS". (modalidad_competencia es un dato
-        // interno: solo se usa acá, nunca se muestra.)
-        $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
-                  || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
-
-        // Horario: lo importante es la HORA DE COMIENZO en hh:mm (los segundos
-        // y el horario de fin no interesan al público).
-        $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
-        $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
-
-        // Chip de fase en el header de la card: "GRUPO A/B/..." (numero_fecha →
-        // letra, misma regla que fixture.php/reporte_fixture.php) o
-        // "ELIMINATORIA" para cualquier otra fase (SEMIFINAL, FINAL, OCTAVOS...).
-        $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
-                  . (int) (isset($fx['numero_fecha']) ? $fx['numero_fecha'] : 0);
-        $grupo_txt = isset($grupo_etiqueta[$clave_fx]) ? $grupo_etiqueta[$clave_fx] : null;
-        $fase_raw = strtoupper(trim((string) (isset($fx['fase']) ? $fx['fase'] : '')));
-        if ($grupo_txt !== null) {
-            $chip_fase = 'Grupo ' . substr($grupo_txt, 6); // "Grupo A"
-            $chip_elim = false;
-        } elseif ($fase_raw !== '' && $fase_raw !== 'JORNADA_UNICA') {
-            $chip_fase = 'Eliminatoria';
-            $chip_elim = true;
-        } else {
-            $chip_fase = null;
-            $chip_elim = false;
-        }
+    /* Agrupación del fixture real: día → disciplina (deporte) → tarjetas.
+       Las pruebas masivas (todos contra todos) se agrupan por
+       hora + sede + estado dentro de su disciplina, como en la maqueta. */
+    $por_dia = array();
+    foreach ($fixture as $fx) {
+        $fd = (string) $fx['fecha_competencia'];
+        $dep_key = trim((string) (isset($fx['nombre_deporte']) ? $fx['nombre_deporte'] : ''));
+        if ($dep_key === '') $dep_key = 'Competencia';
+        $por_dia[$fd][$dep_key][] = $fx;
+    }
+    $cualquier_abierta = FALSE;
+    $total_visibles = 0; $disciplinas_visibles = 0;
+    foreach ($por_dia as $fecha_d => $disciplinas):
+        if ($dia_sel !== 'all' && (string) $fecha_d !== $dia_sel) continue;
+        $etiqueta_d = isset($dias_disp[$fecha_d]) ? $dias_disp[$fecha_d] : $fecha_d;
+        $clave_d = $norm($etiqueta_d);
     ?>
-      <div class="partido<?= $es_masivo ? ' masivo' : '' ?>">
-        <?php if ($chip_fase !== null): ?>
-        <div class="fase-header<?= $chip_elim ? ' elim' : '' ?>"><?= htmlspecialchars($chip_fase) ?></div>
-        <?php endif; ?>
-        <div class="meta">
-          <span><span class="hora-inicio">🕐 <?= htmlspecialchars($hora_txt) ?></span><?php if (!empty($fx['lugar_nombre'])): ?> · <?= htmlspecialchars($fx['lugar_nombre']) ?><?php endif; ?></span>
-          <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
-        </div>
-        <?php if ($es_masivo): ?>
-          <div class="masivo-aviso"></div>
-        <?php else: ?>
-        <div class="vs">
-          <div class="equipo <?= $g1 ? 'ganador' : '' ?>"><?= $eq1_nombre ?></div>
-          <div class="marcador"><?= $marcador_txt !== '' ? htmlspecialchars($marcador_txt) : '<span class="vsx">VS</span>' ?></div>
-          <div class="equipo <?= $g2 ? 'ganador' : '' ?>"><?= $eq2_nombre ?></div>
-        </div>
-        <?php endif; ?>
-        <div class="categoria-linea">
-          <span class="deporte-chip"><?= htmlspecialchars((string) $fx['nombre_deporte']) ?></span>
-          <?php if (!empty($fx['nombre_categoria'])): ?><span style="opacity:.75"><?= htmlspecialchars((string) $fx['nombre_categoria']) ?></span><?php endif; ?>
-          <?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
-        </div>
+    <section class="day-group" aria-label="<?= htmlspecialchars($etiqueta_d) ?>">
+      <h3 class="day-heading"><?= htmlspecialchars($etiqueta_d) ?></h3>
+      <div class="discipline-list">
+        <?php foreach ($disciplinas as $dep_key => $items):
+            $clave_disc = $norm($dep_key);
+            $horas_d = array(); $sedes_d = array(); $n_items = count($items);
+            foreach ($items as $it) {
+                $h_it = strtotime('today ' . trim((string) $it['hora_inicio']));
+                $h_txt = $h_it !== false ? date('H:i', $h_it) : substr(trim((string) $it['hora_inicio']), 0, 5);
+                if ($h_txt !== '') $horas_d[] = $h_txt;
+                if (!empty($it['lugar_nombre'])) $sedes_d[strtolower(trim((string) $it['lugar_nombre']))] = trim((string) $it['lugar_nombre']);
+            }
+            $desc_d = $rango_horas($horas_d);
+            $sedes_vals = array_values($sedes_d);
+            $desc_d .= ' · ' . (count($sedes_vals) === 1 ? $lower_name($sedes_vals[0]) : (count($sedes_vals) > 1 ? count($sedes_vals) . ' sedes' : 'Sede a confirmar'));
+            /* La disciplina anclada por #disciplina-... entra abierta; las demás,
+               cerradas (como en la maqueta). El JS recuerda además las que el
+               usuario abra y cierre. */
+            $abierta = FALSE;
+            if ($disc_plana !== '') {
+                foreach ($disciplinas as $dk_plan => $_ig) {
+                    if ($norm($dk_plan) === $disc_plana) { $abierta = ((string) $fecha_d === $disc_fecha); break; }
+                }
+            }
+        ?>
+        <details class="discipline-group<?= $abierta ? ' abierta-inicial' : '' ?>" id="disciplina-<?= htmlspecialchars($clave_d . '-' . $clave_disc) ?>" data-discipline="<?= htmlspecialchars($clave_disc) ?>" data-date="<?= htmlspecialchars((string) $fecha_d) ?>">
+          <summary class="discipline-summary">
+            <span class="discipline-symbol" aria-hidden="true"><?= $svg_disciplina ?></span>
+            <span class="discipline-label">
+              <span class="discipline-name"><?= htmlspecialchars($lower_name($dep_key)) ?></span>
+              <span class="discipline-description"><?= htmlspecialchars($desc_d) ?></span>
+            </span>
+            <span class="discipline-count"><?= $n_items . ' ' . ($n_items === 1 ? 'competencia' : 'competencias') ?></span>
+            <span class="discipline-arrow" aria-hidden="true"><?= $svg_chevron ?></span>
+          </summary>
+          <div class="discipline-body">
+            <?php
+            /* Masivas agrupadas por hora+sede+estado (aparecen en su primera posición). */
+            $mass_groups = array(); $rendered_mass = array();
+            foreach ($items as $idx_m => $it_m) {
+                $es_m = ((string) $it_m['fase'] === 'JORNADA_UNICA')
+                     || ((string) (isset($it_m['modalidad_competencia']) ? $it_m['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
+                if (!$es_m) continue;
+                $h_m = strtotime('today ' . trim((string) $it_m['hora_inicio']));
+                $hora_m = $h_m !== false ? date('H:i', $h_m) : substr(trim((string) $it_m['hora_inicio']), 0, 5);
+                $sede_m = !empty($it_m['lugar_nombre']) ? trim((string) $it_m['lugar_nombre']) : '';
+                $estado_m = (string) $it_m['estado'];
+                $mg_key = $hora_m . '|' . strtolower($sede_m) . '|' . $estado_m;
+                if (!isset($mass_groups[$mg_key])) $mass_groups[$mg_key] = array('hour' => $hora_m, 'venue' => $sede_m, 'status' => $estado_m, 'items' => array(), 'first' => $idx_m);
+                $mass_groups[$mg_key]['items'][] = $it_m;
+            }
+            ?>
+            <div class="cards<?= $n_items ? '' : '' ?>">
+            <?php foreach ($items as $idx => $fx):
+                // Estado del marcador
+                $mar = $fx['marcador'];
+                $eq1_nombre = $fx['ute_1_nombre'] ?: '<span class="pendiente">Por definir</span>';
+                $eq2_nombre = $fx['ute_2_nombre'] ?: '<span class="pendiente">Por definir</span>';
+                $marcador_txt = '';
+                $g1 = false; $g2 = false;
+                if ($mar && count($mar['equipos']) >= 2) {
+                    $a = $mar['equipos'][0]; $b = $mar['equipos'][1];
+                    $marcador_txt = $a['a_favor'] . ' – ' . $a['en_contra'];
+                    // Determinar ganador por goles a favor (y desempate si hubo)
+                    if ((int)$a['a_favor'] > (int)$a['en_contra']) $g1 = true;
+                    elseif ((int)$a['en_contra'] > (int)$a['a_favor']) $g2 = true;
+                    if (!empty($mar['hubo_desempate'])) { $g1 = false; $g2 = false; }
+                } elseif ($fx['estado'] === 'FINALIZADO' && !empty($fx['resultado'])) {
+                    $marcador_txt = 'Final';
+                }
+
+                // Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos,
+                // NO llevan rivales ni marcador "VS". (modalidad_competencia es un dato
+                // interno: solo se usa acá, nunca se muestra.)
+                $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
+                          || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
+
+                // Horario: lo importante es la HORA DE COMIENZO en hh:mm (los segundos
+                // y el horario de fin no interesan al público).
+                $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
+                $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
+
+                // Chip de fase en el header de la card: "GRUPO A/B/..." (numero_fecha →
+                // letra, misma regla que fixture.php/reporte_fixture.php) o
+                // "ELIMINATORIA" para cualquier otra fase (SEMIFINAL, FINAL, OCTAVOS...).
+                $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
+                          . (int) (isset($fx['numero_fecha']) ? $fx['numero_fecha'] : 0);
+                $grupo_txt = isset($grupo_etiqueta[$clave_fx]) ? $grupo_etiqueta[$clave_fx] : null;
+                $fase_raw = strtoupper(trim((string) (isset($fx['fase']) ? $fx['fase'] : '')));
+                if ($grupo_txt !== null) {
+                    $chip_fase = 'Grupo ' . substr($grupo_txt, 6); // "Grupo A"
+                    $chip_elim = false;
+                } elseif ($fase_raw !== '' && $fase_raw !== 'JORNADA_UNICA') {
+                    $chip_fase = 'Eliminatoria';
+                    $chip_elim = true;
+                } else {
+                    $chip_fase = null;
+                    $chip_elim = false;
+                }
+
+                if ($es_masivo):
+                    $mg_key = $hora_txt . '|' . strtolower(!empty($fx['lugar_nombre']) ? trim((string) $fx['lugar_nombre']) : '') . '|' . (string) $fx['estado'];
+                    if (in_array($mg_key, $rendered_mass, TRUE)) continue;
+                    $rendered_mass[] = $mg_key;
+                    $mg = $mass_groups[$mg_key];
+                    $n_cats = count($mg['items']);
+                ?>
+              <article class="mass-group">
+                <div class="mass-top">
+                  <div class="mass-time"><strong><?= htmlspecialchars($mg['hour'] !== '' ? $mg['hour'] : '—') ?></strong><span>HORARIO</span></div>
+                  <div class="mass-title">
+                    <h4><?= htmlspecialchars($lower_name($dep_key)) ?></h4>
+                    <p><?= $n_cats . ' ' . ($n_cats === 1 ? 'categoría' : 'categorías') ?></p>
+                    <?php if ($mg['venue'] !== ''): ?><p class="venue"><?= $svg_pin ?><span><?= htmlspecialchars($lower_name($mg['venue'])) ?></span></p><?php endif; ?>
+                  </div>
+                </div>
+                <span class="badge <?= htmlspecialchars($mg['status']) ?>"><?= htmlspecialchars($mg['status']) ?></span>
+                <details open>
+                  <summary>Categorías de la jornada</summary>
+                  <div class="category-rows">
+                    <?php foreach ($mg['items'] as $it_c):
+                        $cat_c = trim((string) (isset($it_c['nombre_categoria']) ? $it_c['nombre_categoria'] : ''));
+                        $prueba_c = trim((string) (isset($it_c['nombre_prueba']) ? $it_c['nombre_prueba'] : ''));
+                    ?>
+                      <div class="partido masivo">
+                        <div class="categoria-linea">
+                          <span style="opacity:.85"><?= $cat_c !== '' ? htmlspecialchars($cat_c) : 'Categoría' ?></span>
+                          <?php if ($prueba_c !== ''): ?> · <?= htmlspecialchars($prueba_c) ?><?php endif; ?>
+                        </div>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
+                </details>
+              </article>
+            <?php else: ?>
+              <div class="partido">
+                <?php if ($chip_fase !== null): ?>
+                <div class="fase-header<?= $chip_elim ? ' elim' : '' ?>"><?= htmlspecialchars($chip_fase) ?></div>
+                <?php endif; ?>
+                <div class="vs">
+                  <div class="equipo <?= $g1 ? 'ganador' : '' ?>"><?= $eq1_nombre ?></div>
+                  <div class="marcador"><?= $marcador_txt !== '' ? htmlspecialchars($marcador_txt) : '<span class="vsx">VS</span>' ?></div>
+                  <div class="equipo <?= $g2 ? 'ganador' : '' ?>"><?= $eq2_nombre ?></div>
+                </div>
+                <div class="meta">
+                  <span><span class="hora-inicio"><?= htmlspecialchars($hora_txt) ?></span><?php if (!empty($fx['lugar_nombre'])): ?><span class="venue-name"><?= htmlspecialchars($lower_name((string) $fx['lugar_nombre'])) ?></span><?php endif; ?></span>
+                  <span class="badge <?= htmlspecialchars($fx['estado']) ?>"><?= htmlspecialchars($fx['estado']) ?></span>
+                </div>
+                <div class="categoria-linea">
+                  <?php if (!empty($fx['nombre_categoria'])): ?><span style="opacity:.75"><?= htmlspecialchars((string) $fx['nombre_categoria']) ?></span><?php endif; ?>
+                  <?php if (!empty($fx['nombre_prueba'])): ?> · <?= htmlspecialchars($fx['nombre_prueba']) ?><?php endif; ?>
+                </div>
+              </div>
+            <?php endif; endforeach; ?>
+            </div>
+          </div>
+        </details>
+        <?php
+            $total_visibles += $n_items; $disciplinas_visibles++;
+        endforeach; ?>
       </div>
-    <?php endforeach; if ($dia_actual !== null) echo "</div></div>"; ?>
+    </section>
+    <?php endforeach; ?>
+    <div id="search-empty" class="empty-state" hidden>
+      <div class="empty-icon" aria-hidden="true">⌕</div>
+      <h3>No encontramos competencias</h3>
+      <p>Probá con otra búsqueda o cambiá los filtros.</p>
+      <button type="button" class="secondary-button" id="clear-search">Ver todas las competencias</button>
+    </div>
   <?php endif; ?>
-</div>
+</section>
 
 <!-- ============ RESULTADOS ============ -->
 <div id="tab-resultados" class="panel-tab">
