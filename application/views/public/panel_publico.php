@@ -8,12 +8,16 @@
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <!-- Diseño del panel publico: maqueta aprobada (Entrega-Fixture-Olimpiadas).
      Hoja exclusiva de esta vista: usa selectores globales (body, .container, svg). -->
-<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261030a">
+<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261030b">
 <style>
 /* Ajustes locales de la integración (solo esta vista). */
 .venue-name{display:inline}
 .discipline-group[open] .discipline-arrow svg{transform:rotate(180deg)}
 @media(max-width:680px){.bottom-note a{margin-left:0}}
+/* Filtros client-side (JS del panel): días y búsqueda ocultan, nunca borran. */
+.day-group[hidden]{display:none}
+.discipline-group[hidden]{display:none}
+.mass-group[hidden],.partido[hidden]{display:none}
 </style>
 <style disabled id="estilos-clasicos-panel">
 :root{
@@ -364,8 +368,8 @@ $norm = function ($txt) {
         <?php endforeach; ?>
       </select>
     </div>
-    <input type="hidden" name="dia" id="filtro-dia" value="">
-    <input type="hidden" name="q" id="filtro-q" value="">
+    <input type="hidden" name="dia" id="filtro-dia" value="<?= htmlspecialchars(isset($_GET['dia']) ? trim((string) $_GET['dia']) : '') ?>">
+    <input type="hidden" name="q" id="filtro-q" value="<?= htmlspecialchars(isset($_GET['q']) ? (string) $_GET['q'] : '') ?>">
     <noscript><div style="grid-column:1/-1;margin-top:6px"><button type="submit" class="secondary-button">Aplicar filtros</button></div></noscript>
   </form>
 </section>
@@ -438,6 +442,10 @@ foreach ($grupos_idx as $clave => $g) {
 
 /* ===== Helpers de presentación (diseño de la maqueta) ===== */
 $dias_es = array(0=>'Domingo',1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado');
+// Abrevatura de 3 letras SIN tilde para el botonito del día ("Mier" arriba de 04/11).
+// date('w') = 0 (domingo) … 6 (sábado); antes se usaba date('l') —"Wednesday"— y,
+// como esa clave no existía en el mapa, PHP devolvía '' y el botón salía sin etiqueta.
+$dias_curtos = array(0=>'Dom',1=>'Lun',2=>'Mar',3=>'Mier',4=>'Jue',5=>'Vier',6=>'Sáb');
 
 // Nombre propio en minúsculas, excepto siglas como MTB / PÁDEL / PADI.
 $lower_name = function ($txt) {
@@ -469,7 +477,7 @@ $svg_flag       = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m
 $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>';
 ?>
 <!-- ============ FIXTURE ============ -->
-<section class="panel panel-tab visible" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
+<section class="panel" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
   <div class="section-heading">
     <div>
       <p class="eyebrow">LA AGENDA</p>
@@ -481,23 +489,26 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   <?php
   /* Días disponibles (con los filtros del servidor ya aplicados sobre $fixture),
      en el orden de la consulta. */
-  $dias_disp = array();   // fecha → etiqueta legible ("Sábado 31/10")
+  $dias_disp = array();   // fecha → ['full' => "Miércoles 04/11", 'short' => 'Mier']
   foreach ($fixture as $fx0) {
       $f0 = (string) $fx0['fecha_competencia'];
       if ($f0 === '' || isset($dias_disp[$f0])) continue;
       $ts0 = strtotime($f0);
       // date('w') = 0 (domingo) … 6 (sábado). Antes se usaba date('l') —"Wednesday"—
       // y, como no existía esa clave en el mapa, PHP devolvía '' y el botón del
-      // 04/11 salía sin etiqueta arriba. Ahora: "Mié" + "04/11".
-      $dias_disp[$f0] = $ts0 ? ($dias_es[(int) date('w', $ts0)] . ' ' . date('d/m', $ts0)) : $f0;
+      // 04/11 salía sin etiqueta arriba. Ahora: "Mier" + "04/11".
+      $dias_disp[$f0] = $ts0
+          ? array('full'  => $dias_es[(int) date('w', $ts0)] . ' ' . date('d/m', $ts0),
+                  'short' => $dias_curtos[(int) date('w', $ts0)])
+          : array('full' => $f0, 'short' => $f0);
   }
   /* Día elegido por enlace ?dia= (clave normalizada o fecha cruda). Si no hay o
      no coincide, se abre el primer día disponible — igual que la maqueta. */
   $get_dia = isset($_GET['dia']) ? trim((string) $_GET['dia']) : '';
   $dia_sel  = '';
   if ($get_dia !== '') {
-      foreach ($dias_disp as $fecha_x => $etiqueta_x) {
-          if ($get_dia === $fecha_x || $norm($get_dia) === $norm($etiqueta_x)) { $dia_sel = $fecha_x; break; }
+      foreach ($dias_disp as $fecha_x => $info_x) {
+          if ($get_dia === $fecha_x || $norm($get_dia) === $norm($info_x['full'])) { $dia_sel = $fecha_x; break; }
       }
       if ($get_dia === 'all') $dia_sel = 'all';
   }
@@ -513,14 +524,13 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   ?>
   <div class="schedule-tools">
     <nav class="day-nav" aria-label="Filtrar por día">
-      <?php foreach ($dias_disp as $fecha_d => $etiqueta_d):
-          $partes = explode(' ', $etiqueta_d, 2);
-          $clave_d = $norm($etiqueta_d); ?>
+      <?php foreach ($dias_disp as $fecha_d => $info_d):
+          $clave_d = $norm($info_d['full']); ?>
         <button type="button" class="day-button"
                 data-day="<?= htmlspecialchars($clave_d) ?>" data-date="<?= htmlspecialchars((string) $fecha_d) ?>"
                 aria-pressed="<?= $dia_sel === (string) $fecha_d ? 'true' : 'false' ?>"
-                aria-label="<?= htmlspecialchars($etiqueta_d) ?>">
-          <span><?= htmlspecialchars(substr($partes[0], 0, 3)) ?></span><strong><?= htmlspecialchars(isset($partes[1]) ? $partes[1] : '') ?></strong>
+                aria-label="<?= htmlspecialchars($info_d['full']) ?>">
+          <span><?= htmlspecialchars($info_d['short']) ?></span><strong><?= htmlspecialchars(date('d/m', strtotime($fecha_d)) ?: '') ?></strong>
         </button>
       <?php endforeach; ?>
       <?php if (!empty($dias_disp)): ?>
@@ -559,11 +569,14 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     <div id="schedule">
     <?php
     foreach ($por_dia as $fecha_d => $disciplinas):
-        if ($dia_sel !== 'all' && (string) $fecha_d !== $dia_sel) continue;
-        $etiqueta_d = isset($dias_disp[$fecha_d]) ? $dias_disp[$fecha_d] : $fecha_d;
+        // Se renderizan TODOS los días (con el resto oculto), para que el filtro
+        // por día funcione del lado del cliente sin recargar la página.
+        if (!isset($dias_disp[$fecha_d])) continue;
+        $etiqueta_d = $dias_disp[$fecha_d]['full'];
         $clave_d = $norm($etiqueta_d);
+        $dia_oculto = ($dia_sel !== 'all' && (string) $fecha_d !== $dia_sel);
     ?>
-    <section class="day-group" aria-label="<?= htmlspecialchars($etiqueta_d) ?>">
+    <section class="day-group" data-date="<?= htmlspecialchars((string) $fecha_d) ?>" data-day="<?= htmlspecialchars($clave_d) ?>" aria-label="<?= htmlspecialchars($etiqueta_d) ?>"<?= $dia_oculto ? ' hidden' : '' ?>>
       <h3 class="day-heading"><?= htmlspecialchars($etiqueta_d) ?></h3>
       <div class="discipline-list">
         <?php foreach ($disciplinas as $dep_key => $items):
@@ -849,10 +862,17 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       <?php endif; ?>
     </div>
   <?php endforeach; endif; ?>
-</div>
+</section>
 
 <!-- ============ MEDALLERO ============ -->
-<div id="tab-medallero" class="panel-tab">
+<section class="panel" id="tab-medallero" role="tabpanel" aria-labelledby="button-medallero" tabindex="0" hidden>
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">LO MAS ALTO DEL PODIO</p>
+      <h2>Medallero</h2>
+      <p>Medallas entregadas por delegación.</p>
+    </div>
+  </div>
   <?php $med = $medallero; if ($delegacion): $med = array_values(array_filter($medallero, function($m) use ($delegacion){ return $m['delegacion'] === $delegacion; })); endif; ?>
   <?php if (empty($med)): ?>
     <div class="vacio">Aún no se entregaron medallas<?= $delegacion ? ' que correspondan a esta delegación' : '' ?>. ¡Volvé más tarde! 🏅</div>
@@ -877,73 +897,247 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       </p>
     <?php endif; ?>
   <?php endif; ?>
-</div>
+</section>
 
-<footer>
-  <img class="mascota" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Pampito, la mascota de las olimpiadas">
-  Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales
-</footer>
+<div class="workspace-bottom">
+  <footer>
+    <img class="mascota" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Pampito, la mascota de las olimpiadas">
+    Panel público · <?= htmlspecialchars($titulo_evento) ?> · sin datos personales
+  </footer>
 </div>
+  </div><!-- /.workspace -->
+</main>
 
 <script>
-// Cascada Deporte → Categoría en la barra de filtros del panel público.
-// Cada <option> del combo de categorías lleva data-deporte; al elegir un
-// deporte se ocultan las categorías de los demás deportes (y, si la elegida
-// ya no aplica, se resetea a "— Todas —"). Sin deporte elegido, se muestran
-// TODAS las categorías con el nombre del deporte entre paréntesis.
+// ===== Panel público (maqueta Entrega-Fixture-Olimpiadas): comportamiento =====
 (function () {
-  var selDep = document.getElementById('filtroDeporte');
-  var selCat = document.getElementById('filtroCategoria');
-  if (!selDep || !selCat) return;
+  'use strict';
 
-  // Snapshot de los textos originales (con "(Deporte)" cuando no hay filtro
-  // de deporte activo) para poder restaurarlos al limpiar el deporte.
-  Array.prototype.forEach.call(selCat.options, function (o) {
-    if (o.value !== '') o.dataset.baseLabel = o.textContent.trim();
+  var norm = function (txt) {
+    return String(txt).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  };
+
+  /* ---------- Tabs (ARIA, como en la maqueta) ---------- */
+  var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.primary-tabs [role="tab"]'));
+  function setTab(id, focus) {
+    tabButtons.forEach(function (button) {
+      var active = button.dataset.tab === id;
+      button.classList.toggle('activo', active);
+      button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
+      if (active && focus) button.focus();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('main .panel'), function (panel) {
+      panel.hidden = panel.id !== id;
+    });
+    if (history.replaceState) history.replaceState(null, '', '#' + id);
+  }
+  tabButtons.forEach(function (button, index) {
+    button.addEventListener('click', function () { setTab(button.dataset.tab); });
+    button.addEventListener('keydown', function (event) {
+      var next = null;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabButtons.length;
+      else if (event.key === 'ArrowLeft') next = (index - 1 + tabButtons.length) % tabButtons.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabButtons.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      setTab(tabButtons[next].dataset.tab, true);
+    });
+  });
+  var initialTab = location.hash.replace('#', '');
+  if (['tab-fixture', 'tab-resultados', 'tab-medallero'].indexOf(initialTab) < 0) {
+    initialTab = 'tab-fixture';
+  }
+  setTab(initialTab);
+
+  /* ---------- Fixture: filtro por día y búsqueda (sin recargar) ---------- */
+  var schedule = document.getElementById('schedule');
+  var dayNav = document.querySelector('.day-nav');
+  var searchBox = document.getElementById('search');
+  var emptyState = document.getElementById('search-empty');
+  var counter = document.getElementById('fixture-count');
+  var expandBtn = document.getElementById('expand-disciplines');
+  if (!schedule) return;
+
+  var dayGroups = Array.prototype.slice.call(schedule.querySelectorAll('.day-group'));
+  var selectedDay = '';
+  (function () {
+    var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
+    selectedDay = pressed ? pressed.dataset.date : 'all';
+  })();
+
+  // Clave normalizada de cada disciplina para el ancla #disciplina-...
+  Array.prototype.forEach.call(schedule.querySelectorAll('.discipline-group'), function (d) {
+    d.dataset.discipline = norm(d.dataset.discipline || '');
   });
 
-  function aplicarCascada(enviar) {
-    var dep = selDep.value;
-    var visibleSel = false;
-    Array.prototype.forEach.call(selCat.options, function (o) {
-      if (o.value === '') return; // "— Todas —" siempre visible
-      var ok = (dep === '' || o.dataset.deporte === dep);
-      o.hidden = !ok;
-      o.disabled = !ok;
-      // Con deporte elegido se muestra solo el nombre de la categoría;
-      // sin deporte, el deporte entre paréntesis identifica a cada una.
-      if (o.dataset.baseLabel) {
-        var base = o.dataset.baseLabel;
-        var paren = base.lastIndexOf(' (');
-        o.textContent = (dep === '' || paren < 0) ? base : base.slice(0, paren);
-      }
-      if (o.selected && ok) visibleSel = true;
-    });
-    if (selCat.value !== '' && !visibleSel) selCat.value = '';
-    if (enviar) selDep.form.submit();
+  function cardText(card) {
+    return norm(card.textContent);
   }
 
-  window.onFiltroDeporte = function () { aplicarCascada(true); };
-  aplicarCascada(false); // estado inicial según los combos del servidor
-})();
+  function applyFilters(keepOpen) {
+    var query = searchBox ? norm(searchBox.value) : '';
+    var totalCards = 0, totalDisciplines = 0, visibleDays = 0;
 
-// Tabs
-document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click', function(){
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('activo'));
-    document.querySelectorAll('.panel-tab').forEach(p=>p.classList.remove('visible'));
-    btn.classList.add('activo');
-    document.getElementById(btn.dataset.tab).classList.add('visible');
+    dayGroups.forEach(function (group) {
+      var dayVisible = (selectedDay === 'all') || (group.dataset.date === selectedDay);
+      group.hidden = !dayVisible;
+      if (!dayVisible) return;
+      var groupCards = 0, groupDisciplines = 0;
+
+      Array.prototype.forEach.call(group.querySelectorAll('.discipline-group'), function (details) {
+        var cards = Array.prototype.slice.call(details.querySelectorAll('.cards > .partido, .cards > .mass-group'));
+        var matched = 0;
+        cards.forEach(function (card) {
+          var ok = !query || cardText(card).indexOf(query) >= 0;
+          card.hidden = !ok;
+          if (ok) matched++;
+        });
+        details.hidden = matched === 0;
+        if (matched > 0) {
+          groupCards += matched; groupDisciplines++;
+          // Con búsqueda activa todo se despliega (como en la maqueta); al limpiar,
+          // se cierra salvo la disciplina que el usuario había abierto.
+          if (query) details.open = true;
+          else if (!keepOpen) details.open = details.classList.contains('user-open') || details.classList.contains('abierta-inicial');
+        }
+      });
+
+      if (groupCards > 0) { visibleDays++; totalCards += groupCards; totalDisciplines += groupDisciplines; }
+      else { group.hidden = true; }
+    });
+
+    if (emptyState) emptyState.hidden = totalCards > 0;
+    if (counter) {
+      var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
+      var scope = pressed ? (pressed.dataset.day === 'all' ? 'Todos los días' : pressed.getAttribute('aria-label')) : 'Sin competencias';
+      counter.textContent = scope + ' · ' + totalDisciplines + ' ' + (totalDisciplines === 1 ? 'disciplina' : 'disciplinas')
+        + ' · ' + totalCards + ' ' + (totalCards === 1 ? 'competencia' : 'competencias');
+    }
+    syncExpandButton();
+  }
+
+  function syncExpandButton() {
+    if (!expandBtn) return;
+    var disclosures = Array.prototype.slice.call(schedule.querySelectorAll('.discipline-group:not([hidden])'));
+    var allOpen = disclosures.length > 0 && disclosures.every(function (d) { return d.open; });
+    expandBtn.innerHTML = allOpen
+      ? 'Plegar disciplinas <span aria-hidden="true">↑</span>'
+      : 'Desplegar disciplinas <span aria-hidden="true">↓</span>';
+  }
+
+  // Recordar qué disciplinas abrió/cerró el usuario (persiste al cambiar de día).
+  Array.prototype.forEach.call(schedule.querySelectorAll('.discipline-group'), function (details) {
+    details.addEventListener('toggle', function () {
+      details.classList.toggle('user-open', details.open);
+      syncExpandButton();
+    });
   });
-});
-// Recordar tab elegida
-var hash = location.hash.replace('#','');
-if (['tab-fixture','tab-resultados','tab-medallero'].indexOf(hash) >= 0) {
-  document.querySelector('[data-tab="'+hash+'"]').click();
-}
-document.querySelectorAll('.tab-btn').forEach(function(btn){
-  btn.addEventListener('click', function(){ history.replaceState(null,'','#'+btn.dataset.tab); });
-});
+
+  if (dayNav) {
+    dayNav.addEventListener('click', function (event) {
+      var button = event.target.closest ? event.target.closest('.day-button') : null;
+      if (!button) return;
+      Array.prototype.forEach.call(dayNav.querySelectorAll('.day-button'), function (b) {
+        b.setAttribute('aria-pressed', String(b === button));
+      });
+      selectedDay = button.dataset.date;
+      applyFilters(true);
+      updateURL();
+    });
+  }
+
+  var searchTimer = null;
+  if (searchBox) {
+    searchBox.addEventListener('input', function () {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () { applyFilters(true); updateURL(); }, 150);
+    });
+  }
+
+  var clearBtn = document.getElementById('clear-search');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      if (searchBox) searchBox.value = '';
+      if (dayNav) {
+        var all = dayNav.querySelector('.all-days');
+        if (all) all.click();
+      }
+    });
+  }
+
+  if (expandBtn) {
+    expandBtn.addEventListener('click', function () {
+      var disclosures = Array.prototype.slice.call(schedule.querySelectorAll('.discipline-group:not([hidden])'));
+      var openAll = !disclosures.every(function (d) { return d.open; });
+      disclosures.forEach(function (d) { d.open = openAll; d.classList.toggle('user-open', openAll); });
+      syncExpandButton();
+    });
+  }
+
+  /* ---------- URL: mantener ?dia= / ?q= compartibles ---------- */
+  function updateURL() {
+    if (!window.history || !history.replaceState) return;
+    var url = new URL(location.href);
+    var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
+    if (!pressed || pressed.dataset.date === 'all') url.searchParams.delete('dia');
+    else url.searchParams.set('dia', pressed.dataset.day);
+    if (searchBox && searchBox.value.trim() !== '') url.searchParams.set('q', searchBox.value.trim());
+    else url.searchParams.delete('q');
+    history.replaceState(null, '', url.toString() + (url.hash || ''));
+  }
+
+  /* ---------- Cascada Deporte → Categoría (envía el formulario al servidor) ---------- */
+  var selDep = document.getElementById('filtroDeporte');
+  var selCat = document.getElementById('filtroCategoria');
+  var selDel = document.getElementById('filtroDelegacion');
+  var filtersForm = document.getElementById('filters-form');
+  var hiddenDia = document.getElementById('filtro-dia');
+  var hiddenQ = document.getElementById('filtro-q');
+
+  function submitFilters() {
+    if (!filtersForm) return;
+    if (hiddenDia) {
+      var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
+      hiddenDia.value = (pressed && pressed.dataset.date !== 'all') ? (pressed.dataset.day || '') : '';
+    }
+    if (hiddenQ) hiddenQ.value = searchBox ? searchBox.value.trim() : '';
+    filtersForm.submit();
+  }
+
+  if (selDep && selCat) {
+    Array.prototype.forEach.call(selCat.options, function (o) {
+      if (o.value !== '') o.dataset.baseLabel = o.textContent.trim();
+    });
+    var aplicarCascada = function (enviar) {
+      var dep = selDep.value;
+      var visibleSel = false;
+      Array.prototype.forEach.call(selCat.options, function (o) {
+        if (o.value === '') return; // "Todas" siempre visible
+        var ok = (dep === '' || o.dataset.deporte === dep);
+        o.hidden = !ok;
+        o.disabled = !ok;
+        if (o.dataset.baseLabel) {
+          var base = o.dataset.baseLabel;
+          var paren = base.lastIndexOf(' (');
+          o.textContent = (dep === '' || paren < 0) ? base : base.slice(0, paren);
+        }
+        if (o.selected && ok) visibleSel = true;
+      });
+      if (selCat.value !== '' && !visibleSel) selCat.value = '';
+      if (enviar) submitFilters();
+    };
+    window.onFiltroDeporte = function () { aplicarCascada(true); };
+    aplicarCascada(false);
+    selDep.addEventListener('change', function () { aplicarCascada(true); });
+    selCat.addEventListener('change', submitFilters);
+  }
+  if (selDel) selDel.addEventListener('change', submitFilters);
+
+  applyFilters(false);
+})();
 </script>
 </body>
 </html>
