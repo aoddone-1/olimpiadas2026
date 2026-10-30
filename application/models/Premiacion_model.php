@@ -587,28 +587,6 @@ class Premiacion_model extends CI_Model {
         return $nombres_cargados === $nombres_esperados && count($nombres_cargados) >= 2;
     }
 
-    /** ¿Existe una columna en `resultados`? (tolera bases sin el ALTER). */
-    private function _columna_resultado_existe($columna) {
-        static $cache = array();
-        $key = strtolower((string) $columna);
-        if (!isset($cache[$key])) {
-            try {
-                $q = $this->db->query(
-                    "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
-                     WHERE TABLE_SCHEMA = DATABASE()
-                       AND TABLE_NAME = 'resultados'
-                       AND COLUMN_NAME = ?",
-                    array($columna)
-                );
-                $cache[$key] = (bool) ($q && $q->num_rows() > 0);
-            } catch (Throwable $e) {
-                log_message('error', '[Premiación] no se pudo verificar columna resultados.' . $columna . ': ' . $e->getMessage());
-                $cache[$key] = false;
-            }
-        }
-        return $cache[$key];
-    }
-
     /** Detalle agrupado por id_resultado (una sola consulta). */
     private function _detalle_de_resultados($ids) {
         if (!$ids || !$this->_tabla_existe('resultado_detalle')) return array();
@@ -1481,8 +1459,11 @@ class Premiacion_model extends CI_Model {
             foreach ($it['entregadas'] as $e) {
                 $entregados[(int) $e['puesto']] = $e;
             }
+            // Puestos a anunciar: los que define la REGLA DE PREMIACIÓN de la
+            // categoría (1º, 1º/2º, 1º/2º/3º, etc.), no siempre el podio clásico.
             $puestos = array();
-            foreach (array(1, 2, 3) as $pos) {
+            $regla_guion = $this->regla_de_categoria($it['categoria']);
+            foreach ($this->puestos_de_regla($regla_guion) as $pos) {
                 $p = isset($podio[$pos]) ? $podio[$pos] : null;
                 $reg = isset($entregados[$pos]) ? $entregados[$pos] : null;
                 $nombre = null;
@@ -1492,8 +1473,16 @@ class Premiacion_model extends CI_Model {
                     $nombre = trim((string) $p['nombre']);
                 }
                 if ($nombre === null || $nombre === '') continue;
+                $premio_txt = null;
+                foreach ($regla_guion as $rgl) {
+                    if ((int) $rgl['puesto'] === $pos) {
+                        $premio_txt = $rgl['premio'];
+                        if (!empty($rgl['etiqueta'])) $premio_txt .= ' (' . $rgl['etiqueta'] . ')';
+                    }
+                }
                 $puestos[$pos] = array(
                     'nombre'    => $nombre,
+                    'premio'    => $premio_txt,
                     'desempate' => ($p && !empty($p['desempate'])) ? $p['desempate'] : null,
                     'extra'     => ($p && !empty($p['extra'])) ? $p['extra'] : null,
                 );
