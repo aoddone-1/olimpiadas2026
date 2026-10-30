@@ -568,7 +568,55 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   $url_base_filtros = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
   /* Clave legible del día seleccionado (para /panel-publico/dia/<clave>). */
   $dia_key_actual = ($dia_sel === 'all') ? 'all' : $norm($dias_disp[$dia_sel]['full']);
+
+  /* URL "limpia" de esta misma vista (sin query string), para que el JS pueda
+     normalizar la barra al cargar. Se arma con los mismos segmentos que ya se
+     están mostrando: si llegó ?dia=…&q=… de un enlace viejo, queda /.../dia/<clave>. */
+  $__seg_base = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
+  $__seg_parts = array();
+  if ($delegacion_uri !== '') {
+      $t = trim($delegacion_uri);
+      if (function_exists('iconv')) { $d = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $t); if ($d !== false) $t = $d; }
+      $t = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($t)), '-');
+      if ($t !== '') $__seg_parts[] = array('delegacion', $t);
+  }
+  if ($deporte_uri   !== '' && (int) $deporte_uri   > 0) $__seg_parts[] = array('deporte',   (string)(int) $deporte_uri);
+  if ($categoria_uri !== '' && (int) $categoria_uri > 0) $__seg_parts[] = array('categoria', (string)(int) $categoria_uri);
+  if ($dia_key_actual !== 'all')                         $__seg_parts[] = array('dia', $dia_key_actual);
+  $url_canonica = $__seg_base . (count($__seg_parts) ? '/' . implode('/', array_map(
+      function ($p) { return rawurlencode($p[0]) . '/' . rawurlencode($p[1]); }, $__seg_parts)) : '');
+
+  /* Redirección 301 de URLs sucias → ruta limpia equivalente.
+     Con enable_query_strings = FALSE, CI no llena $_GET desde la query string,
+     así que aquí se parsea QUERY_STRING a mano. Un enlace guardado tipo
+     "/publico?dia=viernes-06-11&q=futbol#tab-fixture" pasa a ser
+     "/panel-publico/dia/viernes-06-11#tab-fixture": sin "?", sin "q=" y sin
+     hash duplicado. El hash lo conserva el navegador al redirigir. */
+  if (!headers_sent()) {
+      $__q_raw = isset($_SERVER['QUERY_STRING']) ? (string) $_SERVER['QUERY_STRING'] : '';
+      if ($__q_raw !== '') {
+          $__qs = array();
+          parse_str($__q_raw, $__qs);
+          // Solo se redirige si TODOS los parámetros son filtros conocidos:
+          // cualquier otro valor se respeta tal cual (no se pierde información).
+          $__known = array('delegacion', 'deporte', 'categoria', 'dia', 'q', 'disciplina');
+          if (array_diff(array_keys($__qs), $__known) === array()) {
+              $__redir = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
+              foreach ($__seg_parts as $__p) {
+                  $__redir .= '/' . rawurlencode($__p[0]) . '/' . rawurlencode($__p[1]);
+              }
+              // Búsqueda antigua (?q=): se filtra en cliente, no va en la URL.
+              header('Location: ' . $__redir, TRUE, 301);
+              exit;
+          }
+      }
+  }
   ?>
+  <script>
+  // Estado inicial del día elegido, para que el JS rearme bien la ruta limpia.
+  window.__diaKeyActual = <?= json_encode($dia_key_actual) ?>;
+  window.__urlCanonica  = <?= json_encode($url_canonica) ?>;
+  </script>
   <div class="schedule-tools">
     <nav class="day-nav" id="day-nav" aria-label="Filtrar por día" data-base="<?= htmlspecialchars($url_base_filtros) ?>">
       <?php foreach ($dias_disp as $fecha_d => $info_d):
@@ -978,7 +1026,13 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     Array.prototype.forEach.call(document.querySelectorAll('main .panel'), function (panel) {
       panel.hidden = panel.id !== id;
     });
-    if (history.replaceState) history.replaceState(null, '', '#' + id);
+    /* Ojo con el hash: si se asigna SIEMPRE ('#' + id), cada click acumula otro
+       "#tab-fixture" en la barra (…#tab-fixture#tab-fixture#tab-fixture…).
+       Aquí se normaliza: la URL termina con UN solo #tab, y cualquier resto de
+       versión anterior (p. ej. "?dia=…&q=…") se limpia con replaceState. */
+    if (!history.replaceState) return;
+    var destino = (window.__urlCanonica || (location.pathname + location.search));
+    history.replaceState(null, '', destino + '#' + id);
   }
   tabButtons.forEach(function (button, index) {
     button.addEventListener('click', function () { setTab(button.dataset.tab); });
@@ -993,7 +1047,10 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       setTab(tabButtons[next].dataset.tab, true);
     });
   });
-  var initialTab = location.hash.replace('#', '');
+  // El hash puede venir sucio (p. ej. "#tab-fixture#tab-fixture" de versiones
+  // anteriores): se toma la última parte válida.
+  var hashPartes = (location.hash || '').replace(/^#/, '').split('#').filter(Boolean);
+  var initialTab = hashPartes.length ? hashPartes[hashPartes.length - 1] : '';
   if (['tab-fixture', 'tab-resultados', 'tab-medallero'].indexOf(initialTab) < 0) {
     initialTab = 'tab-fixture';
   }
@@ -1124,16 +1181,16 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     });
   }
 
-  /* ---------- URL: mantener ?dia= / ?q= compartibles ---------- */
+  /* ---------- Día / búsqueda: URL limpia, SIN query string ----------
+     Antes esto escribía ?dia=…&q=… en la barra (el origen de las URLs feas).
+     Día y búsqueda se aplican en el cliente, así que basta con rearmar la
+     ruta legible /panel-publico/.../dia/<clave>/buscar/<q> con pushState —
+     sin recargar la página. */
   function updateURL() {
-    if (!window.history || !history.replaceState) return;
-    var url = new URL(location.href);
     var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
-    if (!pressed || pressed.dataset.date === 'all') url.searchParams.delete('dia');
-    else url.searchParams.set('dia', pressed.dataset.day);
-    if (searchBox && searchBox.value.trim() !== '') url.searchParams.set('q', searchBox.value.trim());
-    else url.searchParams.delete('q');
-    history.replaceState(null, '', url.toString() + (url.hash || ''));
+    var diaKey = (!pressed || pressed.dataset.day === 'all') ? '' : pressed.dataset.day;
+    if (window) window.__diaKeyActual = diaKey || 'all';
+    navegarFiltros({ dia: diaKey || 'all' });
   }
 
   /* ---------- Filtros server-side → URL limpia (sin query string) ----------
@@ -1175,7 +1232,8 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     if (s.deporte)    seg.push('deporte', encodeURIComponent(s.deporte));
     if (s.categoria)  seg.push('categoria', encodeURIComponent(s.categoria));
     if (s.dia && s.dia !== 'all') seg.push('dia', encodeURIComponent(s.dia));
-    if (s.buscar)     seg.push('buscar', encodeURIComponent(slug(s.buscar)));
+    // La búsqueda NO viaja por la URL: se filtra en el cliente. Meterla en la
+    // barra era parte de lo que ensuciaba la dirección.
     var url = PANEL_BASE + (seg.length ? '/' + seg.join('/') : '');
     var tab = document.querySelector('.primary-tabs [role="tab"].activo');
     return url + (tab ? '#' + tab.dataset.tab : '');
@@ -1184,7 +1242,18 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   function navegarFiltros(s) {
     var url = urlLimpia(s);
     // Si el usuario solo cambió día/búsqueda, no recargar: aplicar en cliente.
-    if (url === location.pathname + location.search + location.hash) return;
+    if (url === location.pathname + location.hash) return;
+    // IMPORTANTE: pushState exige mismo origen. Si el sitio se ve por IP o
+    // detrás de un proxy y PANEL_BASE apunta a otro host, lanzaría SecurityError
+    // y rompería los filtros. Se comprueba antes de usar la History API.
+    var mismoOrigen = false;
+    try { mismoOrigen = new URL(url, location.href).origin === location.origin; } catch (e) {}
+    if (history.pushState && mismoOrigen) {
+      // Día y búsqueda ya se aplicaron en memoria (applyFilters): basta con
+      // actualizar la barra sin pedir nada al servidor → URL limpia y rápida.
+      history.pushState({ filtros: s }, '', url);
+      return;
+    }
     location.href = url;
   }
 
@@ -1223,6 +1292,25 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   if (selDel) selDel.addEventListener('change', submitFilters);
 
   applyFilters(false);
+
+  /* ---------- Normalizar la barra al cargar (enlaces viejos con ?dia=&q=) ----------
+     Si llegamos con query string heredado, se reemplaza por la ruta limpia
+     equivalente sin recargar; y si el hash viene duplicado (#tab-x#tab-x),
+     queda un solo #tab-x. */
+  (function () {
+    if (!window.history || !history.replaceState) return;
+    var canon = window.__urlCanonica || '';
+    if (!canon) return;
+    var mismoOrigen = false;
+    try { mismoOrigen = new URL(canon, location.href).origin === location.origin; } catch (e) {}
+    if (!mismoOrigen) return;
+    var h = (location.hash || '').replace(/^#/, '').split('#').filter(Boolean);
+    var tabActiva = document.querySelector('.primary-tabs [role="tab"].activo');
+    var target = canon + (h.length ? '#' + h[h.length - 1] : (tabActiva ? '#' + tabActiva.dataset.tab : ''));
+    if (target !== location.pathname + location.search + location.hash) {
+      history.replaceState(null, '', target);
+    }
+  })();
 })();
 </script>
 </body>
