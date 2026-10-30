@@ -134,8 +134,8 @@ svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;
 .schedule-tools{display:flex;align-items:center;justify-content:space-between;gap:20px}
 .day-nav{display:flex;gap:6px;min-width:0;overflow-x:auto;padding:2px 2px 7px;scrollbar-width:thin;
          scrollbar-color:#496345 transparent}
-.day-button{flex-shrink:0;border:1px solid #36506c;background:#1a2e46;min-width:72px;min-height:56px;
-            border-radius:8px;padding:7px 12px;font-size:11px;color:#b7c8d9;line-height:1.35}
+.day-button{display:block;flex-shrink:0;border:1px solid #36506c;background:#1a2e46;min-width:72px;min-height:56px;
+            border-radius:8px;padding:7px 12px;font-size:11px;color:#b7c8d9;line-height:1.35;text-decoration:none}
 .day-button strong{display:block;font-size:16px;color:#f1f6fa;font-weight:650;margin-top:1px}
 .day-button:hover{border-color:#9abf5d;background:#233b4d}
 .day-button[aria-pressed=true]{background:#2b402a;border-color:#84b936;color:#d9f99d}
