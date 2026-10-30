@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1b2a">
+  <meta name="description" content="Maqueta navegable del panel público de las XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda. La Pampa 2026.">
+  <title>Olimpiadas La Pampa 2026 · Agenda y resultados</title>
+  <style>/*__CSS__*/</style>
+</head>
+<body>
+<a class="skip" href="#contenido">Ir al contenido</a>
+<div class="preview-bar"><div class="container"><span><span class="preview-dot"></span> MAQUETA NAVEGABLE <span class="preview-date">· Datos de referencia del 29/10/2026</span></span><a href="https://olimpicosipv.wnpower.host/publico" target="_blank" rel="noopener">Ver sitio actual <span aria-hidden="true">↗</span></a></div></div>
+<header class="masthead">
+  <div class="container masthead-inner">
+    <img class="official-logo" src="/*__LOGO__*/" alt="XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda · La Pampa 2026" width="220" height="130">
+    <div class="masthead-copy"><p class="eyebrow">LA PAMPA 2026 <span aria-hidden="true">/</span> PANEL PÚBLICO</p><h1>Agenda y resultados</h1><p>Toda la competencia, en un solo lugar.</p></div>
+    <div class="event-mark"><span class="event-mark-label">XXXVIII EDICIÓN</span><span>Nos une el deporte.</span><div class="color-stripes" aria-hidden="true"><i></i><i></i><i></i><i></i></div></div>
+  </div>
+</header>
+<main id="contenido" class="container">
+  <section class="filters-card" aria-labelledby="filters-title">
+    <div class="filters-heading"><div><h2 id="filters-title">Encontrá tu competencia</h2><p>Elegí una delegación, un deporte o una categoría.</p></div><button type="button" class="reset-button" id="reset-filters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.8 7.1M4 4v6h6"/></svg>Limpiar filtros</button></div>
+    <form id="filters-form" class="filters-form">/*__FILTERS__*/</form>
+  </section>
+  <section class="stats" aria-label="Resumen general del evento">/*__STATS__*/</section>
+  <div class="workspace">
+    <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
+      <button role="tab" id="button-fixture" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
+      <button role="tab" id="button-resultados" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
+      <button role="tab" id="button-medallero" aria-controls="tab-medallero" aria-selected="false" data-tab="tab-medallero" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>Medallero</button>
+    </nav>
+    <section class="panel" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
+      <div class="section-heading"><div><p class="eyebrow">LA AGENDA</p><h2>Fixture de competencias</h2><p id="fixture-description">Consultá horarios, sedes y encuentros.</p></div><div class="snapshot-note"><span class="small-dot"></span>Datos de referencia <strong>29 oct 2026</strong></div></div>
+      <div class="schedule-tools"><nav id="day-nav" class="day-nav" aria-label="Filtrar por día"></nav><label class="search-box"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><input id="search" type="search" placeholder="Buscar equipo o sede" aria-label="Buscar equipo, sede o categoría"></label></div>
+      <div class="fixture-meta"><p id="fixture-count" aria-live="polite" role="status"></p><button id="expand-disciplines" type="button">Desplegar disciplinas <span aria-hidden="true">↓</span></button></div>
+      <div id="schedule"></div>
+      <div id="search-empty" class="empty-state" hidden><div class="empty-icon" aria-hidden="true">⌕</div><h3>No encontramos competencias</h3><p>Probá con otra búsqueda o cambiá los filtros.</p><button type="button" class="secondary-button" id="clear-search">Ver todas las competencias</button></div>
+    </section>
+    <section class="panel" id="tab-resultados" role="tabpanel" aria-labelledby="button-resultados" tabindex="0" hidden><div class="section-heading"><div><p class="eyebrow">CADA ENCUENTRO CUENTA</p><h2>Resultados</h2><p>Marcadores y posiciones por competencia.</p></div></div><div id="results-content"></div></section>
+    <section class="panel" id="tab-medallero" role="tabpanel" aria-labelledby="button-medallero" tabindex="0" hidden><div class="section-heading"><div><p class="eyebrow">EL ESFUERZO TIENE SU LUGAR</p><h2>Medallero</h2><p>Medallas obtenidas por cada delegación.</p></div></div><div id="medals-content"></div></section>
+  </div>
+  <div class="bottom-note"><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>Los horarios y sedes corresponden a la información publicada al preparar esta maqueta.</span><a href="https://olimpicosipv.wnpower.host/publico" target="_blank" rel="noopener">Consultar información actualizada ↗</a></div>
+</main>
+<footer class="footer"><div class="container"><div><strong>La Pampa 2026</strong><p>XXXVIII Olimpiadas Nacionales de Empleados de Institutos de Vivienda</p></div><span>Panel público <span aria-hidden="true">·</span> Sin datos personales</span></div></footer>
+<script id="snapshot-data" type="application/json">/*__DATA__*/</script>
+<script>/*__JS__*/</script>
+</body>
+</html>
