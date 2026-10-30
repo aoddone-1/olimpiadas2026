@@ -383,17 +383,28 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
       </div>
 
       <div class="schedule-tools">
+        <?php /* Cada día es un <a> con su URL real (?dia=...): funciona incluso
+                  si el JavaScript no carga o falla (degradación progresiva). */ ?>
         <nav id="day-nav" class="day-nav" aria-label="Filtrar por día">
           <?php foreach ($days_present as $did => $dtitle):
-              $dp = explode(' ', $dtitle, 2); ?>
-            <button type="button" class="day-button" data-day="<?= $e($did) ?>"
-                    aria-pressed="<?= ($id_dia_get === $did) ? 'true' : 'false' ?>" aria-label="<?= $e($dtitle) ?>">
+              $dp = explode(' ', $dtitle, 2);
+              $day_qs = array();
+              if (!empty($delegacion)) $day_qs['delegacion'] = $delegacion;
+              if (!empty($id_deporte)) $day_qs['deporte'] = (int) $id_deporte;
+              if (!empty($id_categoria)) $day_qs['categoria'] = (int) $id_categoria;
+              if ($q !== '') $day_qs['q'] = $q;
+              $day_qs['dia'] = $did;
+              $day_href = site_url('publico') . '?' . http_build_query($day_qs); ?>
+            <a type="button" class="day-button" href="<?= $e($day_href) ?>" data-day="<?= $e($did) ?>"
+               aria-pressed="<?= ($id_dia_get === $did) ? 'true' : 'false' ?>" aria-label="<?= $e($dtitle) ?>">
               <span><?= $e(substr($dp[0], 0, 3)) ?></span><strong><?= $e(isset($dp[1]) ? $dp[1] : $did) ?></strong>
-            </button>
+            </a>
           <?php endforeach; ?>
-          <?php if (count($days_present) > 1): ?>
-            <button type="button" class="day-button all-days" data-day="all"
-                    aria-pressed="<?= ($id_dia_get === 'all') ? 'true' : 'false' ?>">Todos<br>los días</button>
+          <?php if (count($days_present) > 1):
+              unset($day_qs['dia']);
+              $all_href = site_url('publico') . (count($day_qs) ? '?' . http_build_query($day_qs) : ''); ?>
+            <a class="day-button all-days" href="<?= $e($all_href) ?>" data-day="all"
+               aria-pressed="<?= ($id_dia_get === 'all' || $id_dia_get === '') ? 'true' : 'false' ?>">Todos<br>los días</a>
           <?php endif; ?>
         </nav>
         <label class="search-box">
@@ -653,27 +664,53 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   var category = document.getElementById('filtroCategoria');
   var search = document.getElementById('search');
   var form = document.getElementById('filters-form');
+  var dayNav = document.getElementById('day-nav');
+  var expandBtn = document.getElementById('expand-disciplines');
+  var toggle = document.getElementById('toggle-filters');
+  var card = document.getElementById('filters-card');
 
-  /* Helpers ES5: compatibles con cualquier navegador moderno y WebView antiguos. */
+  /* Helpers ES5 puros: funcionan en cualquier navegador (incluso WebViews muy
+     antiguos). Nada de dataset/closest/NodeList.forEach/Map/toggle(2 argos). */
+  function all(sel, root) {
+    return Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  }
   function each(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i], i); }
+  function on(el, type, fn) { if (el) el.addEventListener(type, fn, false); }
   function closestEl(el, selector) {
-    while (el) { if (el.matches && el.matches(selector)) return el; el = el.parentElement; }
+    while (el) {
+      if (el.nodeType === 1 && typeof el.matches === 'function' && el.matches(selector)) return el;
+      el = el.parentElement || el.parentNode;
+      if (el && el.nodeType !== 1) el = null;
+    }
     return null;
   }
-  function selectedOption(sel) {
-    var opts = sel.options;
-    for (var i = 0; i < opts.length; i++) if (opts[i].selected) return opts[i];
-    return null;
+  function selectedOptionText(sel) {
+    var opt = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null;
+    return opt ? (opt.textContent || '').replace(/\s+/g, ' ').trim() : '';
+  }
+  function addOrRemoveClass(el, name, add) {
+    if (!el) return;
+    if (add) { el.classList.add(name); } else { el.classList.remove(name); }
   }
 
-  /* ---------- Cascada Deporte → Categoría (misma regla que antes) ---------- */
-  var originalCategoryLabels = {};
-  each(category.options, function (o) {
-    if (o.value !== '') originalCategoryLabels[o.value] = o.textContent.replace(/\s+/g, ' ').trim();
+  /* Enlaces "Limpiar filtros" / "Ver todas las competencias": conservan la
+     pestaña activa (si no es Fixture) para no perder el contexto. */
+  each(all('.reset-button, .secondary-button', document.getElementById('contenido')), function (a) {
+    var href = a.getAttribute('href') || '';
+    if (href.indexOf('?') >= 0 || href.indexOf('#') >= 0) return;
+    a.setAttribute('href', href + (activePanel !== 'tab-fixture' ? '#' + activePanel : ''));
   });
+
+  /* ---------- Cascada Deporte → Categoría ---------- */
+  var originalCategoryLabels = {};
+  if (category) {
+    each(category.options, function (o) {
+      if (o.value !== '') originalCategoryLabels[o.value] = (o.textContent || '').replace(/\s+/g, ' ').trim();
+    });
+  }
   function syncCategories() {
-    var selOpt = selectedOption(sport);
-    var selectedSport = selOpt ? selOpt.textContent.trim() : '';
+    if (!category || !sport) return;
+    var selectedSport = selectedOptionText(sport);
     each(category.options, function (option) {
       if (!option.value) return;
       var allowed = !sport.value || option.getAttribute('data-deporte') === sport.value;
@@ -685,25 +722,20 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
       option.textContent = (sport.value && original.indexOf(prefix) === 0)
         ? original.slice(prefix.length) : original;
     });
-    var curCat = selectedOption(category);
-    if (curCat && curCat.disabled) category.value = '';
+    var cur = category.selectedIndex >= 0 ? category.options[category.selectedIndex] : null;
+    if (cur && cur.disabled) category.value = '';
     each([delegation, sport, category], function (sel) {
-      if (sel.value) sel.classList.add('has-filter'); else sel.classList.remove('has-filter');
+      if (sel) addOrRemoveClass(sel, 'has-filter', !!sel.value);
     });
   }
-  window.onFiltroDeporte = function () { syncCategories(); form.submit(); };
   syncCategories();
-
-  /* El select de Deporte NO tiene onchange inline: aquí se encadena la cascada
-     y se envía el formulario (recarga con filtros del servidor). */
-  sport.addEventListener('change', function () { syncCategories(); form.submit(); });
 
   /* ---------- Navegación por día y búsqueda: recarga con GET ---------- */
   function buildUrl(dia, q) {
     var p = [];
-    if (delegation.value) p.push('delegacion=' + encodeURIComponent(delegation.value));
-    if (sport.value) p.push('deporte=' + encodeURIComponent(sport.value));
-    if (category.value) p.push('categoria=' + encodeURIComponent(category.value));
+    if (delegation && delegation.value) p.push('delegacion=' + encodeURIComponent(delegation.value));
+    if (sport && sport.value) p.push('deporte=' + encodeURIComponent(sport.value));
+    if (category && category.value) p.push('categoria=' + encodeURIComponent(category.value));
     if (dia) p.push('dia=' + encodeURIComponent(dia));
     if (q) p.push('q=' + encodeURIComponent(q));
     var url = BASE_URL + (p.length ? '?' + p.join('&') : '');
@@ -712,115 +744,133 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   }
   function goTo(dia, q) { location.href = buildUrl(dia, q); }
 
-  document.getElementById('day-nav').addEventListener('click', function (event) {
-    var button = closestEl(event.target, '[data-day]');
-    if (!button) return;
-    var pressed = button.getAttribute('aria-pressed') === 'true';
-    goTo(pressed ? 'all' : button.getAttribute('data-day'), search.value.trim());
+  /* Delegación y Categoría: submit del formulario (conserva día/búsqueda vía
+     hidden inputs). Se atan por JS — sin depender de atributos inline. */
+  on(delegation, 'change', function () { if (form) form.submit(); });
+  on(category, 'change', function () { if (form) form.submit(); });
+  /* Deporte: primero recalcula la cascada y luego envía el formulario. */
+  on(sport, 'change', function () { syncCategories(); if (form) form.submit(); });
+
+  /* Días: un botón por día + "Todos los días" (igual que la maqueta).
+     Cada botón es un <a> real: funciona incluso si el JS no carga. */
+  on(dayNav, 'click', function (event) {
+    var link = closestEl(event.target, 'a[data-day]');
+    if (!link) return;
+    if (event.preventDefault) event.preventDefault();
+    var pressed = link.getAttribute('aria-pressed') === 'true';
+    goTo(pressed ? 'all' : link.getAttribute('data-day'), search ? search.value.trim() : '');
   });
 
-  /* Búsqueda: aplica al dejar de escribir o con Enter (evita recargar por tecla). */
+  /* Búsqueda: Enter o al dejar de escribir (debounce, evita recargar x tecla). */
   function selectedDay() {
-    var cur = document.querySelector('.day-button[aria-pressed=true]');
-    return cur ? cur.getAttribute('data-day') : INITIAL.dia;
+    var cur = dayNav ? dayNav.querySelector('a[aria-pressed="true"]:not(.all-days)') : null;
+    if (cur) return cur.getAttribute('data-day');
+    var allBtn = dayNav ? dayNav.querySelector('a.all-days[aria-pressed="true"]') : null;
+    if (allBtn) return 'all';
+    return INITIAL.dia;
   }
   var debounce;
-  search.addEventListener('input', function () {
+  on(search, 'input', function () {
     clearTimeout(debounce);
     debounce = setTimeout(function () { goTo(selectedDay(), search.value.trim()); }, 700);
   });
-  search.addEventListener('keydown', function (event) {
-    if (event.key === 'Enter') {
-      clearTimeout(debounce); event.preventDefault();
+  on(search, 'keydown', function (event) {
+    if (event.key === 'Enter' || event.keyCode === 13) {
+      clearTimeout(debounce);
+      if (event.preventDefault) event.preventDefault();
       goTo(selectedDay(), search.value.trim());
     }
   });
 
   /* ---------- Desplegar / contraer todas las disciplinas ---------- */
-  var expandBtn = document.getElementById('expand-disciplines');
+  var forcedOpen = !!INITIAL.q || !!(sport && sport.value) || !!(category && category.value) ||
+                   (INITIAL.dia && INITIAL.dia !== 'all');
+  var expandedAll = false;
+  function disciplineGroups() { return all('#schedule details.discipline-group'); }
   function syncDisclosureButton() {
-    var groups = Array.prototype.slice.call(document.querySelectorAll('#schedule .discipline-group'));
+    if (!expandBtn) return;
+    var groups = disciplineGroups();
     expandBtn.hidden = !groups.length;
     var anyOpen = false;
     each(groups, function (d) { if (d.open) anyOpen = true; });
-    expandBtn.innerHTML = (anyOpen ? 'Contraer disciplinas <span aria-hidden="true">↑</span>'
-                                   : 'Desplegar disciplinas <span aria-hidden="true">↓</span>');
+    expandBtn.innerHTML = anyOpen
+      ? 'Contraer disciplinas <span aria-hidden="true">\u2191</span>'
+      : 'Desplegar disciplinas <span aria-hidden="true">\u2193</span>';
   }
-  expandBtn.addEventListener('click', function () {
-    var groups = Array.prototype.slice.call(document.querySelectorAll('#schedule .discipline-group'));
+  on(expandBtn, 'click', function () {
+    var groups = disciplineGroups();
     var open = false;
     each(groups, function (d) { if (d.open) open = true; });
     open = !open;
+    expandedAll = open;
     each(groups, function (d) { d.open = open; });
     syncDisclosureButton();
   });
 
-  /* Al abrir una disciplina, cerrar la anterior del mismo día (navegación normal,
-     salvo cuando se entró con búsqueda/filtro activo: ahí todo queda abierto). */
-  var forcedOpen = !!INITIAL.q || !!sport.value || !!category.value || (INITIAL.dia && INITIAL.dia !== 'all');
-  each(document.querySelectorAll('#schedule .discipline-group'), function (details) {
-    details.addEventListener('toggle', function () {
-      if (forcedOpen) return;
-      if (details.open) {
-        var sibs = [];
-        var kids = details.parentElement.children;
+  /* Al abrir una disciplina, cerrar las otras del mismo día (igual que la
+     maqueta: sin <details name=""> para no romper navegadores antiguos). */
+  each(disciplineGroups(), function (details) {
+    var summary = details.firstElementChild;
+    on(summary, 'click', function () {
+      if (forcedOpen || expandedAll) return;
+      if (!details.open) {
+        var parent = details.parentElement;
+        var kids = parent ? parent.children : [];
         for (var i = 0; i < kids.length; i++) {
           var k = kids[i];
           if (k !== details && k.tagName === 'DETAILS' &&
-              k.className.indexOf('discipline-group') >= 0 && k.open) sibs.push(k);
+              (' ' + k.className + ' ').indexOf(' discipline-group ') >= 0 && k.open) k.open = false;
         }
-        each(sibs, function (other) { other.open = false; });
       }
-      syncDisclosureButton();
     });
+    on(details, 'toggle', syncDisclosureButton);
   });
   syncDisclosureButton();
 
-  /* ---------- Pestañas (con estados y navegación por teclado) ---------- */
+  /* ---------- Pestañas (Fixture / Resultados / Medallero) ---------- */
   var activePanel = ['tab-resultados', 'tab-medallero'].indexOf(location.hash.slice(1)) >= 0
     ? location.hash.slice(1) : 'tab-fixture';
   function setTab(id, focus) {
     activePanel = id;
-    each(document.querySelectorAll('.primary-tabs button'), function (button) {
-      var active = button.getAttribute('data-tab') === id;
-      button.setAttribute('aria-selected', String(active));
-      button.tabIndex = active ? 0 : -1;
-      if (active && focus) button.focus();
+    each(all('.primary-tabs button'), function (button) {
+      var isActive = button.getAttribute('data-tab') === id;
+      button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      button.tabIndex = isActive ? 0 : -1;
+      if (isActive && focus && button.focus) button.focus();
     });
-    each(document.querySelectorAll('.workspace .panel-tab'), function (panel) {
+    each(all('.workspace .panel-tab'), function (panel) {
       panel.hidden = panel.id !== id;
     });
-    try { history.replaceState(null, '', buildUrl(INITIAL.dia, INITIAL.q)); } catch (err) { /* noop */ }
+    try { if (history && history.replaceState) history.replaceState(null, '', buildUrl(INITIAL.dia, INITIAL.q)); } catch (err) { /* noop */ }
   }
-  var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.primary-tabs button'));
+  var tabButtons = all('.primary-tabs button');
   each(tabButtons, function (button, index) {
-    button.addEventListener('click', function () { setTab(button.getAttribute('data-tab')); });
-    button.addEventListener('keydown', function (event) {
-      var next;
-      if (event.key === 'ArrowRight') next = (index + 1) % tabButtons.length;
-      else if (event.key === 'ArrowLeft') next = (index - 1 + tabButtons.length) % tabButtons.length;
-      else if (event.key === 'Home') next = 0;
-      else if (event.key === 'End') next = tabButtons.length - 1;
+    on(button, 'click', function () { setTab(button.getAttribute('data-tab')); });
+    on(button, 'keydown', function (event) {
+      var key = event.key || String.fromCharCode(event.keyCode);
+      var next = -1;
+      if (key === 'ArrowRight') next = (index + 1) % tabButtons.length;
+      else if (key === 'ArrowLeft') next = (index - 1 + tabButtons.length) % tabButtons.length;
+      else if (key === 'Home') next = 0;
+      else if (key === 'End') next = tabButtons.length - 1;
       else return;
-      event.preventDefault();
+      if (event.preventDefault) event.preventDefault();
       setTab(tabButtons[next].getAttribute('data-tab'), true);
     });
   });
   setTab(activePanel);
 
   /* ---------- Filtros colapsables en celular ---------- */
-  var toggle = document.getElementById('toggle-filters');
-  var card = document.getElementById('filters-card');
-  toggle.addEventListener('click', function () {
-    var open = card.classList.contains('open');
-    if (open) card.classList.remove('open'); else card.classList.add('open');
-    toggle.setAttribute('aria-expanded', String(!open));
+  on(toggle, 'click', function () {
+    var open = card && card.classList.contains('open');
+    addOrRemoveClass(card, 'open', !open);
+    if (toggle) toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
   });
   if (typeof window.matchMedia === 'function' &&
       window.matchMedia('(max-width:680px)').matches &&
-      (INITIAL.delegacion || sport.value || category.value)) {
-    card.classList.add('open');
-    toggle.setAttribute('aria-expanded', 'true');
+      (INITIAL.delegacion || (sport && sport.value) || (category && category.value))) {
+    addOrRemoveClass(card, 'open', true);
+    if (toggle) toggle.setAttribute('aria-expanded', 'true');
   }
 })();
 </script>
