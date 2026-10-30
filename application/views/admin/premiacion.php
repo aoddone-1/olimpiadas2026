@@ -53,7 +53,10 @@
 .pm-deporte { font-weight: 800; color:#14213d; }
 .pm-cat { color:#6c757d; font-size:.85rem; }
 
-.pm-podio { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; padding: 1rem; background: #fbfcfe; }
+/* Columnas según la cantidad de puestos que premia la REGLA de la categoría
+   (clase pm-puestos-N puesta por JS). Por defecto 3. */
+.pm-podio { display: grid; grid-template-columns: repeat(var(--pm-puestos, 3), 1fr); gap: .6rem; padding: 1rem; background: #fbfcfe; }
+.pm-podios-1 .pm-medalla { max-width: 420px; margin: 0 auto; width: 100%; }
 @media (max-width: 700px){ .pm-podio { grid-template-columns: 1fr; } }
 
 .pm-medalla {
@@ -353,6 +356,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
     function cardPodio(item, entregada) {
         const c = item.categoria;
+        // En modo solo lectura no se puede editar la regla ni premiar.
+        const btnRegla = SOLO_LECTURA ? '' : `
+                    <button type="button" class="btn btn-sm btn-outline-secondary pm-regla" data-cat="${c.id_categoria}"
+                            title="Configurar qué puestos se premian y con qué (⚙️ Regla de premiación)">
+                        <i class="bi bi-sliders"></i>
+                    </button>`;
         const podio = item.podio || {};
         const regs = item.entregados || {};
         const esPuntaje = !!item.tabla_puntaje;
@@ -362,16 +371,26 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 ? '<span class="badge rounded-pill bg-warning-subtle text-warning-emphasis border pm-badge-origen">MARCADOR · tabla de puntos</span>'
                 : '<span class="badge rounded-pill bg-primary-subtle text-primary-emphasis border pm-badge-origen">MARCADOR · podio del torneo</span>');
 
+        // Puestos a dibujar: los que define la REGLA de la categoría
+        // (pueden ser 1, 2, 3 o más). Si no viene regla, default 1/2/3.
+        const regla = reglaDe(item);
+        const puestos = regla.map(r => r.puesto);
+        const premioDe = pos => regla.find(x => x.puesto === pos);
+
         let celdas = '';
-        [1, 2, 3].forEach(pos => {
+        puestos.forEach(pos => {
             const p = podio[pos];
             const reg = regs[pos];
+            const r = premioDe(pos);
+            const disco = discoPara(regla, pos);
+            const label = textoPuesto(item, pos);
             const nombre = reg ? reg.nombre : (p ? p.nombre : null);
+            const estiloColor = colorDe(pos) ? `style="--color-medalla:${colorDe(pos)};border-color:${colorDe(pos)}44;background:#fff"` : '';
             if (nombre) {
                 celdas += `
-                    <div class="pm-medalla ${CLASES[pos]}">
-                        <div class="pm-disco">${MEDALLAS[pos]}</div>
-                        <div class="pm-puesto-label">${LABELS[pos]}</div>
+                    <div class="pm-medalla ${claseDe(pos)}" ${estiloColor}>
+                        <div class="pm-disco">${disco}</div>
+                        <div class="pm-puesto-label">${esc(label)}</div>
                         <div class="pm-nombre">${esc(nombre)}</div>
                         ${p && p.desempate ? `<div class="pm-extra text-warning fw-bold"><i class="bi bi-trophy-fill"></i> ganó en ${esc(p.desempate)}</div>` : ''}
                         ${p && p.extra ? `<div class="pm-extra">${esc(p.extra)}</div>` : ''}
@@ -379,11 +398,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     </div>`;
             } else {
                 celdas += `
-                    <div class="pm-medalla pm-vacio">
-                        <div class="pm-disco">${MEDALLAS[pos]}</div>
-                        <div class="pm-puesto-label">${LABELS[pos]}</div>
+                    <div class="pm-medalla pm-vacio" ${estiloColor}>
+                        <div class="pm-disco">${disco}</div>
+                        <div class="pm-puesto-label">${esc(label)}</div>
                         <div class="pm-nombre">por definir</div>
-                        <div class="pm-extra small">${item.origen === 'MARCADOR' ? 'faltan final / tercer puesto' : 'sin posición cargada'}</div>
+                        <div class="pm-extra small">${item.origen === 'MARCADOR' ? 'faltan resultados para esta posición' : 'sin posición cargada'}</div>
                     </div>`;
             }
         });
@@ -411,9 +430,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     <span class="pm-deporte"><i class="bi bi-trophy-fill text-warning me-1"></i>${esc(c.nombre_deporte)}</span>
                     <span class="text-muted mx-1">›</span>
                     <span class="pm-cat">${esc(c.nombre_categoria)} (${esc(c.genero || '')})</span>
+                    <div class="small text-muted mt-1"><i class="bi bi-sliders me-1"></i>${esc(item.texto_regla || 'Premiación clásica 1º/2º/3º')}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
                     ${item.atraso ? '<span class="badge rounded-pill bg-warning text-dark border pm-badge-origen"><i class="bi bi-exclamation-triangle-fill me-1"></i>Atraso</span>' : ''}
+                    ${btnRegla}
                     ${origenBadge}
                     <span class="badge rounded-pill bg-dark-subtle text-dark-emphasis border">
                         <i class="bi bi-moon-stars me-1"></i>${fechaArma(item.fecha_entrega)}
@@ -422,7 +443,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             </div>
             <div class="pm-cuerpo">
                 ${entregada ? '<span class="pm-stamp">PREMIADO</span>' : ''}
-                <div class="pm-podio">${celdas}</div>
+                <div class="pm-podio pm-podios-${puestos.length}" style="--pm-puestos:${puestos.length}">${celdas}</div>
                 ${esPuntaje ? tablaPuntajeHtml(item.tabla_puntaje) : ''}
             </div>
             ${acciones}
@@ -443,7 +464,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         document.getElementById('pm_stat_entregadas').textContent = ent.length;
         let medallas = 0;
         itemsCache.forEach(it => {
-            [1, 2, 3].forEach(p => { if (it.podio && it.podio[p]) medallas++; });
+            // Se cuentan los puestos confirmados (entregados) de la REGLA.
+            const regs = it.entregados || {};
+            reglaDe(it).forEach(r => { if (regs[r.puesto]) medallas++; });
         });
         document.getElementById('pm_stat_medallas').textContent = medallas;
 
@@ -478,6 +501,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             b.addEventListener('click', () => abrirModal(b.dataset.cat)));
         document.querySelectorAll('.pm-anular').forEach(b =>
             b.addEventListener('click', () => anular(b.dataset.cat)));
+        document.querySelectorAll('.pm-regla').forEach(b =>
+            b.addEventListener('click', () => abrirModalRegla(b.dataset.cat)));
     }
 
     function cargar() {
@@ -519,15 +544,31 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             '</div>';
 
         const regs = it.entregados || {};
-        [1, 2, 3].forEach(p => {
-            const inp = document.getElementById('pm_in_' + p);
-            const reg = regs[p];
-            const dato = (it.podio || {})[p];
+        // Inputs dinámicos: SOLO los puestos que premia la REGLA de la categoría.
+        const reglaM = reglaDe(it);
+        const $puestosBox = document.getElementById('pm_modal_puestos');
+        $puestosBox.innerHTML = reglaM.map(r => {
+            const pos = r.puesto;
+            const col = colorDe(pos) || '#ccc';
+            return `
+                <div class="col-md-6">
+                    <label class="form-label small fw-bold">${esc(textoPuesto(it, pos))}</label>
+                    <input type="text" id="pm_in_${pos}" class="form-control pm-input-puesto"
+                           style="--color-medalla:${col}" maxlength="120"
+                           placeholder="Nombre del ganador">
+                </div>`;
+        }).join('');
+        reglaM.forEach(r => {
+            const pos = r.puesto;
+            const inp = document.getElementById('pm_in_' + pos);
+            if (!inp) return;
+            const reg = regs[pos];
+            const dato = (it.podio || {})[pos];
             inp.value = reg ? reg.nombre : (dato ? dato.nombre : '');
         });
         // Aviso si algún puesto se definió por desempate (ej: final 50-50 en penales).
         const infoBox = document.getElementById('pm_modal_info');
-        const conDes = [1, 2, 3].map(p => (it.podio || {})[p]).filter(p => p && p.desempate);
+        const conDes = reglaM.map(r => (it.podio || {})[r.puesto]).filter(p => p && p.desempate);
         if (conDes.length) {
             infoBox.innerHTML +=
                 '<div class="alert alert-warning py-2 px-3 mt-2 mb-0 small">' +
@@ -544,8 +585,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     document.getElementById('pm_btn_confirmar').addEventListener('click', () => {
         if (!catActual) return;
         const puestos = [];
-        [1, 2, 3].forEach(p => {
-            const v = document.getElementById('pm_in_' + p).value.trim();
+        // Solo los puestos de la REGLA (los inputs que existen en el modal).
+        reglaDe(catActual).forEach(r => {
+            const p = r.puesto;
+            const inp = document.getElementById('pm_in_' + p);
+            if (!inp) return;
+            const v = inp.value.trim();
             if (!v) return;
             const dato = (catActual.podio || {})[p] || {};
             puestos.push({ puesto: p, nombre: v, id_ute: dato.id || null });
@@ -575,6 +620,168 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             if (res.ok) cargar();
         });
     }
+
+    /* ---------- Modal: REGLA DE PREMIACIÓN de la categoría ---------- */
+    let modalReglaObj = null;
+    let reglaCatActual = null;   // { id_categoria, tipos:[{nombre,icono}], regla:[...], dia_sugerido }
+
+    const $filasRegla = document.getElementById('pm_regla_filas');
+
+    function selectPremioHtml(val) {
+        const tipos = (reglaCatActual && reglaCatActual.tipos) || [];
+        let opts = '';
+        tipos.forEach(t => {
+            const sel = (t.nombre === val) ? ' selected' : '';
+            opts += `<option value="${esc(t.nombre)}"${sel}>${esc(t.icono || '')} ${esc(t.nombre)}</option>`;
+        });
+        // Si el premio guardado no está en el catálogo, agregarlo igual.
+        if (val && !tipos.some(t => t.nombre === val)) {
+            opts = `<option value="${esc(val)}" selected>${esc(val)}</option>` + opts;
+        }
+        return opts;
+    }
+
+    function renderFilasRegla() {
+        if (!reglaCatActual) return;
+        const r = reglaCatActual.regla;
+        $filasRegla.innerHTML = r.map((x, i) => `
+            <div class="row g-2 align-items-end mb-2 pm-regla-fila" data-i="${i}">
+                <div class="col-2 text-center">
+                    <span class="badge ${x.puesto <= 3 ? (CLASES[x.puesto] ? 'bg-dark' : 'bg-secondary') : 'bg-secondary'} rounded-pill fw-bold">
+                        ${x.puesto}º
+                    </span>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1 fw-bold">Tipo de premio</label>
+                    <select class="form-select form-select-sm pm-r-premio">${selectPremioHtml(x.premio)}</select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small mb-1">Detalle (opcional)</label>
+                    <input type="text" class="form-control form-control-sm pm-r-etiqueta" maxlength="40"
+                           placeholder="Ej: Oro, Copa Challenger…" value="${esc(x.etiqueta || '')}">
+                </div>
+                <div class="col-md-2 text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger pm-r-quitar" title="Quitar este puesto">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>`).join('')
+            || '<div class="alert alert-warning py-2 small mb-0">No hay puestos definidos: agregá al menos uno.</div>';
+
+        // Leer los controles y sincronizar el modelo antes de tocarlo.
+        const leer = () => {
+            $filasRegla.querySelectorAll('.pm-regla-fila').forEach(f => {
+                const i = +f.dataset.i;
+                if (!reglaCatActual.regla[i]) return;
+                reglaCatActual.regla[i].premio   = f.querySelector('.pm-r-premio').value;
+                reglaCatActual.regla[i].etiqueta = f.querySelector('.pm-r-etiqueta').value.trim() || null;
+            });
+        };
+        $filasRegla.querySelectorAll('.pm-r-premio, .pm-r-etiqueta').forEach(el =>
+            el.addEventListener('change', leer));
+        $filasRegla.querySelectorAll('.pm-r-quitar').forEach(btn =>
+            btn.addEventListener('click', () => {
+                leer();
+                reglaCatActual.regla.splice(+btn.closest('.pm-regla-fila').dataset.i, 1);
+                renumerarRegla();
+                renderFilasRegla();
+            }));
+    }
+
+    /** Reordena los puestos 1..N tras quitar/agregar filas. */
+    function renumerarRegla() {
+        if (!reglaCatActual) return;
+        reglaCatActual.regla.forEach((x, i) => { x.puesto = i + 1; });
+    }
+
+    async function abrirModalRegla(idCat) {
+        const it = itemsCache.find(x => String(x.categoria.id_categoria) === String(idCat));
+        if (!it) return;
+        const res = await (fetch(BASE + '/ajax_regla_premiacion?id_categoria=' + encodeURIComponent(idCat),
+                                 { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                            .then(r => r.json())
+                            .catch(() => ({ ok: false, error: 'Respuesta inesperada del servidor.' })));
+        if (!res.ok) { mensaje(res.error || 'No se pudo cargar la regla.', 'danger'); return; }
+
+        reglaCatActual = {
+            id_categoria: res.id_categoria,
+            tipos: res.tipos || [],
+            regla: (res.regla || []).map(x => ({ puesto: x.puesto, premio: x.premio, etiqueta: x.etiqueta || null })),
+            dia_sugerido: res.dia_sugerido || null,
+        };
+        // Por si el item de la card tenía una versión más fresca de la regla.
+        if ((!reglaCatActual.regla.length || it.regla_default) && it.regla && it.regla.length && !res.regla_default) {
+            // nada: el servidor manda la configuración actual, siempre manda.
+        }
+
+        document.getElementById('pm_regla_info').innerHTML =
+            '<div class="d-flex flex-wrap align-items-center gap-2">' +
+            '<span class="badge bg-dark"><i class="bi bi-trophy-fill me-1"></i>' + esc(it.categoria.nombre_deporte) + '</span>' +
+            '<strong>' + esc(it.categoria.nombre_categoria) + '</strong>' +
+            '<span class="text-muted small">(' + esc(it.categoria.genero || '') + ')</span>' +
+            '</div>' +
+            (res.texto_regla ? '<div class="small text-muted mt-2">Actual: ' + esc(res.texto_regla) + '</div>' : '');
+
+        document.getElementById('pm_regla_dia').value = reglaCatActual.dia_sugerido || '';
+        renderFilasRegla();
+
+        const elModal = document.getElementById('modalRegla');
+        if (elModal.parentElement !== document.body) document.body.appendChild(elModal);
+        if (!modalReglaObj) modalReglaObj = new bootstrap.Modal(elModal);
+        modalReglaObj.show();
+    }
+
+    document.getElementById('pm_regla_agregar').addEventListener('click', () => {
+        if (!reglaCatActual) return;
+        const tipos = reglaCatActual.tipos || [];
+        const def = tipos.length ? tipos[0].nombre : 'Trofeo';
+        reglaCatActual.regla.push({ puesto: reglaCatActual.regla.length + 1, premio: def, etiqueta: null });
+        renderFilasRegla();
+    });
+
+    document.getElementById('pm_regla_default').addEventListener('click', () => {
+        if (!reglaCatActual) return;
+        reglaCatActual.regla = [
+            { puesto: 1, premio: 'Medalla', etiqueta: 'Oro' },
+            { puesto: 2, premio: 'Medalla', etiqueta: 'Plata' },
+            { puesto: 3, premio: 'Medalla', etiqueta: 'Bronce' },
+        ];
+        renderFilasRegla();
+    });
+
+    document.getElementById('pm_regla_borrar_dia').addEventListener('click', () => {
+        document.getElementById('pm_regla_dia').value = '';
+    });
+
+    document.getElementById('pm_btn_guardar_regla').addEventListener('click', () => {
+        if (!reglaCatActual) return;
+        // Sincronizar desde los inputs por si el evento change no disparó.
+        $filasRegla.querySelectorAll('.pm-regla-fila').forEach(f => {
+            const i = +f.dataset.i;
+            if (!reglaCatActual.regla[i]) return;
+            reglaCatActual.regla[i].premio   = f.querySelector('.pm-r-premio').value;
+            reglaCatActual.regla[i].etiqueta = f.querySelector('.pm-r-etiqueta').value.trim() || null;
+        });
+        renumerarRegla();
+        if (!reglaCatActual.regla.length) { mensaje('Agregá al menos un puesto a premiar.', 'warning'); return; }
+
+        const btn = document.getElementById('pm_btn_guardar_regla');
+        btn.disabled = true;
+        post('ajax_guardar_regla_premiacion', {
+            id_categoria: reglaCatActual.id_categoria,
+            regla: JSON.stringify(reglaCatActual.regla),
+            dia_sugerido: document.getElementById('pm_regla_dia').value || ''
+        }).then(res => {
+            btn.disabled = false;
+            if (res.ok) {
+                if (modalReglaObj) modalReglaObj.hide();
+                mensaje(res.mensaje, 'success');
+                cargar();
+            } else {
+                mensaje(res.error || 'No se pudo guardar la regla.', 'danger');
+            }
+        });
+    });
 
     /* ---------- Controles ---------- */
     document.getElementById('pm_btn_refrescar').addEventListener('click', cargar);
