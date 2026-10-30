@@ -654,31 +654,49 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   var search = document.getElementById('search');
   var form = document.getElementById('filters-form');
 
+  /* Helpers ES5: compatibles con cualquier navegador moderno y WebView antiguos. */
+  function each(list, fn) { for (var i = 0; i < list.length; i++) fn(list[i], i); }
+  function closestEl(el, selector) {
+    while (el) { if (el.matches && el.matches(selector)) return el; el = el.parentElement; }
+    return null;
+  }
+  function selectedOption(sel) {
+    var opts = sel.options;
+    for (var i = 0; i < opts.length; i++) if (opts[i].selected) return opts[i];
+    return null;
+  }
+
   /* ---------- Cascada Deporte → Categoría (misma regla que antes) ---------- */
-  var originalCategoryLabels = new Map();
-  Array.prototype.forEach.call(category.options, function (o) {
-    if (o.value !== '') originalCategoryLabels.set(o.value, o.textContent.replace(/\s+/g, ' ').trim());
+  var originalCategoryLabels = {};
+  each(category.options, function (o) {
+    if (o.value !== '') originalCategoryLabels[o.value] = o.textContent.replace(/\s+/g, ' ').trim();
   });
   function syncCategories() {
-    var selectedSport = sport.selectedOptions[0] ? sport.selectedOptions[0].textContent.trim() : '';
-    Array.prototype.forEach.call(category.options, function (option) {
+    var selOpt = selectedOption(sport);
+    var selectedSport = selOpt ? selOpt.textContent.trim() : '';
+    each(category.options, function (option) {
       if (!option.value) return;
-      var allowed = !sport.value || option.dataset.deporte === sport.value;
+      var allowed = !sport.value || option.getAttribute('data-deporte') === sport.value;
       option.hidden = !allowed;
       option.disabled = !allowed;
-      var original = originalCategoryLabels.get(option.value);
-      if (original === undefined) return;
+      var original = originalCategoryLabels[option.value];
+      if (typeof original === 'undefined') return;
       var prefix = selectedSport + ' - ';
       option.textContent = (sport.value && original.indexOf(prefix) === 0)
         ? original.slice(prefix.length) : original;
     });
-    if (category.selectedOptions[0] && category.selectedOptions[0].disabled) category.value = '';
-    [delegation, sport, category].forEach(function (sel) {
-      sel.classList.toggle('has-filter', !!sel.value);
+    var curCat = selectedOption(category);
+    if (curCat && curCat.disabled) category.value = '';
+    each([delegation, sport, category], function (sel) {
+      if (sel.value) sel.classList.add('has-filter'); else sel.classList.remove('has-filter');
     });
   }
   window.onFiltroDeporte = function () { syncCategories(); form.submit(); };
   syncCategories();
+
+  /* El select de Deporte NO tiene onchange inline: aquí se encadena la cascada
+     y se envía el formulario (recarga con filtros del servidor). */
+  sport.addEventListener('change', function () { syncCategories(); form.submit(); });
 
   /* ---------- Navegación por día y búsqueda: recarga con GET ---------- */
   function buildUrl(dia, q) {
@@ -695,16 +713,16 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   function goTo(dia, q) { location.href = buildUrl(dia, q); }
 
   document.getElementById('day-nav').addEventListener('click', function (event) {
-    var button = event.target.closest('[data-day]');
+    var button = closestEl(event.target, '[data-day]');
     if (!button) return;
     var pressed = button.getAttribute('aria-pressed') === 'true';
-    goTo(pressed ? 'all' : button.dataset.day, search.value.trim());
+    goTo(pressed ? 'all' : button.getAttribute('data-day'), search.value.trim());
   });
 
   /* Búsqueda: aplica al dejar de escribir o con Enter (evita recargar por tecla). */
   function selectedDay() {
     var cur = document.querySelector('.day-button[aria-pressed=true]');
-    return cur ? cur.dataset.day : INITIAL.dia;
+    return cur ? cur.getAttribute('data-day') : INITIAL.dia;
   }
   var debounce;
   search.addEventListener('input', function () {
@@ -723,26 +741,35 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   function syncDisclosureButton() {
     var groups = Array.prototype.slice.call(document.querySelectorAll('#schedule .discipline-group'));
     expandBtn.hidden = !groups.length;
-    var anyOpen = groups.some(function (d) { return d.open; });
+    var anyOpen = false;
+    each(groups, function (d) { if (d.open) anyOpen = true; });
     expandBtn.innerHTML = (anyOpen ? 'Contraer disciplinas <span aria-hidden="true">↑</span>'
                                    : 'Desplegar disciplinas <span aria-hidden="true">↓</span>');
   }
   expandBtn.addEventListener('click', function () {
     var groups = Array.prototype.slice.call(document.querySelectorAll('#schedule .discipline-group'));
-    var open = !groups.some(function (d) { return d.open; });
-    groups.forEach(function (d) { d.open = open; });
+    var open = false;
+    each(groups, function (d) { if (d.open) open = true; });
+    open = !open;
+    each(groups, function (d) { d.open = open; });
     syncDisclosureButton();
   });
 
   /* Al abrir una disciplina, cerrar la anterior del mismo día (navegación normal,
      salvo cuando se entró con búsqueda/filtro activo: ahí todo queda abierto). */
   var forcedOpen = !!INITIAL.q || !!sport.value || !!category.value || (INITIAL.dia && INITIAL.dia !== 'all');
-  document.querySelectorAll('#schedule .discipline-group').forEach(function (details) {
+  each(document.querySelectorAll('#schedule .discipline-group'), function (details) {
     details.addEventListener('toggle', function () {
       if (forcedOpen) return;
       if (details.open) {
-        var sibs = details.parentElement.querySelectorAll(':scope > .discipline-group[open]');
-        Array.prototype.forEach.call(sibs, function (other) { if (other !== details) other.open = false; });
+        var sibs = [];
+        var kids = details.parentElement.children;
+        for (var i = 0; i < kids.length; i++) {
+          var k = kids[i];
+          if (k !== details && k.tagName === 'DETAILS' &&
+              k.className.indexOf('discipline-group') >= 0 && k.open) sibs.push(k);
+        }
+        each(sibs, function (other) { other.open = false; });
       }
       syncDisclosureButton();
     });
@@ -754,20 +781,20 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
     ? location.hash.slice(1) : 'tab-fixture';
   function setTab(id, focus) {
     activePanel = id;
-    document.querySelectorAll('.primary-tabs button').forEach(function (button) {
-      var active = button.dataset.tab === id;
+    each(document.querySelectorAll('.primary-tabs button'), function (button) {
+      var active = button.getAttribute('data-tab') === id;
       button.setAttribute('aria-selected', String(active));
       button.tabIndex = active ? 0 : -1;
       if (active && focus) button.focus();
     });
-    document.querySelectorAll('.workspace .panel-tab').forEach(function (panel) {
+    each(document.querySelectorAll('.workspace .panel-tab'), function (panel) {
       panel.hidden = panel.id !== id;
     });
     try { history.replaceState(null, '', buildUrl(INITIAL.dia, INITIAL.q)); } catch (err) { /* noop */ }
   }
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.primary-tabs button'));
-  tabButtons.forEach(function (button, index) {
-    button.addEventListener('click', function () { setTab(button.dataset.tab); });
+  each(tabButtons, function (button, index) {
+    button.addEventListener('click', function () { setTab(button.getAttribute('data-tab')); });
     button.addEventListener('keydown', function (event) {
       var next;
       if (event.key === 'ArrowRight') next = (index + 1) % tabButtons.length;
@@ -776,7 +803,7 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
       else if (event.key === 'End') next = tabButtons.length - 1;
       else return;
       event.preventDefault();
-      setTab(tabButtons[next].dataset.tab, true);
+      setTab(tabButtons[next].getAttribute('data-tab'), true);
     });
   });
   setTab(activePanel);
@@ -785,10 +812,12 @@ $arrow_svg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"
   var toggle = document.getElementById('toggle-filters');
   var card = document.getElementById('filters-card');
   toggle.addEventListener('click', function () {
-    var open = card.classList.toggle('open');
-    toggle.setAttribute('aria-expanded', String(open));
+    var open = card.classList.contains('open');
+    if (open) card.classList.remove('open'); else card.classList.add('open');
+    toggle.setAttribute('aria-expanded', String(!open));
   });
-  if (window.matchMedia('(max-width:680px)').matches &&
+  if (typeof window.matchMedia === 'function' &&
+      window.matchMedia('(max-width:680px)').matches &&
       (INITIAL.delegacion || sport.value || category.value)) {
     card.classList.add('open');
     toggle.setAttribute('aria-expanded', 'true');
