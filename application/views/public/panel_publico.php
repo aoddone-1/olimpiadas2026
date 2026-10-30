@@ -10,7 +10,10 @@
 $__ci = isset($this) ? $this : (isset($_CI) ? $_CI : NULL);
 $__seg = function ($clave) use ($__ci) {
     if (!$__ci || !isset($__ci->uri)) return '';
-    $parts = $__ci->uri->uri_segments();        // ['publico','delegacion','formosa',...]
+    // OJO: el método real de CI3 es segment_array() (no existe uri_segments()).
+    // Llamar al nombre equivocado era la causa del HTTP 500 en esta vista.
+    if (!method_exists($__ci->uri, 'segment_array')) return '';
+    $parts = $__ci->uri->segment_array();       // ['panel-publico','delegacion','formosa',...]
     $n = count($parts);
     for ($i = 0; $i < $n - 1; $i++) {
         if (strtolower((string) $parts[$i]) === strtolower($clave)) {
@@ -354,7 +357,7 @@ $norm = function ($txt) {
       <p>Elegí una delegación, un deporte o una categoría.</p>
     </div>
     <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
-    <a class="reset-button" href="<?= site_url('publico') ?>">
+    <a class="reset-button" href="<?= site_url('panel-publico') ?>">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.8 7.1M4 4v6h6"/></svg>Limpiar filtros
     </a>
     <?php endif; ?>
@@ -363,10 +366,10 @@ $norm = function ($txt) {
        arma su propio enlace "limpio" (/publico/delegacion/<nombre>,
        /publico/deporte/<id>/categoria/<id>, ...) y el JS navega con él.
        Así la barra de direcciones queda legible y compartible. -->
-  <form method="get" action="<?= site_url('publico') ?>" id="filters-form" class="filters-form">
+  <form method="get" action="<?= site_url('panel-publico') ?>" id="filters-form" class="filters-form">
     <div class="filter-field">
       <label for="filtroDelegacion">Delegación</label>
-      <select name="delegacion" id="filtroDelegacion" data-base="<?= site_url('publico') ?>" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
+      <select name="delegacion" id="filtroDelegacion" data-base="<?= site_url('panel-publico') ?>" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
         <option value="">Todas (vista general)</option>
         <?php foreach ($delegaciones as $d): ?>
           <option value="<?= rawurlencode($d) ?>" data-slug="<?= htmlspecialchars(rawurlencode($d)) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
@@ -562,7 +565,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   if ($disc_plana === '' && $disc_fecha !== '') $disc_plana = $norm(substr($hash_get, 0, strrpos($hash_get, '-')));
 
   /* Base sobre la que el JS arma las URLs limpias al cambiar un filtro. */
-  $url_base_filtros = rtrim(str_replace('\\', '/', site_url('publico')), '/');
+  $url_base_filtros = rtrim(str_replace('\\', '/', site_url('panel-publico')), '/');
+  /* Clave legible del día seleccionado (para /panel-publico/dia/<clave>). */
+  $dia_key_actual = ($dia_sel === 'all') ? 'all' : $norm($dias_disp[$dia_sel]['full']);
   ?>
   <div class="schedule-tools">
     <nav class="day-nav" id="day-nav" aria-label="Filtrar por día" data-base="<?= htmlspecialchars($url_base_filtros) ?>">
@@ -591,7 +596,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       <div class="empty-icon" aria-hidden="true">⌕</div>
       <h3>No encontramos competencias</h3>
       <p><?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>Con estos filtros todavía no hay partidos programados. Probá limpiar los filtros o cambiar la categoría.<?php else: ?>El fixture del evento todavía está vacío. Volvé más tarde para ver la agenda completa.<?php endif; ?></p>
-      <a class="secondary-button" href="<?= site_url('publico') ?>">Ver todas las competencias</a>
+      <a class="secondary-button" href="<?= site_url('panel-publico') ?>">Ver todas las competencias</a>
     </div>
   <?php else: ?>
     <?php
@@ -1131,22 +1136,61 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     history.replaceState(null, '', url.toString() + (url.hash || ''));
   }
 
-  /* ---------- Cascada Deporte → Categoría (envía el formulario al servidor) ---------- */
+  /* ---------- Filtros server-side → URL limpia (sin query string) ----------
+     Delegación / Deporte / Categoría cambian datos del servidor: el JS arma la
+     ruta /panel-publico/delegacion/<nombre>/deporte/<id>/categoria/<id>
+     /dia/<clave>/buscar/<q> y navega con location.href. La barra queda legible
+     y compartible, sin "?a=b&c=d". */
   var selDep = document.getElementById('filtroDeporte');
   var selCat = document.getElementById('filtroCategoria');
   var selDel = document.getElementById('filtroDelegacion');
   var filtersForm = document.getElementById('filters-form');
-  var hiddenDia = document.getElementById('filtro-dia');
-  var hiddenQ = document.getElementById('filtro-q');
 
-  function submitFilters() {
-    if (!filtersForm) return;
-    if (hiddenDia) {
-      var pressed = dayNav ? dayNav.querySelector('[aria-pressed="true"]') : null;
-      hiddenDia.value = (pressed && pressed.dataset.date !== 'all') ? (pressed.dataset.day || '') : '';
-    }
-    if (hiddenQ) hiddenQ.value = searchBox ? searchBox.value.trim() : '';
-    filtersForm.submit();
+  var PANEL_BASE = (dayNav ? dayNav.getAttribute('data-base') : '') || '';
+
+  // Estado actual de los filtros "de servidor" (los selects) y de los
+  // "de cliente" (día y búsqueda), para poder rearmar la ruta completa.
+  function estadoFiltrosRuta(sobrescribir) {
+    var s = {
+      delegacion: selDel ? selDel.value : '',                       // nombre crudo (se sluguea abajo)
+      deporte:    selDep ? selDep.value : '',
+      categoria:  selCat ? selCat.value : '',
+      dia:        window.__diaKeyActual || 'all',
+      buscar:     searchBox ? searchBox.value.trim() : ''
+    };
+    if (sobrescribir) for (var k in sobrescribir) s[k] = sobrescribir[k];
+    return s;
+  }
+
+  // "San Miguel de Tucumán" → "san-miguel-de-tucuman" (solo ASCII seguro:
+  // CI filtra la URI por permitted_uri_chars = a-z 0-9 ~ % . _ : -).
+  function slug(txt) {
+    try { txt = String(txt).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    return String(txt).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  function urlLimpia(s) {
+    var seg = [];
+    if (s.delegacion) seg.push('delegacion', slug(s.delegacion));
+    if (s.deporte)    seg.push('deporte', encodeURIComponent(s.deporte));
+    if (s.categoria)  seg.push('categoria', encodeURIComponent(s.categoria));
+    if (s.dia && s.dia !== 'all') seg.push('dia', encodeURIComponent(s.dia));
+    if (s.buscar)     seg.push('buscar', encodeURIComponent(slug(s.buscar)));
+    var url = PANEL_BASE + (seg.length ? '/' + seg.join('/') : '');
+    var tab = document.querySelector('.primary-tabs [role="tab"].activo');
+    return url + (tab ? '#' + tab.dataset.tab : '');
+  }
+
+  function navegarFiltros(s) {
+    var url = urlLimpia(s);
+    // Si el usuario solo cambió día/búsqueda, no recargar: aplicar en cliente.
+    if (url === location.pathname + location.search + location.hash) return;
+    location.href = url;
+  }
+
+  function submitFilters(overrides) {
+    if (!PANEL_BASE) { if (filtersForm) filtersForm.submit(); return; }
+    navegarFiltros(estadoFiltrosRuta(overrides));
   }
 
   if (selDep && selCat) {
