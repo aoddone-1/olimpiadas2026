@@ -132,6 +132,50 @@ class Publico_model extends CI_Model {
         return array_values($deportes);
     }
 
+    /**
+     * Lista de resultados de una delegación SIN filtrar por deporte/categoría.
+     * Se usa para saber qué categorías le competen a esa delegación (y así poder
+     * poblar el <select> "Categoría" con opciones válidas cuando solo se eligió
+     * Delegación en la URL limpia). Mismo blindaje que las demás: raw SQL y
+     * filtro en PHP; ante cualquier error devuelve array vacío.
+     */
+    public function obtener_categorias_de_delegacion($delegacion) {
+        $ids = array();
+        try {
+            if (empty($delegacion) || !$this->_tabla_existe('resultados')) return $ids;
+            $query = $this->db->query('SELECT `id_categoria`, `id_fixture` FROM `resultados`');
+            $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
+            if (!$rows) return $ids;
+
+            $comp = $this->_competidores_de_delegacion($delegacion);
+            $fx_ids = array();
+            foreach ($rows as $r) {
+                $idf = isset($r['id_fixture']) ? (int) $r['id_fixture'] : 0;
+                if ($idf > 0) $fx_ids[$idf] = true;
+            }
+            $fx_info = $this->_fixture_info_por_ids(array_keys($fx_ids));
+
+            foreach ($rows as $r) {
+                $idf = isset($r['id_fixture']) ? (int) $r['id_fixture'] : 0;
+                $fxi = ($idf > 0 && isset($fx_info[$idf])) ? $fx_info[$idf] : array();
+                if (!empty($fxi)) {
+                    if ($this->_fixture_es_de_la_delegacion($fxi, $comp)) {
+                        $ids[] = (int) $r['id_categoria'];
+                    }
+                } else {
+                    // Resultado sin fixture vinculado: se acepta si su categoría
+                    // tiene inscriptos de la delegación.
+                    $idc = (int) $r['id_categoria'];
+                    if (isset($comp['categorias'][$idc])) $ids[] = $idc;
+                }
+            }
+            $ids = array_values(array_unique(array_filter($ids)));
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::obtener_categorias_de_delegacion: ' . $e->getMessage());
+        }
+        return $ids;
+    }
+
     /* ============================================================
      *  FIXTURE PÚBLICO
      * ============================================================ */
@@ -426,6 +470,15 @@ class Publico_model extends CI_Model {
             log_message('error', 'Publico_model::_ids_inscripcion_de_la_delegacion: ' . $e->getMessage());
             return array();
         }
+    }
+
+    /**
+     * Categorías (id_categoria) en las que la delegación tiene inscriptos.
+     * PÚBLICO: se usa para poblar el <select> "Categoría" cuando la URL limpia
+     * solo trajo una Delegación (sin Deporte), para no dejarlo vacío.
+     */
+    public function categorias_con_inscriptos_de($delegacion) {
+        return array_keys($this->_categorias_con_inscriptos_de($delegacion));
     }
 
     /** Categorías (id_categoria) en las que la delegación tiene inscriptos. */
