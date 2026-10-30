@@ -154,17 +154,17 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                             <?php endif; ?>
                         </select>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-hover align-middle" style="font-size: 0.82rem;">
+                    <div class="table-responsive" style="overflow-x: hidden;">
+                        <table class="table table-sm table-hover align-middle" style="font-size: 0.82rem; table-layout: fixed; width: 100%;">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Categoría / Deporte</th>
-                                    <th class="text-center">Cronograma</th>
+                                    <th style="width: 32%;">Categoría / Deporte</th>
+                                    <th class="text-center" style="width: 20%;">Cronograma</th>
                                     <?php if (!empty($reglas_categoria)): ?>
-                                    <th class="text-center" title="Cómo se premia cada categoría (puestos + tipo de premio + día sugerido)">Premiación</th>
+                                    <th class="text-center" style="width: 28%;" title="Cómo se premia cada categoría (puestos + tipo de premio + día sugerido)">Premiación</th>
                                     <?php endif; ?>
                                     <?php if (!$solo_lectura): ?>
-                                    <th class="text-end">Acciones</th>
+                                    <th class="text-end" style="width: 20%;">Acciones</th>
                                     <?php endif; ?>
                                 </tr>
                             </thead>
@@ -214,12 +214,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                                             }
                                                         ?>
                                                             <span class="badge <?= $rc['default'] ? 'bg-light text-muted border' : 'bg-warning-subtle text-dark border border-warning-subtle' ?>"
-                                                                  style="font-size:0.65rem;"
+                                                                  style="font-size:0.65rem; max-width: 100%; white-space: normal;"
                                                                   title="<?= $rc['default'] ? 'Regla clásica (no configurada todavía). Hacé clic en el trofeo 🏅 para cambiarla.' : 'Regla configurada para esta categoría' ?>">
                                                                 <i class="bi bi-trophy-fill me-1"></i><?= $_txt_regla_gd ?>
                                                             </span>
                                                             <?php if (!empty($rc['dia_sugerido'])): ?>
-                                                                <small class="d-block text-primary fw-semibold" style="font-size:0.65rem;">
+                                                                <small class="d-block text-primary fw-semibold text-truncate" style="font-size:0.65rem;" title="Día sugerido de premiación: <?= date('d/m/Y', strtotime($rc['dia_sugerido'])) ?>">
                                                                     <i class="bi bi-calendar-heart-fill me-1"></i>Premiación: <?= date('d/m/Y', strtotime($rc['dia_sugerido'])) ?>
                                                                 </small>
                                                             <?php endif; ?>
@@ -623,6 +623,49 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     </div>
 </div>
 
+<div class="modal fade" id="modalReglaGD" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header text-white rounded-top-4" style="background:linear-gradient(135deg,#14213d,#3a2f7c);">
+                <h5 class="modal-title fw-bold fs-6"><i class="bi bi-trophy-fill me-2 text-warning"></i>Regla de premiación de la categoría</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div id="gd_regla_info" class="mb-3"></div>
+                <div class="alert alert-secondary small py-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Definí <strong>qué puestos se premian</strong> y <strong>qué recibe cada uno</strong>.
+                    El día sugerido es opcional: si lo cargás, esa categoría aparecerá para premiar
+                    en esa noche (si no, se usa el día en que se compitió).
+                </div>
+                <div id="gd_regla_filas"></div>
+                <div class="d-flex justify-content-between align-items-center mt-2 flex-wrap gap-2">
+                    <button type="button" id="gd_regla_agregar" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-plus-lg me-1"></i>Agregar puesto
+                    </button>
+                    <button type="button" id="gd_regla_default" class="btn btn-link btn-sm text-muted">Restaurar 1º/2º/3º clásico</button>
+                </div>
+                <div class="row g-2 mt-3 align-items-end">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-bold text-muted text-uppercase">🗓️ Día sugerido de premiación</label>
+                        <input type="date" id="gd_regla_dia" class="form-control">
+                    </div>
+                    <div class="col-md-6 text-md-end align-self-center">
+                        <button type="button" class="btn btn-link btn-sm text-muted" id="gd_regla_borrar_dia">Sin día sugerido</button>
+                    </div>
+                </div>
+                <div id="gd_regla_alerta" class="mt-3 d-none"></div>
+            </div>
+            <div class="modal-footer bg-light border-0 rounded-bottom-4">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" id="gd_btn_guardar_regla" class="btn btn-sm btn-primary px-3 fw-bold">
+                    <i class="bi bi-save me-1"></i>Guardar regla
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -778,6 +821,208 @@ document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('edit_direccion_lugar').value = boton.getAttribute('data-direccion');
         });
     }
+
+    // --- Modal REGLA DE PREMIACIÓN por categoría (botón 🏆 de la tabla) ---
+    (function () {
+        const BASE_GD = '<?= base_url("Inscripciones") ?>';
+        const elModalRegla = document.getElementById('modalReglaGD');
+        if (!elModalRegla) return;
+
+        let modalReglaGD = null;
+        let reglaCatGD = null;   // { id_categoria, tipos:[{nombre,icono}], regla:[...], dia_sugerido }
+        const $filasGD = document.getElementById('gd_regla_filas');
+        const $alertaGD = document.getElementById('gd_regla_alerta');
+
+        const escGD = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+
+        function alertaGD(texto, tipo) {
+            if (!$alertaGD) return;
+            $alertaGD.className = 'mt-3 alert alert-' + (tipo || 'info') + ' py-2 small mb-0';
+            $alertaGD.textContent = texto;
+        }
+
+        function selectPremioGD(val) {
+            const tipos = (reglaCatGD && reglaCatGD.tipos) || [];
+            let opts = '';
+            tipos.forEach(t => {
+                const sel = (t.nombre === val) ? ' selected' : '';
+                opts += `<option value="${escGD(t.nombre)}"${sel}>${escGD(t.icono || '')} ${escGD(t.nombre)}</option>`;
+            });
+            // Si el premio guardado no está en el catálogo, agregarlo igual.
+            if (val && !tipos.some(t => t.nombre === val)) {
+                opts = `<option value="${escGD(val)}" selected>${escGD(val)}</option>` + opts;
+            }
+            return opts;
+        }
+
+        function leerFilasGD() {
+            if (!reglaCatGD) return;
+            $filasGD.querySelectorAll('.pm-regla-fila').forEach(f => {
+                const i = +f.dataset.i;
+                if (!reglaCatGD.regla[i]) return;
+                reglaCatGD.regla[i].premio   = f.querySelector('.pm-r-premio').value;
+                reglaCatGD.regla[i].etiqueta = f.querySelector('.pm-r-etiqueta').value.trim() || null;
+            });
+        }
+
+        function renderFilasGD() {
+            if (!reglaCatGD) return;
+            const r = reglaCatGD.regla;
+            $filasGD.innerHTML = r.map((x, i) => `
+                <div class="row g-2 align-items-end mb-2 pm-regla-fila" data-i="${i}">
+                    <div class="col-2 text-center">
+                        <span class="badge bg-dark rounded-pill fw-bold">${x.puesto}º</span>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small mb-1 fw-bold">Tipo de premio</label>
+                        <select class="form-select form-select-sm pm-r-premio">${selectPremioGD(x.premio)}</select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small mb-1">Detalle (opcional)</label>
+                        <input type="text" class="form-control form-control-sm pm-r-etiqueta" maxlength="40"
+                               placeholder="Ej: Oro, Copa Challenger…" value="${escGD(x.etiqueta || '')}">
+                    </div>
+                    <div class="col-md-2 text-end">
+                        <button type="button" class="btn btn-sm btn-outline-danger pm-r-quitar" title="Quitar este puesto">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>`).join('')
+                || '<div class="alert alert-warning py-2 small mb-0">No hay puestos definidos: agregá al menos uno.</div>';
+
+            $filasGD.querySelectorAll('.pm-r-premio, .pm-r-etiqueta').forEach(el =>
+                el.addEventListener('change', leerFilasGD));
+            $filasGD.querySelectorAll('.pm-r-quitar').forEach(btn =>
+                btn.addEventListener('click', () => {
+                    leerFilasGD();
+                    reglaCatGD.regla.splice(+btn.closest('.pm-regla-fila').dataset.i, 1);
+                    renumerarGD();
+                    renderFilasGD();
+                }));
+        }
+
+        function renumerarGD() {
+            if (!reglaCatGD) return;
+            reglaCatGD.regla.forEach((x, i) => { x.puesto = i + 1; });
+        }
+
+        async function abrirModalReglaGD(idCat, nombreCat) {
+            reglaCatGD = null;
+            if ($alertaGD) { $alertaGD.className = 'mt-3 d-none'; $alertaGD.textContent = ''; }
+            document.getElementById('gd_regla_info').innerHTML =
+                '<div class="d-flex flex-wrap align-items-center gap-2">' +
+                '<strong>' + escGD(nombreCat) + '</strong>' +
+                '<span class="text-muted small"><i class="bi bi-hourglass-split me-1"></i>Cargando regla…</span></div>';
+            $filasGD.innerHTML = '';
+            document.getElementById('gd_regla_dia').value = '';
+
+            if (!modalReglaGD) modalReglaGD = new bootstrap.Modal(elModalRegla);
+            modalReglaGD.show();
+
+            let res;
+            try {
+                const resp = await fetch(BASE_GD + '/ajax_regla_premiacion?id_categoria=' + encodeURIComponent(idCat),
+                                         { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+                res = await resp.json();
+            } catch (e) {
+                res = { ok: false, error: 'Respuesta inesperada del servidor.' };
+            }
+            if (!res.ok) {
+                document.getElementById('gd_regla_info').innerHTML = '<strong>' + escGD(nombreCat) + '</strong>';
+                alertaGD(res.error || 'No se pudo cargar la regla.', 'danger');
+                return;
+            }
+
+            reglaCatGD = {
+                id_categoria: res.id_categoria,
+                tipos: res.tipos || [],
+                regla: (res.regla || []).map(x => ({ puesto: x.puesto, premio: x.premio, etiqueta: x.etiqueta || null })),
+                dia_sugerido: res.dia_sugerido || null,
+            };
+            document.getElementById('gd_regla_info').innerHTML =
+                '<div class="d-flex flex-wrap align-items-center gap-2">' +
+                '<strong>' + escGD(res.categoria ? res.categoria.nombre_categoria : nombreCat) + '</strong>' +
+                (res.categoria && res.categoria.genero ? '<span class="text-muted small">(' + escGD(res.categoria.genero) + ')</span>' : '') +
+                '</div>' +
+                (res.texto_regla ? '<div class="small text-muted mt-2">Actual: ' + escGD(res.texto_regla) + '</div>' : '');
+            document.getElementById('gd_regla_dia').value = reglaCatGD.dia_sugerido || '';
+            renderFilasGD();
+        }
+
+        // Delegación: funciona con las filas generadas dinámicamente por PHP.
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.btn-regla-premiacion');
+            if (!btn) return;
+            e.preventDefault();
+            abrirModalReglaGD(btn.getAttribute('data-id'), btn.getAttribute('data-nombre') || '');
+        });
+
+        document.getElementById('gd_regla_agregar').addEventListener('click', () => {
+            if (!reglaCatGD) return;
+            const tipos = reglaCatGD.tipos || [];
+            const def = tipos.length ? tipos[0].nombre : 'Trofeo';
+            reglaCatGD.regla.push({ puesto: reglaCatGD.regla.length + 1, premio: def, etiqueta: null });
+            renderFilasGD();
+        });
+
+        document.getElementById('gd_regla_default').addEventListener('click', () => {
+            if (!reglaCatGD) return;
+            reglaCatGD.regla = [
+                { puesto: 1, premio: 'Medalla', etiqueta: 'Oro' },
+                { puesto: 2, premio: 'Medalla', etiqueta: 'Plata' },
+                { puesto: 3, premio: 'Medalla', etiqueta: 'Bronce' },
+            ];
+            renderFilasGD();
+        });
+
+        document.getElementById('gd_regla_borrar_dia').addEventListener('click', () => {
+            document.getElementById('gd_regla_dia').value = '';
+        });
+
+        document.getElementById('gd_btn_guardar_regla').addEventListener('click', () => {
+            if (!reglaCatGD) { alertaGD('Esperá a que cargue la regla de la categoría.', 'warning'); return; }
+            leerFilasGD();
+            renumerarGD();
+            if (!reglaCatGD.regla.length) { alertaGD('Agregá al menos un puesto a premiar.', 'warning'); return; }
+
+            const btn = document.getElementById('gd_btn_guardar_regla');
+            btn.disabled = true;
+
+            const fd = new FormData();
+            fd.append('id_categoria', reglaCatGD.id_categoria);
+            fd.append('regla', JSON.stringify(reglaCatGD.regla));
+            fd.append('dia_sugerido', document.getElementById('gd_regla_dia').value || '');
+
+            fetch(BASE_GD + '/ajax_guardar_regla_premiacion', {
+                method: 'POST',
+                body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(r => r.json())
+            .then(res => {
+                btn.disabled = false;
+                if (res.ok) {
+                    if (modalReglaGD) modalReglaGD.hide();
+                    if (window.Swal && typeof window.Swal.fire === 'function') {
+                        window.Swal.fire({ toast: true, position: 'top-end', icon: 'success',
+                                           title: res.mensaje || 'Regla guardada.',
+                                           showConfirmButton: false, timer: 3500, timerProgressBar: true });
+                    } else {
+                        alertaGD(res.mensaje || 'Regla guardada.', 'success');
+                    }
+                    setTimeout(() => location.reload(), 600);
+                } else {
+                    alertaGD(res.error || 'No se pudo guardar la regla.', 'danger');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                alertaGD('Error de red al guardar la regla.', 'danger');
+            });
+        });
+    })();
 
     // --- Filtro por deporte en el Listado de Categorías ---
     var filtroDeportes = document.getElementById('filtro_deporte_categorias');
