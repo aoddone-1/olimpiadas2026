@@ -586,6 +586,37 @@ class Inscripciones extends CI_Controller {
         $data['todos_los_lugares'] = $this->Deporte_model->obtener_todos_los_lugares(); 
         $data['menu_activo'] = 'deportes';
 
+        // ---- Configuración de PREMIACIÓN por categoría (editor en pantalla) ----
+        // Catálogo de tipos de premio: solo si la tabla `premio_tipo` existe
+        // realmente (si el servidor tiene mysqlnd, information_schema no
+        // devuelve filas para SHOW TABLES y hay que preguntar directo a la DB).
+        $this->load->model('Premiacion_model');
+        $hay_tipos = false;
+        try {
+            $q = $this->db->query('SHOW TABLES LIKE "premio_tipo"');
+            $hay_tipos = ($q && $q->num_rows() > 0);
+        } catch (Throwable $e) {
+            $hay_tipos = false;
+        }
+        $data['tipos_premio'] = $hay_tipos ? $this->Premiacion_model->obtener_tipos_premio() : array();
+        $data['reglas_categoria'] = array();
+        try {
+            if ($this->Premiacion_model->columnas_regla_existentes()) {
+                $this->db->select('id_categoria, premiacion_regla, dia_premiacion_sugerido');
+                foreach ($this->db->get('categorias')->result_array() as $cr) {
+                    $data['reglas_categoria'][(int) $cr['id_categoria']] = array(
+                        'regla'        => $this->Premiacion_model->parsear_regla_premiacion($cr['premiacion_regla'] ?? null),
+                        'dia_sugerido' => !empty($cr['dia_premiacion_sugerido'])
+                            ? substr((string) $cr['dia_premiacion_sugerido'], 0, 10) : '',
+                        'default'      => empty(trim((string) ($cr['premiacion_regla'] ?? ''))),
+                    );
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[Gestión Deportiva] no se pudieron leer las reglas de premiación: ' . $e->getMessage());
+            $data['reglas_categoria'] = array();
+        }
+
         $this->load->view('admin/gestion_deportes', $data);
     }
 
