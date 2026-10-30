@@ -437,7 +437,7 @@ foreach ($grupos_idx as $clave => $g) {
 }
 
 /* ===== Helpers de presentación (diseño de la maqueta) ===== */
-$dias_es = array('Sunday'=>'Domingo','Monday'=>'Lunes','Tuesday'=>'Martes','Wednesday'=>'Miércoles','Thursday'=>'Jueves','Friday'=>'Viernes','Saturday'=>'Sábado');
+$dias_es = array(0=>'Domingo',1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado');
 
 // Nombre propio en minúsculas, excepto siglas como MTB / PÁDEL / PADI.
 $lower_name = function ($txt) {
@@ -486,7 +486,10 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       $f0 = (string) $fx0['fecha_competencia'];
       if ($f0 === '' || isset($dias_disp[$f0])) continue;
       $ts0 = strtotime($f0);
-      $dias_disp[$f0] = $ts0 ? ($dias_es[date('l', $ts0)] . ' ' . date('d/m', $ts0)) : $f0;
+      // date('w') = 0 (domingo) … 6 (sábado). Antes se usaba date('l') —"Wednesday"—
+      // y, como no existía esa clave en el mapa, PHP devolvía '' y el botón del
+      // 04/11 salía sin etiqueta arriba. Ahora: "Mié" + "04/11".
+      $dias_disp[$f0] = $ts0 ? ($dias_es[(int) date('w', $ts0)] . ' ' . date('d/m', $ts0)) : $f0;
   }
   /* Día elegido por enlace ?dia= (clave normalizada o fecha cruda). Si no hay o
      no coincide, se abre el primer día disponible — igual que la maqueta. */
@@ -513,7 +516,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       <?php foreach ($dias_disp as $fecha_d => $etiqueta_d):
           $partes = explode(' ', $etiqueta_d, 2);
           $clave_d = $norm($etiqueta_d); ?>
-        <button type="button" class="day-button<?= $dia_sel === (string) $fecha_d ? ' sel' : '' ?>"
+        <button type="button" class="day-button"
                 data-day="<?= htmlspecialchars($clave_d) ?>" data-date="<?= htmlspecialchars((string) $fecha_d) ?>"
                 aria-pressed="<?= $dia_sel === (string) $fecha_d ? 'true' : 'false' ?>"
                 aria-label="<?= htmlspecialchars($etiqueta_d) ?>">
@@ -521,7 +524,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         </button>
       <?php endforeach; ?>
       <?php if (!empty($dias_disp)): ?>
-        <button type="button" class="day-button all-days<?= $dia_sel === 'all' ? ' sel' : '' ?>" data-day="all" data-date="all" aria-pressed="<?= $dia_sel === 'all' ? 'true' : 'false' ?>">Todos<br>los días</button>
+        <button type="button" class="day-button all-days" data-day="all" data-date="all" aria-pressed="<?= $dia_sel === 'all' ? 'true' : 'false' ?>">Todos<br>los días</button>
       <?php endif; ?>
     </nav>
     <label class="search-box"><?= $svg_search ?><input id="search" type="search" placeholder="Buscar equipo o sede" aria-label="Buscar equipo, sede o categoría" autocomplete="off" value="<?= htmlspecialchars(isset($_GET['q']) ? (string) $_GET['q'] : '') ?>"></label>
@@ -552,6 +555,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     }
     $cualquier_abierta = FALSE;
     $total_visibles = 0; $disciplinas_visibles = 0;
+    ?>
+    <div id="schedule">
+    <?php
     foreach ($por_dia as $fecha_d => $disciplinas):
         if ($dia_sel !== 'all' && (string) $fecha_d !== $dia_sel) continue;
         $etiqueta_d = isset($dias_disp[$fecha_d]) ? $dias_disp[$fecha_d] : $fecha_d;
@@ -720,6 +726,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       </div>
     </section>
     <?php endforeach; ?>
+    </div><!-- /#schedule -->
     <div id="search-empty" class="empty-state" hidden>
       <div class="empty-icon" aria-hidden="true">⌕</div>
       <h3>No encontramos competencias</h3>
@@ -730,7 +737,14 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
 </section>
 
 <!-- ============ RESULTADOS ============ -->
-<div id="tab-resultados" class="panel-tab">
+<section class="panel" id="tab-resultados" role="tabpanel" aria-labelledby="button-resultados" tabindex="0" hidden>
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">CADA ENCUENTRO CUENTA</p>
+      <h2>Resultados</h2>
+      <p>Marcadores y posiciones por competencia.</p>
+    </div>
+  </div>
   <?php if (empty($resultados)): ?>
     <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?>.</div>
   <?php else: foreach ($resultados as $res):
