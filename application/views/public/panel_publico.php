@@ -1,4 +1,34 @@
-<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+
+/* ===== URL limpia: lectura de los segmentos extra de /publico/... =====
+   Antes el panel usaba query string y se veía así:
+     /publico?delegacion=Formosa&deporte=13&categoria=56&dia=mi-ercoles-04-11&q=#tab-fixture
+   Ahora cada filtro viaja como segmento "legible":
+     /publico/delegacion/formosa/deporte/13/categoria/56/dia/2026-11-04/buscar/futbol
+   El controlador (Publico::index) ya pasó estos valores por $data; si no
+   vienen, se releen de los segmentos por compatibilidad. */
+$__ci = isset($this) ? $this : (isset($_CI) ? $_CI : NULL);
+$__seg = function ($clave) use ($__ci) {
+    if (!$__ci || !isset($__ci->uri)) return '';
+    $parts = $__ci->uri->uri_segments();        // ['publico','delegacion','formosa',...]
+    $n = count($parts);
+    for ($i = 0; $i < $n - 1; $i++) {
+        if (strtolower((string) $parts[$i]) === strtolower($clave)) {
+            $v = (string) $parts[$i + 1];
+            // Un separador real "/" nunca llega crudo: solo aceptamos el valor
+            // inmediatamente siguiente al nombre del filtro.
+            return ($v === '' || strpos($v, '/') !== FALSE) ? '' : rawurldecode($v);
+        }
+    }
+    return '';
+};
+$delegacion_uri   = isset($delegacion_url)   ? (string) $delegacion_url   : $__seg('delegacion');
+$deporte_uri      = isset($deporte_url)      ? (string) $deporte_url      : $__seg('deporte');
+$categoria_uri    = isset($categoria_url)    ? (string) $categoria_url    : $__seg('categoria');
+$dia_uri          = isset($dia_url)          ? (string) $dia_url          : $__seg('dia');
+$buscar_uri       = isset($buscar_url)       ? (string) $buscar_url       : $__seg('buscar');
+$disciplina_uri   = isset($disciplina_url)   ? (string) $disciplina_url   : $__seg('disciplina');
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -329,13 +359,17 @@ $norm = function ($txt) {
     </a>
     <?php endif; ?>
   </div>
+  <!-- URL limpia: el formulario NO usa query string (?a=b&c=d). Cada select
+       arma su propio enlace "limpio" (/publico/delegacion/<nombre>,
+       /publico/deporte/<id>/categoria/<id>, ...) y el JS navega con él.
+       Así la barra de direcciones queda legible y compartible. -->
   <form method="get" action="<?= site_url('publico') ?>" id="filters-form" class="filters-form">
     <div class="filter-field">
       <label for="filtroDelegacion">Delegación</label>
-      <select name="delegacion" id="filtroDelegacion" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
+      <select name="delegacion" id="filtroDelegacion" data-base="<?= site_url('publico') ?>" <?= $delegacion !== '' ? 'class="has-filter"' : '' ?>>
         <option value="">Todas (vista general)</option>
         <?php foreach ($delegaciones as $d): ?>
-          <option value="<?= htmlspecialchars($d) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
+          <option value="<?= rawurlencode($d) ?>" data-slug="<?= htmlspecialchars(rawurlencode($d)) ?>" <?= ($delegacion === $d) ? 'selected' : '' ?>>
             <?= htmlspecialchars($d) ?>
           </option>
         <?php endforeach; ?>
@@ -368,8 +402,6 @@ $norm = function ($txt) {
         <?php endforeach; ?>
       </select>
     </div>
-    <input type="hidden" name="dia" id="filtro-dia" value="<?= htmlspecialchars(isset($_GET['dia']) ? trim((string) $_GET['dia']) : '') ?>">
-    <input type="hidden" name="q" id="filtro-q" value="<?= htmlspecialchars(isset($_GET['q']) ? (string) $_GET['q'] : '') ?>">
     <noscript><div style="grid-column:1/-1;margin-top:6px"><button type="submit" class="secondary-button">Aplicar filtros</button></div></noscript>
   </form>
 </section>
@@ -502,9 +534,11 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                   'short' => $dias_curtos[(int) date('w', $ts0)])
           : array('full' => $f0, 'short' => $f0);
   }
-  /* Día elegido por enlace ?dia= (clave normalizada o fecha cruda). Si no hay o
-     no coincide, se abre el primer día disponible — igual que la maqueta. */
-  $get_dia = isset($_GET['dia']) ? trim((string) $_GET['dia']) : '';
+  /* Día elegido: ahora viene por SEGMENTO de URL limpia (/publico/dia/2026-11-04)
+     y no por query string. Se acepta también la forma antigua (?dia=) para que
+     los enlaces guardados/compartidos antes sigan funcionando. */
+  $get_dia = trim((string) $dia_uri);
+  if ($get_dia === '' && isset($_GET['dia'])) $get_dia = trim((string) $_GET['dia']);
   $dia_sel  = '';
   if ($get_dia !== '') {
       foreach ($dias_disp as $fecha_x => $info_x) {
@@ -515,15 +549,23 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   if ($dia_sel === '' && !empty($dias_disp)) $dia_sel = (string) array_key_first($dias_disp);
   elseif (empty($dias_disp)) $dia_sel = 'all';
 
-  /* Disciplina anclada por #disciplina-<clave> (o ?disciplina=): entra abierta. */
-  $hash_get = isset($_GET['disciplina']) ? trim((string) $_GET['disciplina']) : '';
+  /* Búsqueda: igualmente por segmento (/publico/buscar/futbol) o ?q= antiguo. */
+  $q_uri = trim((string) $buscar_uri);
+  if ($q_uri === '' && isset($_GET['q'])) $q_uri = trim((string) $_GET['q']);
+
+  /* Disciplina anclada por #disciplina-<clave> (o segmento disciplina/...): entra abierta. */
+  $hash_get = trim((string) $disciplina_uri);
+  if ($hash_get === '' && isset($_GET['disciplina'])) $hash_get = trim((string) $_GET['disciplina']);
   $disc_plana = $hash_get !== '' ? $norm($hash_get) : '';
   $disc_fecha = $hash_get !== '' && strpos($hash_get, '-') !== FALSE
       ? substr($hash_get, strrpos($hash_get, '-') + 1) : '';
   if ($disc_plana === '' && $disc_fecha !== '') $disc_plana = $norm(substr($hash_get, 0, strrpos($hash_get, '-')));
+
+  /* Base sobre la que el JS arma las URLs limpias al cambiar un filtro. */
+  $url_base_filtros = rtrim(str_replace('\\', '/', site_url('publico')), '/');
   ?>
   <div class="schedule-tools">
-    <nav class="day-nav" aria-label="Filtrar por día">
+    <nav class="day-nav" id="day-nav" aria-label="Filtrar por día" data-base="<?= htmlspecialchars($url_base_filtros) ?>">
       <?php foreach ($dias_disp as $fecha_d => $info_d):
           $clave_d = $norm($info_d['full']); ?>
         <button type="button" class="day-button"
@@ -537,7 +579,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         <button type="button" class="day-button all-days" data-day="all" data-date="all" aria-pressed="<?= $dia_sel === 'all' ? 'true' : 'false' ?>">Todos<br>los días</button>
       <?php endif; ?>
     </nav>
-    <label class="search-box"><?= $svg_search ?><input id="search" type="search" placeholder="Buscar equipo o sede" aria-label="Buscar equipo, sede o categoría" autocomplete="off" value="<?= htmlspecialchars(isset($_GET['q']) ? (string) $_GET['q'] : '') ?>"></label>
+    <label class="search-box"><?= $svg_search ?><input id="search" type="search" placeholder="Buscar equipo o sede" aria-label="Buscar equipo, sede o categoría" autocomplete="off" value="<?= htmlspecialchars($q_uri) ?>"></label>
   </div>
   <div class="fixture-meta">
     <p id="fixture-count" aria-live="polite" role="status"></p>
