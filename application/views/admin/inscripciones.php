@@ -1099,6 +1099,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
                     modalElemento('det-nombre').innerText = data.nombre_completo || 'Sin Nombre';
 
+                    // Botón "Descargar Deslinde" del footer: el endpoint acepta
+                    // el id del participante (descargar_deslinde/id/{id}), así que
+                    // lo apuntamos acá y lo habilitamos.
+                    const btnDeslindeDetalle = modalElemento('btn-descargar-deslinde');
+
+                    if (btnDeslindeDetalle) {
+
+                        if (data.id_participante) {
+
+                            btnDeslindeDetalle.href = `<?= base_url('Inscripciones/descargar_deslinde/id/') ?>${data.id_participante}`;
+
+                            btnDeslindeDetalle.classList.remove('disabled');
+
+                        } else {
+
+                            btnDeslindeDetalle.href = '#';
+
+                            btnDeslindeDetalle.classList.add('disabled');
+
+                        }
+
+                    }
+
+
                     const esComp = parseInt(data.es_competidor) === 1;
 
                     modalElemento('det-rol').innerText = esComp ? 'COMPETIDOR' : 'ACOMPAÑANTE';

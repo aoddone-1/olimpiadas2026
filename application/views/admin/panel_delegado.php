@@ -782,28 +782,38 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     // QR y Deslinde - QR pequeño en el header
                     const imgQRSmall = document.getElementById('det-qr-small');
-                    
+                    const modalFooter = document.querySelector('#modalDetalleInscripcion .modal-footer');
+
+                    // Botón de deslinde del footer (se crea si el participante tiene id).
+                    // Se apunta a la variante por ID (descargar_deslinde/id/{id}) para que
+                    // use siempre el mismo PDF del helper deslinde_html, igual que el
+                    // botón del modal de detalle de inscriptos.
+                    let btnDeslinde = null;
+
+                    if (data.id_participante) {
+                        btnDeslinde = document.createElement('a');
+                        btnDeslinde.href = '<?= base_url() ?>Inscripciones/descargar_deslinde/id/' + data.id_participante;
+                        btnDeslinde.className = 'btn btn-outline-danger btn-sm rounded-pill px-3';
+                        btnDeslinde.target = '_blank';
+                        btnDeslinde.rel = 'noopener';
+                        btnDeslinde.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde';
+                    }
+
                     if (data.token_qr) {
                         // Construir URL del QR usando el endpoint existente de acreditación
                         const qrUrl = '<?= base_url() ?>Inscripciones/acreditacion/' + data.token_qr;
                         // Usamos un servicio de QR con tamaño chico para el header
                         imgQRSmall.src = 'https://api.qrserver.com/v1/create-qr-code/?size=70x70&data=' + encodeURIComponent(qrUrl);
                         imgQRSmall.style.display = 'inline-block';
-                        
-                        // Botón de deslinde en el footer
-                        const btnDeslinde = document.createElement('a');
-                        btnDeslinde.href = '<?= base_url() ?>Inscripciones/descargar_deslinde/' + data.token_qr;
-                        btnDeslinde.className = 'btn btn-outline-danger btn-sm rounded-pill px-3';
-                        btnDeslinde.target = '_blank';
-                        btnDeslinde.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde';
-                        
-                        // Limpiar footer y agregar botón
-                        const modalFooter = document.querySelector('#modalDetalleInscripcion .modal-footer');
-                        modalFooter.innerHTML = '';
-                        modalFooter.appendChild(btnDeslinde);
-                        modalFooter.appendChild(document.createElement('button')).outerHTML = '<button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar</button>';
                     } else {
                         imgQRSmall.style.display = 'none';
+                    }
+
+                    // Footer: "Cerrar" + el botón de deslinde cuando existe.
+                    if (modalFooter) {
+                        modalFooter.innerHTML = '';
+                        if (btnDeslinde) { modalFooter.appendChild(btnDeslinde); }
+                        modalFooter.insertAdjacentHTML('beforeend', '<button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar</button>');
                     }
                     
                     // Deportes - Mostrar u ocultar según si es acompañante

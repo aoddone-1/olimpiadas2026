@@ -321,19 +321,64 @@ class Inscripciones extends CI_Controller {
     }
 
     /**
-     * Genera y descarga el PDF del Deslinde de Responsabilidad (VERSIÓN DE PRUEBA)
+     * Genera y descarga el PDF del Deslinde de Responsabilidad de UN participante.
+     *
+     * Se puede invocar de dos formas:
+     *   - Inscripciones/descargar_deslinde/{token_qr}            -> QR / inscripción exitosa
+     *   - Inscripciones/descargar_deslinde/id/{id_participante}  -> modal de detalle
+     *     del listado de inscriptos (admin) y del panel del delegado.
      */
     public function descargar_deslinde($token = NULL) {
-        // VERSIÓN DE PRUEBA: Solo muestra un PDF simple con texto de prueba
         $this->load->model('Participante_model');
-        $participante = $this->Participante_model->obtener_por_token($token);
+
+        // Variante por ID: Inscripciones/descargar_deslinde/id/{id_participante}
+        // La usan los botones "Descargar Deslinde" del modal de detalle de
+        // inscriptos (admin y panel del delegado), que solo tienen a mano el id.
+        if ($token === 'id') {
+            $id_participante = (int) $this->uri->segment(4);
+
+            if (!$id_participante) {
+                show_404();
+                return;
+            }
+
+            // Acceso por ID exige sesión: organizador o delegado
+            if (!$this->session->userdata('is_organizador') && !$this->session->userdata('is_delegado')) {
+                show_error('No autorizado', 403);
+                return;
+            }
+
+            $participante = $this->Participante_model->obtener_detalle_participante($id_participante);
+
+            if (!$participante) {
+                show_404();
+                return;
+            }
+
+            // El delegado solo puede descargar deslindes de su propia delegación
+            if ($this->session->userdata('is_delegado')) {
+                $user_nombre = $this->session->userdata('user_nombre');
+                if (!isset($participante['delegacion']) || $participante['delegacion'] !== $user_nombre) {
+                    show_error('No tenés permiso para descargar el deslinde de este participante', 403);
+                    return;
+                }
+            }
+        } else {
+            // Variante original por token QR: la usa el propio participante al
+            // escanear su QR (inscripcion_exitosa), sigue siendo acceso público.
+            if (!$token) {
+                show_404();
+                return;
+            }
+            $participante = $this->Participante_model->obtener_por_token($token);
+        }
 
         if (!$participante) {
             show_404();
             return;
         }
         $data['participante']= $participante;
-        
+
         $this->load->view('deslinde_resp_view',$data);
     }
     public function descargar_acreditaciones($delegacion = NULL) {

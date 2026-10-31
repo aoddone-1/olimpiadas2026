@@ -76,6 +76,16 @@
                 </div>
             </div>
             <div class="modal-footer bg-light border-top py-2">
+                <!-- Descarga del deslinde de responsabilidad del participante.
+                     El href se completa con el id cuando llega el JSON de
+                     detalle_ajax (ver inscriptos: js btn-descargar-deslinde). -->
+                <a id="btn-descargar-deslinde"
+                   href="#"
+                   target="_blank"
+                   rel="noopener"
+                   class="btn btn-outline-danger rounded-pill btn-sm px-4 disabled">
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde
+                </a>
                 <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar Detalle</button>
             </div>
         </div>
