@@ -448,7 +448,7 @@
             // esperamos un instante y redirigimos a la home.
             setTimeout(function () {
                 if (!window.closed) {
-                    window.location.href = '<?= base_url() ?>';
+                    window.location.href = 'https://olimpiadasipav2026.netlify.app/';
                 }
             }, 500);
         }
