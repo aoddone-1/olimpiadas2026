@@ -305,6 +305,22 @@ class MYPDF extends TCPDF {
             return;
         }
 
+        // ====== FORMATO DEPORTE: UNA TABLA POR DEPORTE CON TODOS SUS PARTIDOS ======
+        // Nace de la queja de que el cuadro general (días × franjas horarias)
+        // mezclado con todos los deportes no es cómodo de leer. Acá cada
+        // deporte tiene su propia tabla/hoja con todos sus partidos ordenados
+        // por Categoría → Fecha → Hora, y CADA CATEGORÍA se identifica con un
+        // COLOR distinto (chapa al lado del nombre y borde izquierdo de la
+        // fila) para poder seguirla de un vistazo dentro de la tabla.
+        // El color solo aplica a los deportes de ENFRENTAMIENTO; en los de
+        // LARGADA ÚNICA / jornada masiva (Running, Ciclismo, Pesca...) no hay
+        // cruces que diferenciar, así que la fila va neutra —con el nombre del
+        // deporte alcanza—.
+        if ($this->formato === 'deporte') {
+            $this->_body_por_deporte();
+            return;
+        }
+
         // ====== COLORES ======
         $c_primary   = '#1e3a5f';
         $c_secondary = '#3498db';
@@ -487,6 +503,348 @@ class MYPDF extends TCPDF {
             $html_bloque .= '</tbody></table>';
             
             $this->writeHTML($html_bloque, true, false, true, false, '');
+        }
+    }
+
+    /**
+     * Paleta fija (fondo, texto) para diferenciar CATEGORÍAS dentro de la
+     * tabla de un deporte. Colores pastel con buen contraste de lectura; se
+     * asignan de a uno por categoría (si hubiera más categorías que colores,
+     * la paleta vuelve a empezar). Se comparten entre el formato 'deporte' y
+     * el 'lista' para que el mismo color signifique lo mismo en ambos reportes.
+     */
+    public static $paleta_categorias = array(
+        array('#e3f2fd', '#1565c0'), // azul
+        array('#e8f5e9', '#2e7d32'), // verde
+        array('#fff3e0', '#e65100'), // naranja
+        array('#f3e5f5', '#7b1fa2'), // violeta
+        array('#e0f7fa', '#00838f'), // cielorraso
+        array('#fce4ec', '#ad1457'), // rosa
+        array('#fffde7', '#8d6e00'), // amarillo
+        array('#ede7f6', '#4527a0'), // índigo claro
+        array('#efebe9', '#5d4037'), // marrón
+        array('#eceff1', '#455a64'), // gris azulado
+        array('#f1f8e9', '#558b2f'), // verde manzana
+        array('#fbe9e7', '#bf360c'), // terracota
+    );
+
+    /** Color de la categoría $idx (0-based) de la paleta: array(fondo, texto). */
+    public static function _color_categoria($idx) {
+        $paleta = self::$paleta_categorias;
+        return $paleta[((int) $idx) % count($paleta)];
+    }
+
+    /**
+     * ¿Deporte de LARGADA ÚNICA / jornada masiva? Basta que UNA fila del
+     * bloque sea JORNADA_UNICA o MASIVO_TIEMPO (mismo criterio que la planilla
+     * de mesa de control). En estos deportes no hay "enfrentamientos" que
+     * distinguir por color —todos largan juntos—, así que se imprime solo el
+     * nombre del deporte y la fila queda neutra.
+     */
+    public static function _bloque_es_masivo($filas) {
+        foreach ((array) $filas as $f) {
+            $modalidad = strtoupper(trim((string) ($f['modalidad_competencia'] ?? '')));
+            $fase      = strtoupper(trim((string) ($f['fase'] ?? '')));
+            if ($modalidad === 'MASIVO_TIEMPO' || $fase === 'JORNADA_UNICA') {
+                return TRUE;
+            }
+        }
+        return FALSE;
+    }
+
+    /** Etiqueta legible de la fase del partido. */
+    public static function _fase_bonito($fase) {
+        $map = array(
+            'GRUPO' => 'Fase de Grupos', '16AVOS' => '16avos de Final', 'OCTAVOS' => 'Octavos de Final',
+            'CUARTOS' => 'Cuartos de Final', 'SEMIFINAL' => 'Semifinal', 'TERCER_PUESTO' => '3er Puesto',
+            'FINAL' => 'Final', 'JORNADA_UNICA' => 'Jornada Única'
+        );
+        return isset($map[$fase]) ? $map[$fase] : (string) $fase;
+    }
+
+    /**
+     * ===== FORMATO DEPORTE: UNA TABLA POR DEPORTE =====
+     * Reclamo de los usuarios: el cuadro general (días × franjas, todos los
+     * deportes mezclados) no es cómodo. Este reporte imprime UNA TABLA por
+     * deporte (cada deporte arranca en hoja nueva) con TODOS sus partidos,
+     * ordenados Categoría → Fecha → Hora. Dentro de la tabla, cada categoría
+     * tiene su COLOR (chapa en la columna Categoría + borde izquierdo de la
+     * fila), para seguirla de un vistazo cruzando días y horarios.
+     *   - Deportes de ENFRENTAMIENTO: filas coloreadas por categoría.
+     *   - Deportes de LARGADA ÚNICA (jornada masiva): sin color —el nombre del
+     *     deporte ya alcanza—, y la celda muestra la largada/jornada con sus
+     *     competidores en vez del "A vs B".
+     * Columnas: HORA | CATEGORÍA | FASE/JORNADA | ENFRENTAMIENTO | LUGAR.
+     */
+    public function _body_por_deporte() {
+        $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+
+        // Orden interno: Deporte → Categoría → Fecha → Hora (Body() ya lo aplicó,
+        // pero se refuerza acá porque este reporte agrupa por deporte).
+        usort($this->datos, function ($a, $b) {
+            return [
+                strtolower($a['nombre_deporte'] ?? ''),
+                strtolower($a['nombre_categoria'] ?? ''),
+                (string) ($a['fecha_competencia'] ?? ''),
+                (string) ($a['hora_inicio'] ?? ''),
+                (int) ($a['numero_fecha'] ?? 0)
+            ] <=> [
+                strtolower($b['nombre_deporte'] ?? ''),
+                strtolower($b['nombre_categoria'] ?? ''),
+                (string) ($b['fecha_competencia'] ?? ''),
+                (string) ($b['hora_inicio'] ?? ''),
+                (int) ($b['numero_fecha'] ?? 0)
+            ];
+        });
+
+        // Agrupar: Deporte → Categoría → [filas]. La clave usa id cuando existe
+        // (evita juntar categorías homónimas de deportes distintos).
+        $por_deporte = array();
+        foreach ($this->datos as $fila) {
+            $dep = trim((string) ($fila['nombre_deporte'] ?? ''));
+            if ($dep === '') $dep = 'Sin deporte';
+            $dep_key = strtolower($dep);
+
+            $cat = trim((string) ($fila['nombre_categoria'] ?? ''));
+            if (($fila['genero_categoria'] ?? '') !== '') {
+                $cat = trim($cat . ' (' . $fila['genero_categoria'] . ')');
+            }
+            if ($cat === '') $cat = 'Única';
+            $cat_key = (int) ($fila['id_categoria'] ?? 0) ?: strtolower($dep . '|' . $cat);
+
+            $por_deporte[$dep_key]['nombre'] = $dep;
+            $por_deporte[$dep_key]['cats'][$cat_key]['nombre'] = $cat;
+            $por_deporte[$dep_key]['cats'][$cat_key]['filas'][] = $fila;
+        }
+        ksort($por_deporte);
+
+        // ===== COLORES (misma paleta que el resto del reporte) =====
+        $c_primary   = '#1e3a5f';
+        $c_secondary = '#3498db';
+        $c_light     = '#ecf0f1';
+        $c_border    = '#bdc3c7';
+        $c_text      = '#2c3e50';
+        $c_muted     = '#7f8c8d';
+        $c_white     = '#ffffff';
+        $c_alt       = '#f8f9fa';
+
+        $dias_completos = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
+
+        /** Texto horario "HH:MM – HH:MM". */
+        $horario_txt = function ($f) {
+            $hi = substr((string) ($f['hora_inicio'] ?? ''), 0, 5);
+            $hf = substr((string) ($f['hora_fin'] ?? ''), 0, 5);
+            return $hi . (($hf !== '' && $hf !== '00:00') ? ' – ' . $hf : '');
+        };
+
+        /** Día bonito: "SÁB 07/11" (para poder leer la fecha dentro de la fila). */
+        $dia_bonito = function ($f) use ($dias_completos, $esc) {
+            $iso = substr((string) ($f['fecha_competencia'] ?? ''), 0, 10);
+            if ($iso === '') return '&nbsp;';
+            $ts = strtotime($iso);
+            if ($ts === FALSE) return $esc($iso);
+            $nom = strtoupper($dias_completos[(int) date('w', $ts)]);
+            return $nom . '<br/><span style="font-size:6pt;">' . date('d/m/Y', $ts) . '</span>';
+        };
+
+        /** Lado del enfrentamiento como HTML. Con integrantes cargados por el
+         *  modelo (jugadores_ute_X) se imprime el EQUIPO en negrita y debajo los
+         *  INTEGRANTES achicados/muted; si no, se despeja el prefijo
+         *  "Equipo: J1, J2" que a veces arma el modelo sobre el nombre. */
+        $lado_html = function ($f, $lado) {
+            $modalidad = strtoupper(trim((string) ($f['modalidad_competencia'] ?? '')));
+            $es_equipo = $modalidad === 'ENFRENTAMIENTO';
+            $nombre = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
+
+            // Integrantes que trae el modelo en una lista aparte.
+            $crudos = array();
+            foreach ((array) ($f['jugadores_ute_' . $lado] ?? array()) as $j) {
+                $j = trim((string) $j);
+                if ($j !== '') $crudos[] = $j;
+            }
+            if ($crudos) {
+                $equipo = $nombre;
+                if (strpos($equipo, ': ') !== FALSE) {
+                    $eq = trim(substr($equipo, 0, strpos($equipo, ': ')));
+                    if ($eq !== '') $equipo = $eq;
+                }
+                $out = array();
+                foreach ($crudos as $j) {
+                    $out[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
+                }
+                $html = '';
+                if ($equipo !== '') $html .= '<b>' . htmlspecialchars($equipo, ENT_QUOTES, 'UTF-8') . '</b><br/>';
+                $html .= '<span style="color:#7f8c8d; font-size:6pt; font-style:italic;">'
+                       . htmlspecialchars(implode(' - ', $out), ENT_QUOTES, 'UTF-8') . '</span>';
+                return $html;
+            }
+
+            if ($nombre === '') return '';
+            $equipo = $nombre;
+            $integrantes = array();
+            if ($es_equipo && strpos($nombre, ': ') !== FALSE) {
+                $pos = strpos($nombre, ': ');
+                $eq = trim(substr($nombre, 0, $pos));
+                if ($eq !== '') $equipo = $eq;
+                $integrantes = array_values(array_filter(array_map('trim', explode(',', trim(substr($nombre, $pos + 2))))));
+            }
+            if (!$es_equipo || !$integrantes) {
+                return $this->nombres_completos ? htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8')
+                                                : htmlspecialchars(self::_nombre_corto($nombre), ENT_QUOTES, 'UTF-8');
+            }
+            $html = '<b>' . htmlspecialchars($equipo, ENT_QUOTES, 'UTF-8') . '</b>';
+            $out = array();
+            foreach ($integrantes as $j) {
+                $out[] = $this->nombres_completos ? $j : self::_nombre_corto($j);
+            }
+            $html .= '<br/><span style="color:#7f8c8d; font-size:6pt; font-style:italic;">'
+                   . htmlspecialchars(implode(' - ', $out), ENT_QUOTES, 'UTF-8') . '</span>';
+            return $html;
+        };
+
+        /** Celda "ENFRENTAMIENTO": A vs B (enfrentamiento) o lista de
+         *  competidores (largada única). */
+        $vs_html = function ($f) use ($lado_html) {
+            $es_masivo = self::_bloque_es_masivo(array($f));
+            $l1 = $lado_html($f, 1);
+            $l2 = $lado_html($f, 2);
+            if ($es_masivo) {
+                // Largada única: no hay "vs"; se listan los competidores del slot.
+                $todos = array();
+                foreach (array($l1, $l2) as $x) if ($x !== '') $todos[] = $x;
+                return $todos ? implode(', ', $todos) : '<span style="color:#7f8c8d;">Jornada masiva</span>';
+            }
+            if ($l1 !== '' && $l2 !== '') {
+                return $l1 . ' &nbsp;<span style="color:#95a5a6; font-weight:bold;">vs</span>&nbsp; ' . $l2;
+            }
+            if ($l1 !== '' || $l2 !== '') return $l1 !== '' ? $l1 : $l2;
+            return '<span style="color:#7f8c8d;">Por definir</span>';
+        };
+
+        // ====== ÍNDICE DE COLORES POR CATEGORÍA (global al reporte) ======
+        // Así una categoría mantiene SU color aunque el deporte ocupe varias
+        // hojas. Los deportes de largada única no consumen color.
+        $colores_cat = array();
+        $sig_color = 0;
+        foreach ($por_deporte as $dk => $bloque) {
+            foreach ($bloque['cats'] as $ck => $cat) {
+                if (self::_bloque_es_masivo($cat['filas'])) continue;
+                if (!isset($colores_cat[$ck])) $colores_cat[$ck] = self::_color_categoria($sig_color++);
+            }
+        }
+
+        $primer_deporte = TRUE;
+        foreach ($por_deporte as $dk => $bloque) {
+            // Cada deporte arranca en hoja nueva (menos el primero, que usa la
+            // página que ya abrió el script al final de la plantilla).
+            if (!$primer_deporte) {
+                $this->AddPage('L', 'LEGAL');
+            }
+            $primer_deporte = FALSE;
+
+            $total_partidos = 0;
+            foreach ($bloque['cats'] as $cat) $total_partidos += count($cat['filas']);
+            $deporte_masivo = FALSE;
+            foreach ($bloque['cats'] as $cat) {
+                if (self::_bloque_es_masivo($cat['filas'])) $deporte_masivo = TRUE;
+            }
+
+            // ---------- Título del deporte ----------
+            // (sin emoji: TCPDF con DejaVu no renderiza bien los pictogramas)
+            $html = '<div style="text-align:left; font-size:15pt; font-weight:bold; color:' . $c_primary . '; padding:2px 0 2px 0;">'
+                  . strtoupper($esc($bloque['nombre']))
+                  . '</div>'
+                  . '<div style="text-align:left; font-size:8pt; color:' . $c_muted . '; padding-bottom:6px;">'
+                  . count($bloque['cats']) . ' categoría/s · ' . $total_partidos . ' partido/s'
+                  . ($this->delegacion_filtro ? ' · Delegación ' . $esc($this->delegacion_filtro) : '')
+                  . ($deporte_masivo ? ' · <i>Largada única: sin colores por categoría</i>' : '')
+                  . '</div>';
+
+            // ---------- Leyenda de categorías (solo enfrentamientos) ----------
+            $leyenda = '';
+            foreach ($bloque['cats'] as $ck => $cat) {
+                if (!isset($colores_cat[$ck])) continue; // masivo: va sin color
+                list($bg, $fg) = $colores_cat[$ck];
+                $leyenda .= '<span style="display:inline-block; margin-right:10px; padding:2px 6px;'
+                          . ' background-color:' . $bg . '; color:' . $fg . '; border:1px solid ' . $fg . ';'
+                          . ' font-size:7pt; font-weight:bold;">' . $esc($cat['nombre']) . '</span>';
+            }
+            if ($leyenda !== '') {
+                $html .= '<div style="padding-bottom:8px;">' . $leyenda . '</div>';
+            }
+
+            // ---------- Tabla del deporte ----------
+            $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:' . $c_border
+                  . '; border-collapse:collapse; width:100%; font-size:7.5pt; color:' . $c_text . ';">'
+                  . '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
+                  . '<th style="width:11%; text-align:center; border:1px solid ' . $c_border . ';">DÍA</th>'
+                  . '<th style="width:9%;  text-align:center; border:1px solid ' . $c_border . ';">HORA</th>'
+                  . '<th style="width:16%; text-align:center; border:1px solid ' . $c_border . ';">CATEGORÍA</th>'
+                  . '<th style="width:14%; text-align:center; border:1px solid ' . $c_border . ';">FASE / JORNADA</th>'
+                  . '<th style="text-align:center; border:1px solid ' . $c_border . ';">ENFRENTAMIENTO</th>'
+                  . '<th style="width:13%; text-align:center; border:1px solid ' . $c_border . ';">LUGAR</th>'
+                  . '</tr></thead><tbody>';
+
+            $i = 0;
+            foreach ($bloque['cats'] as $ck => $cat) {
+                $es_masivo = self::_bloque_es_masivo($cat['filas']);
+                // Color de la categoría SOLO en enfrentamientos; en largada
+                // única la fila va neutra (no hace falta diferenciar por color).
+                $color = (!$es_masivo && isset($colores_cat[$ck])) ? $colores_cat[$ck] : null;
+
+                foreach ($cat['filas'] as $f) {
+                    $bg_fila = $color ? $color[0] : (($i % 2) ? $c_white : $c_alt);
+                    $borde_izq = $color
+                        ? 'border-left:4px solid ' . $color[1] . ';'
+                        : 'border-left:1px solid ' . $c_border . ';';
+                    $html .= '<tr style="background-color:' . $bg_fila . ';">';
+
+                    // DÍA
+                    $html .= '<td style="' . $borde_izq . ' border-top:1px solid ' . $c_border . '; border-right:1px solid ' . $c_border . '; border-bottom:1px solid ' . $c_border . '; text-align:center;">'
+                          . $dia_bonito($f) . '</td>';
+
+                    // HORA
+                    $html .= '<td style="border:1px solid ' . $c_border . '; text-align:center; white-space:nowrap;">'
+                          . $esc($horario_txt($f)) . '</td>';
+
+                    // CATEGORÍA (chapa de color en los enfrentamientos)
+                    if ($color) {
+                        $etiqueta = '<span style="display:inline-block; width:8px; height:8px; background-color:'
+                                  . $color[1] . '; border:1px solid ' . $color[1] . ';"></span> '
+                                  . '<b style="color:' . $color[1] . ';">' . $esc($cat['nombre']) . '</b>';
+                    } else {
+                        // Largada única: basta el nombre del deporte/categoría sin color.
+                        $etiqueta = $esc($cat['nombre']);
+                    }
+                    $html .= '<td style="border:1px solid ' . $c_border . ';">' . $etiqueta . '</td>';
+
+                    // FASE / JORNADA
+                    $fase_txt = self::_fase_bonito(strtoupper(trim((string) ($f['fase'] ?? ''))));
+                    if (!empty($f['numero_fecha']) && strtoupper(trim((string) ($f['fase'] ?? ''))) !== 'JORNADA_UNICA') {
+                        $fase_txt .= ' · F' . (int) $f['numero_fecha'];
+                    }
+                    $html .= '<td style="border:1px solid ' . $c_border . '; font-size:7pt;">' . $esc($fase_txt) . '</td>';
+
+                    // ENFRENTAMIENTO / LARGADA
+                    $html .= '<td style="border:1px solid ' . $c_border . ';">' . $vs_html($f) . '</td>';
+
+                    // LUGAR
+                    $html .= '<td style="border:1px solid ' . $c_border . '; font-size:7pt; text-align:center;">'
+                          . (!empty($f['lugar_nombre']) ? $esc($f['lugar_nombre']) : '<span style="color:' . $c_muted . '">—</span>')
+                          . '</td>';
+
+                    $html .= '</tr>';
+                    $i++;
+                }
+            }
+            $html .= '</tbody></table>';
+
+            $this->writeHTML($html, true, false, true, false, '');
+        }
+
+        if (empty($por_deporte)) {
+            $this->writeHTML('<p style="text-align:center; font-size:10pt; color:' . $c_muted . ';">No hay partidos cargados.</p>',
+                true, false, true, false, '');
         }
     }
 

@@ -1845,7 +1845,14 @@ class Inscripciones extends CI_Controller {
      * Compartida por el reporte general (superadmin/admin) y el de delegados.
      */
     private function _emitir_pdf_fixture($datos, $nombre_deporte_filtro, $delegacion = NULL) {
-        $formato = $this->input->get('formato') === 'lista' ? 'lista' : 'cuadro';
+        // Formatos disponibles:
+        //   cuadro (por defecto): días × franjas horarias;
+        //   lista: una fila por partido;
+        //   deporte: UNA TABLA POR DEPORTE con todos sus partidos y las
+        //            categorías diferenciadas por color (los de largada única
+        //            van sin color). ?formato=deporte
+        $fmt_get = $this->input->get('formato');
+        $formato = in_array($fmt_get, array('lista', 'deporte'), TRUE) ? $fmt_get : 'cuadro';
 
         // Día opcional elegido desde el panel (si no viene, se imprimen TODOS los días)
         $dia_filtro = trim((string) $this->input->get('dia'));
