@@ -1346,7 +1346,7 @@ class MYPDF extends TCPDF {
                     $html .= '<tr style="background-color:' . $bg . ';">'
                            . '<td style="' . $borde . ' width:30%;"><b>' . $esc($nombre_eq) . '</b></td>'
                            . '<td style="' . $borde . ' width:70%;">'
-                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode('; ', $integrantes_eq[$clave_eq])) : '&nbsp;')
+                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(', ', $integrantes_eq[$clave_eq])) : '&nbsp;')
                            . '</td></tr>';
                     $k++;
                 }
