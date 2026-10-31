@@ -142,7 +142,7 @@
                 <div class="card card-indicador shadow-sm h-100" style="border-left-color: #0d6efd;">
                     <div class="card-body p-3">
                         <h6 class="text-muted small text-uppercase mb-1"><i class="bi bi-whistle me-1"></i>Actividad del día</h6>
-                        <h3 class="fw-bold text-dark m-0"><?= (int) ($actividad_dia['total_partidos'] ?? 0) ?><small class="fs-6 text-muted"> categorías</small></h3>
+                        <h3 class="fw-bold text-dark m-0"><?= (int) ($actividad_dia['total_partidos'] ?? 0) ?><small class="fs-6 text-muted"> Competencias</small></h3>
                         <small class="text-muted d-block mt-1">
                             <?= (int) ($actividad_dia['finalizados'] ?? 0) ?> finalizadas ·
                             <?= (int) ($actividad_dia['programados'] ?? 0) ?> programadas
