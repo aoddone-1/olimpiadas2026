@@ -884,12 +884,33 @@ class MYPDF extends TCPDF {
                 'meta'   => $meta_txt,
             );
 
-            // Cada deporte arranca en hoja nueva (menos el primero, que usa la
-            // página que ya abrió el script al final de la plantilla).
-            if (!$primer_deporte) {
-                $this->AddPage('L', 'LEGAL');
+            // Cada deporte arranca en hoja nueva CON SU HEADER.
+            // OJO: antes el primer deporte reutilizaba la página que el script
+            // ya había abierto con AddPage() al final de la plantilla. Ese
+            // AddPage() dispara Header() en el momento de crearse la hoja,
+            // CUANDO $header_deporte todavía estaba vacío — por eso el título
+            // no salía en la página 1 (y sí desde la 2, donde AddPage() se
+            // llama ya con el bloque cargado). Solución: eliminar esa primera
+            // página huérfana y crear la del primer deporte DESPUÉS de setear
+            // $header_deporte. deletePage() puede re-disparar Header()/Footer()
+            // sobre una página sin contenido, así que se ejecuta con la
+            // impresión de header/footer desactivada; después TCPDF vuelve a
+            // su valor por defecto (TRUE), que es el que usa este reporte.
+            if ($primer_deporte) {
+                if ($this->page > 0) {
+                    $this->setPrintHeader(FALSE);
+                    $this->setPrintFooter(FALSE);
+                    $this->deletePage(1);
+                    $this->setPrintHeader(TRUE);
+                    $this->setPrintFooter(TRUE);
+                }
             }
             $primer_deporte = FALSE;
+
+            // Página del deporte (primera o continuación): siempre DESPUÉS de
+            // cargar $header_deporte, para que Header() lo dibuje también en
+            // la página 1.
+            $this->AddPage('L', 'LEGAL');
 
             // El cuerpo arranca directo con la leyenda + tabla (sin título).
             $html = '';
