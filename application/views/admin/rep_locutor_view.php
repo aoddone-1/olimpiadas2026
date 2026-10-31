@@ -29,10 +29,13 @@ class Rep_Locutor_PDF extends TCPDF {
     public $guion = array();
     public $nombre_archivo = 'reporte_locutor.pdf';
 
-    /** Colores institucionales suaves (buena impresión en blanco y negro). */
-    const AZUL   = array(20, 33, 61);
+    // Colores institucionales
+    const AZUL_OSCURO = array(20, 33, 61);
     const DORADO = array(241, 196, 15);
-    const GRIS   = array(108, 117, 125);
+    const PLATA = array(192, 192, 192);
+    const BRONCE = array(205, 127, 50);
+    const GRIS_SUAVE = array(240, 240, 245);
+    const GRIS_MEDIO = array(108, 117, 125);
 
     public function Header() {
         //(80, 50, 50);
@@ -68,155 +71,174 @@ class Rep_Locutor_PDF extends TCPDF {
         if (!$f) return '';
         $ts = strtotime($f);
         if (!$ts) return $f;
-        // strftime deprecated en PHP 8.2+: armar a mano con mapas fijos.
-        $dias = array('Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado');
-        $meses = array('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
-                       'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre');
-        return $dias[(int) date('w', $ts)] . ' ' . date('j', $ts) . ' de '
-             . $meses[(int) date('n', $ts) - 1] . ' de ' . date('Y', $ts);
+        
+        $dias = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
+        $meses = array('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre');
+        
+        return $dias[(int) date('w', $ts)] . ' ' . date('j', $ts) . ' de ' 
+            . $meses[(int) date('n', $ts) - 1] . ' de ' . date('Y', $ts);
     }
 
+    
+
     /**
-     * Descompone un nombre de competidor para el locutor.
-     *  - "CATAMARCA (LOPEZ, MARIA FERNANDA)"  => principal CATAMARCA, ref el nombre.
-     *  - "LOPEZ, MARIA (35087017)" (formato viejo con DNI) => no exponer el DNI:
-     *    principal = nombre, referencia vacia.
-     *  - Cualquier otro texto (equipos) => principal = texto completo.
+     * Separa nombre principal de referencia
      */
     private function _separar_nombre($nombre) {
         $nombre = trim(preg_replace('/\s+/u', ' ', (string) $nombre));
+        
         if (!preg_match('/^(.*)\(([^()]*)\)$/u', $nombre, $m)) {
             return array('principal' => $nombre, 'referencia' => '');
         }
+        
         $cuerpo = trim($m[1]);
         $sufijo = trim($m[2]);
+        
         if ($cuerpo === '') return array('principal' => $nombre, 'referencia' => '');
-        // Sufijo numérico = DNI residual (formato viejo): NO imprimirlo.
+        
+        // Si es numérico (DNI), no mostrar
         if (preg_match('/^[\d.\-]+$/', $sufijo)) {
             return array('principal' => $cuerpo, 'referencia' => '');
         }
+        
         return array('principal' => $cuerpo, 'referencia' => $sufijo);
     }
 
-    /** Un bloque = una competencia con su podio (formato texto con viñetas). */
+    /**
+     * BLOQUE DE ENTREGA - Formato profesional de guion
+     */
     private function _bloque_entrega($b, $num) {
-        // Calcular espacio necesario
-        $alt_estimado = 35 + 18 * max(1, count($b['puestos']));
-        if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
+        // Verificar espacio disponible
+        $alt_estimado = 50 + 25 * max(1, count($b['puestos']));
+        if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 30) {
             $this->AddPage();
         }
-
-        // ========================================
-        // TÍTULO COMO HEADER / CUADRO DE SECCIÓN
-        // ========================================
-        $titulo = strtoupper($b['deporte']) . ' — Cat. ' . strtoupper($b['categoria']);
         
-
-        // Fondo y borde del header
-        $this->SetFillColor(232, 232, 240);      // Gris azulado suave
-        $this->SetDrawColor(180, 180, 190);      // Borde gris
-        $this->SetFont('dejavusans', 'B', 11);
-        $this->SetTextColor(20, 33, 61);
-
-        // Celda con borde completo, fondo y salto de línea al final
-        $this->Cell(0, 9, '  ' . $num . '.  ' . $titulo, 1, 1, 'L', 1);
-
-        $this->Ln(3); // Espacio entre el header y los ganadores
-
-        // Prueba individual (si aplica)
-        $es_prueba_ind = (isset($b['anunciar']) && $b['anunciar'] === 'provincia');
-        if ($es_prueba_ind) {
+        // ========================================
+        // ENCABEZADO DEL BLOQUE
+        // ========================================
+        $this->SetFillColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont('dejavusans', 'B', 14);
+        
+        $titulo = $num . '. ' . strtoupper($b['deporte']) . ' — ' . strtoupper($b['categoria']);
+        $this->Cell(0, 10, '  ' . $titulo, 0, 1, 'L', 1);
+        
+        $this->Ln(2);
+        
+        // Nota de prueba individual si aplica
+        if (isset($b['anunciar']) && $b['anunciar'] === 'provincia') {
             $this->SetFont('dejavusans', 'I', 9);
             $this->SetTextColor(180, 120, 0);
-            $this->Cell(0, 6, '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 1, 'L');
+            $this->Cell(0, 5, '     PRUEBA INDIVIDUAL: Se anuncia la provincia ganadora', 0, 1, 'L');
             $this->Ln(2);
         }
-
         
-
         // ========================================
-        // LISTA DE GANADORES (según la regla de la categoría)
+        // LISTA DE GANADORES
         // ========================================
-        // El guion ya trae solo los puestos que premia esta categoría, según
-        // su REGLA DE PREMIACIÓN (1º / 1º+2º / 1º+2º+3º, etc.).
         $orden = array_keys($b['puestos']);
         sort($orden);
         
-        $etiquetas = array();
-        
-        // Colores distintivos
-        $colores = array(
-            1 => array(180, 140, 0),   // Oro
-            2 => array(130, 130, 130), // Plata
-            3 => array(184, 115, 51)   // Bronce
-        );
-
         foreach ($orden as $pos) {
             if (!isset($b['puestos'][$pos])) continue;
             $p = $b['puestos'][$pos];
-            $etiquetas[$pos] = $pos . '°';
-            if (!isset($colores[$pos])) $colores[$pos] = array(90, 90, 90); // puesto extra: gris neutro
             
-            // Obtener nombre y referencia
-            if (method_exists($this, '_separar_nombre')) {
-                $sep = $this->_separar_nombre($p['nombre']);
-                $nombre_mostrar = $sep['principal'];
-                $ref_mostrar = $sep['referencia'];
+            // Separar nombre
+            $sep = $this->_separar_nombre($p['nombre']);
+            $nombre_mostrar = strtoupper($sep['principal']);
+            $ref_mostrar = $sep['referencia'];
+            
+            // Color según posición
+            if ($pos == 1) {
+                $color = self::DORADO;
+                $simbolo = '🥇';
+                $fondo_color = array(255, 248, 220);
+            } elseif ($pos == 2) {
+                $color = self::PLATA;
+                $simbolo = '🥈';
+                $fondo_color = array(245, 245, 245);
+            } elseif ($pos == 3) {
+                $color = self::BRONCE;
+                $simbolo = '🥉';
+                $fondo_color = array(255, 240, 230);
             } else {
-                $nombre_mostrar = $p['nombre'];
-                $ref_mostrar = !empty($p['referencia']) ? $p['referencia'] : '';
+                $color = self::GRIS_MEDIO;
+                $simbolo = $pos . '°';
+                $fondo_color = self::GRIS_SUAVE;
             }
-
-            // Número de posición (ancho fijo, alineado a derecha)
-            $this->SetFont('dejavusans', 'B', 11);
-            $this->SetTextColor($colores[$pos][0], $colores[$pos][1], $colores[$pos][2]);
-            $this->Cell(12, 7, $etiquetas[$pos], 0, 0, 'R');
             
-            // Nombre y referencia
-            $this->SetFont('dejavusans', 'B', 11);
-            $this->SetTextColor(20, 33, 61);
+            // Fondo suave para el ganador
+            $this->SetFillColor($fondo_color[0], $fondo_color[1], $fondo_color[2]);
+            $y_inicio = $this->GetY();
             
-            $texto_completo = $nombre_mostrar;
+            // Número de posición grande
+            $this->SetFont('dejavusans', 'B', 20);
+            $this->SetTextColor($color[0], $color[1], $color[2]);
+            $this->Cell(20, 12, $pos . '°', 0, 0, 'C');
+            
+            // Nombre del ganador EN GRANDE
+            $this->SetFont('dejavusans', 'B', 16);
+            $this->SetTextColor(self::AZUL_OSCURO);
+            $this->Cell(0, 12, $nombre_mostrar, 0, 1, 'L');
+            
+            // Referencia (si existe) en tamaño menor
             if ($ref_mostrar !== '') {
-                $texto_completo .= '  (ref.: ' . $ref_mostrar . ')';
+                $this->SetFont('dejavusans', '', 9);
+                $this->SetTextColor(self::GRIS_MEDIO);
+                $this->Cell(20, 5, '', 0, 0);
+                $this->Cell(0, 5, '(ref.: ' . $ref_mostrar . ')', 0, 1, 'L');
             }
             
-            $this->MultiCell(0, 7, $texto_completo, 0, 'L', 0, 1);
+            // Premio que recibe
+            if (!empty($p['premio'])) {
+                $this->SetFont('dejavusans', 'B', 10);
+                $this->SetTextColor($color[0], $color[1], $color[2]);
+                $this->Cell(20, 6, '', 0, 0);
+                $this->Cell(0, 6, '→ ' . strtoupper($p['premio']), 0, 1, 'L');
+            }
             
             // Nota de desempate
             if (!empty($p['desempate'])) {
                 $this->SetFont('dejavusans', 'I', 8);
-                $this->SetTextColor(120, 90, 10);
-                $this->Cell(12, 5, '', 0, 0, 'R'); // Espacio para alinear
-                $this->MultiCell(0, 5, 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
-                $this->SetTextColor(20, 33, 61);
+                $this->SetTextColor(150, 100, 0);
+                $this->Cell(20, 5, '', 0, 0);
+                $this->MultiCell(0, 5, 'Definido por: ' . strtoupper($p['desempate']), 0, 'L');
             }
             
-            // Qué premio recibe (según la regla de la categoría): "TROFEO", "MEDALLA (Oro)"...
-            if (!empty($p['premio'])) {
-                $this->SetFont('dejavusans', '', 8);
-                $this->SetTextColor(108, 117, 125);
-                $this->Cell(12, 5, '', 0, 0, 'R');
-                $this->MultiCell(0, 5, '→ ' . strtoupper(mb_convert_encoding($p['premio'], 'UTF-8', 'UTF-8')), 0, 'L', 0, 1);
-                $this->SetTextColor(20, 33, 61);
-            }
-
-            $this->Ln(2);
+            // Espacio para NOTAS del locutor
+            $this->SetY($this->GetY() + 2);
+            $this->SetFont('dejavusans', 'I', 8);
+            $this->SetTextColor(180, 180, 180);
+            $this->Cell(20, 5, '', 0, 0);
+            $this->Cell(0, 5, 'Notas: ___________________________________________', 0, 1, 'L');
+            
+            // Línea separadora
+            $this->Ln(3);
+            $this->SetDrawColor(220, 220, 230);
+            $this->SetLineWidth(0.2);
+            $this->Line($this->lMargin + 5, $this->GetY(), $this->w - $this->rMargin - 5, $this->GetY());
+            $this->Ln(5);
         }
-
-        // Sin galardonados
+        
+        // Si no hay ganadores
         if (empty($b['puestos'])) {
-            $this->SetFont('dejavusans', 'I', 9);
-            $this->SetTextColor(108, 117, 125);
-            $this->Cell(12, 6, '', 0, 0, 'R');
-            $this->MultiCell(0, 6, 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
+            $this->SetFont('dejavusans', 'I', 10);
+            $this->SetTextColor(self::GRIS_MEDIO);
+            $this->Cell(0, 8, 'SIN GALARDONADOS — No anunciar esta entrega', 0, 1, 'C');
         }
-
-        $this->Ln(8); // Espacio final entre bloques
+        
+        // Espacio grande entre bloques
+        $this->Ln(10);
     }
 
+    /**
+     * CUERPO DEL DOCUMENTO
+     */
     public function Body() {
-
+        
+        // Luego los bloques
         if (!empty($this->guion['bloques'])) {
             $this->AddPage();
             $num = 0;
@@ -225,8 +247,8 @@ class Rep_Locutor_PDF extends TCPDF {
                 $this->_bloque_entrega($b, $num);
             }
         }
-
-        $this->Output($this->nombre_archivo, 'D');
+        
+        $this->Output($this->nombre_archivo, 'I');
     }
 }
 

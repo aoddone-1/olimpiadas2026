@@ -718,11 +718,7 @@ class MYPDF extends TCPDF {
             $l2 = $lado_html($f, 2);
 
             // Nombre de la prueba concatenado como encabezado de la celda.
-            $prueba = trim((string) ($f['nombre_prueba'] ?? ''));
-            $prueba_html = $prueba !== ''
-                ? '<div style="font-size:6.5pt; color:#7f8c8d; font-style:italic; margin-bottom:1px;">'
-                  . $esc($prueba) . '</div>'
-                : '';
+            
 
             if ($es_masivo) {
                 // Largada única: no hay "vs"; se listan los competidores del slot.
@@ -797,12 +793,12 @@ class MYPDF extends TCPDF {
             $html .= '<table cellpadding="4" cellspacing="0" border="1" style="border-color:' . $c_border
                   . '; border-collapse:collapse; width:100%; font-size:7.5pt; color:' . $c_text . ';">'
                   . '<thead><tr style="background-color:' . $c_primary . '; color:' . $c_white . ';">'
-                  . '<th style="width:11%; text-align:center; border:1px solid ' . $c_border . ';">DÍA</th>'
+                  . '<th style="width:16%; text-align:center; border:1px solid ' . $c_border . ';">DÍA</th>'
                   . '<th style="width:9%;  text-align:center; border:1px solid ' . $c_border . ';">HORA</th>'
                   . '<th style="width:16%; text-align:center; border:1px solid ' . $c_border . ';">CATEGORÍA</th>'
                   . '<th style="width:14%; text-align:center; border:1px solid ' . $c_border . ';">FASE / JORNADA</th>'
-                  . '<th style="text-align:center; border:1px solid ' . $c_border . ';">ENFRENTAMIENTO</th>'
-                  . '<th style="width:13%; text-align:center; border:1px solid ' . $c_border . ';">LUGAR</th>'
+                  . '<th  style="width:35%;text-align:center; border:1px solid ' . $c_border . ';">ENFRENTAMIENTO</th>'
+                  . '<th style="width:10%; text-align:center; border:1px solid ' . $c_border . ';">LUGAR</th>'
                   . '</tr></thead><tbody>';
 
             $i = 0;
@@ -820,11 +816,11 @@ class MYPDF extends TCPDF {
                     $html .= '<tr style="background-color:' . $bg_fila . ';">';
 
                     // DÍA
-                    $html .= '<td style="' . $borde_izq . ' border-top:1px solid ' . $c_border . '; border-right:1px solid ' . $c_border . '; border-bottom:1px solid ' . $c_border . '; text-align:center;">'
+                    $html .= '<td style="width:16%;' . $borde_izq . ' border-top:1px solid ' . $c_border . '; border-right:1px solid ' . $c_border . '; border-bottom:1px solid ' . $c_border . '; text-align:center;">'
                           . $dia_bonito($f) . '</td>';
 
                     // HORA
-                    $html .= '<td style="border:1px solid ' . $c_border . '; text-align:center; white-space:nowrap;">'
+                    $html .= '<td style="width:9%;border:1px solid ' . $c_border . '; text-align:center; white-space:nowrap;">'
                           . $esc($horario_txt($f)) . '</td>';
 
                     // CATEGORÍA (chapa de color en los enfrentamientos)
@@ -836,20 +832,19 @@ class MYPDF extends TCPDF {
                         // Largada única: basta el nombre del deporte/categoría sin color.
                         $etiqueta = $esc($cat['nombre']);
                     }
-                    $html .= '<td style="border:1px solid ' . $c_border . ';">' . $etiqueta . '</td>';
+                    $html .= '<td style="width:16%;border:1px solid ' . $c_border . ';">' . $etiqueta . '</td>';
 
                     // FASE / JORNADA
-                    $fase_txt = self::_fase_bonito(strtoupper(trim((string) ($f['fase'] ?? ''))));
-                    if (!empty($f['numero_fecha']) && strtoupper(trim((string) ($f['fase'] ?? ''))) !== 'JORNADA_UNICA') {
-                        $fase_txt .= ' · F' . (int) $f['numero_fecha'];
-                    }
-                    $html .= '<td style="border:1px solid ' . $c_border . '; font-size:7pt;">' . $esc($fase_txt) . '</td>';
+                    
+                    $prueba = trim((string) ($f['nombre_prueba'] ?? ''));
+                    
+                    $html .= '<td style="width:14%;border:1px solid ' . $c_border . '; font-size:7pt;">' . $esc($prueba).'</td>';
 
                     // ENFRENTAMIENTO / LARGADA
-                    $html .= '<td style="border:1px solid ' . $c_border . ';">' . $vs_html($f) . '</td>';
+                    $html .= '<td style="width:35%;border:1px solid ' . $c_border . ';">' . $vs_html($f) . '</td>';
 
                     // LUGAR
-                    $html .= '<td style="border:1px solid ' . $c_border . '; font-size:7pt; text-align:center;">'
+                    $html .= '<td style="width:10%;border:1px solid ' . $c_border . '; font-size:7pt; text-align:center;">'
                           . (!empty($f['lugar_nombre']) ? $esc($f['lugar_nombre']) : '<span style="color:' . $c_muted . '">—</span>')
                           . '</td>';
 
@@ -1351,7 +1346,7 @@ class MYPDF extends TCPDF {
                     $html .= '<tr style="background-color:' . $bg . ';">'
                            . '<td style="' . $borde . ' width:30%;"><b>' . $esc($nombre_eq) . '</b></td>'
                            . '<td style="' . $borde . ' width:70%;">'
-                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(', ', $integrantes_eq[$clave_eq])) : '&nbsp;')
+                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode('; ', $integrantes_eq[$clave_eq])) : '&nbsp;')
                            . '</td></tr>';
                     $k++;
                 }
