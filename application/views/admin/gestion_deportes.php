@@ -39,6 +39,14 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 </span>
                 <span class="fx-header-titulo">Gestión Deportiva <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
+            <!-- Predios / Sedes: ya no ocupan un cuadro propio en la pantalla.
+                 Viven ahora dentro de este botón que abre un modal con el listado completo. -->
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-danger rounded-pill px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalPredios">
+                    <i class="bi bi-geo-alt-fill me-1"></i>Predios / Sedes
+                    <span class="badge bg-danger rounded-pill ms-1"><?= count($todos_los_lugares ?? []) ?></span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -132,7 +140,9 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             </div>
         </div>
 
-        <div class="col-12 col-md-6 col-xl-4">
+        <!-- CATEGORÍAS: ahora es el cuadro principal (ocupa todo el ancho que dejó
+             el panel de Predios, que pasó a vivir en un modal accesible desde el header). -->
+        <div class="col-12 col-md-6 col-xl-7">
             <div class="card border-0 shadow-sm rounded-3 h-100">
                 <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
                     <h6 class="fw-bold text-dark m-0"><i class="bi bi-tags-fill text-primary me-2"></i>Listado de Categorías</h6>
@@ -158,13 +168,15 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         <table class="table table-sm table-hover align-middle" style="font-size: 0.82rem; table-layout: fixed; width: 100%;">
                             <thead class="table-light">
                                 <tr>
-                                    <th style="width: 32%;">Categoría / Deporte</th>
-                                    <th class="text-center" style="width: 20%;">Cronograma</th>
+                                    <!-- Columnas un poco más amplias: la tabla de categorías
+                                         ahora ocupa todo el espacio que dejó el panel de Predios -->
+                                    <th style="width: 38%;">Categoría / Deporte</th>
+                                    <th class="text-center" style="width: 24%;">Cronograma</th>
                                     <?php if (!empty($reglas_categoria)): ?>
-                                    <th class="text-center" style="width: 28%;" title="Cómo se premia cada categoría (puestos + tipo de premio + día sugerido)">Premiación</th>
+                                    <th class="text-center" style="width: 22%;" title="Cómo se premia cada categoría (puestos + tipo de premio + día sugerido)">Premiación</th>
                                     <?php endif; ?>
                                     <?php if (!$solo_lectura): ?>
-                                    <th class="text-end" style="width: 20%;">Acciones</th>
+                                    <th class="text-end" style="width: 16%;">Acciones</th>
                                     <?php endif; ?>
                                 </tr>
                             </thead>
@@ -274,51 +286,65 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             </div>
         </div>
 
-        <div class="col-12 col-md-6 col-xl-3">
-            <div class="card border-0 shadow-sm rounded-3 h-100">
-                <div class="card-header bg-white border-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
-                    <h6 class="fw-bold text-dark m-0"><i class="bi bi-geo-alt-fill text-danger me-2"></i>Predios / Sedes</h6>
+    </div>
+</div>
+
+<!-- ============================================================
+     MODAL PREDIOS / SEDES
+     El antiguo panel lateral de Predios pasó a vivir acá adentro:
+     ya no ocupa espacio en la pantalla. Se abre desde el botón
+     "Predios / Sedes" del encabezado de Gestión Deportiva.
+     ============================================================ -->
+<div class="modal fade" id="modalPredios" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-danger text-white rounded-top-4">
+                <h5 class="modal-title fw-bold fs-6"><i class="bi bi-geo-alt-fill me-2"></i>Predios / Sedes</h5>
+                <div class="d-flex align-items-center gap-3 ms-auto">
                     <?php if (!$solo_lectura): ?>
-                    <button class="btn btn-xs btn-danger rounded-pill px-2 py-1 small" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#modalLugar">
-                        <i class="bi bi-plus-circle me-1"></i> Nueva Sede
+                    <button class="btn btn-sm btn-light text-danger rounded-pill px-3 fw-semibold" data-bs-toggle="modal" data-bs-target="#modalLugar">
+                        <i class="bi bi-plus-circle me-1"></i>Nueva Sede
                     </button>
                     <?php endif; ?>
-                </div>
-                <div class="card-body p-3 scroll-panel">
-                    <ul class="list-group list-group-flush">
-                        <?php if(!empty($todos_los_lugares)): ?>
-                            <?php foreach($todos_los_lugares as $lug): ?>
-                                <li class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-start" style="border-bottom: 1px dashed #dee2e6 !important;">
-                                    <div style="font-size: 0.8rem;">
-                                        <span class="fw-bold text-dark d-block"><i class="bi bi-building me-1 text-muted"></i> <?= htmlspecialchars($lug['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
-                                        <small class="text-muted"><i class="bi bi-signpost-fill me-1"></i> <?= !empty($lug['direccion']) ? htmlspecialchars($lug['direccion'], ENT_QUOTES, 'UTF-8') : 'Sin dirección cargada' ?></small>
-                                    </div>
-                                    <?php if (!$solo_lectura): ?>
-                                    <div class="d-flex gap-2 ms-2">
-                                        <button type="button" class="text-muted btn-accion-panel btn-editar"
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#modalEditarLugar"
-                                                data-id="<?= $lug['id'] ?>"
-                                                data-nombre="<?= htmlspecialchars($lug['nombre'], ENT_QUOTES, 'UTF-8') ?>"
-                                                data-direccion="<?= htmlspecialchars($lug['direccion'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                                                title="Editar Predio">
-                                            <i class="bi bi-pencil-square fs-6"></i>
-                                        </button>
-                                        <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Seguro que querés quitar este predio?" title="Eliminar Predio">
-                                            <i class="bi bi-x-circle fs-6"></i>
-                                        </a>
-                                    </div>
-                                    <?php endif; ?>
-                                </li>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <li class="list-group-item bg-transparent text-center text-muted small py-3">No hay predios registrados.</li>
-                        <?php endif; ?>
-                    </ul>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
             </div>
+            <div class="modal-body p-4">
+                <ul class="list-group list-group-flush">
+                    <?php if(!empty($todos_los_lugares)): ?>
+                        <?php foreach($todos_los_lugares as $lug): ?>
+                            <li class="list-group-item bg-transparent px-0 py-2 d-flex justify-content-between align-items-start" style="border-bottom: 1px dashed #dee2e6 !important;">
+                                <div style="font-size: 0.85rem;">
+                                    <span class="fw-bold text-dark d-block"><i class="bi bi-building me-1 text-muted"></i> <?= htmlspecialchars($lug['nombre'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <small class="text-muted"><i class="bi bi-signpost-fill me-1"></i> <?= !empty($lug['direccion']) ? htmlspecialchars($lug['direccion'], ENT_QUOTES, 'UTF-8') : 'Sin dirección cargada' ?></small>
+                                </div>
+                                <?php if (!$solo_lectura): ?>
+                                <div class="d-flex gap-2 ms-2">
+                                    <button type="button" class="text-muted btn-accion-panel btn-editar"
+                                            data-bs-toggle="modal" 
+                                            data-bs-target="#modalEditarLugar"
+                                            data-id="<?= $lug['id'] ?>"
+                                            data-nombre="<?= htmlspecialchars($lug['nombre'], ENT_QUOTES, 'UTF-8') ?>"
+                                            data-direccion="<?= htmlspecialchars($lug['direccion'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                            title="Editar Predio">
+                                        <i class="bi bi-pencil-square fs-6"></i>
+                                    </button>
+                                    <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Seguro que querés quitar este predio?" title="Eliminar Predio">
+                                        <i class="bi bi-x-circle fs-6"></i>
+                                    </a>
+                                </div>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <li class="list-group-item bg-transparent text-center text-muted small py-3">No hay predios registrados.</li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <div class="modal-footer bg-light border-0 rounded-bottom-4">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
-
     </div>
 </div>
 
