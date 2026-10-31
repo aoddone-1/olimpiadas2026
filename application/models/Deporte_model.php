@@ -102,6 +102,29 @@ class Deporte_model extends CI_Model {
     }
 
     /**
+     * Deportes que tienen un PDF de fixture linkeado (columna
+     * `documento_fixture` no vacía — ver sql/migracion_documento_fixture.sql).
+     * Se usa para poblar el selector "Ver fixture (PDF)" de Fixture.php: así
+     * solo aparecen disciplinas con documento subido a assets/docs/ y nunca se
+     * puede elegir un deporte que daría error 404 al abrir el PDF.
+     *
+     * Si la migración todavía no se ejecutó (la columna no existe), la consulta
+     * falla; se devuelve el listado completo de deportes como fallback para no
+     * romper la pantalla.
+     */
+    public function obtener_deportes_con_documento_fixture() {
+        try {
+            $this->db->where('documento_fixture IS NOT NULL');
+            $this->db->where("TRIM(documento_fixture) != ''", NULL, FALSE);
+            $this->db->order_by('nombre_deporte', 'ASC');
+            return $this->db->get('deportes')->result_array();
+        } catch (Throwable $e) {
+            // Columna inexistente (migración no ejecutada aún): mostrar todos.
+            return $this->obtener_todos_los_deportes();
+        }
+    }
+
+    /**
      * Nombre del PDF del fixture cargado en assets/docs/ para un deporte
      * (columna `documento_fixture` de la tabla `deportes`, ver
      * sql/migracion_documento_fixture.sql). Devuelve NULL si el deporte no
