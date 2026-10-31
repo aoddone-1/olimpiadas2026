@@ -101,6 +101,26 @@ class Deporte_model extends CI_Model {
         return $this->db->get('deportes')->result_array();
     }
 
+    /**
+     * Nombre del PDF del fixture cargado en assets/docs/ para un deporte
+     * (columna `documento_fixture` de la tabla `deportes`, ver
+     * sql/migracion_documento_fixture.sql). Devuelve NULL si el deporte no
+     * tiene documento asignado o si la base todavía no tiene la columna
+     * (así la vista puede avisar "no hay fixture subido" sin explotar).
+     */
+    public function obtener_documento_fixture($id_deporte) {
+        $this->db->select('documento_fixture');
+        $this->db->where('id_deporte', (int) $id_deporte);
+        try {
+            $fila = $this->db->get('deportes')->row_array();
+        } catch (Throwable $e) {
+            // Columna inexistente (migración no ejecutada aún).
+            return NULL;
+        }
+        $doc = trim((string) ($fila['documento_fixture'] ?? ''));
+        return $doc !== '' ? $doc : NULL;
+    }
+
     public function guardar_deporte($post_data){
         if (empty($post_data['nombre_deporte']) || empty($post_data['genero'])) {
             return FALSE;

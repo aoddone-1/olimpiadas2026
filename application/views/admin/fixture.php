@@ -40,30 +40,27 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 <span class="fx-header-titulo">Gestión de Fixture <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
             <div class="d-flex gap-2 align-items-center">
+                <!-- Selector de deporte para el fixture: ahora el botón de la
+                     derecha YA NO genera un reporte dinámico: abre el PDF
+                     subido a assets/docs/ (fx_NOMBREDEPORTE.pdf), cuyo nombre
+                     vive en la columna `documento_fixture` de la tabla
+                     deportes (sql/migracion_documento_fixture.sql). -->
                 <select id="fx_deporte_reporte" class="form-select form-select-sm fx-select-reporte"
-                    title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el general)">
-                    <option value="">🏆 Todos los deportes</option>
+                    title="Elegí un deporte para ver su fixture (PDF subido a la web)">
+                    <option value="">— Elegí un deporte —</option>
                     <?php foreach ($deportes_fixture as $dep): ?>
                         <option value="<?= $dep['id_deporte'] ?>">
                             <?= htmlspecialchars($dep['nombre_deporte']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <!-- Formato del PDF del reporte: cuadro (días × franjas), por
-                     deporte (una tabla por deporte con las categorías
-                     diferenciadas por color) o listado simple. Se aplica al
-                     botón de descarga de la derecha. -->
-                <select id="fx_formato_reporte" class="form-select form-select-sm fx-select-reporte"
-                    title="Elegí cómo querés el PDF: en cuadro, una tabla por deporte (categorías con colores) o listado">
-                    <option value="cuadro">Cuadro (días × horarios)</option>
-                    <option value="deporte">Por deporte (tabla con colores por categoría)</option>
-                </select>
-                <!-- Botón PDF: antes rojo sólido y grande (muy chocante); ahora
-                     outline sutil que solo se "enciende" al pasar el mouse -->
-                <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture') ?>" target="_blank"
-                    class="btn fx-btn-pdf" title="PDF del fixture en cuadro: columnas = días, filas = rangos horarios">
+                <!-- Botón PDF: abre en una pestaña nueva el documento del
+                     deporte elegido. Queda deshabilitado hasta seleccionar
+                     uno (ver actualizarBtnPdf() en el JS de abajo). -->
+                <a id="fx_btn_pdf" href="#" target="_blank" rel="noopener" aria-disabled="true"
+                    class="btn fx-btn-pdf disabled" title="Elegí un deporte para abrir su fixture en PDF">
                     <i class="bi bi-file-earmark-pdf me-1"></i>
-                    <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
+                    <span id="fx_btn_pdf_txt">Ver fixture (PDF)</span>
                 </a>
             </div>
         </div>
@@ -1569,59 +1566,54 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
             contenedorDias.appendChild(btn);
         });
 
-        // Los botones de PDF descargan SIEMPRE todos los días (sin filtro):
-        // cuadro = columnas días / filas franjas; listado = una fila por partido.
+        // ============================================================
+        // BOTÓN "VER FIXTURE (PDF)" — NUEVO COMPORTAMIENTO
+        // Ya no se genera ningún reporte dinámico con TCPDF: el botón abre
+        // en una pestaña nueva el PDF estático subido a assets/docs/
+        // (fx_NOMBREDEPORTE.pdf), cuyo nombre de archivo vive en la columna
+        // `documento_fixture` de la tabla deportes. El endpoint
+        // Inscripciones/descargar_pdf_fixture?deporte=ID lo resuelve y lo
+        // sirve inline. Sin deporte elegido, el botón queda deshabilitado.
+        // (El viejo selector de formato cuadro/deporte/lista se eliminó junto
+        // con el generador de reportes.)
+        // ============================================================
         const btnPdf = document.getElementById('fx_btn_pdf');
-        if (btnPdf) {
-            btnPdf.href = BASE + '/descargar_pdf_fixture';
-            btnPdf.title = 'PDF con el cuadro del fixture de TODOS los días (columnas = días, filas = rangos horarios)';
-        }
-        const btnPdfLista = document.getElementById('fx_btn_pdf_lista');
-        if (btnPdfLista) {
-            btnPdfLista.href = BASE + '/descargar_pdf_fixture?formato=lista';
-            btnPdfLista.title = 'PDF con el listado ordenado del fixture de TODOS los días (Deporte → Categoría → Fecha → Hora)';
-        }
-
-        // Selector de deporte junto al botón de descarga: si se elige uno, el PDF
-        // sale FILTRADO solo con ese deporte (mismo formato que el general).
-        // A eso se suma el selector de FORMATO (fx_formato_reporte): cuadro
-        // (días × horarios), deporte (una tabla por deporte con las categorías
-        // diferenciadas por color) o lista (una fila por partido).
         const selDeporteReporte = document.getElementById('fx_deporte_reporte');
-        const selFormatoReporte = document.getElementById('fx_formato_reporte');
+
         function actualizarBtnPdf() {
             if (!btnPdf || !selDeporteReporte) return;
             const idDep = selDeporteReporte.value;
-            const formato = selFormatoReporte ? selFormatoReporte.value : 'cuadro';
             const nombreDep = idDep
                 ? selDeporteReporte.options[selDeporteReporte.selectedIndex].text.trim()
                 : '';
-            const qs = [];
-            if (formato && formato !== 'cuadro') qs.push('formato=' + encodeURIComponent(formato));
-            if (idDep) qs.push('deporte=' + encodeURIComponent(idDep));
-            btnPdf.href = BASE + '/descargar_pdf_fixture' + (qs.length ? '?' + qs.join('&') : '');
+
+            if (idDep) {
+                btnPdf.href = BASE + '/descargar_pdf_fixture?deporte=' + encodeURIComponent(idDep);
+                btnPdf.classList.remove('disabled');
+                btnPdf.removeAttribute('aria-disabled');
+                btnPdf.title = 'Abre el fixture de ' + nombreDep + ' en PDF (documento subido a la web)';
+            } else {
+                btnPdf.href = '#';
+                btnPdf.classList.add('disabled');
+                btnPdf.setAttribute('aria-disabled', 'true');
+                btnPdf.title = 'Elegí un deporte para abrir su fixture en PDF';
+            }
             const txt = document.getElementById('fx_btn_pdf_txt');
             if (txt) {
-                txt.textContent = idDep
-                    ? 'Descargar fixture de ' + nombreDep
-                    : 'Descargar reporte de fixture';
+                txt.textContent = idDep ? 'Ver fixture de ' + nombreDep : 'Ver fixture (PDF)';
             }
-            const detalle = formato === 'deporte'
-                ? 'una tabla por deporte con todos sus partidos y colores por categoría'
-                : (formato === 'lista' ? 'el listado ordenado (Deporte → Categoría → Fecha → Hora)'
-                                        : 'el cuadro del fixture (columnas = días, filas = rangos horarios)');
-            btnPdf.title = 'PDF con ' + detalle + ' de '
-                + (idDep ? 'SOLO ' + nombreDep : 'TODOS los deportes') + ' (todos los días)';
         }
         if (selDeporteReporte) {
             selDeporteReporte.addEventListener('change', actualizarBtnPdf);
         }
-        if (selFormatoReporte) {
-            selFormatoReporte.addEventListener('change', actualizarBtnPdf);
+        if (btnPdf) {
+            // Bloquear el click con href="#" (deporte sin elegir): target=_blank
+            // abriría una pestaña en blanco otherwise.
+            btnPdf.addEventListener('click', function (ev) {
+                if (btnPdf.classList.contains('disabled')) ev.preventDefault();
+            });
         }
-        if (selDeporteReporte || selFormatoReporte) {
-            actualizarBtnPdf();
-        }
+        actualizarBtnPdf();
 
         // Resumen del día elegido
         let resumen = '';
