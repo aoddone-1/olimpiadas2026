@@ -1230,8 +1230,12 @@ class MYPDF extends TCPDF {
                 // de partidos. Los individuales salen sin nada extra.
                 $celular = $esc($nombre);
                 if (!empty($integrantes_map[$clave])) {
+                    // Los integrantes se separan con " - " (no con coma): en la
+                    // base de datos los nombres se guardan como "Apellido, nombre"
+                    // y usando comas no se distinguía dónde terminaba un
+                    // participante y dónde empezaba el siguiente.
                     $celular .= '<br><span style="font-size:7.5pt; color:#7f8c8d;">('
-                              . $esc(implode(', ', $integrantes_map[$clave])) . ')</span>';
+                              . $esc(implode(' - ', $integrantes_map[$clave])) . ')</span>';
                 }
                 $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center; width:8%;"></td>'
@@ -1346,7 +1350,7 @@ class MYPDF extends TCPDF {
                     $html .= '<tr style="background-color:' . $bg . ';">'
                            . '<td style="' . $borde . ' width:30%;"><b>' . $esc($nombre_eq) . '</b></td>'
                            . '<td style="' . $borde . ' width:70%;">'
-                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(', ', $integrantes_eq[$clave_eq])) : '&nbsp;')
+                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(' - ', $integrantes_eq[$clave_eq])) : '&nbsp;')
                            . '</td></tr>';
                     $k++;
                 }
@@ -1443,7 +1447,10 @@ class MYPDF extends TCPDF {
                     $out = '<b>' . ($equipo !== '' ? $esc($equipo) : '&nbsp;') . '</b>';
                     $jug = $integrantes($lado);
                     if ($jug) {
-                        $out .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc(implode(', ', $jug)) . '</span>';
+                        // Integrantes separados con " - ": los nombres se guardan
+                        // como "Apellido, nombre" en la BD y con comas no se
+                        // distinguía un participante del siguiente.
+                        $out .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc(implode(' - ', $jug)) . '</span>';
                     }
                     return $out;
                 };
