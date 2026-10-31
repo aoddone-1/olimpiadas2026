@@ -578,6 +578,17 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
+        // ---- Filtro por deporte del Listado de Categorías ----
+        // Se recuerda en la sesión para que, tras guardar/editar/eliminar una
+        // categoría (los formularios de los modales redirigen a esta pantalla),
+        // el filtro elegido no se pierda.
+        if ($this->input->get_post('filtro_deporte') !== null) {
+            $filtro_gd = intval($this->input->get_post('filtro_deporte'));
+            $this->session->set_userdata('gd_filtro_deporte', $filtro_gd > 0 ? $filtro_gd : '');
+        }
+        $data['filtro_deporte'] = $this->session->userdata('gd_filtro_deporte');
+        $data['filtro_deporte'] = !empty($data['filtro_deporte']) ? intval($data['filtro_deporte']) : '';
+
         $this->load->model('Deporte_model');
         
         // Cargamos todo lo necesario para los fixtures y modales deportivos
