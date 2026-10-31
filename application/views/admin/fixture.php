@@ -40,20 +40,31 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 <span class="fx-header-titulo">Gestión de Fixture <u><?= LUGAR_OLIMPICO2 ?></u></span>
             </div>
             <div class="d-flex gap-2 align-items-center">
-                <!-- Selector de deporte para el fixture: ahora el botón de la
+                <!-- Selector de deporte para el fixture (PDF): el botón de la
                      derecha YA NO genera un reporte dinámico: abre el PDF
                      subido a assets/docs/ (fx_NOMBREDEPORTE.pdf), cuyo nombre
                      vive en la columna `documento_fixture` de la tabla
-                     deportes (sql/migracion_documento_fixture.sql). -->
+                     deportes (sql/migracion_documento_fixture.sql).
+                     IMPORTANTE: acá solo aparecen los deportes QUE TIENEN un
+                     archivo linkeado ($deportes_con_documento) — elegir uno sin
+                     PDF daría 404, así que directamente no se ofrecen. -->
                 <select id="fx_deporte_reporte" class="form-select form-select-sm fx-select-reporte"
                     title="Elegí un deporte para ver su fixture (PDF subido a la web)">
                     <option value="">— Elegí un deporte —</option>
-                    <?php foreach ($deportes_fixture as $dep): ?>
+                    <?php foreach ($deportes_con_documento as $dep): ?>
                         <option value="<?= $dep['id_deporte'] ?>">
                             <?= htmlspecialchars($dep['nombre_deporte']) ?>
                         </option>
                     <?php endforeach; ?>
                 </select>
+                <?php if (empty($deportes_con_documento)): ?>
+                    <!-- Nadie tiene fixture subido todavía: el selector queda
+                         vacío y el botón deshabilitado; avisamos para que no
+                         parezca un error de la página. -->
+                    <span class="small text-muted fst-italic" title="Ningún deporte tiene PDF de fixture en deportes.documento_fixture">
+                        <i class="bi bi-exclamation-triangle me-1"></i>No hay fixtures publicados
+                    </span>
+                <?php endif; ?>
                 <!-- Botón PDF: abre en una pestaña nueva el documento del
                      deporte elegido. Queda deshabilitado hasta seleccionar
                      uno (ver actualizarBtnPdf() en el JS de abajo). -->

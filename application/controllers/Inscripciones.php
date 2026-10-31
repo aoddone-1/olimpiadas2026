@@ -1086,7 +1086,12 @@ class Inscripciones extends CI_Controller {
         $this->load->model('Fixture_model');
         $data['categorias_modal_partido'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
+        // Filtro "Filtrar por deporte": TODOS los deportes (el listado de partidos
+        // del panel no depende del PDF subido).
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
+        // Selector "Ver fixture (PDF)": SOLO deportes con documento_fixture cargado
+        // (PDF subido a assets/docs/). Así no se puede elegir un deporte que daría 404.
+        $data['deportes_con_documento'] = $this->Deporte_model->obtener_deportes_con_documento_fixture();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
         $data['menu_activo'] = 'fixture';
@@ -1157,6 +1162,8 @@ class Inscripciones extends CI_Controller {
         // El panel Fixture (modal de partido manual) sigue necesitando TODAS las categorías.
         $data['categorias_fixture'] = $this->Fixture_model->obtener_categorias_para_fixture();
         $data['deportes_fixture'] = $this->Deporte_model->obtener_todos_los_deportes();
+        // Selector "Ver fixture (PDF)" del panel Fixture: solo deportes con PDF linkeado.
+        $data['deportes_con_documento'] = $this->Deporte_model->obtener_deportes_con_documento_fixture();
         $data['lugares_db'] = $this->Deporte_model->obtener_todos_los_lugares();
 
         $data['menu_activo'] = 'deportes';
