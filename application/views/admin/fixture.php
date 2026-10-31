@@ -57,7 +57,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                     title="Elegí cómo querés el PDF: en cuadro, una tabla por deporte (categorías con colores) o listado">
                     <option value="cuadro">Cuadro (días × horarios)</option>
                     <option value="deporte">Por deporte (tabla con colores por categoría)</option>
-                    <option value="lista">Listado</option>
                 </select>
                 <!-- Botón PDF: antes rojo sólido y grande (muy chocante); ahora
                      outline sutil que solo se "enciende" al pasar el mouse -->
