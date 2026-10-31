@@ -52,8 +52,37 @@ class MYPDF extends TCPDF {
      */
     public static $filas_vacias_planilla = 20;
 
+    /** Nombre de UN participante como "Nombre Apellido".
+     *  En la base de datos los nombres se guardan como "Apellido, nombre(s)"
+     *  (una sola coma dentro de cada nombre). Al listar varios integrantes no
+     *  podemos separarlos con coma —el lector no distingue dónde termina uno y
+     *  empieza el siguiente—, así que en las planillas se separan con " - ".
+     *  Para que esa coma interna del "Apellido, nombre" no se confunda con un
+     *  separador más, cada nombre se reordena a "Nombre Apellido" ANTES de
+     *  unirlos con guiones: si no, el " - " y la coma terminan dándole al
+     *  lector la impresión de que también se partió el apellido del nombre.
+     *  Nombres sin coma ("Ana Pérez") se devuelven intactos. Solo afecta a
+     *  nombres de participantes; los nombres de equipos pasan por acá igual
+     *  pero quedan sin cambios porque no traen coma. */
+    public static function _nombre_normalizado($n) {
+        $n = trim(preg_replace('/\s+/u', ' ', (string) $n));
+        if ($n === '') return '';
+        // Forma "Apellido, nombre(s)": invertir a "nombre(s) Apellido".
+        if (strpos($n, ',') !== FALSE) {
+            $pos  = strpos($n, ',');
+            $ape  = trim(substr($n, 0, $pos));
+            $nom  = trim(substr($n, $pos + 1));
+            if ($ape !== '' && $nom !== '') return $nom . ' ' . $ape;
+            return $ape !== '' ? $ape : $nom;
+        }
+        return $n;
+    }
+
     /** Nombre corto (pila + iniciales): "María Paula Gómez" → "María P. G.". */
     public static function _nombre_corto($n) {
+        // Normalizar primero: si llega "Gómez, María Paula" no tiene sentido
+        // tomar "Gómez," como pila e iniciales del resto.
+        $n = self::_nombre_normalizado($n);
         $n = trim(preg_replace('/\s+/u', ' ', (string) $n));
         if ($n === '') return '';
         $partes = preg_split('/\s+/u', $n);
@@ -1233,9 +1262,13 @@ class MYPDF extends TCPDF {
                     // Los integrantes se separan con " - " (no con coma): en la
                     // base de datos los nombres se guardan como "Apellido, nombre"
                     // y usando comas no se distinguía dónde terminaba un
-                    // participante y dónde empezaba el siguiente.
+                    // participante y dónde empezaba el siguiente. Además cada
+                    // nombre se normaliza a "Nombre Apellido" para que la coma
+                    // interna del formato de la BD no vuelva a confundirse con
+                    // un separador.
+                    $norm = array_map(array('MYPDF', '_nombre_normalizado'), $integrantes_map[$clave]);
                     $celular .= '<br><span style="font-size:7.5pt; color:#7f8c8d;">('
-                              . $esc(implode(' - ', $integrantes_map[$clave])) . ')</span>';
+                              . $esc(implode(' - ', $norm)) . ')</span>';
                 }
                 $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center; width:8%;"></td>'
@@ -1350,7 +1383,13 @@ class MYPDF extends TCPDF {
                     $html .= '<tr style="background-color:' . $bg . ';">'
                            . '<td style="' . $borde . ' width:30%;"><b>' . $esc($nombre_eq) . '</b></td>'
                            . '<td style="' . $borde . ' width:70%;">'
-                           . (isset($integrantes_eq[$clave_eq]) ? $esc(implode(' - ', $integrantes_eq[$clave_eq])) : '&nbsp;')
+                           . (isset($integrantes_eq[$clave_eq])
+                                // Integrantes separados con " - " y cada nombre
+                                // normalizado a "Nombre Apellido" (en la BD se
+                                // guarda "Apellido, nombre" y esa coma interna
+                                // confundía al lector).
+                                ? $esc(implode(' - ', array_map(array('MYPDF', '_nombre_normalizado'), $integrantes_eq[$clave_eq])))
+                                : '&nbsp;')
                            . '</td></tr>';
                     $k++;
                 }
@@ -1449,8 +1488,11 @@ class MYPDF extends TCPDF {
                     if ($jug) {
                         // Integrantes separados con " - ": los nombres se guardan
                         // como "Apellido, nombre" en la BD y con comas no se
-                        // distinguía un participante del siguiente.
-                        $out .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc(implode(' - ', $jug)) . '</span>';
+                        // distinguía un participante del siguiente. Cada nombre
+                        // además se normaliza a "Nombre Apellido" para que esa
+                        // coma interna no vuelva a confundirse con un separador.
+                        $jug_norm = array_map(array('MYPDF', '_nombre_normalizado'), $jug);
+                        $out .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">' . $esc(implode(' - ', $jug_norm)) . '</span>';
                     }
                     return $out;
                 };
