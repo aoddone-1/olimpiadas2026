@@ -630,9 +630,10 @@ class MYPDF extends TCPDF {
      * Reclamo de los usuarios: el cuadro general (días × franjas, todos los
      * deportes mezclados) no es cómodo. Este reporte imprime UNA TABLA por
      * deporte (cada deporte arranca en hoja nueva) con TODOS sus partidos,
-     * ordenados Categoría → Fecha → Hora. Dentro de la tabla, cada categoría
-     * tiene su COLOR (chapa en la columna Categoría + borde izquierdo de la
-     * fila), para seguirla de un vistazo cruzando días y horarios.
+     * ordenados FECHA → HORA (cronológico dentro del deporte; NO por
+     * categoría). Dentro de la tabla, cada categoría sigue teniendo su COLOR
+     * (chapa en la columna Categoría + borde izquierdo de la fila), para
+     * seguirla de un vistazo cruzando días y horarios.
      *   - Deportes de ENFRENTAMIENTO: filas coloreadas por categoría.
      *   - Deportes de LARGADA ÚNICA (jornada masiva): sin color —el nombre del
      *     deporte ya alcanza—, y la celda muestra la largada/jornada con sus
@@ -642,26 +643,31 @@ class MYPDF extends TCPDF {
     public function _body_por_deporte() {
         $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
 
-        // Orden interno: Deporte → Categoría → Fecha → Hora (Body() ya lo aplicó,
-        // pero se refuerza acá porque este reporte agrupa por deporte).
+        // Orden interno de este reporte: Deporte → FECHA → HORA (cronológico).
+        // ANTES el cuadro por deporte salía ordenado por CATEGORÍA (todos los
+        // partidos de una categoría juntos, aunque quedaran intercalados en el
+        // día); ahora dentro de cada deporte las filas salen por DÍA y HORA.
         usort($this->datos, function ($a, $b) {
             return [
                 strtolower($a['nombre_deporte'] ?? ''),
-                strtolower($a['nombre_categoria'] ?? ''),
                 (string) ($a['fecha_competencia'] ?? ''),
                 (string) ($a['hora_inicio'] ?? ''),
-                (int) ($a['numero_fecha'] ?? 0)
+                (int) ($a['numero_fecha'] ?? 0),
+                strtolower($a['nombre_categoria'] ?? ''),
+                (int) ($a['id_fixture'] ?? 0)
             ] <=> [
                 strtolower($b['nombre_deporte'] ?? ''),
-                strtolower($b['nombre_categoria'] ?? ''),
                 (string) ($b['fecha_competencia'] ?? ''),
                 (string) ($b['hora_inicio'] ?? ''),
-                (int) ($b['numero_fecha'] ?? 0)
+                (int) ($b['numero_fecha'] ?? 0),
+                strtolower($b['nombre_categoria'] ?? ''),
+                (int) ($b['id_fixture'] ?? 0)
             ];
         });
 
-        // Agrupar: Deporte → Categoría → [filas]. La clave usa id cuando existe
-        // (evita juntar categorías homónimas de deportes distintos).
+        // Agrupar SOLO por deporte; las filas quedan tal cual salieron del
+        // usort (día → hora). La clave usa id cuando existe (evita juntar
+        // deportes homónimos de delegaciones distintas).
         $por_deporte = array();
         foreach ($this->datos as $fila) {
             $dep = trim((string) ($fila['nombre_deporte'] ?? ''));
@@ -676,8 +682,12 @@ class MYPDF extends TCPDF {
             $cat_key = (int) ($fila['id_categoria'] ?? 0) ?: strtolower($dep . '|' . $cat);
 
             $por_deporte[$dep_key]['nombre'] = $dep;
+            // Índice de categorías (nombre + color más abajo); ya NO determina
+            // el orden de las filas de la tabla.
             $por_deporte[$dep_key]['cats'][$cat_key]['nombre'] = $cat;
             $por_deporte[$dep_key]['cats'][$cat_key]['filas'][] = $fila;
+            // Fila con su categoría/resolvido para imprimir en orden cronológico.
+            $por_deporte[$dep_key]['filas'][] = array('fila' => $fila, 'cat_key' => $cat_key);
         }
         ksort($por_deporte);
 
@@ -868,13 +878,18 @@ class MYPDF extends TCPDF {
                   . '</tr></thead><tbody>';
 
             $i = 0;
-            foreach ($bloque['cats'] as $ck => $cat) {
+            // FILAS EN ORDEN CRONOLÓGICO (día → hora) dentro del deporte. Se
+            // recorre $bloque['filas'] (ya ordenado por el usort de arriba) y
+            // no $bloque['cats'], que antes imprimía todos los partidos juntos
+            // por categoría. El color sigue atado a la categoría de cada fila.
+            foreach ($bloque['filas'] as $item) {
+                $f = $item['fila'];
+                $ck = $item['cat_key'];
+                $cat = $bloque['cats'][$ck];
                 $es_masivo = self::_bloque_es_masivo($cat['filas']);
                 // Color de la categoría SOLO en enfrentamientos; en largada
                 // única la fila va neutra (no hace falta diferenciar por color).
                 $color = (!$es_masivo && isset($colores_cat[$ck])) ? $colores_cat[$ck] : null;
-
-                foreach ($cat['filas'] as $f) {
                     $bg_fila = $color ? $color[0] : (($i % 2) ? $c_white : $c_alt);
                     $borde_izq = $color
                         ? 'border-left:4px solid ' . $color[1] . ';'
@@ -916,7 +931,6 @@ class MYPDF extends TCPDF {
 
                     $html .= '</tr>';
                     $i++;
-                }
             }
             $html .= '</tbody></table>';
 
