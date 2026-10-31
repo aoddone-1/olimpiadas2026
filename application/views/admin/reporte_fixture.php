@@ -130,11 +130,45 @@ class MYPDF extends TCPDF {
         return $iniciales ? $primero . ' ' . implode(' ', $iniciales) : $primero;
     }
 
+    /**
+     * Cabecera de TODAS las páginas del PDF.
+     *  - Logo/header image a la izquierda (como siempre).
+     *  - A la derecha, a la misma altura del logo, un bloque de texto con el
+     *    título del deporte del reporte "por deporte" ($this->header_deporte):
+     *    nombre en grande + línea de resumen ("N categoría/s · N partido/s ·
+     *    Delegación X"). Se arma desde _body_por_deporte() antes de cada hoja.
+     * Si no hay bloque cargado (otros formatos), se dibuja solo el logo.
+     */
+    public $header_deporte = null; // array('titulo' => ..., 'meta' => ...)
+
     public function Header() {
         $this->Image('assets/img/header.jpg', 30, 15, 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
-        
-        
-        
+
+        // Bloque derecho: título del deporte + resumen (solo reporte por deporte).
+        if (!empty($this->header_deporte) && is_array($this->header_deporte)) {
+            $esc = function ($s) { return htmlspecialchars((string) $s, ENT_QUOTES, 'UTF-8'); };
+            // Columna derecha: desde ~x=140 hasta el margen derecho de la hoja.
+            // LEGAL horizontal: w=355.6, rMargin=25 → ancho disponible ~190mm.
+            $x_img  = 30;              // x donde arranca el logo
+            $w_img  = 100;             // ancho del logo
+            $r_mar  = $this->rtl ? $this->lMargin : $this->rMargin;
+            $x_col  = $x_img + $w_img + 10;
+            $w_col  = $this->w - $x_col - $r_mar;
+            $y_top  = 15;              // misma altura vertical del logo
+            $h_box  = 25;              // alto de la caja (aprox. alto del logo)
+
+            $html = '<div style="text-align:right; font-size:15pt; font-weight:bold; color:#1e3a5f;">'
+                  . $esc($this->header_deporte['titulo'])
+                  . '</div>'
+                  . '<div style="text-align:right; font-size:8pt; color:#7f8c8d;">'
+                  . $this->header_deporte['meta']
+                  . '</div>';
+
+            // writeHTMLCell con border=0, fill=0 y ln=0: dibuja la caja en la
+            // posición absoluta indicada sin dejar el cursor movido; el cuerpo
+            // de la página arranca igual que antes (bajo el margen superior).
+            $this->writeHTMLCell($w_col, $h_box, $x_col, $y_top, $html, 0, 0, FALSE, true, 'R', TRUE);
+        }
     }
 
     public function Body() {
@@ -827,13 +861,6 @@ class MYPDF extends TCPDF {
 
         $primer_deporte = TRUE;
         foreach ($por_deporte as $dk => $bloque) {
-            // Cada deporte arranca en hoja nueva (menos el primero, que usa la
-            // página que ya abrió el script al final de la plantilla).
-            if (!$primer_deporte) {
-                $this->AddPage('L', 'LEGAL');
-            }
-            $primer_deporte = FALSE;
-
             $total_partidos = 0;
             foreach ($bloque['cats'] as $cat) $total_partidos += count($cat['filas']);
             $deporte_masivo = FALSE;
@@ -841,16 +868,31 @@ class MYPDF extends TCPDF {
                 if (self::_bloque_es_masivo($cat['filas'])) $deporte_masivo = TRUE;
             }
 
-            // ---------- Título del deporte ----------
-            // (sin emoji: TCPDF con DejaVu no renderiza bien los pictogramas)
-            $html = '<div style="text-align:left; font-size:15pt; font-weight:bold; color:' . $c_primary . '; padding:2px 0 2px 0;">'
-                  . strtoupper($esc($bloque['nombre']))
-                  . '</div>'
-                  . '<div style="text-align:left; font-size:8pt; color:' . $c_muted . '; padding-bottom:6px;">'
-                  . count($bloque['cats']) . ' categoría/s · ' . $total_partidos . ' partido/s'
-                  . ($this->delegacion_filtro ? ' · Delegación ' . $esc($this->delegacion_filtro) : '')
-                  . ($deporte_masivo ? ' · <i>Largada única: sin colores por categoría</i>' : '')
-                  . '</div>';
+            // ---------- Título del deporte: AHORA VA EN EL HEADER ----------
+            // El bloque (nombre del deporte + resumen) se carga en la propiedad
+            // $header_deporte para que Header() lo dibuje arriba a la derecha,
+            // a la altura del logo. IMPORTANTE: se setea ANTES del AddPage
+            // porque TCPDF dispara Header() dentro de AddPage(); así cada hoja
+            // del deporte (incluidas las de continuación) lleva el título
+            // correcto. Antes se imprimía como primer <div> del cuerpo, solo
+            // en la primera hoja.
+            $meta_txt = '<b>' . count($bloque['cats']) . ' categoría/s · ' . $total_partidos . ' partido/s</b>'
+                      . ($this->delegacion_filtro ? ' · Delegación ' . $esc($this->delegacion_filtro) : '')
+                      . ($deporte_masivo ? ' · <i>Largada única: sin colores por categoría</i>' : '');
+            $this->header_deporte = array(
+                'titulo' => strtoupper($esc($bloque['nombre'])),
+                'meta'   => $meta_txt,
+            );
+
+            // Cada deporte arranca en hoja nueva (menos el primero, que usa la
+            // página que ya abrió el script al final de la plantilla).
+            if (!$primer_deporte) {
+                $this->AddPage('L', 'LEGAL');
+            }
+            $primer_deporte = FALSE;
+
+            // El cuerpo arranca directo con la leyenda + tabla (sin título).
+            $html = '';
 
             // ---------- Leyenda de categorías (solo enfrentamientos) ----------
             $leyenda = '';
