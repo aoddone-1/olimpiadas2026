@@ -703,22 +703,42 @@ class MYPDF extends TCPDF {
         };
 
         /** Celda "ENFRENTAMIENTO": A vs B (enfrentamiento) o lista de
-         *  competidores (largada única). */
-        $vs_html = function ($f) use ($lado_html) {
+         *  competidores (largada única).
+         *  Además se CONCATENA el "Nombre de la prueba" (campo nombre_prueba,
+         *  el mismo que se carga al crear el partido y que aparece como
+         *  "Prueba:" en las planillas de mesa de control). Se pide así porque
+         *  muchas veces en ese nombre se anotan datos del cruce —cancha, mesa,
+         *  serie, "GRAN FINAL", etc.— y sin él la columna queda coja.
+         *  Se imprime arriba del enfrentamiento, en una línea chica/muted para
+         *  no competir con los nombres de los equipos, y SOLO si el partido lo
+         *  tiene cargado (si viene vacío, la celda se ve igual que antes). */
+        $vs_html = function ($f) use ($lado_html, $esc) {
             $es_masivo = self::_bloque_es_masivo(array($f));
             $l1 = $lado_html($f, 1);
             $l2 = $lado_html($f, 2);
+
+            // Nombre de la prueba concatenado como encabezado de la celda.
+            $prueba = trim((string) ($f['nombre_prueba'] ?? ''));
+            $prueba_html = $prueba !== ''
+                ? '<div style="font-size:6.5pt; color:#7f8c8d; font-style:italic; margin-bottom:1px;">'
+                  . $esc($prueba) . '</div>'
+                : '';
+
             if ($es_masivo) {
                 // Largada única: no hay "vs"; se listan los competidores del slot.
                 $todos = array();
                 foreach (array($l1, $l2) as $x) if ($x !== '') $todos[] = $x;
-                return $todos ? implode(', ', $todos) : '<span style="color:#7f8c8d;">Jornada masiva</span>';
+                return $prueba_html
+                    . ($todos ? implode(', ', $todos) : '<span style="color:#7f8c8d;">Jornada masiva</span>');
             }
             if ($l1 !== '' && $l2 !== '') {
-                return $l1 . ' &nbsp;<span style="color:#95a5a6; font-weight:bold;">vs</span>&nbsp; ' . $l2;
+                return $prueba_html
+                    . $l1 . ' &nbsp;<span style="color:#95a5a6; font-weight:bold;">vs</span>&nbsp; ' . $l2;
             }
-            if ($l1 !== '' || $l2 !== '') return $l1 !== '' ? $l1 : $l2;
-            return '<span style="color:#7f8c8d;">Por definir</span>';
+            if ($l1 !== '' || $l2 !== '') {
+                return $prueba_html . ($l1 !== '' ? $l1 : $l2);
+            }
+            return $prueba_html . '<span style="color:#7f8c8d;">Por definir</span>';
         };
 
         // ====== ÍNDICE DE COLORES POR CATEGORÍA (global al reporte) ======
