@@ -98,10 +98,8 @@ $db['default'] = array(
 	'db_debug' => (ENVIRONMENT !== 'production'),
 	'cache_on' => FALSE,
 	'cachedir' => '',
-	// utf8mb4: permite almacenar emojis de 4 bytes (🏆 🎖️ 📜 🏅)
-	// en tablas como premio_tipo. Con 'utf8' clasico fallan con error 1366.
-	'char_set' => 'utf8mb4',
-	'dbcollat' => 'utf8mb4_unicode_ci',
+	'char_set' => 'utf8',
+	'dbcollat' => 'utf8_general_ci',
 	'swap_pre' => '',
 	'encrypt' => FALSE,
 	'compress' => FALSE,

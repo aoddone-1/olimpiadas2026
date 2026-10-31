@@ -1,10 +1,3 @@
-<?php
-// Valor actual del filtro por deporte: se anexa a los enlaces de eliminación
-// para que, tras recargar la página, el filtro no se pierda.
-$f_gd = !empty($filtro_deporte) ? '?filtro_deporte=' . intval($filtro_deporte) : '';
-// Con el filtro "todos" (0/vacío) no lo anexamos: basta con el valor recordado en sesión.
-if ($f_gd === '?filtro_deporte=0') { $f_gd = ''; }
-?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -115,7 +108,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                                 <button type="button" class="text-muted btn-accion-panel btn-editar" data-bs-toggle="modal" data-bs-target="#modalEditarDeporte" data-id="<?= $d['id_deporte'] ?>" data-nombre="<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>" data-genero="<?= $d['genero'] ?>" data-fiscales="<?= htmlspecialchars($d['fiscales'] ?? '', ENT_QUOTES, 'UTF-8') ?>" title="Editar Deporte">
                                                     <i class="bi bi-pencil-square fs-6"></i>
                                                 </button>
-                                                <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) . $f_gd ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán sus categorías asociadas." title="Eliminar Deporte">
+                                                <a href="<?= base_url('Inscripciones/eliminar_deporte/'.$d['id_deporte']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Estás seguro de que querés eliminar el deporte «<?= htmlspecialchars($d['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?>»? Se borrarán sus categorías asociadas." title="Eliminar Deporte">
                                                     <i class="bi bi-trash3-fill fs-6"></i>
                                                 </a>
                                             </div>
@@ -166,7 +159,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                             <option value="">🔽 Filtrar por deporte (todos)</option>
                             <?php if(!empty($deportes)): ?>
                                 <?php foreach($deportes as $df): ?>
-                                    <option value="<?= $df['id_deporte'] ?>" <?= ($filtro_deporte == $df['id_deporte']) ? 'selected' : '' ?>><?= htmlspecialchars($df['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></option>
+                                    <option value="<?= $df['id_deporte'] ?>"><?= htmlspecialchars($df['nombre_deporte'], ENT_QUOTES, 'UTF-8') ?></option>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </select>
@@ -271,7 +264,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                                                     title="Editar Categoría">
                                                                 <i class="bi bi-pencil-square fs-6"></i>
                                                             </button>
-                                                            <a href="<?= base_url('Inscripciones/eliminar_categoria/'.$c['id_categoria']) . $f_gd ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Eliminar la categoría «<?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>»?" title="Eliminar Categoría">
+                                                            <a href="<?= base_url('Inscripciones/eliminar_categoria/'.$c['id_categoria']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Eliminar la categoría «<?= htmlspecialchars($c['nombre_categoria'], ENT_QUOTES, 'UTF-8') ?>»?" title="Eliminar Categoría">
                                                                 <i class="bi bi-trash3 fs-6"></i>
                                                             </a>
                                                         </div>
@@ -336,7 +329,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                             title="Editar Predio">
                                         <i class="bi bi-pencil-square fs-6"></i>
                                     </button>
-                                    <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) . $f_gd ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Seguro que querés quitar este predio?" title="Eliminar Predio">
+                                    <a href="<?= base_url('Inscripciones/eliminar_lugar/'.$lug['id']) ?>" class="text-muted btn-accion-panel btn-eliminar" data-confirm="¿Seguro que querés quitar este predio?" title="Eliminar Predio">
                                         <i class="bi bi-x-circle fs-6"></i>
                                     </a>
                                 </div>
@@ -359,7 +352,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/guardar_deporte') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <div class="modal-header bg-success text-white rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-trophy-fill me-2 text-warning"></i>Nuevo Deporte General</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -391,7 +383,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/editar_deporte') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <input type="hidden" name="id_deporte" id="edit_id_deporte">
                 <div class="modal-header bg-warning text-dark rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-pencil-square me-2"></i>Editar Deporte General</h5>
@@ -429,7 +420,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/guardar_categoria') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <div class="modal-header bg-dark text-white rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-plus-circle-fill text-warning me-2"></i>Nueva Categoría y Cronograma</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -527,7 +517,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/editar_categoria') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <input type="hidden" name="id_categoria" id="edit_id_categoria">
                 <div class="modal-header bg-warning text-dark rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-pencil-square me-2"></i>Modificar Categoría</h5>
@@ -609,7 +598,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/guardar_lugar') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <div class="modal-header bg-dark text-white rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-geo-alt-fill text-warning me-2"></i>Registrar Nuevo Predio</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -637,7 +625,6 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
             <form autocomplete='off' action="<?= base_url('Inscripciones/editar_lugar') ?>" method="POST">
-                <input type="hidden" name="filtro_deporte" value="<?= intval($filtro_deporte ?? 0) ?>">
                 <input type="hidden" name="id_lugar" id="edit_id_lugar">
                 <div class="modal-header bg-warning text-dark rounded-top-4">
                     <h5 class="modal-title fw-bold fs-6"><i class="bi bi-pencil-square me-2"></i>Modificar Predio Sede</h5>
@@ -1044,7 +1031,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 btn.disabled = false;
                 if (res.ok) {
                     if (modalReglaGD) modalReglaGD.hide();
-                    // El guardado fue por AJAX: NO recargamos la página para no perder el filtro.
                     if (window.Swal && typeof window.Swal.fire === 'function') {
                         window.Swal.fire({ toast: true, position: 'top-end', icon: 'success',
                                            title: res.mensaje || 'Regla guardada.',
@@ -1052,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     } else {
                         alertaGD(res.mensaje || 'Regla guardada.', 'success');
                     }
-
+                    setTimeout(() => location.reload(), 600);
                 } else {
                     alertaGD(res.error || 'No se pudo guardar la regla.', 'danger');
                 }
@@ -1067,10 +1053,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // --- Filtro por deporte en el Listado de Categorías ---
     var filtroDeportes = document.getElementById('filtro_deporte_categorias');
     if (filtroDeportes) {
-        var aplicarFiltroCategorias = function () {
-            var valor = filtroDeportes.value;
-            // Guardamos el filtro elegido para que sobreviva a un F5 manual.
-            try { sessionStorage.setItem('gd_filtro_deporte', valor); } catch (e) {}
+        filtroDeportes.addEventListener('change', function () {
+            var valor = this.value;
             var filas = document.querySelectorAll('#tabla_categorias_body tr[data-deporte]');
             var visibles = 0;
             filas.forEach(function (fila) {
@@ -1094,22 +1078,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (vacio && visibles > 0) {
                 vacio.remove();
             }
-        };
-
-        filtroDeportes.addEventListener('change', aplicarFiltroCategorias);
-
-        // Restaurar el filtro tras recargar (guardar/editar/elimina o F5):
-        // primero manda el valor recordado por el servidor; si no hay ninguno,
-        // usamos el último filtro guardado en esta pestaña.
-        try {
-            var sesionFiltro = sessionStorage.getItem('gd_filtro_deporte');
-            if (filtroDeportes.value === '' && sesionFiltro !== null) {
-                filtroDeportes.value = sesionFiltro;
-            }
-        } catch (e) {}
-        if (filtroDeportes.value !== '') {
-            aplicarFiltroCategorias();
-        }
+        });
     }
 });
 </script>
