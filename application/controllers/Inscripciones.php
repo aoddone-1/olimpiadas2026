@@ -1590,14 +1590,79 @@ class Inscripciones extends CI_Controller {
         exit;
     }
 
+    /** Nombre de un deporte por id (NULL si no existe). */
+    private function _nombre_deporte($id_deporte) {
+        $this->load->model('Deporte_model');
+        foreach ($this->Deporte_model->obtener_todos_los_deportes() as $dep) {
+            if ((int) $dep['id_deporte'] === (int) $id_deporte) {
+                return $dep['nombre_deporte'];
+            }
+        }
+        return NULL;
+    }
+
     /**
-     * Descarga el fixture cargado (todas las categorías) en formato PDF usando TCPDF.
-     * Reemplaza a la descarga CSV del fixture. El diseño vive en la plantilla
-     * application/views/admin/reporte_fixture.php.
-     * Opciones de URL (las mismas que usaba el CSV):
-     *   ?formato=lista    listado tradicional (una fila por partido). Por defecto: cuadro.
-     *   ?dia=AAAA-MM-DD   imprime solo ese día; sin parámetro se imprime TODO el fixture.
-     *   ?franja=HH        ancho en horas de las franjas horarias del cuadro (1-12).
+     * Sirve el PDF ESTÁTICO del fixture del deporte elegido, el que está
+     * cargado en assets/docs/ y cuyo nombre de archivo vive en la columna
+     * `documento_fixture` de la tabla `deportes` (ver
+     * sql/migracion_documento_fixture.sql). Reemplaza al viejo generador de
+     * reportes con TCPDF: ya no se arma el cuadro día × franja, solo se
+     * visualiza el documento oficial subido.
+     *
+     * Se comparte entre el panel de organización (descargar_pdf_fixture) y
+     * el portal del delegado (descargar_pdf_fixture_delegado).
+     *
+     * @param int $id_deporte Deporte elegido en el selector.
+     * @return bool TRUE si el PDF se envió (la función hace exit()); FALSE
+     *              si no hay documento asignado o el archivo no existe — en
+     *              ese caso ya se mostró el mensaje de error correspondiente.
+     */
+    private function _servir_documento_fixture($id_deporte) {
+        $this->load->model('Deporte_model');
+
+        $documento = $this->Deporte_model->obtener_documento_fixture($id_deporte);
+        if ($documento === NULL) {
+            show_error(
+                'Este deporte todavía no tiene un fixture subido.' .
+                ' Asignale el PDF en la columna "documento_fixture" de la tabla deportes' .
+                ' (sql/migracion_documento_fixture.sql) y volvé a intentar.',
+                404
+            );
+            return FALSE;
+        }
+
+        // Sanitización: solo puede ser un nombre de archivo plano de assets/docs
+        // (nada de rutas relativas ni "../" que saquen la lectura de la carpeta).
+        $ruta_archivo = FCPATH . 'assets' . DIRECTORY_SEPARATOR . 'docs'
+            . DIRECTORY_SEPARATOR . basename($documento);
+
+        if (!is_file($ruta_archivo) || !is_readable($ruta_archivo)) {
+            show_error('No se encontró el archivo del fixture: ' . html_escape($documento), 404);
+            return FALSE;
+        }
+
+        // Evitar que el output previo (buffers de CI) corrompa el PDF.
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+
+        // inline: el navegador ABRIVE el PDF en una pestaña nueva (target=_blank
+        // de los botones); para descargarlo alcanza con el botón propio del visor.
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . basename($documento) . '"');
+        header('Content-Length: ' . filesize($ruta_archivo));
+        header('Cache-Control: public, must-revalidate');
+        header('Pragma: public');
+
+        readfile($ruta_archivo);
+        exit;
+    }
+
+    /**
+     * Botón "Descargar fixture" del panel de organización (Fixture.php):
+     * visualiza el PDF estático del deporte elegido en el selector
+     * (?deporte=ID). Sin deporte elegido no hay reporte general: el fixture
+     * ahora se publica por deporte (un fx_NOMBREDEPORTE.pdf por disciplina).
      */
     public function descargar_pdf_fixture() {
         if (!$this->session->userdata('is_organizador')
@@ -1605,74 +1670,32 @@ class Inscripciones extends CI_Controller {
             redirect('Inscripciones/login');
         }
 
-        $this->load->model('Fixture_model');
-
-        // Deporte opcional elegido desde el panel (?deporte=ID). Si no viene o es
-        // inválido, se genera el reporte con TODOS los deportes (comportamiento previo).
-        $id_deporte_filtro = (int) $this->input->get('deporte');
-        if ($id_deporte_filtro <= 0) {
-            $id_deporte_filtro = NULL;
-        }
-
-        $nombre_deporte_filtro = NULL;
-        if ($id_deporte_filtro !== NULL) {
-            $nombre_deporte_filtro = $this->_nombre_deporte($id_deporte_filtro);
-            if ($nombre_deporte_filtro === NULL) {
-                $id_deporte_filtro = NULL; // deporte inexistente: reporte general
-            }
-        }
-
-        try {
-            $datos = $this->Fixture_model->obtener_todo_el_fixture($id_deporte_filtro);
-        } catch (Throwable $e) {
-            show_error('No se pudo obtener el fixture: ' . $e->getMessage(), 500);
+        $id_deporte = (int) $this->input->get('deporte');
+        if ($id_deporte <= 0) {
+            show_error('Elegí un deporte en el selector para ver su fixture.', 400);
             return;
         }
 
-        $this->_emitir_pdf_fixture($datos, $nombre_deporte_filtro);
+        $this->_servir_documento_fixture($id_deporte);
     }
 
     /**
-     * Descarga el fixture PROPIO de la delegación del delegado (mismo formato
-     * PDF que el reporte de superadmin), con filtro opcional por deporte
-     * (?deporte=ID, solo deportes en los que la delegación compite).
+     * Botón "Reporte de Fixture" del portal del delegado (panel_delegado.php):
+     * visualiza el MISMO PDF estático del deporte elegido (?deporte=ID), sin
+     * importar la delegación — el fixture es público para los delegados.
      */
     public function descargar_pdf_fixture_delegado() {
         if (!$this->session->userdata('is_delegado')) {
             redirect('Inscripciones/login');
         }
 
-        $this->load->model('Fixture_model');
-        $this->load->model('Participante_model');
-
-        $delegacion = $this->session->userdata('user_nombre');
-
-        // Deporte opcional (?deporte=ID). Solo se acepta si es un deporte en el
-        // que la delegación tiene competidores inscriptos.
-        $id_deporte_filtro = (int) $this->input->get('deporte');
-        $nombre_deporte_filtro = NULL;
-        if ($id_deporte_filtro > 0) {
-            foreach ($this->Participante_model->obtener_deportes_de_delegacion($delegacion) as $dep) {
-                if ((int) $dep['id_deporte'] === $id_deporte_filtro) {
-                    $nombre_deporte_filtro = $dep['nombre_deporte'];
-                    break;
-                }
-            }
-            if ($nombre_deporte_filtro === NULL) {
-                $id_deporte_filtro = NULL; // deporte ajeno: reporte de toda la delegación
-            }
-        } else {
-            $id_deporte_filtro = NULL;
-        }
-
-        try {
-            $datos = $this->Fixture_model->obtener_fixture_por_delegacion($delegacion, $id_deporte_filtro);
-        } catch (Throwable $e) {
-            show_error('No se pudo obtener el fixture: ' . $e->getMessage(), 500);
+        $id_deporte = (int) $this->input->get('deporte');
+        if ($id_deporte <= 0) {
+            show_error('Elegí un deporte en el selector para ver su fixture.', 400);
             return;
         }
 
-        $this->_emitir_pdf_fixture($datos, $nombre_deporte_filtro, $delegacion);
+        $this->_servir_documento_fixture($id_deporte);
     }
 
     /**
@@ -1826,87 +1849,6 @@ class Inscripciones extends CI_Controller {
 
         readfile($ruta_archivo);
         exit;
-    }
-
-    /** Nombre de un deporte por id (NULL si no existe). */
-    private function _nombre_deporte($id_deporte) {
-        $this->load->model('Deporte_model');
-        foreach ($this->Deporte_model->obtener_todos_los_deportes() as $dep) {
-            if ((int) $dep['id_deporte'] === (int) $id_deporte) {
-                return $dep['nombre_deporte'];
-            }
-        }
-        return NULL;
-    }
-
-    /**
-     * Arma los parámetros del reporte y dispara la plantilla admin/reporte_fixture,
-     * que construye el PDF con TCPDF y lo descarga (Output ..., 'D').
-     * Compartida por el reporte general (superadmin/admin) y el de delegados.
-     */
-    private function _emitir_pdf_fixture($datos, $nombre_deporte_filtro, $delegacion = NULL) {
-        // Formatos disponibles:
-        //   cuadro (por defecto): días × franjas horarias;
-        //   lista: una fila por partido;
-        //   deporte: UNA TABLA POR DEPORTE con todos sus partidos y las
-        //            categorías diferenciadas por color (los de largada única
-        //            van sin color). ?formato=deporte
-        $fmt_get = $this->input->get('formato');
-        $formato = in_array($fmt_get, array('lista', 'deporte'), TRUE) ? $fmt_get : 'cuadro';
-
-        // Día opcional elegido desde el panel (si no viene, se imprimen TODOS los días)
-        $dia_filtro = trim((string) $this->input->get('dia'));
-        if ($dia_filtro !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $dia_filtro)) {
-            $dia_filtro = '';
-        }
-
-        $ancho_franja = (int) $this->input->get('franja');
-        if ($ancho_franja < 1) $ancho_franja = 1;
-        if ($ancho_franja > 12) $ancho_franja = 12;
-
-        // Orden del listado: con ?orden=horario las filas salen por Fecha → Hora
-        // (en vez de Deporte → Categoría → Fecha → Hora).
-        $orden_reporte = $this->input->get('orden') === 'horario' ? 'horario' : 'deporte';
-
-        // "¿Cuándo?" del filtro de días del panel: con ?cuando=hoy el cuadro
-        // arranca en la fecha actual (no imprime días ya jugados); con
-        // ?cuando=inicio (o sin parámetro) salen TODOS los días del calendario.
-        $cuando_reporte = $this->input->get('cuando') === 'hoy' ? 'hoy' : 'inicio';
-
-        // Nombres de los integrantes en los enfrentamientos (solo se imprimen en
-        // el reporte del delegado): por defecto COMPLETOS ("Maria Paula Gomez"),
-        // para que el delegado vea bien quiénes juegan; con ?nombres=cortos se
-        // abrevian con iniciales ("María P. G.").
-        $nombres_completos = $this->input->get('nombres') !== 'cortos';
-
-        $nombre_archivo = 'fixture_' . $formato
-            . ($nombre_deporte_filtro !== NULL
-                ? '_' . preg_replace('/[^a-zA-Z0-9]+/', '_', $nombre_deporte_filtro)
-                : '_todos')
-            . ($dia_filtro !== '' ? '_' . $dia_filtro : '_todos');
-        if ($delegacion !== NULL) {
-            $nombre_archivo .= '_' . preg_replace('/[^a-zA-Z0-9]+/', '_', $delegacion);
-        }
-        $nombre_archivo .= '_' . date('Y-m-d') . '.pdf';
-
-        $this->load->vars(array(
-            'datos'             => $datos,
-            'formato'           => $formato,
-            'dia_filtro'        => $dia_filtro !== '' ? $dia_filtro : NULL,
-            'ancho_franja'      => $ancho_franja,
-            'nombre_archivo'    => $nombre_archivo,
-            'deporte_filtro'    => $nombre_deporte_filtro,
-            'orden_reporte'     => $orden_reporte,
-            'cuando_reporte'    => $cuando_reporte,
-            'delegacion_filtro' => $delegacion,
-            // Nombres de los integrantes: completos por defecto (el reporte
-            // general del superadmin igual solo imprime el nombre del equipo).
-            'nombres_completos' => $nombres_completos,
-            // Flag del modo delegado: la vista lista los INTEGRANTES de los
-            // equipos (en vez del nombre del equipo) solo si es TRUE.
-            'modo_delegado'     => ($delegacion !== NULL),
-        ));
-        $this->load->view('admin/reporte_fixture');
     }
 
     /** Borrar todo el fixture de una categoría. */

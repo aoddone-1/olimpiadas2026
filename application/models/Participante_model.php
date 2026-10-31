@@ -850,7 +850,11 @@ class Participante_model extends CI_Model {
         }
 
         $this->db->distinct();
-        $this->db->select('d.id_deporte, d.nombre_deporte', FALSE);
+        // documento_fixture: nombre del PDF subido a assets/docs/ que el
+        // botón "Ver fixture" del portal del delegado abre por deporte
+        // (sql/migracion_documento_fixture.sql). Se trae acá para no hacer
+        // una consulta extra por deporte desde la vista.
+        $this->db->select('d.id_deporte, d.nombre_deporte, d.documento_fixture', FALSE);
         $this->db->from('inscripciones_deportivas i');
         $this->db->join('participantes p', 'p.id_participante = i.id_participante', 'inner');
         $this->db->join('categorias c', 'c.id_categoria = i.id_categoria', 'inner');

@@ -164,28 +164,45 @@
             </div>
         </div>
 
-        <!-- Reporte de fixture de la delegación (mismo formato PDF que superadmin) -->
+        <!-- Fixture de la delegación: PDF estático por deporte (assets/docs/,
+             nombre en deportes.documento_fixture). Ya no se genera un reporte
+             dinámico: el selector elegía deportes de TU delegación, pero ahora
+             se listan TODOS los deportes con fixture subido — el documento es
+             público y le sirve igual al delegado. -->
         <div class="col-12 col-md-6 col-lg-3">
             <div class="card card-indicador shadow-sm" style="border-left-color: #dc3545;">
                 <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Reporte de Fixture</h6>
+                    <h6 class="text-muted small text-uppercase mb-1">Fixture</h6>
                     <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
-                        <?php if (!empty($deportes_delegacion)): ?>
+                        <?php
+                        // Deportes de la delegación que tienen PDF de fixture subido.
+                        $fixtures_deportes_disponibles = array();
+                        foreach (($deportes_delegacion ?? array()) as $dep) {
+                            if (!empty($dep['documento_fixture'])) {
+                                $fixtures_deportes_disponibles[] = $dep;
+                            }
+                        }
+                        ?>
+                        <?php if (!empty($fixtures_deportes_disponibles)): ?>
                             <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 220px;"
-                                title="Elegí un deporte para descargar su fixture filtrado (o dejá 'Todos' para el de tu delegación)">
-                                <option value="">🏆 Todos los deportes</option>
-                                <?php foreach ($deportes_delegacion as $dep): ?>
+                                title="Elegí un deporte para abrir su fixture en PDF">
+                                <option value="">— Elegí un deporte —</option>
+                                <?php foreach ($fixtures_deportes_disponibles as $dep): ?>
                                     <option value="<?= $dep['id_deporte'] ?>">
                                         <?= htmlspecialchars($dep['nombre_deporte']) ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
+                            <a id="fx_btn_pdf" href="#" target="_blank" rel="noopener" aria-disabled="true"
+                                class="btn btn-danger disabled" title="Elegí un deporte para abrir su fixture en PDF">
+                                <i class="bi bi-file-earmark-pdf me-1"></i>
+                                <span id="fx_btn_pdf_txt">Ver fixture (PDF)</span>
+                            </a>
+                        <?php else: ?>
+                            <p class="small text-muted mb-0">
+                                <i class="bi bi-info-circle me-1"></i>Tu delegación todavía no tiene fixtures publicados.
+                            </p>
                         <?php endif; ?>
-                        <a id="fx_btn_pdf" href="<?= base_url('Inscripciones/descargar_pdf_fixture_delegado') ?>" target="_blank"
-                            class="btn btn-danger" title="PDF con el cuadro del fixture de TODOS los días de tu delegación (columnas = días, filas = rangos horarios)">
-                            <i class="bi bi-file-earmark-pdf me-1"></i>
-                            <span id="fx_btn_pdf_txt">Descargar reporte de fixture</span>
-                        </a>
                     </div>
                 </div>
             </div>
@@ -603,36 +620,48 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-/* ---------- Reporte de fixture de la delegación ---------- */
+/* ---------- Fixture de la delegación: PDF estático por deporte ----------
+   El botón ya NO genera un reporte dinámico (se voló el generador TCPDF):
+   abre en una pestaña nueva el PDF subido a assets/docs/ para el deporte
+   elegido — el endpoint Inscripciones/descargar_pdf_fixture_delegado?deporte=ID
+   lee deportes.documento_fixture y sirve el archivo inline. Sin deporte
+   elegido, el botón queda deshabilitado. */
 (function () {
     const btnPdf = document.getElementById('fx_btn_pdf');
     const selDeporteReporte = document.getElementById('fx_deporte_reporte');
-    if (!btnPdf) return;
+    if (!btnPdf || !selDeporteReporte) return;
 
     const URL_FIXTURE_DELEGADO = '<?= base_url('Inscripciones/descargar_pdf_fixture_delegado') ?>';
 
-    // Selector de deporte junto al botón: si se elige uno, el PDF sale
-    // FILTRADO solo con ese deporte (mismo formato que el de superadmin).
     function actualizarBtnPdf() {
-        const idDep = selDeporteReporte ? selDeporteReporte.value : '';
-        const nombreDep = (idDep && selDeporteReporte)
+        const idDep = selDeporteReporte.value;
+        const nombreDep = idDep
             ? selDeporteReporte.options[selDeporteReporte.selectedIndex].text.trim()
             : '';
-        btnPdf.href = URL_FIXTURE_DELEGADO + (idDep ? '?deporte=' + encodeURIComponent(idDep) : '');
+
+        if (idDep) {
+            btnPdf.href = URL_FIXTURE_DELEGADO + '?deporte=' + encodeURIComponent(idDep);
+            btnPdf.classList.remove('disabled');
+            btnPdf.removeAttribute('aria-disabled');
+            btnPdf.title = 'Abre el fixture de ' + nombreDep + ' en PDF (documento subido a la web)';
+        } else {
+            btnPdf.href = '#';
+            btnPdf.classList.add('disabled');
+            btnPdf.setAttribute('aria-disabled', 'true');
+            btnPdf.title = 'Elegí un deporte para abrir su fixture en PDF';
+        }
         const txt = document.getElementById('fx_btn_pdf_txt');
         if (txt) {
-            txt.textContent = idDep
-                ? 'Descargar fixture de ' + nombreDep
-                : 'Descargar reporte de fixture';
+            txt.textContent = idDep ? 'Ver fixture de ' + nombreDep : 'Ver fixture (PDF)';
         }
-        btnPdf.title = idDep
-            ? 'PDF con el cuadro del fixture SOLO de ' + nombreDep + ' (todos los días de tu delegación)'
-            : 'PDF con el cuadro del fixture de TODOS los deportes y TODOS los días de tu delegación';
     }
 
-    if (selDeporteReporte) {
-        selDeporteReporte.addEventListener('change', actualizarBtnPdf);
-    }
+    selDeporteReporte.addEventListener('change', actualizarBtnPdf);
+    // Bloquear el click con href="#" (deporte sin elegir) para no abrir una
+    // pestaña en blanco con target=_blank.
+    btnPdf.addEventListener('click', function (ev) {
+        if (btnPdf.classList.contains('disabled')) ev.preventDefault();
+    });
     actualizarBtnPdf();
 })();
 </script>
