@@ -916,16 +916,46 @@ class MYPDF extends TCPDF {
             $html = '';
 
             // ---------- Leyenda de categorías (solo enfrentamientos) ----------
-            $leyenda = '';
+            // CHAPAS NUMERADAS en una sola tabla (no anidada: TCPDF renderiza
+            // mal las tablas dentro de celdas). Cada categoría ocupa DOS
+            // celdas consecutivas: la chapa cuadrada con su número sobre el
+            // color de fondo, y al lado el nombre en el color de texto + la
+            // cantidad de partidos. Las celdas "separador" dejan aire entre
+            // chapas. Con 4 categorías por renglón: 4x(2+1) = 12 columnas;
+            // si sobran categorías se corta a un renglón nuevo.
+            $leyenda_items = array();
+            $n_cat = 0;
+            $num_cat = array(); // cat_key -> número visible en la leyenda
             foreach ($bloque['cats'] as $ck => $cat) {
                 if (!isset($colores_cat[$ck])) continue; // masivo: va sin color
                 list($bg, $fg) = $colores_cat[$ck];
-                $leyenda .= '<span style="display:inline-block; margin-right:10px; padding:2px 6px;'
-                          . ' background-color:' . $bg . '; color:' . $fg . '; border:1px solid ' . $fg . ';'
-                          . ' font-size:7pt; font-weight:bold;">' . $esc($cat['nombre']) . '</span>';
+                $n_cat++;
+                $num_cat[$ck] = $n_cat;
+                $leyenda_items[] = array('n' => $n_cat, 'bg' => $bg, 'fg' => $fg,
+                                         'nombre' => $cat['nombre'], 'filas' => count($cat['filas']));
             }
-            if ($leyenda !== '') {
-                $html .= '<div style="padding-bottom:8px;">' . $leyenda . '</div>';
+            if (!empty($leyenda_items)) {
+                $html .= '<table cellpadding="0" cellspacing="0" border="0" style="width:100%; margin-bottom:6px;">';
+                foreach (array_chunk($leyenda_items, 4) as $chunk) {
+                    $html .= '<tr>';
+                    foreach ($chunk as $it) {
+                        // CHAPA (número sobre el color de la categoría)
+                        $html .= '<td style="width:5%; background-color:' . $it['bg'] . '; border:1px solid ' . $it['fg'] . '; text-align:center; vertical-align:middle; padding:3px 0;">'
+                               . '<b style="font-size:7pt; color:' . $it['fg'] . ';">' . $it['n'] . '</b></td>';
+                        // NOMBRE + cantidad de partidos
+                        $html .= '<td style="width:20%; vertical-align:middle; padding:0 0 0 4px; white-space:nowrap;">'
+                               . '<b style="font-size:7.5pt; color:' . $it['fg'] . ';">' . $esc($it['nombre']) . '</b>'
+                               . ' <span style="font-size:6.5pt; color:' . $c_muted . ';>(' . $it['filas'] . ')</span></td>';
+                        // separador entre chapas
+                        $html .= '<td style="width:5%;"></td>';
+                    }
+                    // Celdas vacías para completar el renglón si quedaron menos de 4.
+                    for ($k = count($chunk); $k < 4; $k++) {
+                        $html .= '<td style="width:5%;"></td><td style="width:20%;"></td><td style="width:5%;"></td>';
+                    }
+                    $html .= '</tr>';
+                }
+                $html .= '</table>';
             }
 
             // ---------- Tabla del deporte ----------
@@ -967,10 +997,14 @@ class MYPDF extends TCPDF {
                     $html .= '<td style="width:9%;border:1px solid ' . $c_border . '; text-align:center; white-space:nowrap;">'
                           . $esc($horario_txt($f)) . '</td>';
 
-                    // CATEGORÍA (chapa de color en los enfrentamientos)
+                    // CATEGORÍA (chapa numerada + color en los enfrentamientos;
+                    // el número coincide con el de la leyenda de arriba)
                     if ($color) {
-                        $etiqueta = '<span style="display:inline-block; width:8px; height:8px; background-color:'
-                                  . $color[1] . '; border:1px solid ' . $color[1] . ';"></span> '
+                        $etiqueta = '<span style="display:inline-block; width:14px; height:14px; line-height:14px;'
+                                  . ' text-align:center; background-color:' . $color[0] . '; border:1px solid ' . $color[1] . ';'
+                                  . ' font-size:6.5pt; font-weight:bold; color:' . $color[1] . ';">'
+                                  . (isset($num_cat[$ck]) ? $num_cat[$ck] : '')
+                                  . '</span> '
                                   . '<b style="color:' . $color[1] . ';">' . $esc($cat['nombre']) . '</b>';
                     } else {
                         // Largada única: basta el nombre del deporte/categoría sin color.
