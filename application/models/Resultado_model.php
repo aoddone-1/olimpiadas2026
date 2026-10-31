@@ -339,7 +339,13 @@ class Resultado_model extends CI_Model {
                     'dni'         => null,
                     'delegacion'  => null,
                     'cantidad'    => isset($cant[$uid]) ? $cant[$uid] : 0,
-                    'integrantes' => isset($integrantes[$uid]) ? implode(', ', $integrantes[$uid]) : '',
+                    // Los integrantes se unen con " - " (no con coma): en la BD
+                    // los nombres se guardan como "Apellido, Nombre" y esa coma
+                    // interna rompía el parseo de las listas (los reportes
+                    // cortaban cada nombre por la mitad). Con " - " como
+                    // separador, la coma queda reservada para el formato del
+                    // nombre y quien lee distingue un participante del siguiente.
+                    'integrantes' => isset($integrantes[$uid]) ? implode(' - ', $integrantes[$uid]) : '',
                 );
             }
             return $out;

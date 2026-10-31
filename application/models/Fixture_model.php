@@ -834,9 +834,19 @@ class Fixture_model extends CI_Model {
     /**
      * Extrae la lista de participantes del texto que arma
      * _describir_lado_del_partido para un lado propio:
-     *   "NombreEquipo: Juan Pérez, Ana Gómez"  →  ["Juan Pérez", "Ana Gómez"]
+     *   "NombreEquipo: PÉREZ, Juan - GÓMEZ, Ana"  →  ["PÉREZ, Juan", "GÓMEZ, Ana"]
      * Se usa como respaldo cuando jugadores_ute_X quedó vacío, para que el
      * reporte del delegado SIEMPRE muestre los integrantes de sus equipos.
+     *
+     * El separador entre integrantes es " - " (ver _describir_lado_del_partido):
+     * en la BD los nombres se guardan como "Apellido, Nombre", así que cortar
+     * por coma partía cada nombre en dos. Para seguir leyendo fixtures/textos
+     * generados con el formato viejo (lista separada por comas) se aplica un
+     * fallback: si NINGÚN pedazo trae coma, se asume que las comas eran el
+     * separador y se corta por ellas; con al menos una coma interna se respeta
+     * el " - ". Como último recurso, si el resultado son pedazos de una sola
+     * letra (se cortó un "A, B, C" enumerado), se devuelve la lista entera sin
+     * dividir, que se lee mejor que letras sueltas.
      */
     private function _participantes_desde_texto_lado($texto) {
         $texto = trim((string) $texto);
@@ -845,8 +855,38 @@ class Fixture_model extends CI_Model {
         if ($pos === FALSE) return array();
         $cola = trim(substr($texto, $pos + 2));
         if ($cola === '' || $cola === ',') return array();
-        $lista = preg_split('/\s*,\s*/', $cola, -1, PREG_SPLIT_NO_EMPTY);
+        $lista = $this->_dividir_lista_de_nombres($cola);
         return $this->_fusionar_nombres_con_inscriptos(array(), (array) $lista);
+    }
+
+    /** Divide una lista de nombres de participantes usando el separador " - "
+     *  (los nombres admiten la coma interna del formato "Apellido, Nombre").
+     *  Fallback al formato viejo: si ningún pedazo entre guiones trae coma,
+     *  las comas eran el separador de la lista y se corta por ellas.
+     *  Ver comentario de _participantes_desde_texto_lado() para el criterio. */
+    private function _dividir_lista_de_nombres($cola) {
+        $cola = trim(preg_replace('/\s+/u', ' ', (string) $cola));
+        if ($cola === '') return array();
+        // Cortar SIEMPRE por " - " primero (aunque quede un solo pedazo).
+        $pedazos = preg_split('/\s+-\s+/', $cola, -1, PREG_SPLIT_NO_EMPTY);
+        $pedazos = array_values(array_filter(array_map('trim', $pedazos), function ($x) {
+            return $x !== '';
+        }));
+        if (!$pedazos) return array($cola);
+        // ¿Algún pedazo trae coma? Formato nuevo ("PÉREZ, Ana - GÓMEZ, Juan"):
+        // las comas son internas del nombre, el separador real es el guion.
+        foreach ($pedazos as $pz) {
+            if (strpos($pz, ',') !== FALSE) return $pedazos;
+        }
+        // Formato viejo ("Ana Pérez, Juan Gómez"): ninguna coma ⇒ cortar por comas.
+        if (strpos($cola, ',') !== FALSE) {
+            $por_coma = preg_split('/\s*,\s*/', $cola, -1, PREG_SPLIT_NO_EMPTY);
+            $por_coma = array_values(array_filter(array_map('trim', $por_coma), function ($x) {
+                return $x !== '';
+            }));
+            if ($por_coma) return $por_coma;
+        }
+        return $pedazos;
     }
 
     /** Nombres completos de los integrantes registrados de varias UTEs (clave: id_ute). */
@@ -987,7 +1027,7 @@ class Fixture_model extends CI_Model {
             sort($propios);
             return array(
                 'nombre'        => (isset($nombres_utes[$id_lado]) ? $nombres_utes[$id_lado] : 'Equipo')
-                                   . ': ' . implode(', ', $propios),
+                                   . ': ' . implode(' - ', $propios),
                 'es_delegacion' => TRUE,
             );
         }

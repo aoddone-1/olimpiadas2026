@@ -52,6 +52,40 @@ class MYPDF extends TCPDF {
      */
     public static $filas_vacias_planilla = 20;
 
+    /** Divide una lista de nombres de participantes.
+     *  El separador es " - ": en la BD los nombres se guardan como
+     *  "Apellido, Nombre" y esa coma interna NO puede usarse como separador
+     *  (partiría cada nombre en dos: "APELLIDO - NOMBRE - APELLIDO - ...").
+     *  Fallback para datos del formato viejo (lista separada por comas): si
+     *  ningún pedazo entre guiones trae coma, se corta por comas; si alguno la
+     *  trae, el guion es el separador real y las comas son internas de los
+     *  nombres. */
+    public static function _dividir_lista_de_nombres($texto) {
+        $texto = trim(preg_replace('/\s+/u', ' ', (string) $texto));
+        if ($texto === '') return array();
+        // Cortar SIEMPRE por " - " primero (aunque quede un solo pedazo).
+        $pedazos = preg_split('/\s+-\s+/', $texto, -1, PREG_SPLIT_NO_EMPTY);
+        $pedazos = array_values(array_filter(array_map('trim', $pedazos), function ($x) {
+            return $x !== '';
+        }));
+        if (!$pedazos) return array($texto);
+        // ¿Algún pedazo trae coma? Entonces es el formato nuevo
+        // ("PÉREZ, Ana - GÓMEZ, Juan") y las comas son internas del nombre.
+        foreach ($pedazos as $pz) {
+            if (strpos($pz, ',') !== FALSE) return $pedazos;
+        }
+        // Formato viejo ("Ana Pérez, Juan Gómez"): ninguna coma ⇒ las comas
+        // eran el separador de la lista.
+        if (strpos($texto, ',') !== FALSE) {
+            $por_coma = preg_split('/\s*,\s*/', $texto, -1, PREG_SPLIT_NO_EMPTY);
+            $por_coma = array_values(array_filter(array_map('trim', $por_coma), function ($x) {
+                return $x !== '';
+            }));
+            if ($por_coma) return $por_coma;
+        }
+        return $pedazos;
+    }
+
     /** Nombre de UN participante como "Nombre Apellido".
      *  En la base de datos los nombres se guardan como "Apellido, nombre(s)"
      *  (una sola coma dentro de cada nombre). Al listar varios integrantes no
@@ -176,14 +210,14 @@ class MYPDF extends TCPDF {
             if ($lista) return $lista;
             $nombre = trim((string) ($f['ute_' . $lado . '_nombre'] ?? ''));
             if ($nombre === '') return array();
-            // Solo hay lista si el texto trae la forma "Nombre: J1, J2"; si no,
-            // el nombre es el del EQUIPO y no debe tratarse como participante.
+            // Solo hay lista si el texto trae la forma "Nombre: J1 - J2"; si no,
+            // el nombre es del EQUIPO y no debe tratarse como participante.
             if (strpos($nombre, ': ') === FALSE) return array();
             $despejado = trim((string) preg_replace('/^[^:]+:\s*/u', '', $nombre));
             if ($despejado === '') return array();
-            return array_values(array_filter(array_map('trim', explode(',', $despejado)), function ($x) {
-                return $x !== '';
-            }));
+            // Separador " - " (con fallback al formato viejo por comas): los
+            // nombres traen la coma interna de "Apellido, Nombre".
+            return self::_dividir_lista_de_nombres($despejado);
         };
 
         /** Nombre del EQUIPO del lado $lado (sin el prefijo ": integrantes"
@@ -715,7 +749,10 @@ class MYPDF extends TCPDF {
                 $pos = strpos($nombre, ': ');
                 $eq = trim(substr($nombre, 0, $pos));
                 if ($eq !== '') $equipo = $eq;
-                $integrantes = array_values(array_filter(array_map('trim', explode(',', trim(substr($nombre, $pos + 2))))));
+                // Lista de integrantes separada por " - " (con fallback al
+                // formato viejo por comas): cada nombre puede traer la coma
+                // interna de "Apellido, Nombre" y con explode(',') se partía.
+                $integrantes = self::_dividir_lista_de_nombres(substr($nombre, $pos + 2));
             }
             if (!$es_equipo || !$integrantes) {
                 return $this->nombres_completos ? htmlspecialchars($nombre, ENT_QUOTES, 'UTF-8')
@@ -1134,7 +1171,8 @@ class MYPDF extends TCPDF {
                             $participantes[$clave] = $nombre;
                             // Equipos/duplicas (EQUIPO): traer los integrantes ya
                             // resueltos por el modelo ('integrantes' como string
-                            // 'Ana, Juan', o como array de filas con nombre_completo).
+                            // 'PÉREZ, Ana - GÓMEZ, Juan', o como array de filas
+                            // con nombre_completo).
                             if (($c['tipo'] ?? '') === 'EQUIPO' || !empty($c['cantidad'])) {
                                 $miembros_raw = $c['integrantes'] ?? '';
                                 $miembros = array();
@@ -1144,10 +1182,10 @@ class MYPDF extends TCPDF {
                                         if ($mn !== '') $miembros[] = $mn;
                                     }
                                 } elseif (trim((string) $miembros_raw) !== '') {
-                                    foreach (explode(',', (string) $miembros_raw) as $mn) {
-                                        $mn = trim($mn);
-                                        if ($mn !== '') $miembros[] = $mn;
-                                    }
+                                    // Separador " - " con fallback al formato
+                                    // viejo por comas: cada nombre puede traer la
+                                    // coma interna de "Apellido, Nombre".
+                                    $miembros = self::_dividir_lista_de_nombres((string) $miembros_raw);
                                 }
                                 if ($miembros) $integrantes_map[$clave] = $miembros;
                             }
@@ -1337,10 +1375,10 @@ class MYPDF extends TCPDF {
                                         if ($mn !== '') $miembros[] = $mn;
                                     }
                                 } elseif (trim((string) $miembros_raw) !== '') {
-                                    foreach (explode(',', (string) $miembros_raw) as $mn) {
-                                        $mn = trim($mn);
-                                        if ($mn !== '') $miembros[] = $mn;
-                                    }
+                                    // Separador " - " con fallback al formato
+                                    // viejo por comas: cada nombre puede traer la
+                                    // coma interna de "Apellido, Nombre".
+                                    $miembros = self::_dividir_lista_de_nombres((string) $miembros_raw);
                                 }
                                 if ($miembros) $integrantes_eq[$clave_eq] = $miembros;
                             }
