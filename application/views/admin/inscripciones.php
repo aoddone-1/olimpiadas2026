@@ -276,6 +276,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                         <th><i class="bi bi-building me-1"></i>Hotel Alojamiento</th>
 
+                        <th class="text-center"><i class="bi bi-box-seam me-1"></i>Kit</th>
+
                         <th class="text-center"><i class="bi bi-sliders me-1"></i>Acciones</th>
 
                     </tr>
@@ -440,6 +442,38 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                         
 
+                        <!-- NUEVO: columna KIT. Botón rápido uno por uno:
+                             clic = acreditar entrega (verde) / clic de nuevo = revertir. -->
+
+                        <td class="text-center js-kit-celda">
+
+                            <?php $kit_entregado_ins = (($ins['kit_entregado'] ?? 0) == 1); ?>
+
+                            <?php if ($solo_lectura): ?>
+
+                                <span class="badge rounded-pill <?= $kit_entregado_ins ? 'bg-success-subtle text-success border' : 'bg-light text-muted border' ?>"
+                                      title="<?= $kit_entregado_ins ? 'Kit ENTREGADO' : 'Kit pendiente de entrega' ?>">
+                                    <i class="bi <?= $kit_entregado_ins ? 'bi-check-circle-fill' : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Pendiente' ?>
+                                </span>
+
+                            <?php else: ?>
+
+                                <button type="button"
+                                        class="btn btn-sm rounded-pill border fw-semibold js-btn-kit <?= $kit_entregado_ins ? 'btn-success' : 'btn-outline-secondary' ?>"
+                                        data-id="<?= $ins['id_participante'] ?>"
+                                        data-nombre="<?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?>"
+                                        data-estado="<?= $kit_entregado_ins ? 1 : 0 ?>"
+                                        style="font-size:0.75rem; min-width:104px;"
+                                        title="<?= $kit_entregado_ins ? 'Kit ya entregado — clic para REVERTIR la acreditación' : 'Clic para ACREDITAR la entrega del kit' ?>">
+                                    <i class="bi <?= $kit_entregado_ins ? 'bi-check-circle-fill' : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Entregar' ?>
+                                </button>
+
+                            <?php endif; ?>
+
+                        </td>
+
+                        
+
                         <td class="text-center">
 
                             <div class="d-inline-flex align-items-center bg-light rounded-pill px-1 py-1 border">
@@ -523,7 +557,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                     <?php endforeach; else: ?>
 
-                        <tr id="filaNoHayDatosIns"><td colspan="6" class="text-center text-muted py-5">
+                        <tr id="filaNoHayDatosIns"><td colspan="7" class="text-center text-muted py-5">
 
                             <div class="fs-1 mb-2 opacity-25"><i class="bi bi-inboxes-fill"></i></div>
 
@@ -537,7 +571,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
 
                     <tr id="filaNoResultadosIns" style="display: none;">
 
-                        <td colspan="6" class="text-center text-muted py-5">
+                        <td colspan="7" class="text-center text-muted py-5">
 
                             <div class="fs-1 mb-2 text-danger opacity-50"><i class="bi bi-search-heart"></i></div>
 
@@ -1574,6 +1608,93 @@ document.addEventListener('DOMContentLoaded', function () {
                 alertar('Ocurrió un error al habilitar la reimpresión: ' + error.message, 'error', 'Error');
                 botonReimpresion.disabled = false;
                 botonReimpresion.innerHTML = iconoOriginal;
+            });
+
+        });
+
+    });
+
+    // ==========================================
+    // ACREDITAR ENTREGA DE KIT UNO POR UNO (AJAX, DESDE LA TABLA)
+    // Un clic en el botón de la columna "Kit" acredita la entrega; un segundo
+    // clic sobre el botón verde permite revertirla. Todo sin recargar la
+    // página: el botón se actualiza en el lugar con la respuesta del servidor.
+    // ==========================================
+    tablaElemento.addEventListener('click', function(e) {
+
+        const botonKit = e.target.closest('.js-btn-kit[data-id]');
+        if (!botonKit) return;
+
+        const idParticipante = botonKit.getAttribute('data-id');
+        const nombreParticipante = botonKit.getAttribute('data-nombre') || 'este inscripto';
+        const estadoActual = parseInt(botonKit.getAttribute('data-estado'), 10) === 1 ? 1 : 0;
+        const nuevoEstado = estadoActual === 1 ? 0 : 1; // toggle: entregar / revertir
+
+        // Revertir es delicado: pedimos confirmación. Acreditar es directo (rápido).
+        const continuar = (nuevoEstado === 0)
+            ? confirmarAccion(
+                `¿Revertir la acreditación del kit de ${nombreParticipante}? Volverá a quedar como "pendiente de entrega".`,
+                'warning',
+                'Sí, revertir',
+                'Cancelar'
+              )
+            : Promise.resolve(true);
+
+        continuar.then(function(confirmado) {
+
+            if (!confirmado) return;
+
+            const iconoOriginal = botonKit.innerHTML;
+            botonKit.disabled = true;
+            botonKit.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+            fetch('<?= base_url('Inscripciones/acreditar_kit_ajax') ?>', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'id_participante=' + encodeURIComponent(idParticipante)
+                    + '&nuevo_estado=' + nuevoEstado
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+
+                    // Repintar el botón en el mismo lugar con el nuevo estado
+                    botonKit.setAttribute('data-estado', String(nuevoEstado));
+                    if (nuevoEstado === 1) {
+                        botonKit.classList.remove('btn-outline-secondary');
+                        botonKit.classList.add('btn-success');
+                        botonKit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Entregado';
+                        botonKit.title = 'Kit ya entregado — clic para REVERTIR la acreditación';
+                    } else {
+                        botonKit.classList.remove('btn-success');
+                        botonKit.classList.add('btn-outline-secondary');
+                        botonKit.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar';
+                        botonKit.title = 'Clic para ACREDITAR la entrega del kit';
+                    }
+                    alertar(data.mensaje || 'Estado del kit actualizado.', 'success', '¡Listo!');
+
+                } else {
+                    alertar('Error: ' + (data.error || 'No se pudo registrar la entrega del kit'), 'error', 'Error');
+                    botonKit.disabled = false;
+                    botonKit.innerHTML = iconoOriginal;
+                }
+            })
+            .catch(error => {
+                console.error('❌ ERROR EN FETCH (acreditar kit):', error);
+                alertar('Ocurrió un error al acreditar el kit: ' + error.message, 'error', 'Error');
+                botonKit.disabled = false;
+                botonKit.innerHTML = iconoOriginal;
+            })
+            .finally(() => {
+                // Si quedó habilitado tras un error no pasa nada; esto evita
+                // dejar el spinner colgado en casos raros de excepción tardía.
+                if (botonKit.querySelector('.spinner-border')) {
+                    botonKit.disabled = false;
+                    botonKit.innerHTML = iconoOriginal;
+                }
             });
 
         });
