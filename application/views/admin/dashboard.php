@@ -55,6 +55,14 @@
         }
         arsort($delegaciones);
         ksort($delegaciones_completas);
+        // Delegaciones que AUN NO tienen todos los kits entregados (con conteo pendiente)
+        $delegaciones_pendientes = array();
+        foreach ($delegaciones as $del => $d) {
+            if ($d['total'] > 0 && $d['con_kit'] < $d['total']) {
+                $delegaciones_pendientes[$del] = $d['total'] - $d['con_kit'];
+            }
+        }
+        asort($delegaciones_pendientes);
         $porc_kits = $total_participantes > 0 ? round(($kits_entregados / $total_participantes) * 100) : 0;
     ?>
 
@@ -195,9 +203,21 @@
                         <small class="text-muted"><i class="bi bi-hourglass-split me-1"></i>Aún no hay delegaciones con todos los kits entregados.</small>
                     <?php endif; ?>
                     <div class="mt-2 pt-2 border-top">
-                        <?php $pendientes = count($delegaciones) - count($delegaciones_completas); ?>
+                        <?php $pendientes = count($delegaciones_pendientes); ?>
                         <?php if ($pendientes > 0): ?>
-                            <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold"><i class="bi bi-clock-history me-1"></i><?= $pendientes ?> delegaci<?= $pendientes == 1 ? 'ón pendiente' : 'ones pendientes' ?></span>
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold"><i class="bi bi-clock-history me-1"></i><?= $pendientes ?> delegaci<?= $pendientes == 1 ? 'ón pendiente' : 'ones pendientes' ?></span>
+                            </div>
+                            <?php $j = 0; foreach ($delegaciones_pendientes as $del => $faltan): ?>
+                                <div class="d-flex justify-content-between align-items-center py-1 <?= $j > 0 ? 'border-top' : '' ?> <?= $j >= 4 ? 'd-none pendiente-extra' : '' ?>">
+                                    <span class="small text-dark"><i class="bi bi-hourglass-split text-warning me-1"></i><?= htmlspecialchars($del, ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="badge bg-warning-subtle text-warning-emphasis border-0"><?= $faltan ?> kit<?= $faltan == 1 ? '' : 's' ?> sin entregar</span>
+                                </div>
+                                <?php $j++; ?>
+                            <?php endforeach; ?>
+                            <?php if ($j > 4): ?>
+                                <a href="#" class="ver-mas-pendientes small text-decoration-none d-block mt-1 text-danger" data-total="<?= $j ?>" data-visibles="4">Ver más (+<?= $j - 4 ?> delegaciones)</a>
+                            <?php endif; ?>
                         <?php else: ?>
                             <span class="badge bg-success-subtle text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>¡Todas las delegaciones acreditadas!</span>
                         <?php endif; ?>
@@ -334,12 +354,12 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bundle.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Ver más / Ver menos en listas de delegaciones
-    document.querySelectorAll('.ver-mas-delegaciones').forEach(function(enlace) {
+    // Ver más / Ver menos en listas de delegaciones (también las pendientes)
+    document.querySelectorAll('.ver-mas-delegaciones, .ver-mas-pendientes').forEach(function(enlace) {
         enlace.addEventListener('click', function(e) {
             e.preventDefault();
             const card = this.closest('.card-body');
-            const extras = card.querySelectorAll('.delegacion-extra');
+            const extras = card.querySelectorAll('.delegacion-extra, .pendiente-extra');
             const expandido = this.classList.contains('expandido');
             extras.forEach(function(fila) {
                 fila.classList.toggle('d-none', expandido);
@@ -350,7 +370,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 const total = parseInt(this.dataset.total, 10);
                 const visibles = parseInt(this.dataset.visibles, 10);
-                this.textContent = 'Ver más (+' + (total - visibles) + ' delegaciones)';
+                const sufijo = this.classList.contains('ver-mas-pendientes') ? '' : ' delegaciones';
+                this.textContent = 'Ver más (+' + (total - visibles) + sufijo + ')';
                 this.classList.remove('expandido');
             }
         });
