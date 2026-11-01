@@ -106,6 +106,7 @@ CREATE TABLE `participantes` (
   `es_delegado` tinyint(1) NOT NULL DEFAULT '0',
   `token_qr` varchar(100) DEFAULT NULL,
   `kit_entregado` tinyint(1) DEFAULT '0',
+  `kit_observacion` varchar(255) DEFAULT NULL COMMENT 'Observación al acreditar la entrega del kit (ej: "Faltó documentación"). Ver sql/migracion_kit_observacion.sql',
   `fecha_inscripcion` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `credencial_impresa` timestamp NULL DEFAULT NULL COMMENT 'Fecha/hora de la última impresión de la credencial; NULL = pendiente o habilitada para reimpresión',
   PRIMARY KEY (`id_participante`),

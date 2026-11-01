@@ -868,6 +868,9 @@ class Inscripciones extends CI_Controller {
      * revierto) la entrega de su kit sin recargar la página.
      *   - id_participante : participante de la fila
      *   - nuevo_estado    : 1 = kit entregado | 0 = revertir (pendiente)
+     *   - observacion     : (opcional, solo con estado 1) texto libre corto,
+     *                       ej: "Faltó documentación". Se muestra como badge
+     *                       en la columna Kit. Vacío = sin observación.
      * Responde SIEMPRE JSON (nunca HTML) para que el fetch no se rompa.
      */
     public function acreditar_kit_ajax() {
@@ -878,6 +881,11 @@ class Inscripciones extends CI_Controller {
 
         $id_participante = (int) $this->input->post('id_participante');
         $nuevo_estado = ($this->input->post('nuevo_estado') === '0') ? 0 : 1;
+        $observacion = $this->input->post('observacion');
+        // Máximo 255 caracteres (medida del VARCHAR de la BD)
+        if (!is_null($observacion)) {
+            $observacion = mb_substr(trim($observacion), 0, 255);
+        }
 
         header('Content-Type: application/json');
 
@@ -886,14 +894,15 @@ class Inscripciones extends CI_Controller {
             return;
         }
 
-        $ok = $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado);
+        $ok = $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado, $observacion);
 
         if ($ok || $this->db->affected_rows() >= 0) {
             echo json_encode([
                 'success'      => TRUE,
                 'kit_estado'   => $nuevo_estado,
+                'observacion'  => ($nuevo_estado == 1) ? (string) $observacion : '',
                 'mensaje'      => ($nuevo_estado == 1)
-                    ? 'Kit acreditado como ENTREGADO.'
+                    ? ('Kit acreditado como ENTREGADO.' . ($observacion !== '' && !is_null($observacion) ? ' Con observación: "' . $observacion . '".' : ''))
                     : 'Se revirtió la entrega del kit (queda pendiente).'
             ]);
         } else {

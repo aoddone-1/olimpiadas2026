@@ -448,11 +448,12 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                         <td class="text-center js-kit-celda">
 
                             <?php $kit_entregado_ins = (($ins['kit_entregado'] ?? 0) == 1); ?>
+                            <?php $kit_obs_ins = trim((string) ($ins['kit_observacion'] ?? '')); ?>
 
                             <?php if ($solo_lectura): ?>
 
                                 <span class="badge rounded-pill <?= $kit_entregado_ins ? 'bg-success-subtle text-success border' : 'bg-light text-muted border' ?>"
-                                      title="<?= $kit_entregado_ins ? 'Kit ENTREGADO' : 'Kit pendiente de entrega' ?>">
+                                      title="<?= $kit_entregado_ins ? ('Kit ENTREGADO' . ($kit_obs_ins !== '' ? ' — Obs.: ' . $kit_obs_ins : '')) : 'Kit pendiente de entrega' ?>">
                                     <i class="bi <?= $kit_entregado_ins ? 'bi-check-circle-fill' : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Pendiente' ?>
                                 </span>
 
@@ -463,11 +464,23 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                         data-id="<?= $ins['id_participante'] ?>"
                                         data-nombre="<?= htmlspecialchars($ins['nombre_completo'], ENT_QUOTES, 'UTF-8') ?>"
                                         data-estado="<?= $kit_entregado_ins ? 1 : 0 ?>"
+                                        data-obs="<?= htmlspecialchars($kit_obs_ins, ENT_QUOTES, 'UTF-8') ?>"
                                         style="font-size:0.75rem; min-width:104px;"
-                                        title="<?= $kit_entregado_ins ? 'Kit ya entregado — clic para REVERTIR la acreditación' : 'Clic para ACREDITAR la entrega del kit' ?>">
-                                    <i class="bi <?= $kit_entregado_ins ? 'bi-check-circle-fill' : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Entregar' ?>
+                                        title="<?= $kit_entregado_ins ? 'Kit ya entregado — clic para REVERTIR la acreditación, Shift+clic para editar la OBSERVACIÓN' : 'Clic para ACREDITAR la entrega del kit (rápido), Shift+clic para acreditar CON OBSERVACIÓN' ?>">
+                                    <i class="bi <?= $kit_entregado_ins ? ($kit_obs_ins !== '' ? 'bi-check-circle' : 'bi-check-circle-fill') : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Entregar' ?>
                                 </button>
 
+                            <?php endif; ?>
+
+                            <?php if ($kit_entregado_ins && $kit_obs_ins !== ''): ?>
+                                <!-- Observación puesta al acreditar el kit -->
+                                <div class="mt-1">
+                                    <span class="badge js-kit-obs-badge bg-warning-subtle text-warning-emphasis border rounded-pill"
+                                          style="font-size:0.62rem;"
+                                          title="<?= htmlspecialchars('Observación: ' . $kit_obs_ins, ENT_QUOTES, 'UTF-8') ?>">
+                                        <i class="bi bi-exclamation-circle me-1"></i><?= htmlspecialchars(mb_substr($kit_obs_ins, 0, 30)) ?><?= mb_strlen($kit_obs_ins) > 30 ? '…' : '' ?>
+                                    </span>
+                                </div>
                             <?php endif; ?>
 
                         </td>
@@ -1641,29 +1654,135 @@ document.addEventListener('DOMContentLoaded', function () {
         const estadoActual = parseInt(botonKit.getAttribute('data-estado'), 10) === 1 ? 1 : 0;
         const nuevoEstado = estadoActual === 1 ? 0 : 1; // toggle: entregar / revertir
 
-        // Revertir es delicado: pedimos confirmación. Acreditar es directo (rápido).
-        const continuar = (nuevoEstado === 0)
-            ? confirmarAccion(
-                `¿Revertir la acreditación del kit de ${nombreParticipante}? Volverá a quedar como "pendiente de entrega".`,
+        // Observación actual de la fila (viene en data-obs desde el servidor)
+        let observacionActual = botonKit.getAttribute('data-obs') || '';
+
+        // Shift+clic = acreditar/desacreditar PERO escribiendo una OBSERVACIÓN
+        // (ej: "Faltó documentación"). Clic normal = rápido, sin preguntas.
+        const conObservacion = e.shiftKey;
+
+        // Popup de observación: input pre-cargado + botones rápidos sugeridos.
+        const pedirObservacion = function(titulo, texto, btnOk, valorInicial) {
+            if (window.Swal && typeof window.Swal.fire === 'function') {
+                return window.Swal.fire({
+                    title: titulo,
+                    text: texto,
+                    icon: 'question',
+                    input: 'text',
+                    inputPlaceholder: 'Ej: Faltó documentación',
+                    inputValue: valorInicial || '',
+                    inputAttributes: { maxlength: 255, autocapitalize: 'sentences' },
+                    showCancelButton: true,
+                    showDenyButton: true,
+                    confirmButtonText: btnOk,
+                    denyButtonText: valorInicial ? 'Sin obs.' : 'Entregar s/obs.',
+                    cancelButtonText: 'Cancelar',
+                    reverseButtons: true,
+                    focusConfirm: false,
+                    preConfirm: (v) => (v || '').trim().substring(0, 255)
+                }).then(r => {
+                    if (r.isConfirmed)  return { ok: true,  obs: r.value || '' };
+                    if (r.isDenied)     return { ok: true,  obs: '' };   // entregar/revertir SIN observación
+                    return null;                                          // cancelado
+                });
+            }
+            // Fallback sin SweetAlert: prompt simple
+            const v = window.prompt(texto + '\n(Dejá vacío para guardar sin observación)', valorInicial || '');
+            return Promise.resolve(v === null ? null : { ok: true, obs: v.trim().substring(0, 255) });
+        };
+
+        // Observación que se enviará al servidor:
+        //   null  -> no tocar la observación guardada (clic rápido)
+        //   ''    -> borrar la observación guardada
+        //   texto -> guardar esa observación
+        let observacionEnviada = null;
+
+        // Flujos:
+        //  - Clic normal + entregar  -> directo (rápido, sin popup)
+        //  - Shift+clic + entregar   -> acredita con observación (o edita la existente)
+        //  - Clic normal + revertir  -> confirmación simple (borra la obs)
+        //  - Shift+clic + revertir   -> confirma avisando que se borra la obs
+        let continuar;
+        if (conObservacion && nuevoEstado === 1) {
+            // Acreditar escribiendo/editando observación
+            continuar = pedirObservacion(
+                observacionActual ? 'Editar observación del kit' : 'Acreditar kit con observación',
+                `Para ${nombreParticipante}:`,
+                'Acreditar',
+                observacionActual
+            ).then(res => {
+                if (!res) return false;
+                observacionEnviada = res.obs; // puede ser '' (botón "Entregar s/obs.")
+                return true;
+            });
+        } else if (conObservacion && nuevoEstado === 0) {
+            // Shift+clic sobre un kit YA ENTREGADO: NO se revierte, se agrega
+            // o edita la OBSERVACIÓN (la acreditación se mantiene).
+            continuar = pedirObservacion(
+                observacionActual ? 'Editar observación del kit' : 'Agregar observación al kit entregado',
+                `Para ${nombreParticipante} (la acreditación se mantiene):`,
+                'Guardar',
+                observacionActual
+            ).then(res => {
+                if (!res) return false;   // canceló -> no hace nada
+                observacionEnviada = res.obs; // '' con "Sin obs." limpia la observación
+                return true;              // el fetch enviará estado ACTUAL (1)
+            });
+        } else if (nuevoEstado === 0) {
+            const extraMsg = observacionActual
+                ? ` También se eliminará la observación: "${observacionActual}".`
+                : '';
+            continuar = confirmarAccion(
+                `¿Revertir la acreditación del kit de ${nombreParticipante}? Volverá a quedar como "pendiente de entrega".${extraMsg}`,
                 'warning',
                 'Sí, revertir',
                 'Cancelar'
-              )
-            : Promise.resolve(true);
+            );
+        } else {
+            continuar = Promise.resolve(true);
+        }
 
-        // Pintar botón según estado (función aparte para reutilizarla siempre)
-        const pintarBotonKit = function(boton, estado) {
+        // Pintar botón según estado Y observación (función aparte para
+        // reutilizarla siempre). celda = <td> de la fila, para pintar también
+        // el badge amarillo de la observación debajo del botón.
+        const pintarBotonKit = function(boton, estado, obs) {
+            if (typeof obs === 'string') {
+                boton.setAttribute('data-obs', obs);
+            }
+            const obsGuardada = boton.getAttribute('data-obs') || '';
+            const celda = boton.closest('.js-kit-celda');
             boton.setAttribute('data-estado', String(estado));
             if (estado === 1) {
                 boton.classList.remove('btn-outline-secondary');
                 boton.classList.add('btn-success');
-                boton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Entregado';
-                boton.title = 'Kit ya entregado — clic para REVERTIR la acreditación';
+                boton.innerHTML = '<i class="bi ' + (obsGuardada !== '' ? 'bi-check-circle' : 'bi-check-circle-fill') + ' me-1"></i>Entregado';
+                boton.title = obsGuardada !== ''
+                    ? 'Kit entregado con observación: "' + obsGuardada + '" — Shift+clic para editar la OBSERVACIÓN, clic para revertir'
+                    : 'Kit ya entregado — clic para REVERTIR la acreditación, Shift+clic para agregar OBSERVACIÓN';
             } else {
                 boton.classList.remove('btn-success');
                 boton.classList.add('btn-outline-secondary');
                 boton.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar';
-                boton.title = 'Clic para ACREDITAR la entrega del kit';
+                boton.title = 'Clic para ACREDITAR la entrega del kit (rápido), Shift+clic para acreditar CON OBSERVACIÓN';
+            }
+            // Badge amarillo con la observación (aparece/desaparece en el momento)
+            if (celda) {
+                let badge = celda.querySelector('.js-kit-obs-badge');
+                if (estado === 1 && obsGuardada !== '') {
+                    if (!badge) {
+                        badge = document.createElement('div');
+                        badge.className = 'mt-1';
+                        badge.innerHTML = '<span class="badge js-kit-obs-badge bg-warning-subtle text-warning-emphasis border rounded-pill" style="font-size:0.62rem;"></span>';
+                        celda.appendChild(badge);
+                        badge = celda.querySelector('.js-kit-obs-badge');
+                    }
+                    const corta = obsGuardada.length > 30 ? obsGuardada.substring(0, 30) + '…' : obsGuardada;
+                    badge.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>';
+                    badge.appendChild(document.createTextNode(corta));
+                    badge.title = 'Observación: ' + obsGuardada;
+                } else if (badge) {
+                    badge.closest('div').remove();
+                }
             }
             // IMPORTANTE: SIEMPRE se habilita acá. Así el botón nunca queda
             // trabado en "disabled" ni siquiera si la respuesta fue errónea.
@@ -1674,9 +1793,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (!confirmado) return;
 
+            // Si es Shift+clic sobre un kit YA entregado con observación,
+            // NO revertimos: solo actualizamos la observación (estado sigue 1).
+            const soloEditarObs = (conObservacion && estadoActual === 1);
+            const estadoAEsperar = soloEditarObs ? 1 : nuevoEstado;
+
+            // Si solo queríamos editar la observación y quedó igual a la que
+            // ya estaba guardada, no hace falta llamar al servidor: repintamos
+            // y salimos (el botón SIEMPRE vuelve a quedar habilitado).
+            if (soloEditarObs && observacionEnviada === observacionActual) {
+                pintarBotonKit(botonKit, 1, observacionActual);
+                return;
+            }
+
             const iconoOriginal = botonKit.innerHTML;
             botonKit.disabled = true;
             botonKit.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+
+            let cuerpo = 'id_participante=' + encodeURIComponent(idParticipante)
+                + '&nuevo_estado=' + estadoAEsperar;
+            // Enviamos la observación SOLO cuando el usuario la escribió/editó
+            // vía Shift+clic. En el clic rápido no se toca la guardada.
+            if (observacionEnviada !== null) {
+                cuerpo += '&observacion=' + encodeURIComponent(observacionEnviada);
+            }
 
             fetch('<?= base_url('Inscripciones/acreditar_kit_ajax') ?>', {
                 method: 'POST',
@@ -1684,8 +1824,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     'Content-Type': 'application/x-www-form-urlencoded',
                     'X-Requested-With': 'XMLHttpRequest' // para que el servidor responda SIEMPRE JSON
                 },
-                body: 'id_participante=' + encodeURIComponent(idParticipante)
-                    + '&nuevo_estado=' + nuevoEstado
+                body: cuerpo
             })
             .then(response => {
                 if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
@@ -1701,8 +1840,12 @@ document.addEventListener('DOMContentLoaded', function () {
             .then(data => {
                 if (data.success) {
                     // Repintar el botón en el mismo lugar con el nuevo estado
-                    // y volver a habilitarlo (queda clicable para revertir).
-                    pintarBotonKit(botonKit, nuevoEstado);
+                    // (+ observación confirmada por el servidor) y volver a
+                    // habilitarlo (queda clicable para revertir o editar).
+                    const obsFinal = (typeof data.observacion === 'string')
+                        ? data.observacion
+                        : (estadoAEsperar === 0 ? '' : (observacionEnviada !== null ? observacionEnviada : (botonKit.getAttribute('data-obs') || '')));
+                    pintarBotonKit(botonKit, estadoAEsperar, obsFinal);
                     alertar(data.mensaje || 'Estado del kit actualizado.', 'success', '¡Listo!');
 
                 } else {

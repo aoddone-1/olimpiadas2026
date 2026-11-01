@@ -540,12 +540,43 @@ class Participante_model extends CI_Model {
         }
     }
 
-    public function marcar_kit_entregado($id_participante, $nuevo_estado = 1) {
+    public function marcar_kit_entregado($id_participante, $nuevo_estado = 1, $observacion = NULL) {
         $this->db->where('id_participante', $id_participante);
         $data = [
             'kit_entregado' => $nuevo_estado
         ];
+        // Observación opcional al acreditar (ej: "Faltó documentación").
+        // Se guarda solo si la columna existe (ver sql/migracion_kit_observacion.sql).
+        if ($this->columna_existe('participantes', 'kit_observacion')) {
+            $obs = trim((string) $observacion);
+            // Si no se envía observación en una acreditación, NO se pisa la
+            // que ya estuviera guardada; solo se limpia al revertir (estado 0).
+            if ($nuevo_estado == 1) {
+                if ($obs !== '') {
+                    $data['kit_observacion'] = $obs;
+                }
+            } else {
+                $data['kit_observacion'] = NULL;
+            }
+        }
         return $this->db->update('participantes', $data);
+    }
+
+    /**
+     * Chequea si una columna existe en una tabla (para que el código funcione
+     * aunque todavía no se haya ejecutado la migración correspondiente).
+     */
+    private function columna_existe($tabla, $columna) {
+        static $cache = [];
+        $clave = $tabla . '.' . $columna;
+        if (!isset($cache[$clave])) {
+            $nombres = [];
+            foreach ($this->db->field_data($tabla) as $c) {
+                $nombres[] = is_object($c) ? $c->name : $c['name'];
+            }
+            $cache[$clave] = in_array($columna, $nombres);
+        }
+        return $cache[$clave];
     }
 
     /**

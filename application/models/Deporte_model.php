@@ -219,6 +219,7 @@ class Deporte_model extends CI_Model {
             p.delegacion,
             p.hotel_alojamiento,
             p.kit_entregado,
+            p.kit_observacion,
             p.es_competidor, 
             p.es_delegado,
             p.sexo,
