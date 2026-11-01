@@ -1622,10 +1622,21 @@ document.addEventListener('DOMContentLoaded', function () {
     // ==========================================
     tablaElemento.addEventListener('click', function(e) {
 
-        const botonKit = e.target.closest('.js-btn-kit[data-id]');
+        // Capturamos TODOS los clics en botones de kit (no solo los que
+        // tienen data-id): así ningún botón puede quedar "sin respuesta".
+        const botonKit = e.target.closest('.js-btn-kit');
         if (!botonKit) return;
 
         const idParticipante = botonKit.getAttribute('data-id');
+        if (!idParticipante) {
+            console.error('❌ El botón de kit no tiene data-id (fila fuera de lo esperado).');
+            alertar('Este botón no tiene participante asociado. Recargá la página (F5) e intentá de nuevo.', 'warning', 'Atención');
+            return;
+        }
+        if (botonKit.disabled) {
+            // Está en pleno guardado (spinner): ignoramos clics dobles.
+            return;
+        }
         const nombreParticipante = botonKit.getAttribute('data-nombre') || 'este inscripto';
         const estadoActual = parseInt(botonKit.getAttribute('data-estado'), 10) === 1 ? 1 : 0;
         const nuevoEstado = estadoActual === 1 ? 0 : 1; // toggle: entregar / revertir
@@ -1640,6 +1651,25 @@ document.addEventListener('DOMContentLoaded', function () {
               )
             : Promise.resolve(true);
 
+        // Pintar botón según estado (función aparte para reutilizarla siempre)
+        const pintarBotonKit = function(boton, estado) {
+            boton.setAttribute('data-estado', String(estado));
+            if (estado === 1) {
+                boton.classList.remove('btn-outline-secondary');
+                boton.classList.add('btn-success');
+                boton.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Entregado';
+                boton.title = 'Kit ya entregado — clic para REVERTIR la acreditación';
+            } else {
+                boton.classList.remove('btn-success');
+                boton.classList.add('btn-outline-secondary');
+                boton.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar';
+                boton.title = 'Clic para ACREDITAR la entrega del kit';
+            }
+            // IMPORTANTE: SIEMPRE se habilita acá. Así el botón nunca queda
+            // trabado en "disabled" ni siquiera si la respuesta fue errónea.
+            boton.disabled = false;
+        };
+
         continuar.then(function(confirmado) {
 
             if (!confirmado) return;
@@ -1650,51 +1680,45 @@ document.addEventListener('DOMContentLoaded', function () {
 
             fetch('<?= base_url('Inscripciones/acreditar_kit_ajax') ?>', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest' // para que el servidor responda SIEMPRE JSON
+                },
                 body: 'id_participante=' + encodeURIComponent(idParticipante)
                     + '&nuevo_estado=' + nuevoEstado
             })
             .then(response => {
                 if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-                return response.json();
+                // Leemos el texto primero: si el servidor devolviera HTML en vez
+                // de JSON (ej. "Unexpected token '<'"), el catch lo atrapa y el
+                // botón SIEMPRE se re-habilita abajo. Nunca queda trabado.
+                return response.text().then(txt => {
+                    try { return JSON.parse(txt); }
+                    catch (e) { throw new Error('El servidor no devolvió un JSON válido.'); }
+                });
             })
+
             .then(data => {
                 if (data.success) {
-
                     // Repintar el botón en el mismo lugar con el nuevo estado
-                    botonKit.setAttribute('data-estado', String(nuevoEstado));
-                    if (nuevoEstado === 1) {
-                        botonKit.classList.remove('btn-outline-secondary');
-                        botonKit.classList.add('btn-success');
-                        botonKit.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Entregado';
-                        botonKit.title = 'Kit ya entregado — clic para REVERTIR la acreditación';
-                    } else {
-                        botonKit.classList.remove('btn-success');
-                        botonKit.classList.add('btn-outline-secondary');
-                        botonKit.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar';
-                        botonKit.title = 'Clic para ACREDITAR la entrega del kit';
-                    }
+                    // y volver a habilitarlo (queda clicable para revertir).
+                    pintarBotonKit(botonKit, nuevoEstado);
                     alertar(data.mensaje || 'Estado del kit actualizado.', 'success', '¡Listo!');
 
                 } else {
                     alertar('Error: ' + (data.error || 'No se pudo registrar la entrega del kit'), 'error', 'Error');
-                    botonKit.disabled = false;
-                    botonKit.innerHTML = iconoOriginal;
+                    // Restauramos el estado REAL que tenía el botón y lo
+                    // re-habilitamos SIEMPRE (nunca queda trabado en disabled).
+                    pintarBotonKit(botonKit, estadoActual);
                 }
             })
             .catch(error => {
                 console.error('❌ ERROR EN FETCH (acreditar kit):', error);
                 alertar('Ocurrió un error al acreditar el kit: ' + error.message, 'error', 'Error');
-                botonKit.disabled = false;
-                botonKit.innerHTML = iconoOriginal;
-            })
-            .finally(() => {
-                // Si quedó habilitado tras un error no pasa nada; esto evita
-                // dejar el spinner colgado en casos raros de excepción tardía.
-                if (botonKit.querySelector('.spinner-border')) {
-                    botonKit.disabled = false;
-                    botonKit.innerHTML = iconoOriginal;
-                }
+                // Recargamos el estado real desde el servidor pintando según
+                // data-estado actual: así el botón vuelve a estar HABILITADO
+                // aunque algo haya salido mal (nunca queda disabled).
+                pintarBotonKit(botonKit, estadoActual);
             });
 
         });
