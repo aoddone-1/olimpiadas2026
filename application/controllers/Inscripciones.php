@@ -863,6 +863,45 @@ class Inscripciones extends CI_Controller {
     }
 
     /**
+     * ACREDITACIÓN DE KIT UNO POR UNO, DESDE LA TABLA DE INSCRIPTOS (AJAX).
+     * Botón rápido en cada fila: selecciono al inscripto y acredito (o
+     * revierto) la entrega de su kit sin recargar la página.
+     *   - id_participante : participante de la fila
+     *   - nuevo_estado    : 1 = kit entregado | 0 = revertir (pendiente)
+     * Responde SIEMPRE JSON (nunca HTML) para que el fetch no se rompa.
+     */
+    public function acreditar_kit_ajax() {
+        if (!$this->_auth_json_or_fail()) return;
+        $this->bloqueo_solo_lectura();
+
+        $this->load->model('Participante_model');
+
+        $id_participante = (int) $this->input->post('id_participante');
+        $nuevo_estado = ($this->input->post('nuevo_estado') === '0') ? 0 : 1;
+
+        header('Content-Type: application/json');
+
+        if (empty($id_participante)) {
+            echo json_encode(['success' => FALSE, 'error' => 'Participante no válido.']);
+            return;
+        }
+
+        $ok = $this->Participante_model->marcar_kit_entregado($id_participante, $nuevo_estado);
+
+        if ($ok || $this->db->affected_rows() >= 0) {
+            echo json_encode([
+                'success'      => TRUE,
+                'kit_estado'   => $nuevo_estado,
+                'mensaje'      => ($nuevo_estado == 1)
+                    ? 'Kit acreditado como ENTREGADO.'
+                    : 'Se revirtió la entrega del kit (queda pendiente).'
+            ]);
+        } else {
+            echo json_encode(['success' => FALSE, 'error' => 'No se pudo registrar la entrega del kit.']);
+        }
+    }
+
+    /**
      * NUEVO (Mesa de control): "Acreditar entrega de kit" para el DELEGADO.
      * Marca kit_entregado = 1 (o 0 si se revierte) para TODOS los participantes
      * de la delegación del participante escaneado. Solo aplica si es delegado.
