@@ -1923,7 +1923,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         ? data.observacion
                         : (estadoAEsperar === 0 ? '' : (observacionEnviada !== null ? observacionEnviada : (botonKit.getAttribute('data-obs') || '')));
                     pintarBotonKit(botonKit, estadoAEsperar, obsFinal);
-                    alertar(data.mensaje || 'Estado del kit actualizado.', 'success', '¡Listo!');
+                    // Sin alert de confirmación: el botón/badge se repinta y eso es feedback suficiente.
 
                 } else {
                     alertar('Error: ' + (data.error || 'No se pudo registrar la entrega del kit'), 'error', 'Error');
