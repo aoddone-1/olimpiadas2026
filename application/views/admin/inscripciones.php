@@ -466,8 +466,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                                         data-estado="<?= $kit_entregado_ins ? 1 : 0 ?>"
                                         data-obs="<?= htmlspecialchars($kit_obs_ins, ENT_QUOTES, 'UTF-8') ?>"
                                         style="font-size:0.75rem; min-width:104px;"
-                                        title="<?= $kit_entregado_ins ? 'Kit ya entregado — clic para REVERTIR la acreditación, Shift+clic para editar la OBSERVACIÓN' : 'Clic para ACREDITAR la entrega del kit (rápido), Shift+clic para acreditar CON OBSERVACIÓN' ?>">
-                                    <i class="bi <?= $kit_entregado_ins ? ($kit_obs_ins !== '' ? 'bi-check-circle' : 'bi-check-circle-fill') : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Entregar' ?>
+                                        title="<?= $kit_entregado_ins ? 'Kit ya entregado — clic para REVERTIR la acreditación. Para AGREGAR o EDITAR la observación: botón derecho (menú) → «Acreditar con observación», o mantené SHIFT presionado y hacé clic.' : 'Clic = ACREDITAR la entrega del kit (rápido, sin preguntas). Para acreditar CON OBSERVACIÓN (ej: «Faltó documentación»): botón derecho (menú) → «Acreditar con observación», o mantené SHIFT presionado y hacé clic.' ?>">
+                                    <i class="bi <?= $kit_entregado_ins ? ($kit_obs_ins !== '' ? 'bi-check-circle' : 'bi-check-circle-fill') : 'bi-box-seam' ?> me-1"></i><?= $kit_entregado_ins ? 'Entregado' : 'Entregar' ?><i class="bi bi-three-dots-vertical ms-1 opacity-50"></i>
                                 </button>
 
                             <?php endif; ?>
@@ -1628,12 +1628,89 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // ==========================================
+    // MENÚ CONTEXTUAL (botón derecho) sobre el botón de Kit.
+    // Como un clic NORMAL debe seguir siendo "acreditar rápido", la vía
+    // obvia para agregar/editar la OBSERVACIÓN es hacer clic derecho sobre
+    // el botón: aparece un mini-menú con las acciones disponibles.
+    // (También sigue funcionando Shift+clic para quien lo prefiera.)
+    // ==========================================
+    let menuKitActivo = null;
+
+    const cerrarMenuKit = function() {
+        if (menuKitActivo) { menuKitActivo.remove(); menuKitActivo = null; }
+    };
+
+    document.addEventListener('click', cerrarMenuKit);
+    window.addEventListener('scroll', cerrarMenuKit, true);
+    window.addEventListener('resize', cerrarMenuKit);
+
+    tablaElemento.addEventListener('contextmenu', function(e) {
+
+        const botonKit = e.target.closest('.js-btn-kit');
+        if (!botonKit) return;
+
+        e.preventDefault(); // evita el menú nativo del navegador sobre el botón
+
+        if (botonKit.disabled || !botonKit.getAttribute('data-id')) return;
+
+        cerrarMenuKit();
+
+        const estado  = parseInt(botonKit.getAttribute('data-estado'), 10) === 1 ? 1 : 0;
+        const opciones = [];
+
+        if (estado === 0) {
+            opciones.push({ texto: '⚡ Acreditar entrega (rápido)', accion: 'entregar' });
+            opciones.push({ texto: '📝 Acreditar CON observación…', accion: 'obs' });
+        } else {
+            opciones.push({ texto: '📝 Agregar/Editar observación…', accion: 'obs' });
+            opciones.push({ texto: '↩️ Revertir acreditación', accion: 'revertir', danger: true });
+        }
+
+        menuKitActivo = document.createElement('div');
+        menuKitActivo.className = 'shadow-lg rounded-3 border bg-white';
+        menuKitActivo.style.cssText = 'position:fixed;z-index:2000;min-width:240px;padding:6px;font-size:0.85rem;';
+
+        opciones.forEach(function(op) {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'w-100 text-start btn btn-sm border-0 ' + (op.danger ? 'text-danger' : 'text-dark');
+            item.style.cssText = 'padding:8px 12px;border-radius:8px;background:transparent;';
+            item.onmouseenter = function() { item.style.background = '#f1f3f5'; };
+            item.onmouseleave = function() { item.style.background = 'transparent'; };
+            item.textContent = op.texto;
+            item.addEventListener('click', function(ev) {
+                ev.stopPropagation(); // no disparamos el listener global ANTES de eliminar el menú
+                const tipo = op.accion;
+                cerrarMenuKit();
+                // Reutilizamos EXACTAMENTE el mismo handler del clic izquierdo:
+                // 'obs' simula Shift+clic; el resto es clic normal.
+                if (typeof window.kitClickHandler === 'function') {
+                    window.kitClickHandler.call(tablaElemento, { target: botonKit, shiftKey: (tipo === 'obs') });
+                }
+            });
+            menuKitActivo.appendChild(item);
+        });
+
+        document.body.appendChild(menuKitActivo);
+
+        // Posicionamiento cerca del cursor, sin que se salga de la pantalla
+        const ancho = menuKitActivo.offsetWidth || 240;
+        const alto  = menuKitActivo.offsetHeight || 90;
+        let x = e.clientX, y = e.clientY;
+        if (x + ancho > window.innerWidth - 8)  x = window.innerWidth - ancho - 8;
+        if (y + alto  > window.innerHeight - 8) y = window.innerHeight - alto - 8;
+        menuKitActivo.style.left = x + 'px';
+        menuKitActivo.style.top  = y + 'px';
+    });
+
+    // ==========================================
     // ACREDITAR ENTREGA DE KIT UNO POR UNO (AJAX, DESDE LA TABLA)
     // Un clic en el botón de la columna "Kit" acredita la entrega; un segundo
     // clic sobre el botón verde permite revertirla. Todo sin recargar la
     // página: el botón se actualiza en el lugar con la respuesta del servidor.
+    // Shift+clic (o clic derecho → menú) = acreditar/editar CON OBSERVACIÓN.
     // ==========================================
-    tablaElemento.addEventListener('click', function(e) {
+    const kitClickHandler = function(e) {
 
         // Capturamos TODOS los clics en botones de kit (no solo los que
         // tienen data-id): así ningún botón puede quedar "sin respuesta".
@@ -1757,13 +1834,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 boton.classList.add('btn-success');
                 boton.innerHTML = '<i class="bi ' + (obsGuardada !== '' ? 'bi-check-circle' : 'bi-check-circle-fill') + ' me-1"></i>Entregado';
                 boton.title = obsGuardada !== ''
-                    ? 'Kit entregado con observación: "' + obsGuardada + '" — Shift+clic para editar la OBSERVACIÓN, clic para revertir'
-                    : 'Kit ya entregado — clic para REVERTIR la acreditación, Shift+clic para agregar OBSERVACIÓN';
+                    ? 'Kit entregado con observación: "' + obsGuardada + '" — clic derecho → «Agregar/Editar observación» (o Shift+clic) para editarla; clic para revertir'
+                    : 'Kit ya entregado — clic para REVERTIR la acreditación, clic derecho (menú) o Shift+clic para agregar OBSERVACIÓN';
             } else {
                 boton.classList.remove('btn-success');
                 boton.classList.add('btn-outline-secondary');
-                boton.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar';
-                boton.title = 'Clic para ACREDITAR la entrega del kit (rápido), Shift+clic para acreditar CON OBSERVACIÓN';
+                boton.innerHTML = '<i class="bi bi-box-seam me-1"></i>Entregar<i class="bi bi-three-dots-vertical ms-1 opacity-50"></i>';
+                boton.title = 'Clic para ACREDITAR la entrega del kit (rápido). Clic derecho (menú) o Shift+clic para acreditar CON OBSERVACIÓN';
             }
             // Badge amarillo con la observación (aparece/desaparece en el momento)
             if (celda) {
@@ -1866,7 +1943,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
         });
 
-    });
+    }; // fin kitClickHandler
+
+    // Registro del handler de clic + lo expongo para que el menú contextual
+    // (clic derecho) pueda reutilizar EXACTAMENTE la misma lógica.
+    tablaElemento.addEventListener('click', kitClickHandler);
+    window.kitClickHandler = kitClickHandler;
 
 });
 
