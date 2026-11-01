@@ -189,10 +189,211 @@ class Participante_model extends CI_Model {
             // Resultados YA cargados donde participa (por jornada o por equipo).
             $dep['resultados'] = $this->_resultados_del_participante(
                 (int) $dep['id_categoria'], (int) $id_participante, $id_ute_dep, $detalle_dep);
+
+            // PREMIACIÓN: si la categoría ya cerró y el participante (o su
+            // equipo) quedó en el podio, el pase debe mostrar su premio.
+            // Se calcula con las MISMAS reglas que la pantalla de Premiación
+            // (Premiacion_model): regla de puestos por categoría, podio por
+            // FINAL / tabla de puntos / posiciones de TIEMPO-PUNTAJE.
+            $dep['premiacion'] = $this->_premiacion_del_participante(
+                (int) $dep['id_categoria'], (int) $id_participante, $id_ute_dep, $detalle_dep);
         }
         unset($dep);
 
         return $deportes;
+    }
+
+    /* ============================================================
+     *  PREMIACIÓN EN EL PASE DEL PARTICIPANTE
+     * ============================================================ */
+
+    /** Íconos por tipo de premio (espejo de Premiacion_model::$ICONOS_PREMIO). */
+    private static $_ICONOS_PREMIO = array(
+        'trofeo'      => '🏆',
+        'medalla'     => '🎖️',
+        'diploma'     => '📜',
+        'copa'        => '🏆',
+        'certificado' => '📜',
+        'premio'      => '🎁',
+    );
+
+    /**
+     * ¿Qué ganó este competidor en esta categoría?
+     *
+     * Reusa la lógica real de Premiación (Premiacion_model::
+     * obtener_estado_premiables) para que el pase SIEMPRE refleje los mismos
+     * podios que ve el organizador, incluyendo las reglas nuevas:
+     *   - regla de premiación por categoría (cuántos puestos se premian y
+     *     qué tipo de premio recibe cada uno),
+     *   - día sugerido de entrega (categorias.dia_premiacion_sugerido),
+     *   - definición por FASE_FINAL o por TABLA DE PUNTAJE,
+     *   - desempates (penales, prórroga, ...).
+     *
+     * @return array|null  Datos del puesto obtenido, o null si no hay premio.
+     *   {puesto, premio, etiqueta, icono, nombre_premiado, entregado,
+     *    fecha_entrega, origen}
+     */
+    private function _premiacion_del_participante($id_categoria, $id_participante, $id_ute, $detalle_ute) {
+        if (!$id_categoria) return null;
+        if (!$this->_tabla_existe_silenciosa('premiaciones')) return null;
+        if (!$this->_tabla_existe_silenciosa('resultados')) return null;
+
+        // 1) Premios YA ENTREGADOS/registrados por el organizador (fuente
+        //    oficial: lo que efectivamente se confirmó en la noche de premios).
+        $fila = $this->_premio_entregado_por_categoria($id_categoria, $id_participante, $id_ute, $detalle_ute);
+        if ($fila) {
+            $out = array(
+                'puesto'          => (int) $fila['puesto'],
+                'premio'          => trim((string) ($fila['tipo_premio'] ?? '')),
+                'etiqueta'        => null,
+                'icono'           => '',
+                'nombre_premiado' => trim((string) $fila['nombre']),
+                'entregado'       => !empty($fila['entregado']),
+                'fecha_entrega'   => !empty($fila['fecha_entrega'])
+                    ? substr((string) $fila['fecha_entrega'], 0, 10) : null,
+                'origen'          => $fila['origen_resultado'] ?? null,
+            );
+            // Etiqueta clásica (Oro/Plata/Bronce) cuando aplica.
+            $etiquetas = array(1 => 'Oro', 2 => 'Plata', 3 => 'Bronce');
+            if ($out['premio'] === '' || stripos($out['premio'], 'medalla') !== false) {
+                if (isset($etiquetas[$out['puesto']])) $out['etiqueta'] = $etiquetas[$out['puesto']];
+            }
+            $out['icono'] = $this->_icono_premio($out['premio'] !== '' ? $out['premio'] : 'Medalla');
+            return $out;
+        }
+
+        // 2) Categoría CERRADA pero todavía sin registro de entrega: mostramos
+        //    el podio PROYECTADO con la misma resolución que usa la pantalla
+        //    de Premiación (regla de puestos, sistema de definición, etc.).
+        try {
+            $this->load->model('Premiacion_model');
+            if (!isset($this->Premiacion_model)) return null;
+            if (!$this->Premiacion_model->tablas_existentes()) return null;
+            $items = $this->Premiacion_model->obtener_estado_premiables();
+        } catch (Throwable $e) {
+            return null; // el pase nunca puede romperse por la premiación
+        }
+
+        $item = null;
+        foreach ($items as $it) {
+            if ((int) $it['categoria']['id_categoria'] === (int) $id_categoria) { $item = $it; break; }
+        }
+        if (!$item || empty($item['cerrada'])) return null;
+
+        foreach ((array) $item['podio'] as $pos => $p) {
+            if (!$this->_premiado_es_del_participante(
+                    isset($p['id']) ? $p['id'] : null,
+                    isset($p['nombre']) ? $p['nombre'] : '',
+                    $id_participante, $id_ute, $detalle_ute)) {
+                continue;
+            }
+            // Premio según la REGLA de la categoría (puesto -> tipo de premio).
+            $premio = '';
+            $etiqueta = null;
+            foreach ((array) ($item['regla'] ?? array()) as $r) {
+                if ((int) $r['puesto'] === (int) $pos) {
+                    $premio = trim((string) $r['premio']);
+                    $etiqueta = !empty($r['etiqueta']) ? trim((string) $r['etiqueta']) : null;
+                    break;
+                }
+            }
+            if ($premio === '') {
+                $premio = 'Medalla';
+                $etiquetas = array(1 => 'Oro', 2 => 'Plata', 3 => 'Bronce');
+                if ($etiqueta === null && isset($etiquetas[(int) $pos])) $etiqueta = $etiquetas[(int) $pos];
+            }
+            return array(
+                'puesto'          => (int) $pos,
+                'premio'          => $premio,
+                'etiqueta'        => $etiqueta,
+                'icono'           => $this->_icono_premio($premio),
+                'nombre_premiado' => trim((string) $p['nombre']),
+                'entregado'       => false,
+                'fecha_entrega'   => !empty($item['fecha_entrega'])
+                    ? substr((string) $item['fecha_entrega'], 0, 10) : null,
+                'origen'          => $item['origen'],
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Busca en `premiaciones` un premio registrado que corresponda al
+     * participante: por id_ute propio, por nombre del equipo (inscripciones
+     * con detalle_ute sin id_ute) o por su nombre individual.
+     */
+    private function _premio_entregado_por_categoria($id_categoria, $id_participante, $id_ute, $detalle_ute) {
+        static $cache = array();
+        $key = (int) $id_categoria;
+        if (!isset($cache[$key])) {
+            $this->db->where('id_categoria', $key);
+            $this->db->order_by('puesto', 'ASC');
+            $cols = $this->db->get('premiaciones')->result_array();
+            $cache[$key] = $cols;
+        }
+        foreach ($cache[$key] as $p) {
+            if ($this->_premiado_es_del_participante(
+                    isset($p['id_ute']) ? (int) $p['id_ute'] : null,
+                    (string) ($p['nombre'] ?? ''),
+                    $id_participante, $id_ute, $detalle_ute)) {
+                return $p;
+            }
+        }
+        return null;
+    }
+
+    /** ¿El premiado (equipo o competidor) es este participante / su UTE? */
+    private function _premiado_es_del_participante($id_premiado, $nombre_premiado, $id_participante, $id_ute, $detalle_ute) {
+        $id_premiado = (int) $id_premiado;
+        // Equipo registrado: coincide con su UTE (id o nombre del equipo).
+        if ($id_premiado > 0) {
+            if ($id_ute > 0 && $id_premiado === $id_ute) return true;
+            $nombres = trim((string) $detalle_ute);
+            if ($nombres !== '' && $this->_ute_coincide_con_detalle($id_premiado, $nombres)) return true;
+        }
+        $nom = $this->_limpiar_nombre_comparar($nombre_premiado);
+        if ($nom === '') return false;
+
+        // Individual: el premiado puede estar nombrado como
+        //   "NOMBRE (DNI)"              -> comparamos el DNI, o
+        //   "PROVINCIA (NOMBRE)"        -> formato normalizado, o
+        //   "NOMBRE"                    -> a secas.
+        static $cache = array();
+        $pid = (int) $id_participante;
+        if (!isset($cache[$pid])) {
+            $this->db->select('nombre_completo, dni');
+            $this->db->where('id_participante', $pid);
+            $cache[$pid] = $this->db->get('participantes')->row_array();
+        }
+        $row = $cache[$pid];
+        if (!$row) return false;
+
+        $dni = preg_replace('/\D/', '', (string) $row['dni']);
+        $sin_espacios = preg_replace('/\s+/u', '', $nom);
+        if ($dni !== '' && $sin_espacios !== '' && strpos($sin_espacios, $dni) !== false) return true;
+
+        $nombre_norm = $this->_limpiar_nombre_comparar($row['nombre_completo']);
+        if ($nombre_norm === '') return false;
+        if (strcasecmp($nom, $nombre_norm) === 0) return true;
+        // Formato "PROVINCIA (NOMBRE)": el cuerpo entre paréntesis es la persona.
+        if (preg_match('/\(([^()]*)\)$/u', $nombre_premiado, $m)) {
+            if (strcasecmp($this->_limpiar_nombre_comparar($m[1]), $nombre_norm) === 0) return true;
+        }
+        return false;
+    }
+
+    /** Quita "(...)" del final y espacios extra para comparar nombres. */
+    private function _limpiar_nombre_comparar($s) {
+        $s = trim((string) $s);
+        $s = preg_replace('/\(([^()]*)\)$/u', '', $s); // sufijo tipo "(DNI)"
+        return trim(preg_replace('/\s+/u', ' ', (string) $s));
+    }
+
+    /** Ícono según el nombre del tipo de premio. */
+    private function _icono_premio($nombre) {
+        $clave = mb_strtolower(trim(preg_replace('/\s+/u', '', (string) $nombre)), 'UTF-8');
+        return isset(self::$_ICONOS_PREMIO[$clave]) ? self::$_ICONOS_PREMIO[$clave] : '🏅';
     }
 
     /**
@@ -440,7 +641,13 @@ class Participante_model extends CI_Model {
 
         $this->db->select('r.*', FALSE);
         // Fecha/hora del fixture asociado (para mostrar "cuándo se jugó" en el pase).
-        $this->db->select('f.fecha_competencia AS fixture_fecha, f.hora_inicio AS fixture_hora', FALSE);
+        if ($this->_tabla_existe_silenciosa('fixtures')) {
+            $this->db->select('f.fecha_competencia AS fixture_fecha, f.hora_inicio AS fixture_hora', FALSE);
+            // Nombre legible de la fase (Final, Semifinal, ...) para la tarjeta.
+            $this->db->select('f.fase AS fixture_fase', FALSE);
+        } else {
+            $this->db->select('NULL AS fixture_fecha, NULL AS fixture_hora, NULL AS fixture_fase', FALSE);
+        }
         if ($con_desempate) {
             $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
             $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
@@ -469,6 +676,36 @@ class Participante_model extends CI_Model {
         foreach ($rows as $r) {
             $rid = (int) $r['id_resultado'];
             $det = isset($detalles[$rid]) ? $detalles[$rid] : array();
+
+            // Nombres de los competidores individuales: en jornadas masivas el
+            // detalle se carga con id_ute negativo (= -id_inscripcion de la
+            // persona). Reemplazamos "NOMBRE (DNI)" por el nombre propio del
+            // participante para que siempre vea SU posición, aunque la vista
+            // recorte el listado a los 5 primeros puestos.
+            if ($id_participante > 0 && $this->_columna_detalle_existe('id_ute')) {
+                $ins_ids = array();
+                foreach ($det as $d) {
+                    $iid = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                    if ($iid < 0) $ins_ids[] = -$iid;
+                }
+                if ($ins_ids) {
+                    static $propios_cache = null;
+                    if ($propios_cache === null) {
+                        $this->db->select('id_inscripcion');
+                        $this->db->where('id_participante', (int) $id_participante);
+                        $propios_cache = array_map('intval', array_column(
+                            $this->db->get('inscripciones_deportivas')->result_array(), 'id_inscripcion'));
+                    }
+                    foreach ($det as &$d) {
+                        $iid = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
+                        if ($iid < 0 && in_array(-$iid, $propios_cache, true)) {
+                            $d['nombre_libre'] = $nombre_propio;
+                            $d['es_propio'] = true;
+                        }
+                    }
+                    unset($d);
+                }
+            }
 
             // ¿El resultado menciona directamente a su equipo (sin fixture)?
             $menciona_equipo_propio = false;
