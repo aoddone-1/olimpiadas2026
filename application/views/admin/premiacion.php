@@ -6,7 +6,7 @@
     <title>Premiación - <?= NOMBRE_META; ?></title>
     <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="<?= base_url('css/style.css?20261103') ?>" rel="stylesheet">
+    <link href="<?= base_url('css/style.css?20261103b') ?>" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <!-- SweetAlert2: confirmaciones estilizadas (con fallback a native si no carga) -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -87,6 +87,32 @@
 
 /* Inputs del modal */
 .pm-input-puesto { border-left: 4px solid var(--color-medalla, #ccc); }
+
+/* ---------- Agrupado por deporte ---------- */
+.pm-dep-grupo { margin-bottom: 1.6rem; }
+.pm-dep-head {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    background: linear-gradient(135deg, #14213d 0%, #3a2f7c 100%);
+    color: #fff; border-radius: .8rem; padding: .6rem 1rem;
+    box-shadow: 0 3px 10px rgba(20,33,61,.18);
+}
+.pm-dep-icon {
+    width: 2.4rem; height: 2.4rem; border-radius: .65rem;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 1.35rem; line-height: 1; flex-shrink: 0;
+}
+.pm-dep-nombre { font-weight: 800; font-size: 1.05rem; letter-spacing: .01em; }
+.pm-dep-meta { font-size: .75rem; opacity: .8; }
+.pm-dep-chip {
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
+    border-radius: 2rem; padding: .15rem .7rem; font-size: .75rem; font-weight: 700;
+}
+.pm-dep-cuerpo {
+    border-left: 3px solid #d9dfeb; margin: .7rem 0 0 .5rem;
+    padding-left: 1.1rem;
+}
+@media (max-width: 575.98px) { .pm-dep-cuerpo { padding-left: .5rem; } }
 
 /* Asegurar que el tema global no pinte de blanco el texto oscuro */
 .badge.text-dark, .badge.text-dark * { color: #000 !important; }
@@ -329,6 +355,80 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     }
 
     /* ---------- Render ---------- */
+    /* Icono/emoji representativo del deporte para las cabeceras de grupo. */
+    const ICONOS_DEPORTE = [
+        ['caminata', '🚶'], ['running', '🏃'], ['atletismo', '🏃'], ['corredor', '🏃'],
+        ['bici', '🚴'], ['ciclism', '🚴'], ['mountain', '🚵'], ['pedal', '🚴'],
+        ['nataci', '🏊'], ['piscina', '🏊'], ['acuatic', '🏊'], ['kayak', '🛶'],
+        ['pesca', '🎣'], ['remero', '🚣'], ['remo', '🚣'],
+        ['futbol', '⚽'], ['futsal', '⚽'], ['fulbito', '⚽'], ['penal', '⚽'],
+        ['basquet', '🏀'], ['handball', '🤾'], ['handbol', '🤾'],
+        ['volei', '🏐'], ['voley', '🏐'], ['pingpong', '🏓'], ['ping-pong', '🏓'],
+        ['tenis', '🎾'], ['padel', '🎾'], ['raqueta', '🏸'], ['badmint', '🏸'],
+        ['ajedrez', '♟️'], ['domino', '🁣'], ['bocha', '🎳'], ['bolos', '🎳'],
+        ['billar', '🎱'], ['sapito', '🃏'], ['truco', '🃏'], ['carta', '🃏'],
+        ['box', '🥊'], ['art marcial', '🥋'], ['judo', '🥋'], ['karate', '🥋'],
+        ['taekwondo', '🥋'], ['lucha', '🤼'], ['escrima', '🤺'],
+        ['levantamiento', '🏋️'], ['pesas', '🏋️'], ['crossfit', '🏋️'],
+        ['patin', '⛸️'], ['esqui', '⛷️'], ['skate', '🛹'], ['ecuest', '🏇'],
+        ['hipic', '🏇'], ['tiro', '🎯'], ['arquera', '🏹'], ['danza', '💃'],
+        ['baile', '💃'], ['rugby', '🏉'], ['beisbol', '⚾'], ['softbol', '🥎'],
+    ];
+    function iconoDeporte(nombre) {
+        const n = (nombre || '').toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // sin acentos: "Fútbol" -> "futbol"
+        for (const [clave, ico] of ICONOS_DEPORTE) {
+            if (n.includes(clave)) return ico;
+        }
+        return '🏆';
+    }
+
+    /**
+     * Agrupa items por deporte (nombre normalizado como clave). Devuelve un
+     * array de grupos ordenado alfabéticamente por deporte; cada grupo trae
+     * el nombre del deporte, su icono y los items originales (ya ordenados
+     * por categoría/género según vino del servidor).
+     */
+    function agruparPorDeporte(items) {
+        const mapa = new Map();
+        (items || []).forEach(it => {
+            const dep = ((it.categoria && it.categoria.nombre_deporte) || 'Sin deporte').trim();
+            const clave = dep.toLowerCase();
+            if (!mapa.has(clave)) mapa.set(clave, { nombre: dep, items: [] });
+            mapa.get(clave).items.push(it);
+        });
+        return Array.from(mapa.values())
+            .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    }
+
+    /**
+     * Dibuja una lista de items (podios) agrupada por deporte. Cada grupo
+     * muestra una cabecera con el nombre/icono del deporte y cuántas
+     * categorías hay dentro, y debajo las cards de cada categoría.
+     */
+    function renderAgrupado(items, entregada) {
+        if (!items || !items.length) return '';
+        return agruparPorDeporte(items).map(g => `
+            <section class="pm-dep-grupo">
+                <div class="pm-dep-head">
+                    <span class="pm-dep-icon">${iconoDeporte(g.nombre)}</span>
+                    <div>
+                        <div class="pm-dep-nombre">${esc(g.nombre)}</div>
+                        <div class="pm-dep-meta">
+                            ${g.items.length} categor${g.items.length === 1 ? 'ía' : 'ías'}
+                            ${entregada ? ' · premiadas' : ' · para premiar'}
+                        </div>
+                    </div>
+                    <span class="pm-dep-chip ms-auto">
+                        <i class="bi bi-${entregada ? 'check2-circle' : 'hourglass-split'} me-1"></i>${g.items.length}
+                    </span>
+                </div>
+                <div class="pm-dep-cuerpo">
+                    ${g.items.map(it => cardPodio(it, entregada)).join('')}
+                </div>
+            </section>`).join('');
+    }
+
     // Mini-tabla de puntos para deportes ENFRENTAMIENTO que definen por
     // puntaje (3 pts victoria / 1 empate / 0 derrota) en vez de final.
     function tablaPuntajeHtml(tabla) {
@@ -427,9 +527,8 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         <div class="card pm-card shadow-sm mb-3">
             <div class="pm-head">
                 <div>
-                    <span class="pm-deporte"><i class="bi bi-trophy-fill text-warning me-1"></i>${esc(c.nombre_deporte)}</span>
-                    <span class="text-muted mx-1">›</span>
-                    <span class="pm-cat">${esc(c.nombre_categoria)} (${esc(c.genero || '')})</span>
+                    <!-- El deporte ya figura en la cabecera del grupo: acá se destaca la categoría -->
+                    <span class="pm-cat fw-bold text-dark"><i class="bi bi-people-fill text-primary me-1"></i>${esc(c.nombre_categoria)} (${esc(c.genero || '')})</span>
                     <div class="small text-muted mt-1"><i class="bi bi-sliders me-1"></i>${esc(item.texto_regla || 'Premiación clásica 1º/2º/3º')}</div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
@@ -481,7 +580,7 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         }
 
         $pend.innerHTML = (pend.length
-            ? pend.map(it => cardPodio(it, false)).join('')
+            ? renderAgrupado(pend, false)
             : '<div class="alert alert-light border d-flex align-items-center gap-2 mb-0">' +
               '<i class="bi bi-inbox fs-4 text-muted"></i><span class="small text-muted">' +
               'Ninguna competencia cerró ese día. Cuando cargues los resultados de una ' +
@@ -490,11 +589,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
                 ? '<div class="alert alert-warning d-flex flex-wrap align-items-center justify-content-between gap-2 mt-3 py-2 small">'
                   + '<span><i class="bi bi-exclamation-triangle-fill me-1"></i>'
                   + '<strong>' + atrasos.length + ' premiación(es) de noches anteriores todavía sin entregar.</strong></span></div>'
-                  + atrasos.map(it => cardPodio(it, false)).join('')
+                  + renderAgrupado(atrasos, false)
                 : '');
 
         $ent.innerHTML = ent.length
-            ? ent.map(it => cardPodio(it, true)).join('')
+            ? renderAgrupado(ent, true)
             : '<div class="small text-muted fst-italic">Aún no registraste ninguna premiación para este día.</div>';
 
         document.querySelectorAll('.pm-abrir').forEach(b =>
