@@ -624,6 +624,10 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     margin-top: auto;      /* empuja el footer al fondo: tarjetas pareja */
     padding-top: .45rem;
     border-top: 1px solid #eef2f7;
+    /* El pie NUNCA se achica ni se corta: aunque el contenido de la tarjeta
+       sea muy grande (podios largos, textos enormes), los botones de
+       "ver"/"eliminar" siempre quedan visibles. */
+    flex-shrink: 0;
 }
 .fx-tarjeta-acciones .btn {
     width: 30px;
@@ -744,9 +748,45 @@ body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verda
     width: max-content;
     max-width: 100%;
 }
+/* Si el cuadrito queda más alto que la pantalla, el pie con los botones
+   ("ver" / "eliminar") se pega al borde inferior para que siempre se vean,
+   aunque el contenido (podios largos, textos enormes) sea muy grande. */
+.rs-cats-unicas .fx-cat-unica .fx-tarjeta > .fx-tarjeta-footer {
+    position: sticky;
+    bottom: .35rem;
+    z-index: 5;
+}
+@media (max-height: 720px) {
+    .rs-cats-unicas .fx-cat-unica .fx-tarjeta > .fx-tarjeta-footer {
+        background: #fff;
+        border: 1px solid #e3ebf5;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(30, 60, 114, .18);
+        padding: .35rem .5rem;
+        margin-top: .5rem;
+    }
+}
 /* En celular sí conviene aprovechar todo el ancho disponible. */
 @media (max-width: 576px) {
     .rs-cats-unicas .fx-cat-unica .fx-tarjeta { width: 100%; }
+}
+
+/* FUERA de los cuadritos de jornada única (listado normal por categoría),
+   si una tarjeta de resultado queda altísima (por ejemplo con un podio con
+   muchos puestos o una prueba con muchas filas), se limita su alto y el
+   contenido hace scroll: así el pie con los botones "ver" / "eliminar"
+   SIEMPRE queda visible, sin tener que bajar toda la tarjeta. */
+.rs-grupo > .fx-tarjeta:not(.rs-marcador-tarjeta) {
+    max-height: min(75vh, 560px);
+}
+.rs-grupo > .fx-tarjeta:not(.rs-marcador-tarjeta) > .fx-tarjeta-footer {
+    position: sticky;
+    bottom: -.7rem;           /* pega el pie al borde inferior de la tarjeta */
+    z-index: 5;
+    background: #fff;
+    margin-left: -.7rem;      /* ocupa todo el ancho del pie, sin huecos */
+    margin-right: -.7rem;
+    padding-bottom: .35rem;
 }
 /* Los cruces (MARCADOR) sí se mantienen en su columna de texto, para que un
    equipo larguísimo no estire el cuadrito; se ajustan al ancho disponible. */
