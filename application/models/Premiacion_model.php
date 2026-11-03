@@ -714,6 +714,66 @@ class Premiacion_model extends CI_Model {
      *  CIERRE DE CATEGORÍAS + NOCHE DE ENTREGA
      * ============================================================ */
 
+    /**
+     * Nombres "reales" de las categorías por deporte (consulta única).
+     *
+     * ¿Por qué? El reporte del locutor LIMPIA el título de cada bloque
+     * (`_limpiar_nombre_categoria()` en rep_locutor_view) sacando género,
+     * tipo de largada y modalidad — porque en varias provincias se cargan
+     * TODAS las categorías con el mismo nombre ("Libre", "Sub-18",
+     * "Principiantes...") y lo único que las distingue es justamente ese
+     * sufijo: "Libre · Masculino" y "Libre · Femenino" terminarían con el
+     * mismo título y el locutor no podría distinguirlas. Con este mapa, si
+     * al limpiar dos categorías del mismo deporte quedan idénticas, el
+     * título conserva el nombre COMPLETO tal como está cargado.
+     */
+    private function _nombres_categoria_por_deporte() {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+        $cache = array();
+        try {
+            $this->db->select('c.id_deporte, c.id_categoria, c.nombre_categoria', FALSE);
+            foreach ($this->_filas_seguras('categorias c') as $r) {
+                $cache[(int) $r['id_deporte']][] = array(
+                    'id'   => (int) $r['id_categoria'],
+                    'nom'  => trim((string) $r['nombre_categoria']),
+                );
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[Premiación] no se pudo leer el nombre de las categorías: ' . $e->getMessage());
+        }
+        return $cache;
+    }
+
+    /**
+     * Ids de categoría cuyo nombre, dentro del DEPORTE, es ambiguo una vez
+     * limpio (dos o más categorías comparten el mismo nombre base: "Libre ·
+     * Masculino" vs "Libre · Femenino"). Esas conservan el nombre completo
+     * en el título del guion del locutor. Se calcula UNA sola vez por request.
+     */
+    private function _categorias_ambiguas_en_deporte() {
+        static $ambiguas = null;
+        if ($ambiguas !== null) return $ambiguas;
+        $ambiguas = array();
+        // La limpieza vive en la vista del PDF (misma clase): si no está
+        // disponible, simplemente no se marca ninguna como ambigua.
+        if (!method_exists($this, '_limpiar_nombre_categoria')) return $ambiguas;
+        foreach ($this->_nombres_categoria_por_deporte() as $grupos) {
+            $vistas = array();
+            foreach ($grupos as $g) {
+                $clave = mb_strtolower($this->_limpiar_nombre_categoria($g['nom']), 'UTF-8');
+                if ($clave === '') continue;
+                $vistas[$clave][] = $g['id'];
+            }
+            foreach ($vistas as $ids) {
+                if (count($ids) > 1) {
+                    foreach ($ids as $id) $ambiguas[$id] = true;
+                }
+            }
+        }
+        return $ambiguas;
+    }
+
     /** Categorías con sus deportes y tipo de duración. */
     private function _categorias_base() {
         $this->db->select('
