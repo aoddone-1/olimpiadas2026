@@ -225,7 +225,11 @@ $config['allow_get_array'] = TRUE;
 | your log files will fill up very fast.
 |
 */
-$config['log_threshold'] = 0;
+// 1 = SEVERITY_ERROR, 2 = +DEBUG. Se deja en 2 para poder diagnosticar el
+// reporte del locutor: Premiacion_model::obtener_guion_locutor() registra en
+// application/logs cada categoría que NO entró al PDF (ver '[Locutor]').
+// En producción se puede volver a 0.
+$config['log_threshold'] = 2;
 
 /*
 |--------------------------------------------------------------------------
