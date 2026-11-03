@@ -1977,6 +1977,10 @@ class Premiacion_model extends CI_Model {
                 }
                 $puestos[$pos] = array(
                     'nombre'    => $nombre,
+                    // id UTE del premiado: primero el podio resuelto; si ya
+                    // está entregado, el registrado en la premiación.
+                    'id'        => ($p && !empty($p['id'])) ? (int) $p['id']
+                              : (($reg && !empty($reg['id_ute'])) ? (int) $reg['id_ute'] : null),
                     'premio'    => $premio_txt,
                     'desempate' => ($p && !empty($p['desempate'])) ? $p['desempate'] : null,
                     'extra'     => ($p && !empty($p['extra'])) ? $p['extra'] : null,
@@ -1985,6 +1989,15 @@ class Premiacion_model extends CI_Model {
             }
             if (!$puestos) continue; // sin medallistas resueltos: no va al guion
 
+            // Integrantes de los equipos premiados: en deportes de EQUIPO el
+            // locutor necesita saber QUIÉNES suben al escenario — se listan
+            // separados por " - " (ver rep_locutor_view). Se resuelven con una
+            // sola consulta para todos los id_ute del bloque.
+            $ids_ute_bloque = array();
+            foreach ($puestos as $pp) {
+                if (!empty($pp['id'])) $ids_ute_bloque[] = (int) $pp['id'];
+            }
+
             $c = $it['categoria'];
             $bloques[] = array(
                 'id_categoria'  => (int) $c['id_categoria'],
@@ -1992,6 +2005,8 @@ class Premiacion_model extends CI_Model {
                 'categoria'     => trim((string) $c['nombre_categoria']),
                 'genero'        => trim((string) ($c['genero'] ?? '')),
                 'modalidad'     => trim((string) ($c['modalidad_competencia'] ?? '')),
+                'es_equipo'     => $this->_deporte_es_de_equipos($c),
+                'integrantes'   => $this->_integrantes_por_ute($ids_ute_bloque),
                 'masiva'        => ($c['modalidad_competencia'] === 'MASIVO_TIEMPO'),
                 'origen'        => $it['origen'],
                 'fecha_entrega' => $it['fecha_entrega'],
@@ -2017,5 +2032,73 @@ class Premiacion_model extends CI_Model {
             'bloques'       => $bloques,
             'total_medallas' => $total_medallas,
         );
+    }
+
+    /**
+     * ¿La categoría compite por EQUIPOS? Se usa en el guion del locutor para
+     * decidir si conviene listar los integrantes de cada equipo premiado.
+     * Criterios (en orden):
+     *  - deportes.modalidad = 'EQUIPO' -> equipos.
+     *  - deportes.modalidad = 'INDIVIDUAL' y la prueba es masiva por tiempo
+     *    (Running, Ciclismo...) -> individual.
+     *  - ENFRENTAMIENTO con UTEs en el fixture -> equipos (aunque el deporte
+     *    esté cargado como 'AMBAS': dobles de pádel, mixtos...).
+     */
+    private function _deporte_es_de_equipos($c) {
+        static $cache = array();
+        $id_dep = (int) ($c['id_deporte'] ?? 0);
+        if ($id_dep && isset($cache[$id_dep])) return $cache[$id_dep];
+
+        $es_equipo = false;
+        if ($id_dep) {
+            $this->db->select('modalidad', FALSE);
+            $this->db->where('id_deporte', $id_dep);
+            $this->db->limit(1);
+            $dep = $this->_fila_segura('deportes');
+            $mod = strtoupper(trim((string) ($dep['modalidad'] ?? '')));
+            if ($mod === 'EQUIPO') {
+                $es_equipo = true;
+            } elseif ($mod === 'INDIVIDUAL') {
+                $es_equipo = (($c['modalidad_competencia'] ?? '') !== 'ENFRENTAMIENTO');
+            }
+        }
+        if (!$es_equipo && ($c['modalidad_competencia'] ?? '') === 'ENFRENTAMIENTO') {
+            // Torneo de partidos con equipos registrados como UTE.
+            $id_cat = (int) ($c['id_categoria'] ?? 0);
+            if ($id_cat && $this->_tabla_existe('fixtures')) {
+                $this->db->where('id_categoria', $id_cat);
+                $this->db->group_start();
+                $this->db->where('id_ute_1 IS NOT NULL');
+                $this->db->or_where('id_ute_2 IS NOT NULL');
+                $this->db->group_end();
+                $this->db->limit(1);
+                $es_equipo = $this->_fila_segura('fixtures') ? true : false;
+            }
+        }
+
+        if ($id_dep) $cache[$id_dep] = $es_equipo;
+        return $es_equipo;
+    }
+
+    /**
+     * Integrantes (nombres completos) de varias UTEs/equipos en un solo query:
+     * devuelve id_ute => array('JUAN PEREZ', 'MARIA GOMEZ', ...) alfabético.
+     */
+    private function _integrantes_por_ute($ids_ute) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array) $ids_ute))));
+        if (!$ids || !$this->_tabla_existe('participantes_utes')) return array();
+
+        $this->db->select('pu.id_ute, p.nombre_completo', FALSE);
+        $this->db->from('participantes_utes pu');
+        $this->db->join('participantes p', 'p.id_participante = pu.id_participante', 'inner');
+        $this->db->where_in('pu.id_ute', $ids);
+        $this->db->order_by('pu.id_ute, p.nombre_completo', 'ASC');
+        $out = array();
+        foreach ($this->_filas_seguras() as $f) {
+            $nombre = trim((string) $f['nombre_completo']);
+            if ($nombre === '') continue;
+            $out[(int) $f['id_ute']][] = $nombre;
+        }
+        return $out;
     }
 }
