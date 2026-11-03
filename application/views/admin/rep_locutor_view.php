@@ -136,14 +136,14 @@ class Rep_Locutor_PDF extends TCPDF {
         // alto se calcula con la propia fuente, así el texto nunca se sale
         // del recuadro por más largo que sea el nombre del deporte.
         $this->_banda_titulo(
-            strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR',
+            strtoupper($deporte) ,
             17,
             array(232, 232, 240),   // Fondo: gris azulado suave
             array(20, 33, 61)        // Borde: azul oscuro
         );
         $this->SetTextColor(108, 117, 125);
         $this->SetFont('dejavusans', '', 11);
-        $this->MultiCell(0, $this->_alto_linea(11), '  Anunciar todas las categorias de este deporte en orden.', 0, 'L', 0, 1);
+        //$this->MultiCell(0, $this->_alto_linea(11), '  Anunciar todas las categorias de este deporte en orden.', 0, 'L', 0, 1);
         $this->Ln(2);
         $this->SetTextColor(20, 33, 61);
     }
@@ -185,9 +185,9 @@ class Rep_Locutor_PDF extends TCPDF {
         // categoría solo va "N° · CAT. ...": título más corto = menos riesgo
         // de desborde (y si igual crece, _banda_titulo lo parte en 2 renglones).
         $titulo = 'Cat. ' . strtoupper($b['categoria']);
-        if (!empty($b['genero'])) {
+        /*if (!empty($b['genero'])) {
             $titulo .= ' · ' . strtoupper($b['genero']);
-        }
+        }*/
 
         // Fondo y borde del header: banda multilínea con alto calculado por
         // la propia fuente — las letras nunca se salen del cuadro.
@@ -205,7 +205,7 @@ class Rep_Locutor_PDF extends TCPDF {
         if ($es_prueba_ind) {
             $this->SetFont('dejavusans', 'I', 11);
             $this->SetTextColor(180, 120, 0);
-            $this->MultiCell(0, $this->_alto_linea(11), '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 'L', 0, 1);
+            $this->MultiCell(0, $this->_alto_linea(11), '', 0, 'L', 0, 1);
             $this->Ln(1);
         }
 
@@ -359,7 +359,7 @@ $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
 // los títulos de 14pt no entraban y las letras se salían de los recuadros.
 // Para que el logo del encabezado siga centrado-izquierdo como antes, el Header()
 // usa una coordenada absoluta (ver $x_logo), no depende del margen izquierdo.
-$pdf->SetMargins(15, 100, 15);
+$pdf->SetMargins(60, 100, 50);
 $pdf->SetHeaderMargin(8);
 $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
