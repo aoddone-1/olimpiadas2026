@@ -1126,11 +1126,20 @@ class Premiacion_model extends CI_Model {
                 if (!isset($podio[1])) continue; // todavía no hay ningún partido computable
             } else {
                 $podio = $this->_podio_marcador_categoria($id_cat);
-                if (!isset($podio[1])) continue; // sin final resuelta todavía no se premia
+                if (!isset($podio[1]) && !isset($podio[2]) && !isset($podio[3])) {
+                    continue; // sin ningún resultado definitorio todavía
+                }
                 // El podio "bruto" de enfrentamiento trae 1º/2º/3º: se recorta
                 // a los puestos que la regla de la categoría decida premiar.
                 $podio = array_intersect_key($podio, array_flip($puestos_regla));
             }
+
+            // ¿Cuántos puestos del podio están realmente definidos? Si se
+            // inscribieron menos participantes de los que premia la regla
+            // (ej: podio de 3 pero solo llegaron 2), NUNCA habrá un 3º: la
+            // categoría igual debe poder premiarse esa noche con lo que hay.
+            $puestos_definidos = count($podio);
+            $faltan_por_inasistencia = $puestos_definidos < count($puestos_regla);
 
             // ---------- ¿cerró la categoría? ----------
             // La noche de entrega SIEMPRE es el día en que se jugó/hizo la
@@ -1188,7 +1197,10 @@ class Premiacion_model extends CI_Model {
                     }
                 }
             } elseif ($cat['tipo_duracion'] === 'UNICO_DIA') {
-                $cerrada = isset($podio[1]);
+                // Alcanza con que haya al menos UN puesto definido (final o
+                // tercer puesto): si la categoría quedó con menos participantes
+                // que puestos a premiar, igual cierra y se premia lo que hay.
+                $cerrada = $puestos_definidos > 0;
                 $motivo = 'Deporte de un solo día: se premia esa misma noche';
                 // Día en que se jugó la FINAL (fixture del partido del podio);
                 // si no está, el día programado de la categoría.
@@ -1198,8 +1210,15 @@ class Premiacion_model extends CI_Model {
                 }
                 $fecha_entrega = $final_fx ? $this->_norm_fecha($final_fx['fecha_competencia']) : null;
                 if (!$fecha_entrega) {
-                    $fecha_entrega = $podio[1]['fecha_jugada']
-                        ?: $this->_fecha_del_resultado_ref((int) ($podio[1]["id_resultado_ref"] ?? 0), $res_por_id, $fx_por_id);
+                    // El primer puesto DEFINIDO puede ser el 3º (si no se jugó
+                    // la final porque quedaron pocos participantes): se toma
+                    // el primero que exista, no siempre $podio[1].
+                    $primero_def = null;
+                    foreach (array(1, 2, 3) as $pos_aux) {
+                        if (isset($podio[$pos_aux])) { $primero_def = $podio[$pos_aux]; break; }
+                    }
+                    $fecha_entrega = ($primero_def['fecha_jugada'] ?? null)
+                        ?: $this->_fecha_del_resultado_ref((int) ($primero_def['id_resultado_ref'] ?? 0), $res_por_id, $fx_por_id);
                 }
                 if (!$fecha_entrega && !empty($cat['dia_competencia'])) {
                     $fecha_entrega = $this->_norm_fecha($cat['dia_competencia']);
@@ -1233,9 +1252,20 @@ class Premiacion_model extends CI_Model {
                     }
                 }
                 $fecha_def = $dias_def ? max($dias_def) : null;
-                $cerrada = isset($podio[1]) && !empty($fecha_def);
+                // Cierra con cualquier puesto definido (ver nota UNICO_DIA):
+                // si quedaron menos participantes que puestos a premiar, la
+                // noche de la definición igual es la de la premiación.
+                $cerrada = $puestos_definidos > 0 && !empty($fecha_def);
                 $motivo = 'Multidía: cierra el día de la definición';
                 $fecha_entrega = $fecha_def;
+            }
+
+            // Aviso claro cuando la regla premia más puestos de los que hay:
+            // la categoría se puede premiar igual, solo se aclara el motivo.
+            if ($cerrada && $faltan_por_inasistencia) {
+                $motivo .= ' · ⚠️ hay ' . $puestos_definidos
+                    . ' puesto(s) definidos de ' . count($puestos_regla)
+                    . ': se premia solo lo que participó';
             }
 
             if ($cerrada && !$fecha_entrega) {
@@ -1798,6 +1828,15 @@ class Premiacion_model extends CI_Model {
         // categoría (default 1º/2º/3º si no está configurada).
         $regla = isset($item['regla']) ? $item['regla'] : $this->regla_default();
         $permitidos = $this->puestos_de_regla($regla);
+        // Si quedaron menos participantes que puestos a premiar (ej: podio de
+        // 3 y se presentaron 2), los puestos SIN definir se perdonan: se puede
+        // confirmar la premiación igual con lo que hay.
+        $podio_definido = isset($item['podio']) ? $item['podio'] : array();
+        $sin_definir = array();
+        foreach ($permitidos as $p_aux) {
+            if (!isset($podio_definido[$p_aux])) $sin_definir[] = $p_aux;
+        }
+        $perdonadas = count($sin_definir) > 0 && count($podio_definido) > 0;
         $premio_por_puesto = array();
         foreach ($regla as $r) $premio_por_puesto[(int) $r['puesto']] = $r['premio'];
 
@@ -1851,6 +1890,35 @@ class Premiacion_model extends CI_Model {
                 $this->db->insert('premiaciones', $payload);
             }
         }
+
+        // Puestos de la regla que nunca se definieron (quedaron menos
+        // participantes que premios): se registran como "no entregado" para
+        // que la premiación quede COMPLETA y no vuelva a aparecer pendiente.
+        if ($perdonadas) {
+            foreach ($sin_definir as $pos) {
+                $this->db->where('id_categoria', $id_cat);
+                $this->db->where('puesto', $pos);
+                if ($this->db->get('premiaciones')->num_rows()) continue;
+                $nota = 'No se presentó / no hubo participante para este puesto';
+                $observacion = trim((string) ($observaciones ?? ''));
+                $this->db->insert('premiaciones', array(
+                    'id_categoria'     => $id_cat,
+                    'puesto'           => $pos,
+                    'id_ute'           => null,
+                    'nombre'           => '(sin premiar)',
+                    'origen_resultado' => $item['origen'],
+                    'id_resultado_ref' => null,
+                    'fecha_entrega'    => $fecha,
+                    'entregado'        => 1,
+                    'fecha_entregado'  => date('Y-m-d H:i:s'),
+                    'observaciones'    => mb_substr($nota
+                        . ($observacion !== '' ? ' — ' . $observacion : ''), 0, 255),
+                    'creado_por'       => $id_usuario ? (int) $id_usuario : null,
+                ));
+                $registrados[$pos] = true;
+            }
+        }
+
         return count($registrados);
     }
 
@@ -1968,6 +2036,9 @@ class Premiacion_model extends CI_Model {
                     $nombre = trim((string) $p['nombre']);
                 }
                 if ($nombre === null || $nombre === '') continue;
+                // Puesto "perdonado" (no hubo participante: se presentó de más):
+                // no va al guion del locutor, solo queda como registro interno.
+                if (stripos($nombre, '(sin premiar)') !== false) continue;
                 $premio_txt = null;
                 foreach ($regla_guion as $rgl) {
                     if ((int) $rgl['puesto'] === $pos) {
