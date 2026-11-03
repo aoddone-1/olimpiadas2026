@@ -20,6 +20,10 @@ class Publico extends CI_Controller {
     public function __construct() {
         parent::__construct();
         $this->load->model('Publico_model');
+        // Solo LECTURA: la Premiación resuelve los podios de los deportes de
+        // enfrentamiento (FINAL / 3er puesto / tabla de puntos) para mostrarlos
+        // en la pestaña Resultados del panel público.
+        $this->load->model('Premiacion_model');
         // Cache corto: los datos cambian durante la semana, pero no hace falta
         // recargar en cada segundo.
         $this->output->set_header('Cache-Control: max-age=30');
@@ -67,6 +71,11 @@ class Publico extends CI_Controller {
             // dos pestañas nunca discrepan (antes, con delegación elegida, Resultados
             // podía quedar vacío mientras el Fixture mostraba partidos).
             'resultados'     => $this->_resultados_del_fixture($delegacion, $id_deporte, $id_categoria, $fixture),
+            // Podios de los deportes de ENFRENTAMIENTO (MARCADOR): mismo podio
+            // que ve el staff en Premiación, agrupado por deporte/categoría y
+            // con todos los partidos cargados (incluidos los anteriores a la
+            // final). Se filtra acá por delegación/deporte/categoría.
+            'podios'         => $this->_podios_visibles($delegacion, $id_deporte, $id_categoria),
             'medallero'      => $this->_seguro(fn() => $this->Publico_model->obtener_medallero(), array()),
             'ahora'          => date('d/m/Y H:i'),
             // Informativos para la vista (sin filtros de URL: todo por POST/cliente).
@@ -125,6 +134,77 @@ class Publico extends CI_Controller {
             log_message('error', 'Publico::index — ' . $e->getMessage());
             return $fallback;
         }
+    }
+
+    /**
+     * Podios de enfrentamiento visibles en la pestaña Resultados, aplicando los
+     * mismos filtros del panel:
+     *  - Deporte / Categoría: por ids directos.
+     *  - Delegación: se conservan TODAS las categorías del filtro (así el podio
+     *    se ve completo), pero dentro de cada una solo los partidos en los que
+     *    juega esa delegación; si el podio no la incluye y ninguno de sus
+     *    partidos es suyo, la categoría desaparece de la lista.
+     * Ante cualquier falla (tablas sin migrar, etc.) devuelve array vacío: la
+     * pestaña Results sigue funcionando con las cards simples de siempre.
+     */
+    private function _podios_visibles($delegacion, $id_deporte, $id_categoria) {
+        $podios = $this->_seguro(fn() => $this->Premiacion_model->podios_para_panel_publico(), array());
+        if (!is_array($podios) || !$podios) return array();
+
+        $comp = null;
+        if (!empty($delegacion)) {
+            $comp = $this->_seguro(fn() => $this->Publico_model->competidores_de_delegacion($delegacion), null);
+        }
+
+        $salida = array();
+        foreach ($podios as $p) {
+            if ($id_deporte !== null && (int) $p['id_deporte'] !== (int) $id_deporte) continue;
+            if ($id_categoria !== null && (int) $p['id_categoria'] !== (int) $id_categoria) continue;
+
+            if ($comp !== null) {
+                $partidos = array();
+                $es_propio = false;
+                foreach ($p['partidos'] as $pt) {
+                    $suyo = $this->_partido_es_de_delegacion($pt, $comp);
+                    if ($suyo) {
+                        $es_propio = true;
+                        $partidos[] = $pt;
+                    }
+                }
+                // El podio también "pertenece" a la delegación si alguno de los
+                // premiados es un equipo suyo (aunque el partido decisivo se
+                // muestre igual para todos).
+                foreach ($p['podium'] as $puesto) {
+                    if (!$es_propio && $this->_nombre_podio_es_de_delegacion((string) $puesto['nombre'], $comp)) {
+                        $es_propio = true;
+                    }
+                }
+                if (!$es_propio) continue;
+                $p['partidos'] = $partidos;
+            }
+            $salida[] = $p;
+        }
+        return $salida;
+    }
+
+    /** ¿El partido (fila de `podios_para_panel_publico`) es de la delegación? */
+    private function _partido_es_de_delegacion($pt, $comp) {
+        foreach (array('eq1' => (int) ($pt['eq1_id'] ?? 0), 'eq2' => (int) ($pt['eq2_id'] ?? 0)) as $idl) {
+            if ($idl > 0 && isset($comp['utes'][$idl])) return true;
+            if ($idl < 0 && isset($comp['inscripciones'][abs($idl)])) return true;
+        }
+        $nombres = array((string) ($pt['eq1_nombre'] ?? ''), (string) ($pt['eq2_nombre'] ?? ''));
+        foreach ($nombres as $n) {
+            $nn = $this->Publico_model->normalizar_nombre($n);
+            if ($nn !== '' && isset($comp['nombres'][$nn])) return true;
+        }
+        return false;
+    }
+
+    /** ¿El nombre de un puesto del podio pertenece a un equipo de la delegación? */
+    private function _nombre_podio_es_de_delegacion($nombre, $comp) {
+        $nn = $this->Publico_model->normalizar_nombre($nombre);
+        return $nn !== '' && isset($comp['nombres'][$nn]);
     }
 
     /** JSON del fixture (para auto-refresh sin recargar la página). */

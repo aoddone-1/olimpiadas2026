@@ -1280,6 +1280,186 @@ class Premiacion_model extends CI_Model {
     }
 
     /**
+     * PODIOS PARA EL PANEL PÚBLICO (pestaña "Resultados").
+     *
+     * Reutiliza EXACTAMENTE la misma lógica de `obtener_estado_premiables()`
+     * (podio por FINAL+TERCER_PUESTO, por tabla de puntos o por tiempos), así
+     * lo que ve el público es idéntico a lo que ve el staff en Premiación.
+     *
+     * Solo devuelve categorías de ENFRENTAMIENTO (MARCADOR): son las que tienen
+     * un "camino al podio" (grupos, semis, final). Los deportes de tiempo/
+     * puntaje masivo se siguen mostrando como cards simples en el panel.
+     *
+     * Cada item trae además `partidos`: TODOS los resultados MARCADOR de la
+     * categoría (incluidos los anteriores a la final), marcados según su peso:
+     *   decisivo = 1  -> la FINAL / el TERCER_PUESTO que definieron el podio
+     *   decisivo = 0  -> partido del camino (fase real: GRUPO, SEMIFINAL, ...)
+     * Así, aunque todavía no exista la final, el público igual ve los partidos
+     * cargados dentro del bloque de la categoría.
+     *
+     * @return array items: {id_categoria, categoria, genero, id_deporte,
+     *         deporte, sistema, cerrada, podium{1,2,3}, regla[], texto_regla,
+     *         fecha_entrega, partidos[]} ordenados por deporte y luego por
+     *         relevancia (podio definido primero).
+     */
+    public function podios_para_panel_publico() {
+        if (!$this->_tabla_existe('resultados') || !$this->_tabla_existe('fixtures')) return array();
+
+        // FASES que definen el podio de un torneo de enfrentamiento. El resto
+        // del fixture es "el camino": se muestra pero sin corona.
+        static $fases_decisivas = array('FINAL', 'TERCER_PUESTO');
+
+        $items = array();
+        foreach ($this->obtener_estado_premiables() as $it) {
+            // Solo enfrentamientos resueltos por marcador (los masivos ya se
+            // ven como listas de posiciones en la pestaña Resultados).
+            if ((string) $it['origen'] !== 'MARCADOR') continue;
+
+            $cat    = $it['categoria'];
+            $id_cat = (int) $cat['id_categoria'];
+            $define_por_puntaje = ((string) ($cat['sistema_definicion'] ?? 'FASE_FINAL')) === 'PUNTAJE';
+
+            // ---------- Podio (mismos datos que usa la Premiación) ----------
+            $regla = isset($it['regla']) ? $it['regla'] : $this->regla_default();
+            $puestos = $this->puestos_de_regla($regla);
+            $podium = array();
+            foreach ($puestos as $pos) {
+                $p = isset($it['podio'][$pos]) ? $it['podio'][$pos] : null;
+                $r = null;
+                foreach ($regla as $rr) {
+                    if ((int) ($rr['puesto'] ?? 0) === $pos) { $r = $rr; break; }
+                }
+                $podium[$pos] = array(
+                    'puesto'   => $pos,
+                    'nombre'   => $p && !empty($p['nombre']) ? trim((string) $p['nombre']) : null,
+                    'extra'    => $p && !empty($p['extra']) ? (string) $p['extra'] : null,
+                    'desempate'=> $p && !empty($p['desempate']) ? (string) $p['desempate'] : null,
+                    'premio'   => $r ? trim((string) ($r['premio'] ?? '')) : '',
+                    'etiqueta' => $r ? trim((string) ($r['etiqueta'] ?? '')) : '',
+                    'icono'    => $r ? trim((string) ($r['icono'] ?? '')) : '',
+                );
+            }
+
+            // ---------- Partidos de la categoría (todos los MARCADOR) ----------
+            $ids_ref = array();
+            foreach ($it['podio'] as $p) {
+                if (!empty($p['id_resultado_ref'])) $ids_ref[(int) $p['id_resultado_ref']] = true;
+            }
+
+            $this->db->select('r.id_resultado, r.id_fixture, r.fecha_resultado, r.hubo_desempate, r.desempate_metodo', FALSE);
+            if ($this->_columna_resultado_existe('id_ute_ganador')) {
+                $this->db->select(', r.id_ute_ganador, ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+                $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
+            }
+            $this->db->from('resultados r');
+            $this->db->where('r.id_categoria', $id_cat);
+            $this->db->where('r.tipo_resultado', 'MARCADOR');
+            $rows = $this->_filas_seguras();
+            if (!$rows) continue;
+
+            // Fixture vinculado: fase + día/hora en que se JUGÓ. Se leen con
+            // raw SQL los ids concretos (la Query Builder compartida puede
+            // quedar "sucia" tras la consulta anterior y devolver 0 filas).
+            $fx_ids = array();
+            foreach ($rows as $r) {
+                $idf = (int) ($r['id_fixture'] ?? 0);
+                if ($idf > 0) $fx_ids[$idf] = true;
+            }
+            $fx_map = array();
+            if ($fx_ids) {
+                try {
+                    $q_fx = $this->db->query(
+                        'SELECT `id_fixture`, `fase`, `numero_fecha`, `fecha_competencia`, `hora_inicio`'
+                        . ' FROM `fixtures` WHERE `id_fixture` IN ('
+                        . implode(',', array_map('intval', array_keys($fx_ids))) . ')'
+                    );
+                    foreach (($q_fx && is_object($q_fx)) ? $q_fx->result_array() : array() as $f) {
+                        $fx_map[(int) $f['id_fixture']] = $f;
+                    }
+                } catch (Throwable $e) {
+                    log_message('error', '[Premiación] podio público — fixture: ' . $e->getMessage());
+                }
+            }
+
+            $detalles = $this->_detalle_de_resultados(array_column($rows, 'id_resultado'));
+            $partidos = array();
+            foreach ($rows as $r) {
+                $idr = (int) $r['id_resultado'];
+                $det = isset($detalles[$idr]) ? $detalles[$idr] : array();
+                $m = $this->_parsear_marcador($det);
+                if (!$m) continue; // resultado incompleto: nada que mostrar
+
+                $idf = (int) ($r['id_fixture'] ?? 0);
+                $fxi = isset($fx_map[$idf]) ? $fx_map[$idf] : array();
+                $fase = strtoupper(trim((string) ($fxi['fase'] ?? '')));
+                // Decisivo si ES la fase del podio o si el resultado de ese
+                // partido es la referencia directa de algún puesto del podio.
+                $es_final = in_array($fase, $fases_decisivas, true);
+                $decisivo = ($es_final || isset($ids_ref[$idr])) ? 1 : 0;
+
+                $partidos[] = array(
+                    'id_resultado' => $idr,
+                    'id_fixture'   => $idf ?: null,
+                    'fase'         => $fase !== '' ? $fase : null,
+                    'numero_fecha' => isset($fxi['numero_fecha']) ? (int) $fxi['numero_fecha'] : null,
+                    'decisivo'     => $decisivo,
+                    'eq1_nombre'   => $m['eqA']['nombre'],
+                    'eq1_tantos'   => (int) $m['eqA']['tantos'],
+                    'eq2_nombre'   => $m['eqB']['nombre'],
+                    'eq2_tantos'   => (int) $m['eqB']['tantos'],
+                    'gana1'        => $m['eqA']['tantos'] > $m['eqB']['tantos'],
+                    'gana2'        => $m['eqB']['tantos'] > $m['eqA']['tantos'],
+                    'empate'       => $m['eqA']['tantos'] === $m['eqB']['tantos'],
+                    'hubo_desempate' => !empty($r['hubo_desempate']),
+                    'desempate_metodo' => trim((string) ($r['desempate_metodo'] ?? '')),
+                    'ganador_desempate' => trim((string) ($r['nombre_ganador_desempate'] ?? '')),
+                    'fecha'        => $this->_norm_fecha($fxi['fecha_competencia'] ?? null)
+                                      ?: $this->_norm_fecha($r['fecha_resultado'] ?? null),
+                    'hora'         => trim((string) ($fxi['hora_inicio'] ?? '')),
+                );
+            }
+
+            // Orden interno: los decisivos primero, después cronológico y por
+            // jornada del fixture (el público lee el torneo como se jugó).
+            usort($partidos, function ($a, $b) {
+                if ($a['decisivo'] !== $b['decisivo']) return $b['decisivo'] - $a['decisivo'];
+                $cmp = strcmp((string) ($a['fecha'] ?: '9999'), (string) ($b['fecha'] ?: '9999'));
+                if ($cmp !== 0) return $cmp;
+                if ((int) $a['numero_fecha'] !== (int) $b['numero_fecha']) {
+                    return (int) $a['numero_fecha'] - (int) $b['numero_fecha'];
+                }
+                return (int) $a['id_resultado'] - (int) $b['id_resultado'];
+            });
+
+            $items[] = array(
+                'id_categoria'  => $id_cat,
+                'categoria'     => trim((string) ($cat['nombre_categoria'] ?? '')),
+                'genero'        => trim((string) ($cat['genero'] ?? '')),
+                'id_deporte'    => (int) ($cat['id_deporte'] ?? 0),
+                'deporte'       => trim((string) ($cat['nombre_deporte'] ?? '')),
+                'sistema'       => $define_por_puntaje ? 'PUNTAJE' : 'FASE_FINAL',
+                'cerrada'       => !empty($it['cerrada']),
+                'tabla_puntaje' => $define_por_puntaje ? ($it['tabla_puntaje'] ?? null) : null,
+                'podium'        => $podium,
+                'regla'         => $regla,
+                'texto_regla'   => $this->texto_regla_premiacion($regla),
+                'fecha_entrega' => $it['fecha_entrega'] ?? null,
+                'partidos'      => $partidos,
+            );
+        }
+
+        // Por deporte (nombre) y, dentro del deporte, podio definido primero.
+        usort($items, function ($a, $b) {
+            $cmp = strcasecmp($a['deporte'], $b['deporte']);
+            if ($cmp !== 0) return $cmp;
+            if ($a['cerrada'] !== $b['cerrada']) return $a['cerrada'] ? -1 : 1;
+            return strcasecmp($a['categoria'], $b['categoria']);
+        });
+
+        return $items;
+    }
+
+    /**
      * Fecha del día en que se jugó un resultado concreto (id_resultado):
      * fixture.fecha_competencia -> resultados.fecha_resultado. Normalizada.
      */
