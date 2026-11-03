@@ -1591,6 +1591,9 @@ class Premiacion_model extends CI_Model {
                         'posicion' => (int) $d['posicion'],
                         'nombre'   => trim((string) $d['nombre_libre']),
                         'marca'    => trim((string) ($d['tiempo'] ?? '')),
+                        // En PUNTAJE la columna `tiempo` guarda el puntaje: se
+                        // muestra como "X pts" en la planilla del panel público.
+                        'es_puntos'=> ($tipo === 'PUNTAJE'),
                         'es_podio' => in_array((int) $d['posicion'], $puestos, true),
                     );
                 }
