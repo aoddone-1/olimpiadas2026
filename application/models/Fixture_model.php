@@ -11,6 +11,203 @@ class Fixture_model extends CI_Model {
 
     const FASE_ORDEN = ['GRUPO', '16AVOS', 'OCTAVOS', 'CUARTOS', 'SEMIFINAL', 'TERCER_PUESTO', 'FINAL'];
 
+    /** Columnas de desempate en resultados (sql/desempate.sql). */
+    private function _existe_columna_desempate() {
+        static $existe = null;
+        if ($existe === null) {
+            try {
+                $cols = $this->db->field_names('resultados');
+                $existe = is_array($cols) && in_array('id_ute_ganador', $cols, true);
+            } catch (Throwable $e) {
+                $existe = false;
+            }
+        }
+        return $existe;
+    }
+
+    /**
+     * Adjuntar a cada fila del fixture el resultado ya cargado, para que los
+     * reportes/planillas puedan imprimir el marcador y el ganador sin dejar el
+     * casillero en blanco.
+     *
+     * Fuentes, en orden de prioridad:
+     *   1. Tablas resultados + resultado_detalle (pestaña "Resultados"): es la
+     *      fuente oficial del marcador (goles_local / goles_visita), vinculada
+     *      al partido por resultados.id_fixture. Si el empate se quebró con
+     *      desempate, resultados.id_ute_ganador dice quién avanza.
+     *   2. fixtures.resultado (JSON con el orden de llegada de los deportes
+     *      MASIVO_TIEMPO): no hay marcador, pero sí un ganador (el primero).
+     *
+     * A cada fila $f le agrega (o NULL cuando el partido sigue pendiente):
+     *   - resultado_marca       => string|null "4:2" (tantos del lado 1 : lado 2)
+     *   - resultado_ganador_id  => int|null  id_ute del ganador (o nombre libre)
+     *   - resultado_ganador_txt => string|null nombre del equipo ganador
+     *   - resultado_empate      => bool  terminó igualado en tiempo regular
+     *   - resultado_desempate   => string|null método (PENALES, PRORROGA, ...)
+     *
+     * Todo protegido: si las tablas de resultados todavía no existen (BD sin
+     * el ALTER provisto) o falla algún query, las filas quedan sin resultado y
+     * el reporte se imprime igual —nunca debe morir por esto.
+     */
+    public function adjuntar_resultados_a_filas(&$fixtures) {
+        foreach ($fixtures as &$f) {
+            $f['resultado_marca']       = null;
+            $f['resultado_ganador_id']  = null;
+            $f['resultado_ganador_txt'] = null;
+            $f['resultado_empate']      = FALSE;
+            $f['resultado_desempate']   = null;
+        }
+        unset($f);
+        if (!$fixtures) return;
+
+        $por_fx = array();
+        try {
+            if ($this->db->table_exists('resultados') && $this->db->table_exists('resultado_detalle')) {
+                $ids = array();
+                foreach ($fixtures as $f) {
+                    $idf = isset($f['id_fixture']) ? (int) $f['id_fixture'] : 0;
+                    if ($idf > 0) $ids[] = $idf;
+                }
+                if ($ids) {
+                    $con_desempate = $this->_existe_columna_desempate();
+                    $this->db->select('r.id_fixture, r.id_resultado, r.tipo_resultado');
+                    if ($con_desempate) {
+                        $this->db->select('r.hubo_desempate, r.desempate_metodo, r.id_ute_ganador', FALSE);
+                    }
+                    $this->db->select('rd.id_ute, rd.nombre_libre, rd.marcador_local, rd.marcador_visita', FALSE);
+                    $this->db->from('resultados r');
+                    $this->db->join('resultado_detalle rd', 'rd.id_resultado = r.id_resultado', 'left');
+                    $this->db->where_in('r.id_fixture', array_unique($ids));
+                    $this->db->order_by('r.id_resultado, rd.id_detalle', 'ASC');
+                    $filas = $this->db->get()->result_array();
+
+                    foreach ($filas as $fl) {
+                        $kfx = (int) $fl['id_fixture'];
+                        if (!isset($por_fx[$kfx])) {
+                            $por_fx[$kfx] = array(
+                                'tipo'          => $fl['tipo_resultado'],
+                                'lados'         => array(),
+                                'hubo_desemp'   => !empty($fl['hubo_desempate']),
+                                'metodo'        => isset($fl['desempate_metodo']) ? $fl['desempate_metodo'] : null,
+                                'ganador_desc'  => isset($fl['id_ute_ganador']) ? (int) $fl['id_ute_ganador'] : 0,
+                            );
+                        }
+                        if ($fl['marcador_local'] === null && $fl['marcador_visita'] === null) continue;
+                        // Cada fila del detalle guarda SU PROPIO marcador
+                        // (local = tantos propios, visita = tantos del rival),
+                        // así que "local" es siempre el tanteo de ese equipo.
+                        $por_fx[$kfx]['lados'][] = array(
+                            'id_ute'  => isset($fl['id_ute']) ? (int) $fl['id_ute'] : null,
+                            'nombre'  => trim((string) $fl['nombre_libre']),
+                            'goles'   => (int) $fl['marcador_local'],
+                            'rivales' => (int) $fl['marcador_visita'],
+                        );
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            $por_fx = array();
+        }
+
+        // Nombres de las UTEs que aparecen como ganador del desempate (si el
+        // resultado no dejó nombre libre, solo el id).
+        $nombres_ute = array();
+        $ids_gan = array();
+        foreach ($por_fx as $d) {
+            if ($d['ganador_desc'] > 0) $ids_gan[] = $d['ganador_desc'];
+        }
+        if ($ids_gan) {
+            try {
+                $this->db->select('id_ute, nombre_ute', FALSE);
+                $this->db->where_in('id_ute', array_unique($ids_gan));
+                foreach ($this->db->get('utes')->result_array() as $u) {
+                    $nombres_ute[(int) $u['id_ute']] = $u['nombre_ute'];
+                }
+            } catch (Throwable $e) {
+                $nombres_ute = array();
+            }
+        }
+
+        foreach ($fixtures as &$f) {
+            $kfx = isset($f['id_fixture']) ? (int) $f['id_fixture'] : 0;
+            $id1 = isset($f['id_ute_1']) ? (int) $f['id_ute_1'] : 0;
+            $id2 = isset($f['id_ute_2']) ? (int) $f['id_ute_2'] : 0;
+            $nom1 = trim((string) ($f['ute_1_nombre'] ?? ''));
+            $nom2 = trim((string) ($f['ute_2_nombre'] ?? ''));
+
+            if ($kfx > 0 && isset($por_fx[$kfx])) {
+                $d = $por_fx[$kfx];
+                $g1 = null; $g2 = null;
+                foreach ($d['lados'] as $l) {
+                    $lid = $l['id_ute'];
+                    if ($lid !== null && $id1 !== 0 && $lid === $id1) { $g1 = $l['goles']; }
+                    elseif ($lid !== null && $id2 !== 0 && $lid === $id2) { $g2 = $l['goles']; }
+                    else {
+                        // Equipos cargados "libres" (sin UTE): se emparejan por
+                        // nombre contra los lados del fixture.
+                        $ln = mb_strtolower(trim((string) $l['nombre']), 'UTF-8');
+                        if ($g1 === null && $ln !== '' && $ln === mb_strtolower($nom1, 'UTF-8')) $g1 = $l['goles'];
+                        elseif ($g2 === null && $ln !== '' && $ln === mb_strtolower($nom2, 'UTF-8')) $g2 = $l['goles'];
+                        elseif ($g1 === null) $g1 = $l['goles'];
+                        else $g2 = $l['goles'];
+                    }
+                }
+                if ($g1 !== null || $g2 !== null) {
+                    $g1v = $g1 !== null ? $g1 : ($g2 !== null ? 0 : null);
+                    $g2v = $g2 !== null ? $g2 : ($g1 !== null ? 0 : null);
+                    $f['resultado_marca'] = $g1v . ':' . $g2v;
+                    if ((int) $g1v > (int) $g2v) {
+                        $f['resultado_ganador_id']  = $id1 ?: $nom1;
+                        $f['resultado_ganador_txt'] = $nom1;
+                    } elseif ((int) $g2v > (int) $g1v) {
+                        $f['resultado_ganador_id']  = $id2 ?: $nom2;
+                        $f['resultado_ganador_txt'] = $nom2;
+                    } else {
+                        $f['resultado_empate'] = TRUE;
+                        // Empate quebrado con desempate: avanza el elegido.
+                        if ($d['hubo_desemp'] && $d['ganador_desc'] > 0) {
+                            $gnom = isset($nombres_ute[$d['ganador_desc']])
+                                ? $nombres_ute[$d['ganador_desc']] : null;
+                            if ($d['ganador_desc'] === $id1) {
+                                $f['resultado_ganador_id'] = $id1;
+                                $f['resultado_ganador_txt'] = $nom1 !== '' ? $nom1 : $gnom;
+                            } elseif ($d['ganador_desc'] === $id2) {
+                                $f['resultado_ganador_id'] = $id2;
+                                $f['resultado_ganador_txt'] = $nom2 !== '' ? $nom2 : $gnom;
+                            } else {
+                                $f['resultado_ganador_txt'] = $gnom;
+                            }
+                            $f['resultado_desempate'] = $d['metodo'];
+                        }
+                    }
+                }
+            }
+
+            // Deportes masivos: fixtures.resultado = orden de llegada (JSON).
+            // Sin marcador numérico, pero el primero es el ganador.
+            if ($f['resultado_ganador_txt'] === null && !empty($f['resultado'])) {
+                $arr = json_decode((string) $f['resultado'], true);
+                if (is_array($arr) && count($arr)) {
+                    $campeon = (int) $arr[0];
+                    if ($campeon !== 0) {
+                        if ($campeon === $id1)      $f['resultado_ganador_txt'] = $nom1;
+                        elseif ($campeon === $id2) $f['resultado_ganador_txt'] = $nom2;
+                        else {
+                            try {
+                                $this->db->select('nombre_ute');
+                                $this->db->where('id_ute', abs($campeon));
+                                $u = $this->db->get('utes')->row_array();
+                                $f['resultado_ganador_txt'] = $u ? $u['nombre_ute'] : null;
+                            } catch (Throwable $e) { /* silencio */ }
+                        }
+                        $f['resultado_ganador_id'] = $campeon;
+                    }
+                }
+            }
+        }
+        unset($f);
+    }
+
     /* ============================================================
      *  CONSULTAS BÁSICAS
      * ============================================================ */
