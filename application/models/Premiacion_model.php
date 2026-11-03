@@ -2063,9 +2063,13 @@ class Premiacion_model extends CI_Model {
 
     /**
      * Arma el "guion" de la noche para el locutor de la cena: una lista
-     * ordenada de las competencias a premiar con sus medallistas ya resueltos
-     * (incluye las categorías cerradas pendientes y las ya entregadas ese día,
-     * más los atrasos si se piden). Los nombres salen del mismo podio que ve
+     * ordenada de las competencias a premiar con sus medallistas ya resueltos.
+     * SOLO incluye categorías a las que AÚN NO se les entregó el premio:
+     *  - las cerradas pendientes de la noche pedida (y las parcialmente
+     *    entregadas ese día, para completar los puestos que faltan);
+     *  - los atrasos de noches anteriores todavía sin entregar;
+     * quedan EXCLUIDAS las categorías cuya premiación ya fue confirmada por
+     * completo (entregadas = true). Los nombres salen del mismo podio que ve
      * el organizador — en jornada única / largada masiva con el formato
      * "PROVINCIA (NOMBRE)" (ver _normalizar_nombres_provincia()).
      */
@@ -2075,12 +2079,10 @@ class Premiacion_model extends CI_Model {
 
         $items = $this->obtener_resumen_noche($pedido);
         if ($incluir_atrasos) {
-            // TRUE: el guion del locutor debe mostrar TODAS las entregas que
-            // todavía no se anunciaron, incluso las de noches anteriores que
-            // ya fueron confirmadas en pantalla (premiacion.php las lista
-            // aparte como "Premiados", pero si no se leyeron en la cena, el
-            // locutor tiene que tenerlas en su hoja).
-            foreach ($this->obtener_atrasos_hasta($pedido, true) as $it) {
+            // El guion del locutor solo debe contener las categorías a las que
+            // AÚN NO se les entregó el premio: los atrasos que ya tienen todos
+            // sus puestos registrados (entregados = true) quedan afuera.
+            foreach ($this->obtener_atrasos_hasta($pedido, false) as $it) {
                 $items[] = array_merge($it, array('atraso' => true));
             }
         }
@@ -2097,7 +2099,16 @@ class Premiacion_model extends CI_Model {
             // categoría (1º, 1º/2º, 1º/2º/3º, etc.), no siempre el podio clásico.
             $puestos = array();
             $regla_guion = $this->regla_de_categoria($it['categoria']);
-            foreach ($this->puestos_de_regla($regla_guion) as $pos) {
+            $puestos_regla = $this->puestos_de_regla($regla_guion);
+            // Si TODOS los puestos de la regla ya fueron confirmados como
+            // entregados, la categoría NO va al guion: el premio ya se entregó.
+            $faltan_entregar = false;
+            foreach ($puestos_regla as $pos_aux) {
+                $reg_aux = isset($entregados[$pos_aux]) ? $entregados[$pos_aux] : null;
+                if (!$reg_aux || !(int) ($reg_aux['entregado'] ?? 1)) { $faltan_entregar = true; break; }
+            }
+            if (!$faltan_entregar) continue;
+            foreach ($puestos_regla as $pos) {
                 $p = isset($podio[$pos]) ? $podio[$pos] : null;
                 $reg = isset($entregados[$pos]) ? $entregados[$pos] : null;
                 $nombre = null;
