@@ -9,7 +9,7 @@ class MYPDF extends TCPDF {
         require_once APPPATH . 'helpers/deslinde_helper.php';
         $logo = deslinde_imagen_header();
         if (is_readable($logo)) {
-            $this->Image($logo, 30, 15, 50, '', '', '', 'C', false, 50, '', false, false, 0, false, false, false);
+            $this->Image($logo, 30, 15, 40, '', '', '', 'C', false, 50, '', false, false, 0, false, false, false);
         }
         
         
@@ -51,7 +51,7 @@ $pdf->SetKeywords('TCPDF, PDF, OLIMPIADAS, VIVIENDAS');
 $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
 
 // set margins
-$pdf->SetMargins(30, 50, 30);
+$pdf->SetMargins(30, 30, 30);
 $pdf->SetHeaderMargin(PDF_MARGIN_HEADER);
 $pdf->SetFooterMargin(PDF_MARGIN_FOOTER);
 
@@ -76,17 +76,17 @@ $pdf->setFontSubsetting(true);
 // dejavusans is a UTF-8 Unicode font, if you only need to
 // print standard ASCII chars, you can use core fonts like
 // helvetica or times to reduce file size.
-$pdf->SetFont('dejavusans', '', 14, '', true);
+$pdf->SetFont('dejavusans', '', 10, '', true);
 
 // Add a page
 // This method has several options, check the source code documentation for more information.
-$pdf->AddPage('P','LEGAL');
+$pdf->AddPage('P','A4');
 $pdf->Body($participante);
 // ---------------------------------------------------------
 
 // Close and output PDF document
 // This method has several options, check the source code documentation for more information.
-$pdf->Output('Deslinde_Responsabilidad_' . str_replace(' ', '_', $participante['nombre_completo']) . '.pdf', 'D');
+$pdf->Output('Deslinde_Responsabilidad_' . str_replace(' ', '_', $participante['nombre_completo']) . '.pdf', 'I');
 
 //============================================================+
 // END OF FILE

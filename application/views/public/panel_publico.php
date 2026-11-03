@@ -206,7 +206,6 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .fila-pos:nth-child(odd){background:var(--card2)}
 .pos{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
      font-weight:800;font-size:13px;background:var(--line);flex-shrink:0}
-.pos.p1{background:var(--oro);color:#111}.pos.p2{background:var(--plata);color:#111}.pos.p3{background:var(--bronce);color:#111}
 .tiempo{margin-left:auto;font-family:Consolas,monospace;color:var(--ok);font-weight:700}
 .marcador-res{margin-left:auto;font-weight:800;color:var(--acento)}
 .desempate-tag{font-size:11px;color:#ffab9e;margin-left:8px}
@@ -861,9 +860,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
               'voley' => '🏐', 'vóley' => '🏐', 'voleibol' => '🏐',
               'tenis' => '🎾', 'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓',
               'rugby' => '🏉', 'hockey' => '🏑', 'beisbol' => '⚾', 'softbol' => '⚾',
-              'atletismo' => '🏃', 'natacion' => '🏊', 'natación' => '🏊',
-              'boxeo' => '🥊', 'lucha' => '🤼', 'judo' => '🥋', 'karate' => '🥋',
-              'escrime' => '🤺', 'ciclismo' => '🚴', 'patin' => '⛸️',
+              'atletismo' => '🏃', 'natacion' => '🏊', 'natación' => '🏊','running' => '🏃',
+              'boxeo' => '🥊', 'lucha' => '🤼', 'judo' => '🥋', 'karate' => '🥋','carrera' => '🏃',
+              'escrime' => '🤺', 'ciclismo' => '🚴','MTB' => '🚴', 'patin' => '⛸️', 'truco'=> '🃏'
           );
           foreach ($mapa as $k => $ico) if (strpos($n, $k) !== false) return $ico;
           return '🏅';
@@ -897,7 +896,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
               echo $hay_masivo && $hay_enfrent ? 'podios y planillas' : ($hay_masivo ? 'tiempo y puntaje' : 'enfrentamientos');
           ?></div>
         </div>
-        <span class="podio-dep-chip">🏆 Podios</span>
       </div>
       <?php foreach ($items_dep as $pd):
           $puestos_pd = array_keys($pd['podium']);
@@ -907,21 +905,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           <span class="podio-cat-nombre"><?= htmlspecialchars($pd['categoria']) ?><?= $pd['genero'] !== '' ? ' (' . htmlspecialchars($pd['genero']) . ')' : '' ?></span>
           <span class="podio-cat-regla">⚙ <?= htmlspecialchars($pd['texto_regla']) ?></span>
           <?php if (!empty($pd['cerrada'])): ?><span class="podio-cerrada-tag">FINALIZADO</span><?php endif; ?>
-        </div>
-        <div class="podio-puestos" style="--puestos:<?= max(1, count($puestos_pd)) ?>">
-          <?php foreach ($puestos_pd as $pos):
-              $p = $pd['podium'][$pos];
-              $etiqueta = $p['etiqueta'] !== '' ? $p['etiqueta']
-                : (($pos === 1 ? '1.er puesto' : ($pos === 2 ? '2.º puesto' : ($pos === 3 ? '3.er puesto' : $pos . '.º puesto')))); ?>
-            <div class="p-medalla <?= $clase_puesto($pos) ?><?= $p['nombre'] === null ? ' p-vacio' : '' ?>">
-              <div class="p-disco"><?= $disco_puesto($pos, $p['icono']) ?></div>
-              <div class="p-label"><?= htmlspecialchars($etiqueta) ?></div>
-              <div class="p-nombre"><?= htmlspecialchars($p['nombre'] !== null ? $p['nombre'] : 'por definir') ?></div>
-              <?php if (!empty($p['desempate'])): ?><div class="p-desemp">🏆 ganó en <?= htmlspecialchars($p['desempate']) ?></div><?php endif; ?>
-              <?php if (!empty($p['extra'])): ?><div class="p-extra"><?= htmlspecialchars($p['extra']) ?></div><?php endif; ?>
-              <?php if (!empty($p['premio'])): ?><div class="p-extra"><?= htmlspecialchars($p['premio']) ?></div><?php endif; ?>
-            </div>
-          <?php endforeach; ?>
         </div>
         <?php if (!empty($pd['tabla_puntaje'])): ?>
           <div class="p-partidos">
@@ -976,7 +959,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                 <div class="p-j-head" role="button" tabindex="0" aria-expanded="<?= !empty($j['es_mejor']) ? 'true' : 'false' ?>">
                   <span class="p-j-flecha" aria-hidden="true">▶</span>
                   <span><?= htmlspecialchars($titulo_j) ?></span>
-                  <?php if (!empty($j['es_mejor'])): ?><span class="p-j-official">Podio</span><?php endif; ?>
+                  <?php if (!empty($j['es_mejor'])): ?><?php endif; ?>
                   <span class="p-j-meta"><?= htmlspecialchars($meta_j) ?> · <?= count($j['filas']) ?> inscriptos</span>
                 </div>
                 <div class="p-j-cuerpo">
@@ -1011,7 +994,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     <div class="section-heading" style="margin-top:8px">
       <div>
         <p class="eyebrow">TIEMPO Y PUNTAJE</p>
-        <h2 style="font-size:1.1rem">Otras posiciones</h2>
+        <h2 style="font-size:1.1rem">Resultados Parciales</h2>
       </div>
     </div>
     <?php foreach ($otros as $res):
