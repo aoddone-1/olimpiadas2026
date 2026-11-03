@@ -123,8 +123,23 @@ class Rep_Locutor_PDF extends TCPDF {
 
     /** Un bloque = una competencia con su podio (formato texto con viñetas). */
     private function _bloque_entrega($b, $num) {
-        // Calcular espacio necesario
+        // Integrantes de los equipos premiados (los manda el modelo en
+        // $b['integrantes'] como id_ute => array de nombres). Solo se listan
+        // cuando la categoría es de EQUIPO.
+        $integrantes_map = (isset($b['integrantes']) && is_array($b['integrantes']))
+            ? $b['integrantes'] : array();
+        $es_equipo = !empty($b['es_equipo']);
+
+        // Calcular espacio necesario: cada equipo premiado puede sumar 2 o 3
+        // renglones extra por la lista de integrantes.
         $alt_estimado = 35 + 18 * max(1, count($b['puestos']));
+        if ($es_equipo && $integrantes_map) {
+            foreach ($b['puestos'] as $pp) {
+                if (!empty($pp['id']) && !empty($integrantes_map[(int) $pp['id']])) {
+                    $alt_estimado += 14;
+                }
+            }
+        }
         if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
             $this->AddPage();
             // Si la página nueva quedó dentro del mismo deporte, repetir el
@@ -210,6 +225,19 @@ class Rep_Locutor_PDF extends TCPDF {
             }
 
             $this->MultiCell(0, 7, $texto_completo, 0, 'L', 0, 1);
+
+            // Equipos: listar los integrantes separados por " - " y entre
+            // paréntesis, para que el locutor sepa QUIÉNES suben al escenario.
+            if ($es_equipo && !empty($p['id'])) {
+                $ints = isset($integrantes_map[(int) $p['id']]) ? $integrantes_map[(int) $p['id']] : array();
+                if (is_array($ints) && $ints) {
+                    $this->SetFont('dejavusans', '', 8.5);
+                    $this->SetTextColor(93, 102, 112);
+                    $this->Cell(12, 5, '', 0, 0, 'R'); // sangría: alineado bajo el nombre
+                    $this->MultiCell(0, 5, '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
+                    $this->SetTextColor(20, 33, 61);
+                }
+            }
 
             // Nota de desempate
             if (!empty($p['desempate'])) {
