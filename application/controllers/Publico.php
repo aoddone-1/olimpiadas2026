@@ -148,7 +148,13 @@ class Publico extends CI_Controller {
      * pestaña Results sigue funcionando con las cards simples de siempre.
      */
     private function _podios_visibles($delegacion, $id_deporte, $id_categoria) {
+        // Enfrentamientos (marcador) + deportes de tiempo/puntaje masivo: así
+        // el panel puede agrupar TODO por deporte con sus categorías adentro.
         $podios = $this->_seguro(fn() => $this->Premiacion_model->podios_para_panel_publico(), array());
+        $masivos = $this->_seguro(fn() => $this->Premiacion_model->podios_masivos_para_panel_publico(), array());
+        if (is_array($masivos) && $masivos) {
+            $podios = array_merge(is_array($podios) ? $podios : array(), $masivos);
+        }
         if (!is_array($podios) || !$podios) return array();
 
         $comp = null;
@@ -171,6 +177,28 @@ class Publico extends CI_Controller {
                         $partidos[] = $pt;
                     }
                 }
+                // Categorías masivas: la delegación participa si tiene
+                // inscriptos en la categoría; se filtran las jornadas para
+                // mostrar solo las posiciones de SUS competidores.
+                if (!empty($p['masivo'])) {
+                    $id_cat_p = (int) $p['id_categoria'];
+                    if (isset($comp['categorias'][$id_cat_p])) $es_propio = true;
+                    $nombres = $this->_nombres_de_delegacion($delegacion, $comp);
+                    $jornadas = array();
+                    foreach (isset($p['jornadas']) ? $p['jornadas'] : array() as $j) {
+                        $filas = array();
+                        foreach ($j['filas'] as $f) {
+                            if ($this->_fila_es_de_delegacion((string) $f['nombre'], $nombres, $comp)) {
+                                $filas[] = $f;
+                            }
+                        }
+                        if ($filas) {
+                            $j['filas'] = $filas;
+                            $jornadas[] = $j;
+                        }
+                    }
+                    if ($jornadas) $p['jornadas'] = $jornadas;
+                }
                 // El podio también "pertenece" a la delegación si alguno de los
                 // premiados es un equipo suyo (aunque el partido decisivo se
                 // muestre igual para todos).
@@ -184,7 +212,50 @@ class Publico extends CI_Controller {
             }
             $salida[] = $p;
         }
+
+        // Orden final: deporte (A-Z) y dentro del deporte las categorías
+        // cerradas primero — la vista agrupa en este mismo orden.
+        usort($salida, function ($a, $b) {
+            $cmp = strcasecmp((string) $a['deporte'], (string) $b['deporte']);
+            if ($cmp !== 0) return $cmp;
+            if (!empty($a['cerrada']) !== !empty($b['cerrada'])) return !empty($a['cerrada']) ? -1 : 1;
+            return strcasecmp((string) $a['categoria'], (string) $b['categoria']);
+        });
         return $salida;
+    }
+
+    /** ¿Una fila de planilla masiva es de la delegación? (nombres normalizados) */
+    private function _fila_es_de_delegacion($nombre, $nombres_propios, $comp) {
+        $nn = $this->Publico_model->normalizar_nombre($nombre);
+        if ($nn !== '' && isset($nombres_propios[$nn])) return true;
+        // Los nombres masivos suelen traer sufijo "— Delegación": alcanza con
+        // que el nombre contenga el nombre normalizado de un equipo/UTE propio.
+        foreach ($nombres_propios as $n => $_v) {
+            if ($n !== '' && strlen($n) >= 4 && strpos($nn, $n) !== false) return true;
+        }
+        return false;
+    }
+
+    /** Nombres normalizados de los equipos/inscriptos de una delegación. */
+    private function _nombres_de_delegacion($delegacion, $comp) {
+        $out = array();
+        // UTEs/equipos de la delegación -> su nombre desde `utes`.
+        $ids_ute = array();
+        foreach (array_keys(isset($comp['utes']) ? $comp['utes'] : array()) as $idl) {
+            if ($idl > 0) $ids_ute[] = (int) $idl;
+        }
+        if ($ids_ute) {
+            $nombres = $this->_seguro(fn() => $this->Publico_model->_nombres_utes_por_ids($ids_ute), array());
+            foreach ($nombres as $nom) {
+                $nn = $this->Publico_model->normalizar_nombre((string) $nom);
+                if ($nn !== '') $out[$nn] = true;
+            }
+        }
+        // Individuales inscriptos: se resuelven por -id_inscripcion en el
+        // snapshot del detalle; acá se usa la delegación como clave de match.
+        $nn_del = $this->Publico_model->normalizar_nombre((string) $delegacion);
+        if ($nn_del !== '') $out[$nn_del] = true;
+        return $out;
     }
 
     /** ¿El partido (fila de `podios_para_panel_publico`) es de la delegación? */

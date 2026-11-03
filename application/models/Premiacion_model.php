@@ -383,7 +383,7 @@ class Premiacion_model extends CI_Model {
     }
 
     /** Podio de un resultado TIEMPO / PUNTAJE: los puestos que diga la regla. */
-    private function _podio_desde_tiempo($resultado, $puestos = array(1, 2, 3)) {
+    public function _podio_desde_tiempo($resultado, $puestos = array(1, 2, 3)) {
         $es_puntaje = (isset($resultado['tipo_resultado']) && $resultado['tipo_resultado'] === 'PUNTAJE');
         $ordenadas = $resultado['detalle'];
         usort($ordenadas, function ($a, $b) {
@@ -1453,6 +1453,203 @@ class Premiacion_model extends CI_Model {
                 'texto_regla'   => $this->texto_regla_premiacion($regla),
                 'fecha_entrega' => $it['fecha_entrega'] ?? null,
                 'partidos'      => $partidos,
+            );
+        }
+
+        // Por deporte (nombre) y, dentro del deporte, podio definido primero.
+        usort($items, function ($a, $b) {
+            $cmp = strcasecmp($a['deporte'], $b['deporte']);
+            if ($cmp !== 0) return $cmp;
+            if ($a['cerrada'] !== $b['cerrada']) return $a['cerrada'] ? -1 : 1;
+            return strcasecmp($a['categoria'], $b['categoria']);
+        });
+
+        return $items;
+    }
+
+    /**
+     * PODIOS PARA EL PANEL PÚBLICO — DEPORTES DE TIEMPO / PUNTAJE MASIVO.
+     *
+     * Complemento de `podios_para_panel_publico()`: devuelve las categorías
+     * MASIVO_TIEMPO (atletismo, natación, etc.) con el podio resuelto por la
+     * MISMA lógica que usa la Premiación (`obtener_estado_premiables()`), para
+     * que en el panel TODO quede agrupado por deporte: adentro del bloque del
+     * deporte va una card por categoría y dentro se listan TODAS las jornadas
+     * cargadas (cada prueba con su planilla de posiciones), no solo la mejor.
+     *
+     * Se respeta el MODELO DE PREMIACIÓN de cada categoría: `premiacion_regla`
+     * decide qué puestos se suben al podio y con qué etiqueta/icono/premio
+     * (1º/2º/3º por defecto; pueden ser "4tos", trofeos especiales, etc.).
+     *
+     * @return array items {id_categoria, categoria, genero, id_deporte,
+     *         deporte, masivo, cerrada, podium{puesto=>...}, regla[],
+     *         texto_regla, fecha_entrega, jornadas[]} — misma forma que los
+     *         podios de enfrentamiento, para que la vista los pinte igual.
+     */
+    public function podios_masivos_para_panel_publico() {
+        if (!$this->_tabla_existe('resultados')) return array();
+
+        // Resultados con su detalle, agrupados por categoría (una sola pasada).
+        $rows = $this->_filas_seguras('resultados');
+        if (!$rows) return array();
+        $detalles = $this->_detalle_de_resultados(array_column($rows, 'id_resultado'));
+        $por_cat = array();
+        foreach ($rows as $r) {
+            $r['detalle'] = isset($detalles[(int) $r['id_resultado']])
+                ? $detalles[(int) $r['id_resultado']] : array();
+            $por_cat[(int) $r['id_categoria']][] = $r;
+        }
+
+        // Día/hora en que se corrió cada prueba (fixtures vinculados), raw SQL.
+        $fx_ids = array();
+        foreach ($rows as $r) {
+            $idf = (int) ($r['id_fixture'] ?? 0);
+            if ($idf > 0) $fx_ids[$idf] = true;
+        }
+        $fx_map = array();
+        if ($fx_ids && $this->_tabla_existe('fixtures')) {
+            try {
+                $q_fx = $this->db->query(
+                    'SELECT `id_fixture`, `fecha_competencia`, `hora_inicio`, `nombre_prueba`'
+                    . ' FROM `fixtures` WHERE `id_fixture` IN ('
+                    . implode(',', array_map('intval', array_keys($fx_ids))) . ')'
+                );
+                foreach (($q_fx && is_object($q_fx)) ? $q_fx->result_array() : array() as $f) {
+                    $fx_map[(int) $f['id_fixture']] = $f;
+                }
+            } catch (Throwable $e) {
+                // `nombre_prueba` puede no existir en bases viejas: reintento sin ella.
+                try {
+                    $q_fx = $this->db->query(
+                        'SELECT `id_fixture`, `fecha_competencia`, `hora_inicio` FROM `fixtures` WHERE `id_fixture` IN ('
+                        . implode(',', array_map('intval', array_keys($fx_ids))) . ')'
+                    );
+                    foreach (($q_fx && is_object($q_fx)) ? $q_fx->result_array() : array() as $f) {
+                        $fx_map[(int) $f['id_fixture']] = $f;
+                    }
+                } catch (Throwable $e2) {
+                    log_message('error', '[Premiación] podios masivos — fixture: ' . $e2->getMessage());
+                }
+            }
+        }
+
+        $items = array();
+        foreach ($this->obtener_estado_premiables() as $it) {
+            $cat    = $it['categoria'];
+            $id_cat = (int) $cat['id_categoria'];
+
+            // Sólo deportes de largada masiva (tiempo/puntaje): los de
+            // enfrentamiento ya vienen de `podios_para_panel_publico()`.
+            if ((string) $cat['modalidad_competencia'] !== 'MASIVO_TIEMPO') continue;
+
+            // ---------- Podio según la REGLA de premiación de la categoría ---
+            $regla = isset($it['regla']) ? $it['regla'] : $this->regla_default();
+            $puestos = $this->puestos_de_regla($regla);
+            $podium = array();
+            foreach ($puestos as $pos) {
+                $p = isset($it['podio'][$pos]) ? $it['podio'][$pos] : null;
+                $r = null;
+                foreach ($regla as $rr) {
+                    if ((int) ($rr['puesto'] ?? 0) === $pos) { $r = $rr; break; }
+                }
+                $podium[$pos] = array(
+                    'puesto'    => $pos,
+                    'nombre'    => $p && !empty($p['nombre']) ? trim((string) $p['nombre']) : null,
+                    'extra'     => $p && !empty($p['extra']) ? (string) $p['extra'] : null,
+                    'desempate' => $p && !empty($p['desempate']) ? (string) $p['desempate'] : null,
+                    'premio'    => $r ? trim((string) ($r['premio'] ?? '')) : '',
+                    'etiqueta'  => $r ? trim((string) ($r['etiqueta'] ?? '')) : '',
+                    'icono'     => $r ? trim((string) ($r['icono'] ?? '')) : '',
+                );
+            }
+
+            // ---------- TODAS las jornadas/pruebas cargadas de la categoría --
+            // Cada resultado TIEMPO/PUNTAJE es una carrera con su planilla.
+            // Se muestran todas (con sus posiciones completas), así el público
+            // ve también los resultados anteriores al que definió el podio.
+            $jornadas = array();
+            foreach (isset($por_cat[$id_cat]) ? $por_cat[$id_cat] : array() as $r) {
+                $tipo = (string) $r['tipo_resultado'];
+                if (!in_array($tipo, array('TIEMPO', 'PUNTAJE'), true)) continue;
+                if (!$r['detalle']) continue;
+
+                $det = $r['detalle'];
+                usort($det, function ($a, $b) {
+                    $pa = (int) $a['posicion']; $pb = (int) $b['posicion'];
+                    if ($pa !== $pb) return $pa - $pb;
+                    return strcmp((string) $a['nombre_libre'], (string) $b['nombre_libre']);
+                });
+
+                $idf = (int) ($r['id_fixture'] ?? 0);
+                $fxi = isset($fx_map[$idf]) ? $fx_map[$idf] : array();
+                $fecha = $this->_norm_fecha($fxi['fecha_competencia'] ?? null)
+                    ?: $this->_norm_fecha($r['fecha_resultado'] ?? null);
+
+                $filas = array();
+                foreach ($det as $d) {
+                    $filas[] = array(
+                        'posicion' => (int) $d['posicion'],
+                        'nombre'   => trim((string) $d['nombre_libre']),
+                        'marca'    => trim((string) ($d['tiempo'] ?? '')),
+                        'es_podio' => in_array((int) $d['posicion'], $puestos, true),
+                    );
+                }
+
+                $prueba = trim((string) ($fxi['nombre_prueba'] ?? ''));
+                if ($prueba === '') $prueba = trim((string) ($r['nombre_evento'] ?? ''));
+
+                $jornadas[] = array(
+                    'id_resultado' => (int) $r['id_resultado'],
+                    'tipo'         => $tipo,
+                    'prueba'       => $prueba,
+                    'fecha'        => $fecha,
+                    'hora'         => trim((string) ($fxi['hora_inicio'] ?? '')),
+                    'lugar'        => trim((string) ($r['lugar'] ?? '')),
+                    'es_mejor'     => false, // se marca abajo: base del podio
+                    'filas'        => $filas,
+                );
+            }
+
+            if (!$jornadas) continue; // sin planillas cargadas: nada que mostrar
+
+            // La prueba que originó el podio (id_resultado_ref del 1º puesto)
+            // se destaca como la planilla oficial del podio.
+            $ref = isset($it['podio'][1]['id_resultado_ref'])
+                ? (int) $it['podio'][1]['id_resultado_ref'] : null;
+            if (!$ref) {
+                // Sin podio cerrado, se destaca la jornada más nueva cargada.
+                $max_id = 0;
+                foreach ($jornadas as $j) $max_id = max($max_id, $j['id_resultado']);
+                $ref = $max_id;
+            }
+            foreach ($jornadas as &$j) {
+                if ($j['id_resultado'] === $ref) $j['es_mejor'] = true;
+            }
+            unset($j);
+
+            // Orden: la planilla del podio primero, después cronológico inverso.
+            usort($jornadas, function ($a, $b) {
+                if ($a['es_mejor'] !== $b['es_mejor']) return $a['es_mejor'] ? -1 : 1;
+                $cmp = strcmp((string) ($b['fecha'] ?: '0000'), (string) ($a['fecha'] ?: '0000'));
+                if ($cmp !== 0) return $cmp;
+                return (int) $b['id_resultado'] - (int) $a['id_resultado'];
+            });
+
+            $items[] = array(
+                'id_categoria'  => $id_cat,
+                'categoria'     => trim((string) ($cat['nombre_categoria'] ?? '')),
+                'genero'        => trim((string) ($cat['genero'] ?? '')),
+                'id_deporte'    => (int) ($cat['id_deporte'] ?? 0),
+                'deporte'       => trim((string) ($cat['nombre_deporte'] ?? '')),
+                'masivo'        => true,
+                'cerrada'       => !empty($it['cerrada']),
+                'tabla_puntaje' => null,
+                'podium'        => $podium,
+                'regla'         => $regla,
+                'texto_regla'   => $this->texto_regla_premiacion($regla),
+                'fecha_entrega' => $it['fecha_entrega'] ?? null,
+                'partidos'      => array(),
+                'jornadas'      => $jornadas,
             );
         }
 
