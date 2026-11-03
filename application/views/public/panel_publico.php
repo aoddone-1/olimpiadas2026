@@ -274,6 +274,28 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-eq.ganador{font-weight:800}
 .p-tato{font-size:18px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 4px}
 .p-metas{font-size:.72rem;color:var(--muted);white-space:nowrap}
+/* ---------- JORNADAS / PLANILLAS completas (deportes de tiempo y puntaje) ----------
+   Dentro de la card de la categoría, debajo del podio: TODAS las pruebas
+   cargadas con su planilla de posiciones (cada uno puede buscar cómo le fue). */
+.p-jornada{border:1px solid var(--line);border-radius:10px;background:var(--card2);
+  margin-top:8px;overflow:hidden}
+.p-jornada.mejor{border-color:rgba(132,204,22,.5)}
+.p-j-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;cursor:pointer;
+  font-size:13px;font-weight:700}
+.p-j-head:hover{background:rgba(255,255,255,.04)}
+.p-j-meta{font-size:.72rem;color:var(--muted);font-weight:600;margin-left:auto;white-space:nowrap}
+.p-j-official{font-size:.65rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:#111;background:var(--oro);border-radius:.4rem;padding:.1rem .45rem}
+.p-j-flecha{color:var(--muted);font-size:.8rem;transition:transform .15s ease}
+.p-jornada.abierta .p-j-flecha{transform:rotate(90deg)}
+.p-j-cuerpo{display:none;padding:2px 10px 10px}
+.p-jornada.abierta .p-j-cuerpo{display:block}
+.p-j-fila{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:8px;font-size:14px}
+.p-j-fila:nth-child(odd){background:rgba(255,255,255,.03)}
+.p-j-fila.podio{background:rgba(132,204,22,.08);border:1px solid rgba(132,204,22,.25)}
+.p-j-nombre{flex:1;min-width:0;overflow-wrap:anywhere}
+.p-j-marca{font-family:Consolas,monospace;font-weight:700;color:var(--ok);white-space:nowrap}
+.p-j-puntos{font-weight:800;color:var(--acento);white-space:nowrap}
 /* Medallero */
 table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
 table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
@@ -867,7 +889,13 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         <span class="podio-dep-icon"><?= $icono_deporte($dep_nombre) ?></span>
         <div>
           <div class="podio-dep-nombre"><?= htmlspecialchars($dep_nombre) ?></div>
-          <div class="podio-dep-meta"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?> · enfrentamientos</div>
+          <div class="podio-dep-meta"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?> · <?php
+              $hay_masivo = false; $hay_enfrent = false;
+              foreach ($items_dep as $x) {
+                  if (!empty($x['masivo'])) $hay_masivo = true; else $hay_enfrent = true;
+              }
+              echo $hay_masivo && $hay_enfrent ? 'podios y planillas' : ($hay_masivo ? 'tiempo y puntaje' : 'enfrentamientos');
+          ?></div>
         </div>
         <span class="podio-dep-chip">🏆 Podios</span>
       </div>
@@ -926,6 +954,46 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                 <span class="p-tato"><?= (int) $pt['eq1_tantos'] ?> : <?= (int) $pt['eq2_tantos'] ?></span>
                 <span class="p-eq dch<?= $pt['gana2'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq2_nombre']))) ? ' ganador' : '' ?>"><?= htmlspecialchars($pt['eq2_nombre']) ?></span>
                 <span class="p-metas"><?= htmlspecialchars(trim($fecha_p . ' ' . $hora_p)) ?><?= !empty($pt['hubo_desempate']) ? ' · 🏅' : '' ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+        <?php /* ---- Jornadas / planillas completas (deportes de tiempo/puntaje) ----
+                  El podio resume, pero acá se ven TODOS los resultados cargados:
+                  cada prueba con su planilla de posiciones. La planilla oficial
+                  del podio va abierta por defecto; las anteriores, desplegables. */ ?>
+        <?php if (!empty($pd['jornadas'])): $n_j = 0; ?>
+          <div class="p-partidos">
+            <div class="p-partidos-titulo">📋 Resultados completos — <?= count($pd['jornadas']) ?> prueba<?= count($pd['jornadas']) !== 1 ? 's' : '' ?></div>
+            <?php foreach ($pd['jornadas'] as $j):
+                $n_j++;
+                $fecha_j = !empty($j['fecha']) ? date('d/m', strtotime((string) $j['fecha'])) : '';
+                $hora_j  = !empty($j['hora']) ? date('H:i', strtotime('today ' . trim((string) $j['hora']))) : '';
+                $meta_j  = trim($fecha_j . ($hora_j !== '' ? ' · ' . $hora_j : '') . ($j['lugar'] !== '' ? ' · ' . $j['lugar'] : ''));
+                $titulo_j = $j['prueba'] !== '' ? $j['prueba'] : ('Prueba ' . $n_j);
+            ?>
+              <div class="p-jornada<?= !empty($j['es_mejor']) ? ' mejor abierta' : '' ?>">
+                <div class="p-j-head" role="button" tabindex="0" aria-expanded="<?= !empty($j['es_mejor']) ? 'true' : 'false' ?>">
+                  <span class="p-j-flecha" aria-hidden="true">▶</span>
+                  <span><?= htmlspecialchars($titulo_j) ?></span>
+                  <?php if (!empty($j['es_mejor'])): ?><span class="p-j-official">Podio</span><?php endif; ?>
+                  <span class="p-j-meta"><?= htmlspecialchars($meta_j) ?> · <?= count($j['filas']) ?> inscriptos</span>
+                </div>
+                <div class="p-j-cuerpo">
+                  <?php foreach ($j['filas'] as $f): ?>
+                    <div class="p-j-fila<?= !empty($f['es_podio']) ? ' podio' : '' ?>">
+                      <span class="pos <?= (int) $f['posicion'] >= 1 && (int) $f['posicion'] <= 3 ? 'p' . (int) $f['posicion'] : '' ?>"><?= (int) $f['posicion'] ?></span>
+                      <span class="p-j-nombre"><?= htmlspecialchars((string) $f['nombre']) ?></span>
+                      <?php if (!empty($f['marca'])): ?>
+                        <?php if (!empty($f['es_puntos'])): ?>
+                          <span class="p-j-puntos"><?= htmlspecialchars((string) $f['marca']) ?> pts</span>
+                        <?php else: ?>
+                          <span class="p-j-marca"><?= htmlspecialchars((string) $f['marca']) ?></span>
+                        <?php endif; ?>
+                      <?php endif; ?>
+                    </div>
+                  <?php endforeach; ?>
+                </div>
               </div>
             <?php endforeach; ?>
           </div>
@@ -1141,6 +1209,19 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   });
   // Sin hash en la barra: siempre se abre Fixture (la URL queda limpia).
   setTab('tab-fixture');
+
+  /* ---------- Resultados: planillas desplegables (jornadas de tiempo/puntaje) */
+  Array.prototype.forEach.call(document.querySelectorAll('.p-j-head'), function (head) {
+    var toggle = function () {
+      var jornada = head.parentElement;
+      var abierto = jornada.classList.toggle('abierta');
+      head.setAttribute('aria-expanded', String(abierto));
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+    });
+  });
 
   /* ---------- Fixture: filtro por día y búsqueda (sin recargar) ---------- */
   var schedule = document.getElementById('schedule');
