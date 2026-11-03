@@ -2128,12 +2128,21 @@ class Premiacion_model extends CI_Model {
                         if (!empty($rgl['etiqueta'])) $premio_txt .= ' (' . $rgl['etiqueta'] . ')';
                     }
                 }
+                // id UTE del premiado: primero el podio resuelto; si ya
+                // está entregado, el registrado en la premiación.
+                $id_ute_pos = ($p && !empty($p['id'])) ? (int) $p['id']
+                          : (($reg && !empty($reg['id_ute'])) ? (int) $reg['id_ute'] : null);
+                // Equipos: el "nombre_libre" de resultados/fixture es una
+                // snapshot que puede estar incompleta o ser un placeholder.
+                // Si el premiado es una UTE registrada, se prefiere siempre su
+                // nombre actual (utes.nombre_ute).
+                if ($id_ute_pos > 0) {
+                    $nombre_ute = $this->_nombre_ute($id_ute_pos);
+                    if ($nombre_ute !== '') $nombre = $nombre_ute;
+                }
                 $puestos[$pos] = array(
                     'nombre'    => $nombre,
-                    // id UTE del premiado: primero el podio resuelto; si ya
-                    // está entregado, el registrado en la premiación.
-                    'id'        => ($p && !empty($p['id'])) ? (int) $p['id']
-                              : (($reg && !empty($reg['id_ute'])) ? (int) $reg['id_ute'] : null),
+                    'id'        => $id_ute_pos,
                     'premio'    => $premio_txt,
                     'desempate' => ($p && !empty($p['desempate'])) ? $p['desempate'] : null,
                     'extra'     => ($p && !empty($p['extra'])) ? $p['extra'] : null,
@@ -2239,6 +2248,26 @@ class Premiacion_model extends CI_Model {
 
         if ($id_dep) $cache[$id_dep] = $es_equipo;
         return $es_equipo;
+    }
+
+    /**
+     * Nombre actual de una UTE/equipo registrado (utes.nombre_ute). Se usa en
+     * el guion del locutor para que el equipo premiado se anuncie con su
+     * nombre real y no con la snapshot "nombre_libre" del resultado. Devuelve
+     * '' si la UTE no existe (premiado individual o datos viejos).
+     */
+    private function _nombre_ute($id_ute) {
+        static $cache = array();
+        $id = (int) $id_ute;
+        if ($id <= 0) return '';
+        if (isset($cache[$id])) return $cache[$id];
+        if (!$this->_tabla_existe('utes')) return $cache[$id] = '';
+
+        $this->db->select('nombre_ute', FALSE);
+        $this->db->where('id_ute', $id);
+        $this->db->limit(1);
+        $fila = $this->_fila_segura('utes');
+        return $cache[$id] = trim((string) ($fila['nombre_ute'] ?? ''));
     }
 
     /**
