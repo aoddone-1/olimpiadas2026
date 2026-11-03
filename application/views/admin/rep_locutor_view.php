@@ -107,21 +107,23 @@ class Rep_Locutor_PDF extends TCPDF {
 
     /**
      * BLOQUE DE ENTREGA - Formato profesional de guion.
-     * UNA ENTREGA (deporte/categoría) POR PÁGINA: el salto de página lo
-     * hace Body() antes de cada bloque, así el locutor tiene una hoja
-     * limpia por premiación.
+     * Se imprime DENTRO de la página de su DEPORTE (Body() agrupa por
+     * deporte y salta de página solo al cambiar de deporte), así el locutor
+     * tiene una hoja limpia por disciplina con todas sus categorías abajo.
      */
     private function _bloque_entrega($b, $num) {
         // ========================================
-        // ENCABEZADO DEL BLOQUE
+        // TÍTULO DE LA CATEGORÍA (el deporte va en el encabezado de página)
         // ========================================
-        $this->SetFillColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
-        $this->SetTextColor(255, 255, 255);
-        $this->SetFont('dejavusans', 'B', 14);
-        
-        $titulo = $num . '. ' . strtoupper($b['deporte']) . ' — ' . strtoupper($b['categoria']);
-        $this->Cell(0, 10, '  ' . $titulo, 0, 1, 'L', 1);
-        
+        $this->SetFillColor(self::GRIS_SUAVE[0], self::GRIS_SUAVE[1], self::GRIS_SUAVE[2]);
+        $this->SetTextColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
+        $this->SetFont('dejavusans', 'B', 12);
+
+        $titulo = $num . '. ' . strtoupper($b['categoria']);
+        if (!empty($b['genero']))   $titulo .= ' · ' . strtoupper($b['genero']);
+        if (!empty($b['modalidad'])) $titulo .= ' · ' . strtoupper($b['modalidad']);
+        $this->Cell(0, 8, '  ' . $titulo, 0, 1, 'L', 1);
+
         $this->Ln(2);
         
         // Nota de prueba individual si aplica
@@ -249,22 +251,136 @@ class Rep_Locutor_PDF extends TCPDF {
     }
 
     /**
-     * CUERPO DEL DOCUMENTO
+     * Banda azul con el nombre del DEPORTE: cabecera de la página del guion.
+     */
+    private function _banda_deporte($deporte) {
+        $this->SetFillColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
+        $this->SetTextColor(255, 255, 255);
+        $this->SetFont('dejavusans', 'B', 16);
+        $this->Cell(0, 12, '  ' . strtoupper($deporte), 0, 1, 'L', 1);
+        $this->Ln(3);
+    }
+
+    /**
+     * CUERPO DEL DOCUMENTO — UN DEPORTE POR PÁGINA.
+     * Se agrupan las entregas por deporte; cada deporte arranca en una hoja
+     * nueva con su banda de título y debajo van TODAS sus categorías.
+     * Los cortes de página se hacen SIEMPRE entre deportes (una categoría
+     * jamás queda partida): si un deporte necesita más de una hoja, todas
+     * sus categorías se "comprimen" hasta cerrarlas en la mínima cantidad
+     * de hojas posible, y recién entonces pasa el siguiente deporte.
      */
     public function Body() {
-        
-        // Luego los bloques: UN DEPORTE/CATEGORÍA POR PÁGINA
+
         if (!empty($this->guion['bloques'])) {
-            $num = 0;
+            // Agrupar los bloques (ya ordenados deporte->categoría->género)
+            // por deporte, conservando el orden de aparición.
+            $por_deporte = array();
             foreach ($this->guion['bloques'] as $b) {
-                $num++;
-                // Cada entrega empieza en una página nueva
-                $this->AddPage();
-                $this->_bloque_entrega($b, $num);
+                $dep = trim((string) $b['deporte']);
+                if (!isset($por_deporte[$dep])) $por_deporte[$dep] = array();
+                $por_deporte[$dep][] = $b;
+            }
+
+            $num  = 0;
+            $primero = true;
+            foreach ($por_deporte as $dep => $bloques_dep) {
+                $titulo_dep = strtoupper($dep !== '' ? $dep : 'OTROS');
+
+                // Medir el alto real de cada categoría del deporte.
+                $altos = array();
+                foreach ($bloques_dep as $b) {
+                    $altos[] = $this->_alto_bloque($b);
+                }
+
+                // Hojas necesarias con espaciado normal (4 mm entre bloques).
+                $tope_normal = $this->h - $this->bMargin - $this->getFooterMargin();
+                $pags = $this->_paginas_necesarias($altos, 4, $tope_normal);
+                // Si no cierra en una sola hoja, comprimir el espacio entre
+                // categorías hasta el mínimo legible (2 mm) para agrupar lo
+                // máximo de entregas por página.
+                $espacio = 4;
+                if ($pags > 1) {
+                    for ($e = 3; $e >= 2; $e--) {
+                        $p2 = $this->_paginas_necesarias($altos, $e, $tope_normal);
+                        if ($p2 < $pags) { $pags = $p2; $espacio = $e; }
+                        if ($pags === 1) break;
+                    }
+                }
+
+                // Cada DEPORTE empieza en una página nueva.
+                if (!$primero) {
+                    $this->AddPage();
+                }
+                $primero = false;
+                $this->_banda_deporte($titulo_dep);
+
+                $ultima = count($bloques_dep);
+                foreach ($bloques_dep as $i => $b) {
+                    $num++;
+                    // Antes de imprimir, verificar que la categoría entre en
+                    // lo que queda de hoja; si no, pasarla completa a la
+                    // siguiente (con su banda de deporte repetida).
+                    if ($this->GetY() + $altos[$i] > $tope_normal) {
+                        $this->AddPage();
+                        $this->_banda_deporte($titulo_dep);
+                    }
+                    $this->_bloque_entrega($b, $num);
+                    if ($i < $ultima - 1) $this->Ln($espacio);
+                }
+            }
+        } else {
+            $this->AddPage();
+        }
+
+        $this->Output($this->nombre_archivo, 'I');
+    }
+
+    /**
+     * Cantidad de hojas que ocupan bloques de $altos mm con $espacio entre
+     * ellos, dentro de un área útil de $tope mm de alto por hoja.
+     */
+    private function _paginas_necesarias($altos, $espacio, $tope) {
+        $pags = 1;
+        $y = 0;
+        foreach ($altos as $a) {
+            if ($y > 0) $y += $espacio;
+            if ($y + $a > $tope) { $pags++; $y = $a; }
+            else { $y += $a; }
+        }
+        return $pags;
+    }
+
+    /**
+     * Altura real (mm) que ocupa una entrega: se renderiza en una página
+     * descartable y se mide cuánto avanzó el cursor. La hoja de medición se
+     * elimina limpiamente (deletePage + reindexado interno), por eso la
+     * numeración final del documento queda intacta.
+     */
+    private function _alto_bloque($b) {
+        $this->AddPage();
+        $pago = $this->page;       // hoja recién creada para medir
+        $y0 = $this->GetY();
+        $this->_bloque_entrega($b, 0); // número 0: solo para medir
+        $alto = $this->GetY() - $y0;
+
+        // --- eliminar la hoja de medición (equivalente a deletePage pero
+        // reindexando también las marcas internas de posición) ---
+        $this->deletePage($pago);
+        if ($pago < $this->numpages) {
+            for ($i = $pago; $i <= $this->numpages; ++$i) {
+                $j = $i + 1;
+                foreach (array('intmrk','cntmrk','bordermrk','transfmrk',
+                              'footerpos','footerlen') as $arr) {
+                    if (isset($this->$arr[$j])) {
+                        $this->$arr[$i] = $this->$arr[$j];
+                        unset($this->$arr[$j]);
+                    }
+                }
             }
         }
-        
-        $this->Output($this->nombre_archivo, 'I');
+        $this->CurPage = $this->page;
+        return $alto;
     }
 }
 
