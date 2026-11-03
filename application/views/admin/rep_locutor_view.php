@@ -108,15 +108,18 @@ class Rep_Locutor_PDF extends TCPDF {
         // que el fondo (azul oscuro sobre azul oscuro) y el nombre del deporte
         // quedaba invisible. Además, las bandas oscuras salen casi negras al
         // imprimir en blanco y negro; una banda clara se lee perfecto.
-        $this->SetFont('dejavusans', 'B', 14);
+        // Letras GRANDES: el locutor lee el guion de pie y a distancia; se
+        // prioriza legibilidad sobre densidad (suba de tamaños + altura de
+        // celda proporcional para conservar la estética).
+        $this->SetFont('dejavusans', 'B', 17);
         $this->SetTextColor(20, 33, 61);          // Texto: azul oscuro
         $this->SetFillColor(232, 232, 240);       // Fondo: gris azulado suave
         $this->SetDrawColor(20, 33, 61);          // Borde: azul oscuro
         $this->SetLineWidth(0.5);
-        $this->Cell(0, 11, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 1, 1, 'L', 1);
+        $this->Cell(0, 13, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 1, 1, 'L', 1);
         $this->SetTextColor(108, 117, 125);
-        $this->SetFont('dejavusans', '', 9);
-        $this->Cell(0, 6, '  Anunciar todas las categorias de este deporte en orden.', 0, 1, 'L');
+        $this->SetFont('dejavusans', '', 11);
+        $this->Cell(0, 7, '  Anunciar todas las categorias de este deporte en orden.', 0, 1, 'L');
         $this->Ln(4);
         $this->SetTextColor(20, 33, 61);
     }
@@ -132,11 +135,13 @@ class Rep_Locutor_PDF extends TCPDF {
 
         // Calcular espacio necesario: cada equipo premiado puede sumar 2 o 3
         // renglones extra por la lista de integrantes.
-        $alt_estimado = 35 + 18 * max(1, count($b['puestos']));
+        // alt_estimado sigue a los tamaños de fuente agrandados (ver abajo):
+        // header más alto + renglones de premiados con más aire.
+        $alt_estimado = 40 + 22 * max(1, count($b['puestos']));
         if ($es_equipo && $integrantes_map) {
             foreach ($b['puestos'] as $pp) {
                 if (!empty($pp['id']) && !empty($integrantes_map[(int) $pp['id']])) {
-                    $alt_estimado += 14;
+                    $alt_estimado += 16;
                 }
             }
         }
@@ -158,20 +163,20 @@ class Rep_Locutor_PDF extends TCPDF {
         // Fondo y borde del header
         $this->SetFillColor(232, 232, 240);      // Gris azulado suave
         $this->SetDrawColor(180, 180, 190);      // Borde gris
-        $this->SetFont('dejavusans', 'B', 11);
+        $this->SetFont('dejavusans', 'B', 14);
         $this->SetTextColor(20, 33, 61);
 
         // Celda con borde completo, fondo y salto de línea al final
-        $this->Cell(0, 9, '  ' . $num . '.  ' . $titulo, 1, 1, 'L', 1);
+        $this->Cell(0, 11, '  ' . $num . '.  ' . $titulo, 1, 1, 'L', 1);
 
         $this->Ln(3); // Espacio entre el header y los ganadores
 
         // Prueba individual (si aplica)
         $es_prueba_ind = (isset($b['anunciar']) && $b['anunciar'] === 'provincia');
         if ($es_prueba_ind) {
-            $this->SetFont('dejavusans', 'I', 9);
+            $this->SetFont('dejavusans', 'I', 11);
             $this->SetTextColor(180, 120, 0);
-            $this->Cell(0, 6, '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 1, 'L');
+            $this->Cell(0, 7, '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 1, 'L');
             $this->Ln(2);
         }
 
@@ -211,12 +216,13 @@ class Rep_Locutor_PDF extends TCPDF {
             }
 
             // Número de posición (ancho fijo, alineado a derecha)
-            $this->SetFont('dejavusans', 'B', 11);
+            $this->SetFont('dejavusans', 'B', 15);
             $this->SetTextColor($colores[$pos][0], $colores[$pos][1], $colores[$pos][2]);
-            $this->Cell(12, 7, $etiquetas[$pos], 0, 0, 'R');
+            $this->Cell(14, 9, $etiquetas[$pos], 0, 0, 'R');
 
-            // Nombre y referencia
-            $this->SetFont('dejavusans', 'B', 11);
+            // Nombre y referencia: lo MÁS grande del documento — es lo que
+            // el locutor tiene que leer en voz alta.
+            $this->SetFont('dejavusans', 'B', 16);
             $this->SetTextColor(20, 33, 61);
 
             $texto_completo = $nombre_mostrar;
@@ -224,27 +230,27 @@ class Rep_Locutor_PDF extends TCPDF {
                 $texto_completo .= '  (ref.: ' . $ref_mostrar . ')';
             }
 
-            $this->MultiCell(0, 7, $texto_completo, 0, 'L', 0, 1);
+            $this->MultiCell(0, 9, $texto_completo, 0, 'L', 0, 1);
 
             // Equipos: listar los integrantes separados por " - " y entre
             // paréntesis, para que el locutor sepa QUIÉNES suben al escenario.
             if ($es_equipo && !empty($p['id'])) {
                 $ints = isset($integrantes_map[(int) $p['id']]) ? $integrantes_map[(int) $p['id']] : array();
                 if (is_array($ints) && $ints) {
-                    $this->SetFont('dejavusans', '', 8.5);
+                    $this->SetFont('dejavusans', '', 11);
                     $this->SetTextColor(93, 102, 112);
-                    $this->Cell(12, 5, '', 0, 0, 'R'); // sangría: alineado bajo el nombre
-                    $this->MultiCell(0, 5, '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
+                    $this->Cell(14, 6, '', 0, 0, 'R'); // sangría: alineado bajo el nombre
+                    $this->MultiCell(0, 6, '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
                     $this->SetTextColor(20, 33, 61);
                 }
             }
 
             // Nota de desempate
             if (!empty($p['desempate'])) {
-                $this->SetFont('dejavusans', 'I', 8);
+                $this->SetFont('dejavusans', 'I', 10);
                 $this->SetTextColor(120, 90, 10);
-                $this->Cell(12, 5, '', 0, 0, 'R'); // Espacio para alinear
-                $this->MultiCell(0, 5, 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
+                $this->Cell(14, 6, '', 0, 0, 'R'); // Espacio para alinear
+                $this->MultiCell(0, 6, 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
                 $this->SetTextColor(20, 33, 61);
             }
 
@@ -257,15 +263,15 @@ class Rep_Locutor_PDF extends TCPDF {
 
 
 
-            $this->Ln(2);
+            $this->Ln(3);
         }
 
         // Sin galardonados
         if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
-            $this->SetFont('dejavusans', 'I', 9);
+            $this->SetFont('dejavusans', 'I', 11);
             $this->SetTextColor(108, 117, 125);
-            $this->Cell(12, 6, '', 0, 0, 'R');
-            $this->MultiCell(0, 6, 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
+            $this->Cell(14, 7, '', 0, 0, 'R');
+            $this->MultiCell(0, 7, 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
         }
 
         $this->Ln(8); // Espacio final entre bloques
