@@ -204,12 +204,33 @@ class Rep_Locutor_PDF extends TCPDF {
                 $this->MultiCell(0, 5, 'Definido por: ' . strtoupper($p['desempate']), 0, 'L');
             }
             
-            // Espacio para NOTAS del locutor
+            // Integrantes del equipo premiado (deportes de EQUIPO) o espacio
+            // para notas del locutor (pruebas individuales).
+            $integrantes = null;
+            if (!empty($b['es_equipo']) && !empty($p['id'])
+                && !empty($b['integrantes'][(int) $p['id']])) {
+                $integrantes = $b['integrantes'][(int) $p['id']];
+            }
             $this->SetY($this->GetY() + 2);
-            $this->SetFont('dejavusans', 'I', 8);
-            $this->SetTextColor(180, 180, 180);
-            $this->Cell(20, 5, '', 0, 0);
-            $this->Cell(0, 5, 'Notas: ___________________________________________', 0, 1, 'L');
+            if ($integrantes) {
+                // En equipos el locutor necesita saber QUIÉNES suben al
+                // escenario: se listan separados por " - ".
+                $x_txt = $this->lMargin + 20;
+                $this->SetFont('dejavusans', '', 8);
+                $this->SetTextColor(self::GRIS_MEDIO);
+                $this->SetX($x_txt);
+                $this->Cell(0, 5, 'Integrantes:', 0, 1, 'L');
+                $this->SetFont('dejavusans', 'B', 8);
+                $this->SetTextColor(self::AZUL_OSCURO);
+                $this->SetX($x_txt);
+                $this->MultiCell($this->w - $this->rMargin - $x_txt, 4.5,
+                    implode(' - ', $integrantes), 0, 'L');
+            } else {
+                $this->SetFont('dejavusans', 'I', 8);
+                $this->SetTextColor(180, 180, 180);
+                $this->Cell(20, 5, '', 0, 0);
+                $this->Cell(0, 5, 'Notas: ___________________________________________', 0, 1, 'L');
+            }
             
             // Línea separadora
             $this->Ln(3);
