@@ -1799,8 +1799,14 @@ class Premiacion_model extends CI_Model {
      * "atraso" en cualquier fecha elegida y el filtro daría la sensación de no
      * funcionar. Se reportan aparte con obtener_sin_fecha() para mostrar un
      * aviso claro en pantalla.
+     *
+     * @param bool $incluir_completas Por defecto se excluyen las categorías que
+     *        ya tienen TODOS sus puestos registrados (porque 'premiacion.php'
+     *        las muestra aparte, en la columna "Premiados"). El reporte del
+     *        locutor pasa TRUE para que ninguna entrega confirmada de noches
+     *        anteriores quede fuera del guion impreso.
      */
-    public function obtener_atrasos_hasta($fecha) {
+    public function obtener_atrasos_hasta($fecha, $incluir_completas = false) {
         $items = $this->obtener_estado_premiables();
         $pedido = $this->_norm_fecha($fecha);
         $out = array();
@@ -1819,7 +1825,7 @@ class Premiacion_model extends CI_Model {
             foreach ($puestos_esperados as $p) {
                 if (!isset($entregados[$p])) { $completa = false; break; }
             }
-            if ($completa) continue;
+            if ($completa && $incluir_completas !== true) continue;
             $out[] = $it;
         }
         return $out;
@@ -2069,7 +2075,12 @@ class Premiacion_model extends CI_Model {
 
         $items = $this->obtener_resumen_noche($pedido);
         if ($incluir_atrasos) {
-            foreach ($this->obtener_atrasos_hasta($pedido) as $it) {
+            // TRUE: el guion del locutor debe mostrar TODAS las entregas que
+            // todavía no se anunciaron, incluso las de noches anteriores que
+            // ya fueron confirmadas en pantalla (premiacion.php las lista
+            // aparte como "Premiados", pero si no se leyeron en la cena, el
+            // locutor tiene que tenerlas en su hoja).
+            foreach ($this->obtener_atrasos_hasta($pedido, true) as $it) {
                 $items[] = array_merge($it, array('atraso' => true));
             }
         }
