@@ -875,19 +875,45 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           return array(1 => 'p-oro', 2 => 'p-plata', 3 => 'p-bronce')[$puesto] ?? '';
       };
 
-      /* ---- 1) PODIOS AGRUPADOS POR DEPORTE ---- */
+      /* ---- 1) PODIOS AGRUPADOS POR DEPORTE ----
+         El orden de llegada de $podios ya es por DÍA DE PREMIACIÓN (lo más
+         reciente primero) y deporte: acá se conservan los bloques tal como
+         vinieron — NO se vuelve a ordenar alfabéticamente, porque si no
+         Fútbol premiado el 02/11 aparecería arriba de Fútbol premiado el 03/11.
+         Si un mismo deporte se premió en noches distintas, cada noche forma su
+         propio bloque (todas las categorías de esa noche siguen juntas). */
       $grupos_dep = array();
       foreach ($podios as $pd) {
-          $clave = $pd['deporte'] !== '' ? $pd['deporte'] : 'Otros';
-          $grupos_dep[$clave][] = $pd;
+          $dep_clave = $pd['deporte'] !== '' ? $pd['deporte'] : 'Otros';
+          // Día de premiación del bloque: fecha_entrega (día sugerido o día de
+          // la definición, según Premiación) o, si todavía no cerró, el último
+          // día que se jugó dentro de la categoría.
+          $fecha_dia = !empty($pd['fecha_entrega']) ? substr((string) $pd['fecha_entrega'], 0, 10) : '';
+          if ($fecha_dia === '') {
+              $dias_int = array();
+              foreach (isset($pd['partidos']) && is_array($pd['partidos']) ? $pd['partidos'] : array() as $pt_aux) {
+                  if (!empty($pt_aux['fecha'])) $dias_int[] = substr((string) $pt_aux['fecha'], 0, 10);
+              }
+              foreach (isset($pd['jornadas']) && is_array($pd['jornadas']) ? $pd['jornadas'] : array() as $j_aux) {
+                  if (!empty($j_aux['fecha'])) $dias_int[] = substr((string) $j_aux['fecha'], 0, 10);
+              }
+              if ($dias_int) $fecha_dia = max($dias_int);
+          }
+          $clave = $dep_clave . '|' . $fecha_dia;
+          if (!isset($grupos_dep[$clave])) {
+              $grupos_dep[$clave] = array('deporte' => $dep_clave, 'fecha' => $fecha_dia, 'items' => array());
+          }
+          $grupos_dep[$clave]['items'][] = $pd;
       }
-      ksort($grupos_dep, SORT_NATURAL | SORT_FLAG_CASE);
-      foreach ($grupos_dep as $dep_nombre => $items_dep): ?>
+      // SIN ksort: el orden de inserción refleja ya "día más nuevo primero".
+      foreach ($grupos_dep as $grupo_dep):
+          $dep_nombre = $grupo_dep['deporte'];
+          $items_dep = $grupo_dep['items']; ?>
     <div class="podio-grupo">
       <div class="podio-dep-head">
         <span class="podio-dep-icon"><?= $icono_deporte($dep_nombre) ?></span>
         <div>
-          <div class="podio-dep-nombre"><?= htmlspecialchars($dep_nombre) ?></div>
+          <div class="podio-dep-nombre"><?= htmlspecialchars($dep_nombre) ?><?php if ($grupo_dep['fecha'] !== ''): ?> <span class="podio-dep-dia" style="font-size:.8rem;font-weight:600;opacity:.75;white-space:nowrap">🏆 Premiación <?= htmlspecialchars(date('d/m/Y', strtotime($grupo_dep['fecha']))) ?></span><?php endif; ?></div>
           <div class="podio-dep-meta"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?> · <?php
               $hay_masivo = false; $hay_enfrent = false;
               foreach ($items_dep as $x) {

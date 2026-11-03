@@ -213,9 +213,31 @@ class Publico extends CI_Controller {
             $salida[] = $p;
         }
 
-        // Orden final: deporte (A-Z) y dentro del deporte las categorías
-        // cerradas primero — la vista agrupa en este mismo orden.
-        usort($salida, function ($a, $b) {
+        // Orden final: DÍA DE PREMIACIÓN más reciente primero (lo que se premió
+        // el 03/11 aparece antes que lo del 02/11). El día de cada categoría es
+        // su `fecha_entrega` (día sugerido o día de la definición, según
+        // Premiación); si aún no cerró, el último día jugado dentro de la
+        // categoría. Las que no tienen ninguna fecha conocida van al final.
+        // Dentro del mismo día: deporte A-Z — así todas las categorías de un
+        // mismo deporte premiadas esa noche quedan juntas.
+        $dia_de_premiacion = function ($p) {
+            if (!empty($p['fecha_entrega'])) return substr((string) $p['fecha_entrega'], 0, 10);
+            $dias = array();
+            foreach (isset($p['partidos']) && is_array($p['partidos']) ? $p['partidos'] : array() as $pt) {
+                if (!empty($pt['fecha'])) $dias[] = substr((string) $pt['fecha'], 0, 10);
+            }
+            foreach (isset($p['jornadas']) && is_array($p['jornadas']) ? $p['jornadas'] : array() as $j) {
+                if (!empty($j['fecha'])) $dias[] = substr((string) $j['fecha'], 0, 10);
+            }
+            return $dias ? max($dias) : '';
+        };
+        usort($salida, function ($a, $b) use ($dia_de_premiacion) {
+            $fa = $dia_de_premiacion($a);
+            $fb = $dia_de_premiacion($b);
+            // Con fecha primero (DESC = lo más nuevo arriba); sin fecha al final.
+            if (($fa === '') !== ($fb === '')) return $fa === '' ? 1 : -1;
+            $cmp = strcmp($fb, $fa); // fechas 'Y-m-d': DESC
+            if ($cmp !== 0) return $cmp;
             $cmp = strcasecmp((string) $a['deporte'], (string) $b['deporte']);
             if ($cmp !== 0) return $cmp;
             if (!empty($a['cerrada']) !== !empty($b['cerrada'])) return !empty($a['cerrada']) ? -1 : 1;
