@@ -576,7 +576,7 @@ class Publico_model extends CI_Model {
      * Nombres de UTEs por id, leídos con raw SQL acotado a los ids pedidos
      * (no depende del estado de la Query Builder ni del tamaño de la tabla).
      */
-    private function _nombres_utes_por_ids($ids) {
+    public function _nombres_utes_por_ids($ids) {
         $mapa = array();
         try {
             $ids = array_values(array_unique(array_map('intval', $ids)));
