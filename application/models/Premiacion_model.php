@@ -2129,6 +2129,14 @@ class Premiacion_model extends CI_Model {
                 );
                 $total_medallas++;
             }
+            // === AGREGÁ ESTO PARA DEPURAR ===
+            if (empty($puestos)) {
+                echo "<div style='color:red; font-family:monospace;'>";
+                echo "CATEGORÍA DESCARTADA: " . $it['categoria']['nombre_categoria'] . " (ID: " . $it['categoria']['id_categoria'] . ")<br>";
+                echo "Motivo: El podio crudo está vacío o no coincide con la regla.<br>";
+                echo "Podio crudo detectado: "; print_r($it['podio']); 
+                echo "</div><hr>";
+            }
             if (!$puestos) continue; // sin medallistas resueltos: no va al guion
 
             // Integrantes de los equipos premiados: en deportes de EQUIPO el
@@ -2163,58 +2171,11 @@ class Premiacion_model extends CI_Model {
             );
         }
 
-        // Orden del guion: deporte -> rama (primero TODAS las FEMENINAS, luego
-        // las masculinas y por último las mixtas — es el orden de la ceremonia
-        // y evita que las ramas queden "intercaladas" y parezca que falta una)
-        // -> nombre de categoría.
-        $rama = function ($g) {
-            $k = mb_strtoupper(trim(preg_replace('/\s+/u', '', (string) $g), 'UTF-8'));
-            if (in_array($k, array('F', 'FEMENINO', 'FEMENINA', 'MUJERES', 'DAMAS'), true)) return 0;
-            if (in_array($k, array('X', 'MIXTO', 'MIXTA', 'MISTO'), true)) return 2;
-            return 1; // M / VARONES / CABALLEROS / lo que sea: rama masculina
-        };
-        usort($bloques, function ($a, $b) use ($rama) {
-            return [strtolower($a['deporte']), $rama($a['genero']), strtolower($a['categoria'])]
-                 <=> [strtolower($b['deporte']), $rama($b['genero']), strtolower($b['categoria'])];
+        // Orden del guion: deporte -> categoría -> género (para leerlo seguido).
+        usort($bloques, function ($a, $b) {
+            return [strtolower($a['deporte']), strtolower($a['categoria']), strtolower($a['genero'])]
+                 <=> [strtolower($b['deporte']), strtolower($b['categoria']), strtolower($b['genero'])];
         });
-
-        // ---------- AUDITORÍA DEL GUION ----------
-        // El PDF se genera con Output(...,'I') (inline): al descargarlo desde
-        // el navegador NO queda ningún registro de qué categorías quedaron
-        // afuera, y eso hace imposible diagnosticar el clásico "en premiacion
-        // .php veo 8 categorías y en el PDF solo 4". Se deja constancia escrita
-        // de cada omisión y del resumen de la noche en los logs del servidor
-        // (system/logs).
-        $cats_noche = array();
-        foreach ($items as $it) {
-            $c = $it['categoria'];
-            $cats_noche[] = trim((string) $c['nombre_deporte']) . ' › '
-                . trim((string) $c['nombre_categoria'])
-                . ' (' . trim((string) ($c['genero'] ?? '')) . ')';
-        }
-        if ($cats_noche) {
-            log_message('info', '[Locutor] ' . $pedido . ': ' . count($cats_noche)
-                . ' categorías cerradas para premiar — ' . implode(' | ', $cats_noche));
-        }
-        if (count($bloques) < count($items)) {
-            $ids_en_guion = array_column($bloques, 'id_categoria');
-            $omisas = array();
-            foreach ($items as $it) {
-                $id_c = (int) $it['categoria']['id_categoria'];
-                if (in_array($id_c, $ids_en_guion, true)) continue;
-                $podio = isset($it['podio']) ? $it['podio'] : array();
-                $nom = array();
-                foreach ($podio as $pos => $p) {
-                    $nom[] = $pos . '°=' . trim((string) ($p['nombre'] ?? '(sin nombre)'));
-                }
-                $omisas[] = trim((string) $it['categoria']['nombre_deporte']) . ' › '
-                    . trim((string) $it['categoria']['nombre_categoria'])
-                    . ' (' . trim((string) ($it['categoria']['genero'] ?? '')) . ')'
-                    . ': podio [' . ($nom ? implode(', ', $nom) : 'VACÍO') . ']';
-            }
-            log_message('error', '[Locutor] ' . $pedido . ': ' . count($omisas)
-                . ' categoría(s) NO incluida(s) en el PDF — ' . implode(' || ', $omisas));
-        }
 
         return array(
             'fecha'         => $pedido,

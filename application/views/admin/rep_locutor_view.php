@@ -29,28 +29,25 @@ class Rep_Locutor_PDF extends TCPDF {
     public $guion = array();
     public $nombre_archivo = 'reporte_locutor.pdf';
 
-    // Colores institucionales
-    const AZUL_OSCURO = array(20, 33, 61);
+    /** Colores institucionales suaves (buena impresión en blanco y negro). */
+    const AZUL   = array(20, 33, 61);
     const DORADO = array(241, 196, 15);
-    const PLATA = array(192, 192, 192);
-    const BRONCE = array(205, 127, 50);
-    const GRIS_SUAVE = array(128, 128, 128);
-    const GRIS_MEDIO = array(108, 117, 125);
+    const GRIS   = array(108, 117, 125);
 
     public function Header() {
         //(80, 50, 50);
         $this->SetFont('dejavusans', 'B', 8);
         $this->SetTextColor(108, 117, 125);
         $this->Image('assets/img/header.jpg', $this->lMargin, $this->GetY(), 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
-        
+
         $this->Cell(0, 80, 'GUION DE PREMIACION · ' . strtoupper($this->_fecha_larga()), 0, 1, 'R');
-        
+
         $this->SetDrawColor(203, 213, 225);
         $this->SetLineWidth(0.2);
         $this->Line($this->lMargin, $this->GetY(), $this->w - $this->rMargin,$this->GetY());
         $this->SetY($this->GetY() + 4);
-        
-        
+
+
     }
 
     public function Footer() {
@@ -71,436 +68,165 @@ class Rep_Locutor_PDF extends TCPDF {
         if (!$f) return '';
         $ts = strtotime($f);
         if (!$ts) return $f;
-        
-        $dias = array('Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado');
-        $meses = array('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
-                    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre');
-        
-        return $dias[(int) date('w', $ts)] . ' ' . date('j', $ts) . ' de ' 
-            . $meses[(int) date('n', $ts) - 1] . ' de ' . date('Y', $ts);
-    }
-
-    
-
-    /**
-     * Género legible para el título del bloque: usa categorias.genero y, si
-     * el nombre de la categoría ya lo decía ("Damas · Libre" / "Libre (F)"),
-     * NO lo duplica. Devuelve '' | 'Masculino' | 'Femenino' | 'Mixto'.
-     */
-    private function _genero_texto($b) {
-        $g = trim((string) ($b['genero'] ?? ''));
-        if ($g === '') return '';
-        $mapa = array(
-            'M' => 'Masculino', 'VARONES' => 'Masculino', 'CABALLEROS' => 'Masculino',
-            'HOMBRES' => 'Masculino', 'MASCULINO' => 'Masculino',
-            'F' => 'Femenino', 'MUJERES' => 'Femenino', 'DAMAS' => 'Femenino',
-            'FEMENINO' => 'Femenino',
-            'X' => 'Mixto', 'MIXTO' => 'Mixto', 'MIXTA' => 'Mixto',
-        );
-        $clave = mb_strtoupper(trim(preg_replace('/\s+/u', '', $g), 'UTF-8'));
-        $texto = isset($mapa[$clave]) ? $mapa[$clave] : mb_convert_case($g, MB_CASE_TITLE, 'UTF-8');
-
-        // Si el título que quedó DESPUÉS DE LIMPIARLO ya distingue el género
-        // ("Damas", "Caballeros", "Libre Femenina"...), no hace falta agregar
-        // nada más: esas ramas ya tienen títulos distintos entre sí. Se prueba
-        // contra la versión larga del género (nunca contra la abreviatura del
-        // campo, que podría ser 'F'/'M'), sobre el nombre ya recortado — si se
-        // probara contra el nombre original, "Libre · Femenino" nunca recibiría
-        // su etiqueta y volvería a fusionarse con la rama masculina.
-        $titulo_limpio = mb_strtolower(
-            preg_replace('/[^\p{L}]+/u', '',
-                $this->_limpiar_nombre_categoria($b['categoria'])), 'UTF-8');
-        $largos = array('Masculino' => 'masculin', 'Femenino' => 'femenin',
-                        'Mixto' => 'mixt');
-        if (isset($largos[$texto]) && mb_strpos($titulo_limpio, $largos[$texto]) !== false) {
-            return '';
-        }
-        if ($texto === 'Femenino' && (mb_strpos($titulo_limpio, 'dama') !== false
-            || mb_strpos($titulo_limpio, 'mujer') !== false)) return '';
-        if ($texto === 'Masculino' && (mb_strpos($titulo_limpio, 'caballer') !== false
-            || mb_strpos($titulo_limpio, 'varon') !== false
-            || mb_strpos($titulo_limpio, 'hombre') !== false)) return '';
-        // Términos raros guardados en categorias.genero (ej: "Femenina"): si
-        // esa misma palabra ya está en el título, tampoco duplicarla.
-        $palabra = mb_strtolower(trim(preg_replace('/\s+/u', '', $g), 'UTF-8'));
-        if ($palabra !== '' && mb_strlen($palabra) > 2
-            && mb_strpos($titulo_limpio, $palabra) !== false) return '';
-        return $texto;
+        // strftime deprecated en PHP 8.2+: armar a mano con mapas fijos.
+        $dias = array('Domingo', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado');
+        $meses = array('Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio',
+                       'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre');
+        return $dias[(int) date('w', $ts)] . ' ' . date('j', $ts) . ' de '
+             . $meses[(int) date('n', $ts) - 1] . ' de ' . date('Y', $ts);
     }
 
     /**
-     * Separa nombre principal de referencia
+     * Descompone un nombre de competidor para el locutor.
+     *  - "CATAMARCA (LOPEZ, MARIA FERNANDA)"  => principal CATAMARCA, ref el nombre.
+     *  - "LOPEZ, MARIA (35087017)" (formato viejo con DNI) => no exponer el DNI:
+     *    principal = nombre, referencia vacia.
+     *  - Cualquier otro texto (equipos) => principal = texto completo.
      */
     private function _separar_nombre($nombre) {
         $nombre = trim(preg_replace('/\s+/u', ' ', (string) $nombre));
-        
         if (!preg_match('/^(.*)\(([^()]*)\)$/u', $nombre, $m)) {
             return array('principal' => $nombre, 'referencia' => '');
         }
-        
         $cuerpo = trim($m[1]);
         $sufijo = trim($m[2]);
-        
         if ($cuerpo === '') return array('principal' => $nombre, 'referencia' => '');
-        
-        // Si es numérico (DNI), no mostrar
+        // Sufijo numérico = DNI residual (formato viejo): NO imprimirlo.
         if (preg_match('/^[\d.\-]+$/', $sufijo)) {
             return array('principal' => $cuerpo, 'referencia' => '');
         }
-        
         return array('principal' => $cuerpo, 'referencia' => $sufijo);
     }
 
-    /**
-     * Limpia el nombre de la categoría para el TÍTULO del bloque:
-     * muestra SOLO el nombre, quitando el género (Masculino/Femenino/Mixto),
-     * el tipo de largada (Largada A/B, Masiva...) y la modalidad
-     * (Individual/Dupla/Equipos...). Es tolerante a separadores '·', '-', '/', ','.
-     */
-    private function _limpiar_nombre_categoria($nombre) {
-        $original = trim(preg_replace('/\s+/u', ' ', (string) $nombre));
-        $nombre   = $original;
-
-        // Términos que NO deben aparecer en el título del reporte del locutor.
-        $excluir = '(?:masculino|femenino|mixto|mixta|misto|varon|varones|'
-                 . 'hombre|hombres|mujer|mujeres|'
-                 . 'largada\s*[a-z0-9]?|salida\s*[a-z0-9]?|masiv[oa]|'
-                 . 'individual(?:es)?|dupla[s]?|pareja[s]?|dobles?|team)';
-        // "equipos" solo se quita en la modalidad "por equipos"; nunca "dama/s",
-        // "caballeros" u otros nombres que pueden ser el nombre real de la categoría.
-        $prefijo = '(?:por\s+equipos|' . $excluir . ')';
-        $regex = '\b' . $excluir . '\b';
-
-        // 1) Cortar el nombre en el primer separador seguido de un término a excluir
-        //    (ej: "Libre · Masculino · Largada B" -> "Libre").
-        if (preg_match('/^(.*?)[\s·\-\/\,]+(' . $regex . '|por\s+equipos)/iu', $nombre, $m)) {
-            $corte = trim($m[1], " \t\n·-/,\x{00B7}");
-            // Solo cortar si quedó un nombre razonable (evita destruir nombres simples).
-            if ($corte !== '') {
-                $nombre = $corte;
-            }
-        }
-
-        // 2) Quitar términos sueltos que hayan quedado incrustados (con sus separadores).
-        $nombre = preg_replace('/[\s·\-\/\,]*\(' . $regex . '\)/iu', '', $nombre);
-        $nombre = preg_replace('/[\s·\-\/\,]+\b' . $regex . '/iu', '', $nombre);
-        // "Por equipos" solo si viene precedido de separador ("Tenis Por Equipos -> Tenis").
-        $nombre = preg_replace('/[\s·\-\/\,]+\bpor\s+equipos\b/iu', '', $nombre);
-
-        // 3) Si el nombre COMIENZA con la modalidad ("Por Equipos Masculino"),
-        //    quitar también ese prefijo (y sus separadores sobrantes).
-        $nombre = preg_replace('/^' . $prefijo . '[\s·\-\/\,]*/iu', '', $nombre);
-
-        // 4) Limpiar separadores sobrantes al inicio/final.
-        $nombre = trim($nombre, " \t\n·-/,\x{00B7}");
-
-        return $nombre !== '' ? $nombre : $original;
-    }
-
-    /**
-     * BLOQUE DE ENTREGA - Formato profesional de guion.
-     * Se imprime DENTRO de la página de su DEPORTE (Body() agrupa por
-     * deporte y salta de página solo al cambiar de deporte), así el locutor
-     * tiene una hoja limpia por disciplina con todas sus categorías abajo.
-     */
+    /** Un bloque = una competencia con su podio (formato texto con viñetas). */
     private function _bloque_entrega($b, $num) {
-        // ========================================
-        // TÍTULO DE LA CATEGORÍA (el deporte va en el encabezado de página)
-        // ========================================
-        $this->SetFillColor(self::GRIS_SUAVE[0], self::GRIS_SUAVE[1], self::GRIS_SUAVE[2]);
-        $this->SetTextColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
-        $this->SetFont('dejavusans', 'B', 12);
-
-        // Solo el NOMBRE de la categoría: se excluyen género, tipo de largada
-        // y modalidad del título. PERO si al limpiarlo dos categorías del mismo
-        // deporte quedarían con el mismo título (ej: "Libre · Masculino" y
-        // "Libre · Femenino" -> ambas "LIBRE"), se agrega el GÉNERO entre
-        // paréntesis; si no, el locutor vería una sola entrega por rama y
-        // parecería que faltan todas las categorías femeninas (o las
-        // masculinas) respecto de premiacion.php.
-        $nombre_cat = self::_limpiar_nombre_categoria($b['categoria']);
-        if (!empty($b['titulo_ambiguo'])) {
-            $genero_txt = self::_genero_texto($b);
-            if ($genero_txt !== '') $nombre_cat .= ' (' . $genero_txt . ')';
-        }
-        $titulo = strtoupper($nombre_cat);
-        $this->Cell(0, 8, '  ' . $titulo, 0, 1, 'L', 1);
-
-        $this->Ln(2);
-        
-        
-        
-        // ========================================
-        // LISTA DE GANADORES
-        // ========================================
-        $orden = array_keys($b['puestos']);
-        sort($orden);
-        
-        foreach ($orden as $pos) {
-            if (!isset($b['puestos'][$pos])) continue;
-            $p = $b['puestos'][$pos];
-            
-            // Separar nombre
-            $sep = $this->_separar_nombre($p['nombre']);
-            $nombre_mostrar = strtoupper($sep['principal']);
-            $ref_mostrar = $sep['referencia'];
-            
-            // Color según posición
-            if ($pos == 1) {
-                $color = self::DORADO;
-                $simbolo = '🥇';
-                $fondo_color = array(255, 248, 220);
-            } elseif ($pos == 2) {
-                $color = self::PLATA;
-                $simbolo = '🥈';
-                $fondo_color = array(245, 245, 245);
-            } elseif ($pos == 3) {
-                $color = self::BRONCE;
-                $simbolo = '🥉';
-                $fondo_color = array(255, 240, 230);
-            } else {
-                $color = self::GRIS_MEDIO;
-                $simbolo = $pos . '°';
-                $fondo_color = self::GRIS_SUAVE;
-            }
-            
-            // Fondo suave para el ganador
-            $this->SetFillColor($fondo_color[0], $fondo_color[1], $fondo_color[2]);
-            $y_inicio = $this->GetY();
-            
-            // Número de posición grande
-            $this->SetFont('dejavusans', 'B', 20);
-            $this->SetTextColor($color[0], $color[1], $color[2]);
-            $this->Cell(20, 12, $pos . '°', 0, 0, 'C');
-            
-            // Nombre del ganador EN GRANDE
-            $this->SetFont('dejavusans', 'B', 16);
-            $this->SetTextColor(self::AZUL_OSCURO);
-            $this->Cell(0, 12, $nombre_mostrar, 0, 1, 'L');
-            
-            // Referencia (si existe) en tamaño menor
-            if ($ref_mostrar !== '') {
-                $this->SetFont('dejavusans', '', 9);
-                $this->SetTextColor(self::GRIS_MEDIO);
-                $this->Cell(20, 5, '', 0, 0);
-                $this->Cell(0, 5, '(ref.: ' . $ref_mostrar . ')', 0, 1, 'L');
-            }
-            
-            // Premio que recibe
-            if (!empty($p['premio'])) {
-                $this->SetFont('dejavusans', 'B', 10);
-                $this->SetTextColor($color[0], $color[1], $color[2]);
-                $this->Cell(20, 6, '', 0, 0);
-                $this->Cell(0, 6, '→ ' . strtoupper($p['premio']), 0, 1, 'L');
-            }
-            
-            // Nota de desempate
-            if (!empty($p['desempate'])) {
-                $this->SetFont('dejavusans', 'I', 8);
-                $this->SetTextColor(150, 100, 0);
-                $this->Cell(20, 5, '', 0, 0);
-                $this->MultiCell(0, 5, 'Definido por: ' . strtoupper($p['desempate']), 0, 'L');
-            }
-            
-            // Integrantes del equipo premiado (deportes de EQUIPO) o espacio
-            // para notas del locutor (pruebas individuales).
-            $integrantes = null;
-            if (!empty($b['es_equipo']) && !empty($p['id'])
-                && !empty($b['integrantes'][(int) $p['id']])) {
-                $integrantes = $b['integrantes'][(int) $p['id']];
-            }
-            $this->SetY($this->GetY() + 2);
-            if ($integrantes) {
-                // En equipos el locutor necesita saber QUIÉNES suben al
-                // escenario: se listan separados por " - ".
-                $x_txt = $this->lMargin + 20;
-                $this->SetFont('dejavusans', '', 8);
-                $this->SetTextColor(self::GRIS_MEDIO);
-                $this->SetX($x_txt);
-                $this->Cell(0, 5, 'Integrantes:', 0, 1, 'L');
-                $this->SetFont('dejavusans', 'B', 8);
-                $this->SetTextColor(self::AZUL_OSCURO);
-                $this->SetX($x_txt);
-                $this->MultiCell($this->w - $this->rMargin - $x_txt, 4.5,
-                    implode(' - ', $integrantes), 0, 'L');
-            } 
-            
-            // Línea separadora
-            $this->Ln(3);
-            $this->SetDrawColor(220, 220, 230);
-            $this->SetLineWidth(0.2);
-            $this->Line($this->lMargin + 5, $this->GetY(), $this->w - $this->rMargin - 5, $this->GetY());
-            $this->Ln(5);
-        }
-        
-        // Si no hay ganadores
-        if (empty($b['puestos'])) {
-            $this->SetFont('dejavusans', 'I', 10);
-            $this->SetTextColor(self::GRIS_MEDIO);
-            $this->Cell(0, 8, 'SIN GALARDONADOS — No anunciar esta entrega', 0, 1, 'C');
-        }
-    }
-
-    /**
-     * Banda azul con el nombre del DEPORTE: cabecera de la página del guion.
-     */
-    private function _banda_deporte($deporte) {
-        $this->SetFillColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
-        $this->SetTextColor(255, 255, 255);
-        $this->SetFont('dejavusans', 'B', 16);
-        $this->Cell(0, 12, '  ' . strtoupper($deporte), 0, 1, 'L', 1);
-        $this->Ln(3);
-    }
-
-    /**
-     * CUERPO DEL DOCUMENTO — UN DEPORTE POR PÁGINA.
-     * Se agrupan las entregas por deporte; cada deporte arranca en una hoja
-     * nueva con su banda de título y debajo van TODAS sus categorías.
-     * Los cortes de página se hacen SIEMPRE entre deportes (una categoría
-     * jamás queda partida): si un deporte necesita más de una hoja, todas
-     * sus categorías se "comprimen" hasta cerrarlas en la mínima cantidad
-     * de hojas posible, y recién entonces pasa el siguiente deporte.
-     */
-    public function Body() {
-
-        if (!empty($this->guion['bloques'])) {
-            // ---------- Títulos ambiguos: mismo nombre tras limpiarlo --------
-            // El título del bloque se imprime SIN género/largada/modalidad. Si
-            // dos categorías del deporte quedan idénticas (típico: "Libre ·
-            // Masculino" y "Libre · Femenino" -> ambas "LIBRE"), el locutor ve
-            // una sola entrega por rama y parece que faltan categorías
-            // respecto de premiacion.php. Se marca cada bloque cuyo título se
-            // repite dentro de su deporte para agregarle el género.
-            // OJO: _alto_bloque() renderiza el bloque REAL antes de imprimirlo
-            // (para medir su altura), así que la bandera debe quedar puesta en
-            // $this->guion['bloques'] ANTES de agrupar/cortar las páginas —
-            // además los títulos con género son más altos, y midiendo ya con
-            // la etiqueta puesta el cálculo de hojas sigue siendo exacto.
-            $titulos_por_deporte = array();
-            foreach ($this->guion['bloques'] as $idx => $b) {
-                $dep = trim((string) $b['deporte']);
-                $t = mb_strtoupper(
-                    self::_limpiar_nombre_categoria($b['categoria']), 'UTF-8');
-                if (!isset($titulos_por_deporte[$dep][$t])) {
-                    $titulos_por_deporte[$dep][$t] = 0;
-                }
-                $titulos_por_deporte[$dep][$t]++;
-            }
-            foreach ($this->guion['bloques'] as $idx => $b) {
-                $dep = trim((string) $b['deporte']);
-                $t = mb_strtoupper(
-                    self::_limpiar_nombre_categoria($b['categoria']), 'UTF-8');
-                $this->guion['bloques'][$idx]['titulo_ambiguo'] =
-                    $titulos_por_deporte[$dep][$t] > 1;
-            }
-
-            // Agrupar otra vez los bloques, ahora ya con la bandera marcada.
-            $por_deporte = array();
-            foreach ($this->guion['bloques'] as $b) {
-                $dep = trim((string) $b['deporte']);
-                if (!isset($por_deporte[$dep])) $por_deporte[$dep] = array();
-                $por_deporte[$dep][] = $b;
-            }
-
-            $num  = 0;
-            $primero = true;
-            foreach ($por_deporte as $dep => $bloques_dep) {
-                $titulo_dep = strtoupper($dep !== '' ? $dep : 'OTROS');
-
-                // Medir el alto real de cada categoría del deporte.
-                $altos = array();
-                foreach ($bloques_dep as $b) {
-                    $altos[] = $this->_alto_bloque($b);
-                }
-
-                // Hojas necesarias con espaciado normal (4 mm entre bloques).
-                $tope_normal = $this->h - $this->bMargin - $this->getFooterMargin();
-                $pags = $this->_paginas_necesarias($altos, 4, $tope_normal);
-                // Si no cierra en una sola hoja, comprimir el espacio entre
-                // categorías hasta el mínimo legible (2 mm) para agrupar lo
-                // máximo de entregas por página.
-                $espacio = 4;
-                if ($pags > 1) {
-                    for ($e = 3; $e >= 2; $e--) {
-                        $p2 = $this->_paginas_necesarias($altos, $e, $tope_normal);
-                        if ($p2 < $pags) { $pags = $p2; $espacio = $e; }
-                        if ($pags === 1) break;
-                    }
-                }
-
-                // Cada DEPORTE empieza en una página nueva.
-                if (!$primero) {
-                    $this->AddPage();
-                }
-                $primero = false;
-                $this->_banda_deporte($titulo_dep);
-
-                $ultima = count($bloques_dep);
-                foreach ($bloques_dep as $i => $b) {
-                    $num++;
-                    // Antes de imprimir, verificar que la categoría entre en
-                    // lo que queda de hoja; si no, pasarla completa a la
-                    // siguiente (con su banda de deporte repetida).
-                    if ($this->GetY() + $altos[$i] > $tope_normal) {
-                        $this->AddPage();
-                        $this->_banda_deporte($titulo_dep);
-                    }
-                    $this->_bloque_entrega($b, $num);
-                    if ($i < $ultima - 1) $this->Ln($espacio);
-                }
-            }
-        } else {
+        // Calcular espacio necesario
+        $alt_estimado = 35 + 18 * max(1, count($b['puestos']));
+        if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
             $this->AddPage();
         }
 
-        $this->Output($this->nombre_archivo, 'I');
-    }
+        // ========================================
+        // TÍTULO COMO HEADER / CUADRO DE SECCIÓN
+        // ========================================
+        $titulo = strtoupper($b['deporte']) . ' — Cat. ' . strtoupper($b['categoria']);
 
-    /**
-     * Cantidad de hojas que ocupan bloques de $altos mm con $espacio entre
-     * ellos, dentro de un área útil de $tope mm de alto por hoja.
-     */
-    private function _paginas_necesarias($altos, $espacio, $tope) {
-        $pags = 1;
-        $y = 0;
-        foreach ($altos as $a) {
-            if ($y > 0) $y += $espacio;
-            if ($y + $a > $tope) { $pags++; $y = $a; }
-            else { $y += $a; }
+
+        // Fondo y borde del header
+        $this->SetFillColor(232, 232, 240);      // Gris azulado suave
+        $this->SetDrawColor(180, 180, 190);      // Borde gris
+        $this->SetFont('dejavusans', 'B', 11);
+        $this->SetTextColor(20, 33, 61);
+
+        // Celda con borde completo, fondo y salto de línea al final
+        $this->Cell(0, 9, '  ' . $num . '.  ' . $titulo, 1, 1, 'L', 1);
+
+        $this->Ln(3); // Espacio entre el header y los ganadores
+
+        // Prueba individual (si aplica)
+        $es_prueba_ind = (isset($b['anunciar']) && $b['anunciar'] === 'provincia');
+        if ($es_prueba_ind) {
+            $this->SetFont('dejavusans', 'I', 9);
+            $this->SetTextColor(180, 120, 0);
+            $this->Cell(0, 6, '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 1, 'L');
+            $this->Ln(2);
         }
-        return $pags;
+
+
+
+        // ========================================
+        // LISTA DE GANADORES (1°, 2°, 3°)
+        // ========================================
+        $orden = array(1, 2, 3); // 1° primero, luego 2°, luego 3°
+
+
+
+
+        $etiquetas = array(1 => '1°', 2 => '2°', 3 => '3°');
+
+        // Colores distintivos
+        $colores = array(
+            1 => array(180, 140, 0),   // Oro
+            2 => array(130, 130, 130), // Plata
+            3 => array(184, 115, 51)   // Bronce
+        );
+
+        foreach ($orden as $pos) {
+            if (!isset($b['puestos'][$pos])) continue;
+            $p = $b['puestos'][$pos];
+
+
+
+            // Obtener nombre y referencia
+            if (method_exists($this, '_separar_nombre')) {
+                $sep = $this->_separar_nombre($p['nombre']);
+                $nombre_mostrar = $sep['principal'];
+                $ref_mostrar = $sep['referencia'];
+            } else {
+                $nombre_mostrar = $p['nombre'];
+                $ref_mostrar = !empty($p['referencia']) ? $p['referencia'] : '';
+            }
+
+            // Número de posición (ancho fijo, alineado a derecha)
+            $this->SetFont('dejavusans', 'B', 11);
+            $this->SetTextColor($colores[$pos][0], $colores[$pos][1], $colores[$pos][2]);
+            $this->Cell(12, 7, $etiquetas[$pos], 0, 0, 'R');
+
+            // Nombre y referencia
+            $this->SetFont('dejavusans', 'B', 11);
+            $this->SetTextColor(20, 33, 61);
+
+            $texto_completo = $nombre_mostrar;
+            if ($ref_mostrar !== '') {
+                $texto_completo .= '  (ref.: ' . $ref_mostrar . ')';
+            }
+
+            $this->MultiCell(0, 7, $texto_completo, 0, 'L', 0, 1);
+
+            // Nota de desempate
+            if (!empty($p['desempate'])) {
+                $this->SetFont('dejavusans', 'I', 8);
+                $this->SetTextColor(120, 90, 10);
+                $this->Cell(12, 5, '', 0, 0, 'R'); // Espacio para alinear
+                $this->MultiCell(0, 5, 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
+                $this->SetTextColor(20, 33, 61);
+            }
+
+
+
+
+
+
+
+
+
+
+            $this->Ln(2);
+        }
+
+        // Sin galardonados
+        if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
+            $this->SetFont('dejavusans', 'I', 9);
+            $this->SetTextColor(108, 117, 125);
+            $this->Cell(12, 6, '', 0, 0, 'R');
+            $this->MultiCell(0, 6, 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
+        }
+
+        $this->Ln(8); // Espacio final entre bloques
     }
 
-    /**
-     * Altura real (mm) que ocupa una entrega: se renderiza en una página
-     * descartable y se mide cuánto avanzó el cursor. La hoja de medición se
-     * elimina limpiamente (deletePage + reindexado interno), por eso la
-     * numeración final del documento queda intacta.
-     */
-    private function _alto_bloque($b) {
-        $this->AddPage();
-        $pago = $this->page;       // hoja recién creada para medir
-        $y0 = $this->GetY();
-        $this->_bloque_entrega($b, 0); // número 0: solo para medir
-        $alto = $this->GetY() - $y0;
+    public function Body() {
 
-        // --- eliminar la hoja de medición (equivalente a deletePage pero
-        // reindexando también las marcas internas de posición) ---
-        $this->deletePage($pago);
-        if ($pago < $this->numpages) {
-            for ($i = $pago; $i <= $this->numpages; ++$i) {
-                $j = $i + 1;
-                foreach (array('intmrk','cntmrk','bordermrk','transfmrk',
-                              'footerpos','footerlen') as $arr) {
-                    if (isset($this->$arr[$j])) {
-                        $this->$arr[$i] = $this->$arr[$j];
-                        unset($this->$arr[$j]);
-                    }
-                }
+        if (!empty($this->guion['bloques'])) {
+            $this->AddPage();
+            $num = 0;
+            foreach ($this->guion['bloques'] as $b) {
+                $num++;
+                $this->_bloque_entrega($b, $num);
             }
         }
-        $this->CurPage = $this->page;
-        return $alto;
+
+        $this->Output($this->nombre_archivo, 'I');
     }
 }
 
@@ -527,6 +253,6 @@ $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
 $pdf->setFontSubsetting(true);
-$pdf->SetFont('dejavusans', '', 24, '', true);
+$pdf->SetFont('dejavusans', '', 11, '', true);
 
 $pdf->Body();
