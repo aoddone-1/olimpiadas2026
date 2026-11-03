@@ -14,6 +14,10 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  *      en jornadas únicas / largada masiva ya vienen en el formato
  *      "PROVINCIA (NOMBRE)" → se leen primero en grande la PROVINCIA y el
  *      nombre va entre paréntesis, solo como referencia.
+ *    - Un DEPORTE POR HOJA: cada deporte arranca en una página nueva con su
+ *      encabezado ("FUTBOL · CATEGORIAS A PREMIAR"), así el locutor puede
+ *      separar las hojas por deporte. Las categorías siguen numeradas de forma
+ *      continua en todo el documento.
  *  Variables que inyecta el controlador: $guion, $fecha, $nombre_archivo.
  * ============================================================================
  */
@@ -98,12 +102,30 @@ class Rep_Locutor_PDF extends TCPDF {
         return array('principal' => $cuerpo, 'referencia' => $sufijo);
     }
 
+    /** Encabezado de sección: un deporte por hoja (ver Body()). */
+    private function _encabezado_deporte($deporte) {
+        $this->SetFont('dejavusans', 'B', 14);
+        $this->SetTextColor(20, 33, 61);
+        $this->SetFillColor(20, 33, 61);
+        $this->Cell(0, 11, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 0, 1, 'L', 1);
+        $this->SetTextColor(108, 117, 125);
+        $this->SetFont('dejavusans', '', 9);
+        $this->Cell(0, 6, '  Anunciar todas las categorias de este deporte en orden.', 0, 1, 'L');
+        $this->Ln(4);
+        $this->SetTextColor(20, 33, 61);
+    }
+
     /** Un bloque = una competencia con su podio (formato texto con viñetas). */
     private function _bloque_entrega($b, $num) {
         // Calcular espacio necesario
         $alt_estimado = 35 + 18 * max(1, count($b['puestos']));
         if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
             $this->AddPage();
+            // Si la página nueva quedó dentro del mismo deporte, repetir el
+            // encabezado para que ninguna hoja quede sin identificar el deporte.
+            if (!empty($b['deporte'])) {
+                $this->_encabezado_deporte($b['deporte']);
+            }
         }
 
         // ========================================
@@ -218,9 +240,24 @@ class Rep_Locutor_PDF extends TCPDF {
     public function Body() {
 
         if (!empty($this->guion['bloques'])) {
-            $this->AddPage();
             $num = 0;
+            $deporte_actual = null;
             foreach ($this->guion['bloques'] as $b) {
+                // === UN DEPORTE POR HOJA ===
+                // El guion ya viene ordenado por deporte (ver
+                // Premiacion_model::obtener_guion_locutor), así que cada vez
+                // que cambia el deporte se corta la hoja y se imprime su
+                // encabezado. Si un deporte tiene más categorías de las que
+                // entran en una hoja, continúa en la siguiente con el
+                // encabezado repetido (ver _bloque_entrega).
+                $deporte = trim((string) ($b['deporte'] ?? ''));
+                if ($deporte !== $deporte_actual) {
+                    $this->AddPage();
+                    $deporte_actual = $deporte;
+                    if ($deporte !== '') {
+                        $this->_encabezado_deporte($deporte);
+                    }
+                }
                 $num++;
                 $this->_bloque_entrega($b, $num);
             }
