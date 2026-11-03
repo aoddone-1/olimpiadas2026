@@ -104,10 +104,16 @@ class Rep_Locutor_PDF extends TCPDF {
 
     /** Encabezado de sección: un deporte por hoja (ver Body()). */
     private function _encabezado_deporte($deporte) {
+        // Banda CLARA con texto oscuro: antes el texto usaba el mismo color
+        // que el fondo (azul oscuro sobre azul oscuro) y el nombre del deporte
+        // quedaba invisible. Además, las bandas oscuras salen casi negras al
+        // imprimir en blanco y negro; una banda clara se lee perfecto.
         $this->SetFont('dejavusans', 'B', 14);
-        $this->SetTextColor(20, 33, 61);
-        $this->SetFillColor(20, 33, 61);
-        $this->Cell(0, 11, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 0, 1, 'L', 1);
+        $this->SetTextColor(20, 33, 61);          // Texto: azul oscuro
+        $this->SetFillColor(232, 232, 240);       // Fondo: gris azulado suave
+        $this->SetDrawColor(20, 33, 61);          // Borde: azul oscuro
+        $this->SetLineWidth(0.5);
+        $this->Cell(0, 11, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 1, 1, 'L', 1);
         $this->SetTextColor(108, 117, 125);
         $this->SetFont('dejavusans', '', 9);
         $this->Cell(0, 6, '  Anunciar todas las categorias de este deporte en orden.', 0, 1, 'L');
