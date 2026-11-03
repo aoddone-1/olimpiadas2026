@@ -626,7 +626,46 @@ class Participante_model extends CI_Model {
      * detalle por lado y los datos de desempate para armar la tarjeta.
      */
     private function _resultados_del_participante($id_categoria, $id_participante, $id_ute, $detalle_ute) {
+        // El pase del participante NUNCA debe romperse por los resultados:
+        // cualquier falla (tablas/columnas que aún no existen, query roto,
+        // etc.) se loguea y se devuelve lista vacía en lugar de lanzar error.
+        try {
+            return $this->_resultados_del_participante_interno(
+                $id_categoria, $id_participante, $id_ute, $detalle_ute);
+        } catch (Throwable $e) {
+            log_message('error', 'Participante_model::_resultados_del_participante: ' . $e->getMessage());
+            return array();
+        }
+    }
+
+    /** Columnas opcionales de resultado_detalle (tablas viejas sin migrar). */
+    private function _columnas_detalle_tabla() {
+        static $cols = null;
+        if ($cols === null) {
+            $cols = array();
+            try {
+                foreach ($this->db->field_data('resultado_detalle') as $c) {
+                    $nombre = is_object($c) ? $c->name : $c['name'];
+                    $cols[$nombre] = true;
+                }
+            } catch (Throwable $e) {
+                // tabla inexistente: queda array vacío y el llamador decide.
+            }
+        }
+        return $cols;
+    }
+
+    private function _columna_detalle_existe($columna) {
+        $cols = $this->_columnas_detalle_tabla();
+        return isset($cols[$columna]);
+    }
+
+    private function _resultados_del_participante_interno($id_categoria, $id_participante, $id_ute, $detalle_ute) {
         if (!$id_categoria || !$this->_tabla_existe_silenciosa('resultados')) return array();
+        if (!$this->_tabla_existe_silenciosa('resultado_detalle')) return array();
+
+        $cols_detalle = $this->_columnas_detalle_tabla();
+        if (empty($cols_detalle)) return array();
 
         $con_desempate = false;
         try {
@@ -657,19 +696,42 @@ class Participante_model extends CI_Model {
             $this->db->join('fixtures f', 'f.id_fixture = r.id_fixture', 'left');
         }
         $this->db->where('r.id_categoria', $id_categoria);
-        $this->db->order_by('r.fecha_resultado', 'DESC');
+        // Orden robusto: si la BD todavía no tiene fecha_resultado, ordenamos
+        // solo por id (evita "unknown column" con resultados cargados).
+        if ($this->columna_existe('resultados', 'fecha_resultado')) {
+            $this->db->order_by('r.fecha_resultado', 'DESC');
+        }
         $this->db->order_by('r.id_resultado', 'DESC');
         $this->db->limit(10);
         $rows = $this->db->get()->result_array();
         if (!$rows) return array();
 
-        // Detalle de todos los resultados en un solo query.
+        // Detalle de todos los resultados en un solo query. Se piden solo las
+        // columnas que realmente existen (compatibilidad con esquemas viejos).
         $ids = array_column($rows, 'id_resultado');
+        $sel_detalle = array('id_resultado');
+        foreach (array('id_detalle', 'id_ute', 'nombre_libre', 'posicion', 'tiempo',
+                       'marcador_local', 'marcador_visita') as $c) {
+            if (isset($cols_detalle[$c])) $sel_detalle[] = $c;
+        }
+        $this->db->select(implode(', ', $sel_detalle), FALSE);
         $this->db->where_in('id_resultado', $ids);
-        $this->db->order_by('id_detalle', 'ASC');
+        if (isset($cols_detalle['id_detalle'])) {
+            $this->db->order_by('id_detalle', 'ASC');
+        }
         $detalles = array();
         foreach ($this->db->get('resultado_detalle')->result_array() as $d) {
             $detalles[(int) $d['id_resultado']][] = $d;
+        }
+
+        // Inscripciones propias del participante (para slots negativos). Se
+        // resuelven UNA sola vez, no dentro del loop de resultados.
+        $propios_cache = array();
+        if ($id_participante > 0 && isset($cols_detalle['id_ute'])) {
+            $this->db->select('id_inscripcion');
+            $this->db->where('id_participante', (int) $id_participante);
+            $propios_cache = array_map('intval', array_column(
+                $this->db->get('inscripciones_deportivas')->result_array(), 'id_inscripcion'));
         }
 
         $out = array();
@@ -682,30 +744,32 @@ class Participante_model extends CI_Model {
             // persona). Reemplazamos "NOMBRE (DNI)" por el nombre propio del
             // participante para que siempre vea SU posición, aunque la vista
             // recorte el listado a los 5 primeros puestos.
-            if ($id_participante > 0 && $this->_columna_detalle_existe('id_ute')) {
+            if ($id_participante > 0 && isset($cols_detalle['id_ute']) && $propios_cache) {
                 $ins_ids = array();
                 foreach ($det as $d) {
                     $iid = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
                     if ($iid < 0) $ins_ids[] = -$iid;
                 }
                 if ($ins_ids) {
-                    static $propios_cache = null;
-                    if ($propios_cache === null) {
-                        $this->db->select('id_inscripcion');
-                        $this->db->where('id_participante', (int) $id_participante);
-                        $propios_cache = array_map('intval', array_column(
-                            $this->db->get('inscripciones_deportivas')->result_array(), 'id_inscripcion'));
-                    }
                     // Traemos los nombres reales de las inscripciones involucradas
                     // (usa la cache del modelo _nombres_individuales).
                     $this->_cargar_nombres_individuales($ins_ids);
-                    // Nombre propio: buscamos por las inscripciones del participante
-                    // (la cache está indexada por id_inscripcion, no por id_participante).
+                    // Nombre propio: primero entre las inscripciones involucradas
+                    // en esta jornada; si no, cualquiera propia; si no, la BD.
                     $nombre_propio = '';
-                    foreach ($propios_cache as $iid_propio) {
-                        if (isset($this->_nombres_individuales[$iid_propio])) {
-                            $nombre_propio = $this->_nombres_individuales[$iid_propio];
+                    foreach ($ins_ids as $iid_cargado) {
+                        if (in_array($iid_cargado, $propios_cache, true)
+                            && isset($this->_nombres_individuales[$iid_cargado])) {
+                            $nombre_propio = $this->_nombres_individuales[$iid_cargado];
                             break;
+                        }
+                    }
+                    if ($nombre_propio === '') {
+                        foreach ($propios_cache as $iid_propio) {
+                            if (isset($this->_nombres_individuales[$iid_propio])) {
+                                $nombre_propio = $this->_nombres_individuales[$iid_propio];
+                                break;
+                            }
                         }
                     }
                     if ($nombre_propio === '') {
@@ -737,7 +801,8 @@ class Participante_model extends CI_Model {
                     $menciona_equipo_propio = true;
                     break;
                 }
-                if (trim((string) $d['nombre_libre']) !== '' && trim((string) $detalle_ute) !== ''
+                if (isset($d['nombre_libre'])
+                    && trim((string) $d['nombre_libre']) !== '' && trim((string) $detalle_ute) !== ''
                     && strtoupper(trim($d['nombre_libre'])) === strtoupper(trim($detalle_ute))) {
                     $menciona_equipo_propio = true;
                     break;
@@ -759,7 +824,8 @@ class Participante_model extends CI_Model {
             } elseif (empty($r['nombre_ganador_desempate']) && !empty($r['id_ute_ganador'])) {
                 // Ganador "libre" (sin UTE): recuperar su nombre del detalle.
                 foreach ($det as $d) {
-                    if ((int) $d['id_ute'] === (int) $r['id_ute_ganador'] && !empty($d['nombre_libre'])) {
+                    if (isset($d['id_ute']) && (int) $d['id_ute'] === (int) $r['id_ute_ganador']
+                        && !empty($d['nombre_libre'])) {
                         $r['nombre_ganador_desempate'] = $d['nombre_libre'];
                         break;
                     }
