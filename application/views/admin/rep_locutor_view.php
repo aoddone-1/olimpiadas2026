@@ -83,6 +83,52 @@ class Rep_Locutor_PDF extends TCPDF {
     
 
     /**
+     * Género legible para el título del bloque: usa categorias.genero y, si
+     * el nombre de la categoría ya lo decía ("Damas · Libre" / "Libre (F)"),
+     * NO lo duplica. Devuelve '' | 'Masculino' | 'Femenino' | 'Mixto'.
+     */
+    private function _genero_texto($b) {
+        $g = trim((string) ($b['genero'] ?? ''));
+        if ($g === '') return '';
+        $mapa = array(
+            'M' => 'Masculino', 'VARONES' => 'Masculino', 'CABALLEROS' => 'Masculino',
+            'HOMBRES' => 'Masculino', 'MASCULINO' => 'Masculino',
+            'F' => 'Femenino', 'MUJERES' => 'Femenino', 'DAMAS' => 'Femenino',
+            'FEMENINO' => 'Femenino',
+            'X' => 'Mixto', 'MIXTO' => 'Mixto', 'MIXTA' => 'Mixto',
+        );
+        $clave = mb_strtoupper(trim(preg_replace('/\s+/u', '', $g), 'UTF-8'));
+        $texto = isset($mapa[$clave]) ? $mapa[$clave] : mb_convert_case($g, MB_CASE_TITLE, 'UTF-8');
+
+        // Si el título que quedó DESPUÉS DE LIMPIARLO ya distingue el género
+        // ("Damas", "Caballeros", "Libre Femenina"...), no hace falta agregar
+        // nada más: esas ramas ya tienen títulos distintos entre sí. Se prueba
+        // contra la versión larga del género (nunca contra la abreviatura del
+        // campo, que podría ser 'F'/'M'), sobre el nombre ya recortado — si se
+        // probara contra el nombre original, "Libre · Femenino" nunca recibiría
+        // su etiqueta y volvería a fusionarse con la rama masculina.
+        $titulo_limpio = mb_strtolower(
+            preg_replace('/[^\p{L}]+/u', '',
+                $this->_limpiar_nombre_categoria($b['categoria'])), 'UTF-8');
+        $largos = array('Masculino' => 'masculin', 'Femenino' => 'femenin',
+                        'Mixto' => 'mixt');
+        if (isset($largos[$texto]) && mb_strpos($titulo_limpio, $largos[$texto]) !== false) {
+            return '';
+        }
+        if ($texto === 'Femenino' && (mb_strpos($titulo_limpio, 'dama') !== false
+            || mb_strpos($titulo_limpio, 'mujer') !== false)) return '';
+        if ($texto === 'Masculino' && (mb_strpos($titulo_limpio, 'caballer') !== false
+            || mb_strpos($titulo_limpio, 'varon') !== false
+            || mb_strpos($titulo_limpio, 'hombre') !== false)) return '';
+        // Términos raros guardados en categorias.genero (ej: "Femenina"): si
+        // esa misma palabra ya está en el título, tampoco duplicarla.
+        $palabra = mb_strtolower(trim(preg_replace('/\s+/u', '', $g), 'UTF-8'));
+        if ($palabra !== '' && mb_strlen($palabra) > 2
+            && mb_strpos($titulo_limpio, $palabra) !== false) return '';
+        return $texto;
+    }
+
+    /**
      * Separa nombre principal de referencia
      */
     private function _separar_nombre($nombre) {
@@ -166,8 +212,17 @@ class Rep_Locutor_PDF extends TCPDF {
         $this->SetFont('dejavusans', 'B', 12);
 
         // Solo el NOMBRE de la categoría: se excluyen género, tipo de largada
-        // y modalidad del título (el locutor ya los conoce por el deporte).
+        // y modalidad del título. PERO si al limpiarlo dos categorías del mismo
+        // deporte quedarían con el mismo título (ej: "Libre · Masculino" y
+        // "Libre · Femenino" -> ambas "LIBRE"), se agrega el GÉNERO entre
+        // paréntesis; si no, el locutor vería una sola entrega por rama y
+        // parecería que faltan todas las categorías femeninas (o las
+        // masculinas) respecto de premiacion.php.
         $nombre_cat = self::_limpiar_nombre_categoria($b['categoria']);
+        if (!empty($b['titulo_ambiguo'])) {
+            $genero_txt = self::_genero_texto($b);
+            if ($genero_txt !== '') $nombre_cat .= ' (' . $genero_txt . ')';
+        }
         $titulo = strtoupper($nombre_cat);
         $this->Cell(0, 8, '  ' . $titulo, 0, 1, 'L', 1);
 
@@ -309,8 +364,37 @@ class Rep_Locutor_PDF extends TCPDF {
     public function Body() {
 
         if (!empty($this->guion['bloques'])) {
-            // Agrupar los bloques (ya ordenados deporte->categoría->género)
-            // por deporte, conservando el orden de aparición.
+            // ---------- Títulos ambiguos: mismo nombre tras limpiarlo --------
+            // El título del bloque se imprime SIN género/largada/modalidad. Si
+            // dos categorías del deporte quedan idénticas (típico: "Libre ·
+            // Masculino" y "Libre · Femenino" -> ambas "LIBRE"), el locutor ve
+            // una sola entrega por rama y parece que faltan categorías
+            // respecto de premiacion.php. Se marca cada bloque cuyo título se
+            // repite dentro de su deporte para agregarle el género.
+            // OJO: _alto_bloque() renderiza el bloque REAL antes de imprimirlo
+            // (para medir su altura), así que la bandera debe quedar puesta en
+            // $this->guion['bloques'] ANTES de agrupar/cortar las páginas —
+            // además los títulos con género son más altos, y midiendo ya con
+            // la etiqueta puesta el cálculo de hojas sigue siendo exacto.
+            $titulos_por_deporte = array();
+            foreach ($this->guion['bloques'] as $idx => $b) {
+                $dep = trim((string) $b['deporte']);
+                $t = mb_strtoupper(
+                    self::_limpiar_nombre_categoria($b['categoria']), 'UTF-8');
+                if (!isset($titulos_por_deporte[$dep][$t])) {
+                    $titulos_por_deporte[$dep][$t] = 0;
+                }
+                $titulos_por_deporte[$dep][$t]++;
+            }
+            foreach ($this->guion['bloques'] as $idx => $b) {
+                $dep = trim((string) $b['deporte']);
+                $t = mb_strtoupper(
+                    self::_limpiar_nombre_categoria($b['categoria']), 'UTF-8');
+                $this->guion['bloques'][$idx]['titulo_ambiguo'] =
+                    $titulos_por_deporte[$dep][$t] > 1;
+            }
+
+            // Agrupar otra vez los bloques, ahora ya con la bandera marcada.
             $por_deporte = array();
             foreach ($this->guion['bloques'] as $b) {
                 $dep = trim((string) $b['deporte']);
