@@ -221,6 +221,59 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .vs-res .tato{font-size:22px;font-weight:800;color:var(--acento);white-space:nowrap}
 .ganador-linea{margin-top:8px;font-size:13px;font-weight:700;color:var(--ok)}
 .empate-linea{margin-top:8px;font-size:13px;color:var(--muted);font-style:italic}
+/* ---------- PODIOS (deportes de enfrentamiento) ----------
+   Agrupados por deporte, con la card de cada categoría adentro. El podio se ve
+   como en la Premiación (medallas 1º/2º/3º) y debajo los partidos cargados:
+   primero los DEFINITORIOS destacados, después el camino (grupos/semis). */
+.podio-grupo{margin-bottom:22px}
+.podio-dep-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:linear-gradient(135deg,#16324f 0%,#1d4b77 100%);
+  border:1px solid var(--line);border-radius:12px;padding:10px 16px;margin-bottom:12px;
+  box-shadow:0 3px 10px rgba(0,0,0,.25)}
+.podio-dep-icon{width:2.6rem;height:2.6rem;border-radius:.65rem;display:flex;align-items:center;
+  justify-content:center;font-size:1.5rem;background:rgba(255,255,255,.1);
+  border:1px solid rgba(255,255,255,.2)}
+.podio-dep-nombre{font-size:1.15rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
+.podio-dep-meta{font-size:.78rem;color:var(--muted)}
+.podio-dep-chip{margin-left:auto;font-size:.75rem;font-weight:700;color:var(--acento);
+  background:rgba(132,204,22,.12);border:1px solid rgba(132,204,22,.4);
+  border-radius:2rem;padding:.25rem .8rem}
+.podio-cat{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:14px;margin-bottom:12px}
+.podio-cat-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.podio-cat-nombre{font-size:15px;font-weight:800}
+.podio-cat-regla{font-size:12px;color:var(--muted)}
+.podio-cerrada-tag{margin-left:auto;font-size:11px;font-weight:700;color:var(--ok);
+  border:1px solid var(--ok);border-radius:.4rem;padding:.05rem .5rem;letter-spacing:.04em}
+.podio-puestos{display:grid;grid-template-columns:repeat(var(--puestos,3),1fr);gap:.6rem;margin:12px 0 4px}
+@media (max-width:700px){.podio-puestos{grid-template-columns:1fr}}
+.p-medalla{border-radius:.8rem;padding:.8rem .6rem;text-align:center;border:2px solid transparent;
+  background:var(--card2);box-shadow:0 2px 6px rgba(0,0,0,.18);display:flex;flex-direction:column;
+  gap:.25rem;align-items:center;min-height:112px;justify-content:center}
+.p-disco{font-size:1.7rem;line-height:1}
+.p-label{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+.p-nombre{font-weight:800;overflow-wrap:anywhere}
+.p-extra{font-size:.72rem;color:var(--muted)}
+.p-desemp{font-size:.72rem;color:var(--oro);font-weight:700}
+.p-oro{border-color:var(--oro);background:linear-gradient(180deg,rgba(217,249,157,.14),rgba(217,249,157,.05))}
+.p-plata{border-color:var(--plata);background:linear-gradient(180deg,rgba(207,216,227,.14),rgba(207,216,227,.05))}
+.p-bronce{border-color:var(--bronce);background:linear-gradient(180deg,rgba(217,145,91,.14),rgba(217,145,91,.05))}
+.p-vacio{border-style:dashed;border-color:var(--line)}
+.p-vacio .p-nombre{color:var(--muted);font-weight:600;font-style:italic}
+.p-partidos{margin-top:12px;border-top:1px dashed var(--line);padding-top:8px}
+.p-partidos-titulo{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;
+  font-weight:700;color:var(--muted);margin-bottom:6px}
+.p-partido{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;
+  background:var(--card2);margin-bottom:6px;font-size:14px}
+.p-partido.def{border:1px solid rgba(132,204,22,.45);background:rgba(132,204,22,.08)}
+.p-fase{flex-shrink:0;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);background:var(--line);border-radius:.4rem;padding:.15rem .5rem;min-width:74px;text-align:center}
+.p-partido.def .p-fase{color:#111;background:var(--oro)}
+.p-eq{flex:1;min-width:0;overflow-wrap:anywhere}
+.p-eq.dch{text-align:right}
+.p-eq.ganador{font-weight:800}
+.p-tato{font-size:18px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 4px}
+.p-metas{font-size:.72rem;color:var(--muted);white-space:nowrap}
 /* Medallero */
 table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
 table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
@@ -763,7 +816,137 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   </div>
   <?php if (empty($resultados)): ?>
     <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?>.</div>
-  <?php else: foreach ($resultados as $res):
+  <?php else:
+      /* Los deportes de ENFRENTAMIENTO ($podios, resueltos por Premiacion_model)
+         se muestran como PODIO (medallas 1º/2º/3º, igual que en la Premiación),
+         agrupados por deporte y con cada categoría adentro. Debajo del podio van
+         TODOS los partidos cargados de la categoría: los definitorios (Final /
+         3er puesto) destacados, y después el camino (grupos, semis...).
+         Las demás categorías (tiempo/puntaje masivo) conservan las cards simples
+         de siempre; si una categoría ya tiene podio, su card simple se omite
+         para no mostrar el mismo resultado dos veces. */
+      $podios = isset($podios) && is_array($podios) ? $podios : array();
+      $cats_en_podio = array();
+      foreach ($podios as $pd) $cats_en_podio[(int) $pd['id_categoria']] = true;
+
+      $icono_deporte = function ($nombre) {
+          // Sin depender de mb_* (la extensión multibyte no siempre está):
+          // strtolower + acentos clave en el mapa.
+          $n = strtolower(trim((string) $nombre));
+          $mapa = array(
+              'futbol' => '⚽', 'fútbol' => '⚽', 'handball' => '🤾', 'handbol' => '🤾',
+              'basquet' => '🏀', 'basket' => '🏀', 'básquet' => '🏀', 'basquetbol' => '🏀',
+              'voley' => '🏐', 'vóley' => '🏐', 'voleibol' => '🏐',
+              'tenis' => '🎾', 'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓',
+              'rugby' => '🏉', 'hockey' => '🏑', 'beisbol' => '⚾', 'softbol' => '⚾',
+              'atletismo' => '🏃', 'natacion' => '🏊', 'natación' => '🏊',
+              'boxeo' => '🥊', 'lucha' => '🤼', 'judo' => '🥋', 'karate' => '🥋',
+              'escrime' => '🤺', 'ciclismo' => '🚴', 'patin' => '⛸️',
+          );
+          foreach ($mapa as $k => $ico) if (strpos($n, $k) !== false) return $ico;
+          return '🏅';
+      };
+      $disco_puesto = function ($puesto, $icono_regla) {
+          if ($icono_regla !== '') return $icono_regla;
+          return array(1 => '🥇', 2 => '🥈', 3 => '🥉')[$puesto] ?? '🏅';
+      };
+      $clase_puesto = function ($puesto) {
+          return array(1 => 'p-oro', 2 => 'p-plata', 3 => 'p-bronce')[$puesto] ?? '';
+      };
+
+      /* ---- 1) PODIOS AGRUPADOS POR DEPORTE ---- */
+      $grupos_dep = array();
+      foreach ($podios as $pd) {
+          $clave = $pd['deporte'] !== '' ? $pd['deporte'] : 'Otros';
+          $grupos_dep[$clave][] = $pd;
+      }
+      ksort($grupos_dep, SORT_NATURAL | SORT_FLAG_CASE);
+      foreach ($grupos_dep as $dep_nombre => $items_dep): ?>
+    <div class="podio-grupo">
+      <div class="podio-dep-head">
+        <span class="podio-dep-icon"><?= $icono_deporte($dep_nombre) ?></span>
+        <div>
+          <div class="podio-dep-nombre"><?= htmlspecialchars($dep_nombre) ?></div>
+          <div class="podio-dep-meta"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?> · enfrentamientos</div>
+        </div>
+        <span class="podio-dep-chip">🏆 Podios</span>
+      </div>
+      <?php foreach ($items_dep as $pd):
+          $puestos_pd = array_keys($pd['podium']);
+          sort($puestos_pd); ?>
+      <div class="podio-cat">
+        <div class="podio-cat-head">
+          <span class="podio-cat-nombre"><?= htmlspecialchars($pd['categoria']) ?><?= $pd['genero'] !== '' ? ' (' . htmlspecialchars($pd['genero']) . ')' : '' ?></span>
+          <span class="podio-cat-regla">⚙ <?= htmlspecialchars($pd['texto_regla']) ?></span>
+          <?php if (!empty($pd['cerrada'])): ?><span class="podio-cerrada-tag">FINALIZADO</span><?php endif; ?>
+        </div>
+        <div class="podio-puestos" style="--puestos:<?= max(1, count($puestos_pd)) ?>">
+          <?php foreach ($puestos_pd as $pos):
+              $p = $pd['podium'][$pos];
+              $etiqueta = $p['etiqueta'] !== '' ? $p['etiqueta']
+                : (($pos === 1 ? '1.er puesto' : ($pos === 2 ? '2.º puesto' : ($pos === 3 ? '3.er puesto' : $pos . '.º puesto')))); ?>
+            <div class="p-medalla <?= $clase_puesto($pos) ?><?= $p['nombre'] === null ? ' p-vacio' : '' ?>">
+              <div class="p-disco"><?= $disco_puesto($pos, $p['icono']) ?></div>
+              <div class="p-label"><?= htmlspecialchars($etiqueta) ?></div>
+              <div class="p-nombre"><?= htmlspecialchars($p['nombre'] !== null ? $p['nombre'] : 'por definir') ?></div>
+              <?php if (!empty($p['desempate'])): ?><div class="p-desemp">🏆 ganó en <?= htmlspecialchars($p['desempate']) ?></div><?php endif; ?>
+              <?php if (!empty($p['extra'])): ?><div class="p-extra"><?= htmlspecialchars($p['extra']) ?></div><?php endif; ?>
+              <?php if (!empty($p['premio'])): ?><div class="p-extra"><?= htmlspecialchars($p['premio']) ?></div><?php endif; ?>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <?php if (!empty($pd['tabla_puntaje'])): ?>
+          <div class="p-partidos">
+            <div class="p-partidos-titulo">📋 Tabla de puntos</div>
+            <?php foreach ($pd['tabla_puntaje'] as $i => $e): ?>
+              <div class="p-partido<?= $i < 3 ? ' def' : '' ?>">
+                <span class="p-fase"><?= $i + 1 ?>°</span>
+                <span class="p-eq<?= $i < 3 ? ' ganador' : '' ?>"><?= htmlspecialchars((string) $e['nombre']) ?></span>
+                <span class="p-tato"><?= (int) $e['puntos'] ?></span>
+                <span class="p-metas"><?= (int) $e['pj'] ?> PJ · <?= (int) $e['pg'] ?>G <?= (int) $e['pe'] ?>E <?= (int) $e['pp'] ?>P</span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php elseif (!empty($pd['partidos'])):
+            $defs = array_values(array_filter($pd['partidos'], function ($x) { return !empty($x['decisivo']); }));
+            $camino = array_values(array_filter($pd['partidos'], function ($x) { return empty($x['decisivo']); })); ?>
+          <div class="p-partidos">
+            <div class="p-partidos-titulo">📅 Partidos jugados<?= $defs ? ' — ⭐ los definitorios primero' : '' ?></div>
+            <?php foreach (array_merge($defs, $camino) as $pt):
+                $fase_txt_local = $pt['fase'] !== null
+                  ? (isset($fases_txt[$pt['fase']]) ? $fases_txt[$pt['fase']] : $pt['fase'])
+                  : 'Partido';
+                $fecha_p = !empty($pt['fecha']) ? date('d/m', strtotime((string) $pt['fecha'])) : '';
+                $hora_p = !empty($pt['hora']) ? date('H:i', strtotime('today ' . trim((string) $pt['hora']))) : '';
+                $gano_desem_p = !empty($pt['hubo_desempate']) && !empty($pt['ganador_desempate']);
+            ?>
+              <div class="p-partido<?= !empty($pt['decisivo']) ? ' def' : '' ?>">
+                <span class="p-fase"><?= !empty($pt['decisivo']) ? '⭐ ' : '' ?><?= htmlspecialchars($fase_txt_local) ?></span>
+                <span class="p-eq<?= $pt['gana1'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq1_nombre']))) ? ' ganador' : '' ?>"><?= htmlspecialchars($pt['eq1_nombre']) ?></span>
+                <span class="p-tato"><?= (int) $pt['eq1_tantos'] ?> : <?= (int) $pt['eq2_tantos'] ?></span>
+                <span class="p-eq dch<?= $pt['gana2'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq2_nombre']))) ? ' ganador' : '' ?>"><?= htmlspecialchars($pt['eq2_nombre']) ?></span>
+                <span class="p-metas"><?= htmlspecialchars(trim($fecha_p . ' ' . $hora_p)) ?><?= !empty($pt['hubo_desempate']) ? ' · 🏅' : '' ?></span>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endforeach; ?>
+
+    <?php /* ---- 2) RESTO: cards simples (deportes de tiempo/puntaje) ---- */
+          $otros = array_values(array_filter($resultados, function ($r) use ($cats_en_podio) {
+              return !isset($cats_en_podio[(int) (isset($r['id_categoria']) ? $r['id_categoria'] : 0)]);
+          }));
+          if ($otros): ?>
+    <div class="section-heading" style="margin-top:8px">
+      <div>
+        <p class="eyebrow">TIEMPO Y PUNTAJE</p>
+        <h2 style="font-size:1.1rem">Otras posiciones</h2>
+      </div>
+    </div>
+    <?php foreach ($otros as $res):
       /* Encabezado: DEPORTE destacado y CATEGORÍA abajo (nunca el nombre del
          partido, que es un dato interno tipo "Final - Partido 1"). */
       $dep_txt  = trim((string) (isset($res['nombre_deporte']) ? $res['nombre_deporte'] : ''));
@@ -865,6 +1048,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       <?php endif; ?>
     </div>
   <?php endforeach; endif; ?>
+  <?php endif; ?>
 </section>
 
 <!-- ============ MEDALLERO ============ -->

@@ -1407,6 +1407,10 @@ class Premiacion_model extends CI_Model {
                     'fase'         => $fase !== '' ? $fase : null,
                     'numero_fecha' => isset($fxi['numero_fecha']) ? (int) $fxi['numero_fecha'] : null,
                     'decisivo'     => $decisivo,
+                    // ids de los equipos: el panel público los usa para saber
+                    // qué partidos son de la delegación filtrada.
+                    'eq1_id'       => $m['eqA']['id'],
+                    'eq2_id'       => $m['eqB']['id'],
                     'eq1_nombre'   => $m['eqA']['nombre'],
                     'eq1_tantos'   => (int) $m['eqA']['tantos'],
                     'eq2_nombre'   => $m['eqB']['nombre'],
