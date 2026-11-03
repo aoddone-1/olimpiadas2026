@@ -534,7 +534,9 @@ class Premiacion_model extends CI_Model {
         $this->db->select('r.*, f.fase AS fx_fase, f.id_fixture AS fx_id, f.fecha_competencia AS fx_fecha', FALSE);
         if ($this->_columna_resultado_existe('id_ute_ganador')) {
             // Nombre del ganador del desempate para el texto del podio.
-            $this->db->select(', ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+            // SIN coma inicial: CI concatena los select() con comas y una coma
+            // extra al principio rompe el SQL ("SELECT r.*, , ug...").
+            $this->db->select('ug.nombre_ute AS nombre_ganador_desempate', FALSE);
             $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
         }
         $this->db->from('resultados r');
@@ -1348,7 +1350,9 @@ class Premiacion_model extends CI_Model {
 
             $this->db->select('r.id_resultado, r.id_fixture, r.fecha_resultado, r.hubo_desempate, r.desempate_metodo', FALSE);
             if ($this->_columna_resultado_existe('id_ute_ganador')) {
-                $this->db->select(', r.id_ute_ganador, ug.nombre_ute AS nombre_ganador_desempate', FALSE);
+                // OJO: sin coma inicial — CI une los select() consecutivos con
+                // coma; si arranca con coma genera SQL inválido (".. , , r.x").
+                $this->db->select('r.id_ute_ganador, ug.nombre_ute AS nombre_ganador_desempate', FALSE);
                 $this->db->join('utes ug', 'ug.id_ute = r.id_ute_ganador', 'left');
             }
             $this->db->from('resultados r');
