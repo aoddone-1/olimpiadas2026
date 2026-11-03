@@ -147,7 +147,7 @@ class Publico_model extends CI_Model {
             $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
             if (!$rows) return $ids;
 
-            $comp = $this->_competidores_de_delegacion($delegacion);
+            $comp = $this->competidores_de_delegacion($delegacion);
             $fx_ids = array();
             foreach ($rows as $r) {
                 $idf = isset($r['id_fixture']) ? (int) $r['id_fixture'] : 0;
@@ -222,7 +222,7 @@ class Publico_model extends CI_Model {
             // privado, que sí funciona) para no depender de tablas auxiliares.
             $comp = null;
             if (!empty($delegacion)) {
-                $comp = $this->_competidores_de_delegacion($delegacion);
+                $comp = $this->competidores_de_delegacion($delegacion);
             }
 
             // Joins de nombres resueltos en PHP, sobre CONSULTAS SEPARADAS limpias
@@ -508,7 +508,7 @@ class Publico_model extends CI_Model {
      * (mismos 3 caminos que el panel privado): UTEs propias, inscripciones
      * individuales (-id_inscripcion) y categorías con inscriptos (jornadas masivas).
      */
-    private function _competidores_de_delegacion($delegacion) {
+    public function competidores_de_delegacion($delegacion) {
         return array(
             'utes'        => $this->_utes_de_la_delegacion($delegacion),
             'inscripciones' => $this->_ids_inscripcion_de_la_delegacion($delegacion),
@@ -854,7 +854,7 @@ class Publico_model extends CI_Model {
             unset($r);
 
             if (!empty($delegacion)) {
-                $comp = $this->_competidores_de_delegacion($delegacion);
+                $comp = $this->competidores_de_delegacion($delegacion);
                 // Fallback por NOMBRE del detalle: resultados "libres" (sin id_ute
                 // ni -id_inscripcion) se reconocen si el snapshot coincide con una
                 // UTE o un equipo inscripto de la delegación.
