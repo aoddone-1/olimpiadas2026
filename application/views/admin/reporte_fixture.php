@@ -1620,6 +1620,27 @@ class MYPDF extends TCPDF {
                          . '–' . substr((string) ($f['hora_fin'] ?? ''), 0, 5);
                 $bg = ($n % 2) ? '#ffffff' : '#f8f9fa';
 
+                // Casillero MARCADOR / GANADOR: si el partido ya tiene resultado
+                // cargado (pestaña "Resultados"), se imprime el marcador final y
+                // el ganador; los pendientes quedan vacíos para completar a mano
+                // en la mesa de control. Datos provistos por
+                // Fixture_model::adjuntar_resultados_a_filas().
+                $marca    = trim((string) ($f['resultado_marca'] ?? ''));
+                $ganador  = trim((string) ($f['resultado_ganador_txt'] ?? ''));
+                $desemp   = trim((string) ($f['resultado_desempate'] ?? ''));
+                $res_html = '';
+                if ($marca !== '') {
+                    $res_html .= '<b style="font-size:10pt;">' . $esc($marca) . '</b>';
+                }
+                if ($ganador !== '') {
+                    $res_html .= ($res_html !== '' ? '<br/>' : '')
+                               . '<span style="color:#1e3a5f;"><b>Ganador:</b> ' . $esc($ganador) . '</span>';
+                }
+                if ($res_html !== '' && $desemp !== '') {
+                    $res_html .= '<br/><span style="font-size:6.5pt; color:#7f8c8d;">'
+                               . $esc('Desempate: ' . str_replace('_', ' ', $desemp)) . '</span>';
+                }
+
                 $html .= '<tr style="background-color:' . $bg . ';">'
                        . '<td style="' . $borde . ' text-align:center;width:5%;">' . $n . '</td>'
                        . '<td style="' . $borde . ' width:14%;">' . $esc($fase)
@@ -1628,7 +1649,9 @@ class MYPDF extends TCPDF {
                        . '<td style="' . $borde . ' text-align:center;width:13%;">' . $esc($horario) . '</td>'
                        . '<td style="' . $borde . ' width:24%;">' . $lado_html('ute_1_nombre', 1) . '</td>'
                        . '<td style="' . $borde . ' width:24%;">' . $lado_html('ute_2_nombre', 2) . '</td>'
-                       . '<td style="' . $borde . ' width:20%;"></td>'
+                       . '<td style="' . $borde . ' width:20%; text-align:center;' . ($res_html !== '' ? ' background-color:#eafaf1;' : '') . '">'
+                       . ($res_html !== '' ? $res_html : '&nbsp;')
+                       . '</td>'
                        . '</tr>';
             }
             // Filas vacías extra: por si en la mesa hay que anotar partidos

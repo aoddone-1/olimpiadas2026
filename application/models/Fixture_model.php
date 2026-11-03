@@ -331,6 +331,11 @@ class Fixture_model extends CI_Model {
             $lista = $this->_inscriptos_de_ute_por_categoria($idl, array_unique($cats));
             if ($lista) $integrantes_por_ute[$idl] = $lista;
         }
+        // Marcador/ganador ya cargados (pestaña "Resultados"): lo consumen las
+        // planillas de mesa de control (columna MARCADOR / GANADOR). Protegido:
+        // si falla, las filas quedan sin resultado y el PDF se imprime igual.
+        $this->adjuntar_resultados_a_filas($fixtures);
+
         // Slots negativos (-id_inscripcion) = competidores individuales: su
         // nombre ya viene en ute_X_nombre o se resuelve acá.
         $nombres_ind = $this->_nombres_individuales_en_fixtures($fixtures);
@@ -787,6 +792,12 @@ class Fixture_model extends CI_Model {
                 ? $integrantes_por_ute[$idl2] : array();
         }
         unset($f);
+
+        // Marcador/ganador ya cargados (pestaña "Resultados"): lo consumen las
+        // planillas de mesa de control por deporte (columna MARCADOR / GANADOR).
+        // Protegido: si falla, las filas quedan sin resultado y el PDF se
+        // imprime igual.
+        $this->adjuntar_resultados_a_filas($fixtures);
 
         return $fixtures;
     }
