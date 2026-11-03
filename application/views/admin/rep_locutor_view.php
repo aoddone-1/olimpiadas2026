@@ -106,6 +106,52 @@ class Rep_Locutor_PDF extends TCPDF {
     }
 
     /**
+     * Limpia el nombre de la categoría para el TÍTULO del bloque:
+     * muestra SOLO el nombre, quitando el género (Masculino/Femenino/Mixto),
+     * el tipo de largada (Largada A/B, Masiva...) y la modalidad
+     * (Individual/Dupla/Equipos...). Es tolerante a separadores '·', '-', '/', ','.
+     */
+    private function _limpiar_nombre_categoria($nombre) {
+        $original = trim(preg_replace('/\s+/u', ' ', (string) $nombre));
+        $nombre   = $original;
+
+        // Términos que NO deben aparecer en el título del reporte del locutor.
+        $excluir = '(?:masculino|femenino|mixto|mixta|misto|varon|varones|'
+                 . 'hombre|hombres|mujer|mujeres|'
+                 . 'largada\s*[a-z0-9]?|salida\s*[a-z0-9]?|masiv[oa]|'
+                 . 'individual(?:es)?|dupla[s]?|pareja[s]?|dobles?|team)';
+        // "equipos" solo se quita en la modalidad "por equipos"; nunca "dama/s",
+        // "caballeros" u otros nombres que pueden ser el nombre real de la categoría.
+        $prefijo = '(?:por\s+equipos|' . $excluir . ')';
+        $regex = '\b' . $excluir . '\b';
+
+        // 1) Cortar el nombre en el primer separador seguido de un término a excluir
+        //    (ej: "Libre · Masculino · Largada B" -> "Libre").
+        if (preg_match('/^(.*?)[\s·\-\/\,]+(' . $regex . '|por\s+equipos)/iu', $nombre, $m)) {
+            $corte = trim($m[1], " \t\n·-/,\x{00B7}");
+            // Solo cortar si quedó un nombre razonable (evita destruir nombres simples).
+            if ($corte !== '') {
+                $nombre = $corte;
+            }
+        }
+
+        // 2) Quitar términos sueltos que hayan quedado incrustados (con sus separadores).
+        $nombre = preg_replace('/[\s·\-\/\,]*\(' . $regex . '\)/iu', '', $nombre);
+        $nombre = preg_replace('/[\s·\-\/\,]+\b' . $regex . '/iu', '', $nombre);
+        // "Por equipos" solo si viene precedido de separador ("Tenis Por Equipos -> Tenis").
+        $nombre = preg_replace('/[\s·\-\/\,]+\bpor\s+equipos\b/iu', '', $nombre);
+
+        // 3) Si el nombre COMIENZA con la modalidad ("Por Equipos Masculino"),
+        //    quitar también ese prefijo (y sus separadores sobrantes).
+        $nombre = preg_replace('/^' . $prefijo . '[\s·\-\/\,]*/iu', '', $nombre);
+
+        // 4) Limpiar separadores sobrantes al inicio/final.
+        $nombre = trim($nombre, " \t\n·-/,\x{00B7}");
+
+        return $nombre !== '' ? $nombre : $original;
+    }
+
+    /**
      * BLOQUE DE ENTREGA - Formato profesional de guion.
      * Se imprime DENTRO de la página de su DEPORTE (Body() agrupa por
      * deporte y salta de página solo al cambiar de deporte), así el locutor
@@ -119,9 +165,10 @@ class Rep_Locutor_PDF extends TCPDF {
         $this->SetTextColor(self::AZUL_OSCURO[0], self::AZUL_OSCURO[1], self::AZUL_OSCURO[2]);
         $this->SetFont('dejavusans', 'B', 12);
 
-        $titulo = $num . '. ' . strtoupper($b['categoria']);
-        if (!empty($b['genero']))   $titulo .= ' · ' . strtoupper($b['genero']);
-        if (!empty($b['modalidad'])) $titulo .= ' · ' . strtoupper($b['modalidad']);
+        // Solo el NOMBRE de la categoría: se excluyen género, tipo de largada
+        // y modalidad del título (el locutor ya los conoce por el deporte).
+        $nombre_cat = self::_limpiar_nombre_categoria($b['categoria']);
+        $titulo = $num . '. ' . strtoupper($nombre_cat);
         $this->Cell(0, 8, '  ' . $titulo, 0, 1, 'L', 1);
 
         $this->Ln(2);
