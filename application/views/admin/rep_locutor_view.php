@@ -39,19 +39,23 @@ class Rep_Locutor_PDF extends TCPDF {
     const GRIS   = array(108, 117, 125);
 
     public function Header() {
-        //(80, 50, 50);
+        // El logo va en coordenada ABSOLUTA (80mm) y la fecha alineada a ese
+        // mismo borde: así el encabezado se ve igual que antes aunque los
+        // márgenes del cuerpo se hayan achicado para ensanchar los recuadros.
+        $x_logo = 80;
         $this->SetFont('dejavusans', 'B', 8);
         $this->SetTextColor(108, 117, 125);
-        $this->Image('assets/img/header.jpg', $this->lMargin, $this->GetY(), 100, '', '', '', 'C', false, 50, '', false, false,0, false, false, false);
+        $this->Image('assets/img/header.jpg', $x_logo, $this->GetY(), 100, '', '', '', 'C', false, 50, '', false, false, 0, false, false, false);
 
-        $this->Cell(0, 80, 'GUION DE PREMIACION · ' . strtoupper($this->_fecha_larga()), 0, 1, 'R');
+        // Celda de texto con ancho EXPLÍCITO (no 0): con w=0 TCPDF usa el ancho
+        // hasta el margen derecho y, con márgenes chicos, el texto se corriera.
+        $ancho_fecha = $this->w - $x_logo - 15;
+        $this->Cell($ancho_fecha, 80, 'GUION DE PREMIACION · ' . strtoupper($this->_fecha_larga()), 0, 1, 'R');
 
         $this->SetDrawColor(203, 213, 225);
         $this->SetLineWidth(0.2);
-        $this->Line($this->lMargin, $this->GetY(), $this->w - $this->rMargin,$this->GetY());
+        $this->Line($x_logo, $this->GetY(), $this->w - 15, $this->GetY());
         $this->SetY($this->GetY() + 4);
-
-
     }
 
     public function Footer() {
@@ -102,6 +106,25 @@ class Rep_Locutor_PDF extends TCPDF {
         return array('principal' => $cuerpo, 'referencia' => $sufijo);
     }
 
+    /** Alto de renglón seguro para una fuente dada (mm): nunca corta las letras. */
+    private function _alto_linea($size_pt) {
+        return round($size_pt * 0.3528 * 1.5, 1);   // pt -> mm, con interlineado
+    }
+
+    /**
+     * Título dentro de su recuadro: usa MULTILINEA automático cuando el texto
+     * no entra en el ancho útil, así las letras jamás se salen del cuadro
+     * (con Cell() simple el texto largo desbordaba el borde derecho).
+     */
+    private function _banda_titulo($texto, $size_pt, $fill, $draw, $line_w = 0.5) {
+        $this->SetFont('dejavusans', 'B', $size_pt);
+        $this->SetTextColor(20, 33, 61);
+        $this->SetFillColor($fill[0], $fill[1], $fill[2]);
+        $this->SetDrawColor($draw[0], $draw[1], $draw[2]);
+        $this->SetLineWidth($line_w);
+        $this->MultiCell(0, $this->_alto_linea($size_pt), '  ' . $texto, 1, 'L', 1, 1);
+    }
+
     /** Encabezado de sección: un deporte por hoja (ver Body()). */
     private function _encabezado_deporte($deporte) {
         // Banda CLARA con texto oscuro: antes el texto usaba el mismo color
@@ -109,18 +132,19 @@ class Rep_Locutor_PDF extends TCPDF {
         // quedaba invisible. Además, las bandas oscuras salen casi negras al
         // imprimir en blanco y negro; una banda clara se lee perfecto.
         // Letras GRANDES: el locutor lee el guion de pie y a distancia; se
-        // prioriza legibilidad sobre densidad (suba de tamaños + altura de
-        // celda proporcional para conservar la estética).
-        $this->SetFont('dejavusans', 'B', 17);
-        $this->SetTextColor(20, 33, 61);          // Texto: azul oscuro
-        $this->SetFillColor(232, 232, 240);       // Fondo: gris azulado suave
-        $this->SetDrawColor(20, 33, 61);          // Borde: azul oscuro
-        $this->SetLineWidth(0.5);
-        $this->Cell(0, 13, '  ' . strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR', 1, 1, 'L', 1);
+        // prioriza legibilidad sobre densidad. La banda es multilínea y su
+        // alto se calcula con la propia fuente, así el texto nunca se sale
+        // del recuadro por más largo que sea el nombre del deporte.
+        $this->_banda_titulo(
+            strtoupper($deporte) . '  ·  CATEGORIAS A PREMIAR',
+            17,
+            array(232, 232, 240),   // Fondo: gris azulado suave
+            array(20, 33, 61)        // Borde: azul oscuro
+        );
         $this->SetTextColor(108, 117, 125);
         $this->SetFont('dejavusans', '', 11);
-        $this->Cell(0, 7, '  Anunciar todas las categorias de este deporte en orden.', 0, 1, 'L');
-        $this->Ln(4);
+        $this->MultiCell(0, $this->_alto_linea(11), '  Anunciar todas las categorias de este deporte en orden.', 0, 'L', 0, 1);
+        $this->Ln(2);
         $this->SetTextColor(20, 33, 61);
     }
 
@@ -136,16 +160,16 @@ class Rep_Locutor_PDF extends TCPDF {
         // Calcular espacio necesario: cada equipo premiado puede sumar 2 o 3
         // renglones extra por la lista de integrantes.
         // alt_estimado sigue a los tamaños de fuente agrandados (ver abajo):
-        // header más alto + renglones de premiados con más aire.
-        $alt_estimado = 40 + 22 * max(1, count($b['puestos']));
+        // header multilínea + renglones de premiados con interlineado real.
+        $alt_estimado = 20 + 30 * max(1, count($b['puestos']));
         if ($es_equipo && $integrantes_map) {
             foreach ($b['puestos'] as $pp) {
                 if (!empty($pp['id']) && !empty($integrantes_map[(int) $pp['id']])) {
-                    $alt_estimado += 16;
+                    $alt_estimado += 22;
                 }
             }
         }
-        if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 20) {
+        if ($this->getY() + $alt_estimado > $this->getPageHeight() - $this->bMargin - 20) {
             $this->AddPage();
             // Si la página nueva quedó dentro del mismo deporte, repetir el
             // encabezado para que ninguna hoja quede sin identificar el deporte.
@@ -157,17 +181,22 @@ class Rep_Locutor_PDF extends TCPDF {
         // ========================================
         // TÍTULO COMO HEADER / CUADRO DE SECCIÓN
         // ========================================
-        $titulo = strtoupper($b['deporte']) . ' — Cat. ' . strtoupper($b['categoria']);
+        // El deporte ya encabeza la hoja, así que en el recuadro de la
+        // categoría solo va "N° · CAT. ...": título más corto = menos riesgo
+        // de desborde (y si igual crece, _banda_titulo lo parte en 2 renglones).
+        $titulo = 'Cat. ' . strtoupper($b['categoria']);
+        if (!empty($b['genero'])) {
+            $titulo .= ' · ' . strtoupper($b['genero']);
+        }
 
-
-        // Fondo y borde del header
-        $this->SetFillColor(232, 232, 240);      // Gris azulado suave
-        $this->SetDrawColor(180, 180, 190);      // Borde gris
-        $this->SetFont('dejavusans', 'B', 14);
-        $this->SetTextColor(20, 33, 61);
-
-        // Celda con borde completo, fondo y salto de línea al final
-        $this->Cell(0, 11, '  ' . $num . '.  ' . $titulo, 1, 1, 'L', 1);
+        // Fondo y borde del header: banda multilínea con alto calculado por
+        // la propia fuente — las letras nunca se salen del cuadro.
+        $this->_banda_titulo(
+            $num . '.  ' . $titulo,
+            14,
+            array(232, 232, 240),   // Gris azulado suave
+            array(180, 180, 190)    // Borde gris
+        );
 
         $this->Ln(3); // Espacio entre el header y los ganadores
 
@@ -176,8 +205,8 @@ class Rep_Locutor_PDF extends TCPDF {
         if ($es_prueba_ind) {
             $this->SetFont('dejavusans', 'I', 11);
             $this->SetTextColor(180, 120, 0);
-            $this->Cell(0, 7, '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 1, 'L');
-            $this->Ln(2);
+            $this->MultiCell(0, $this->_alto_linea(11), '     · PRUEBA INDIVIDUAL: se anuncia la provincia', 0, 'L', 0, 1);
+            $this->Ln(1);
         }
 
 
@@ -218,10 +247,12 @@ class Rep_Locutor_PDF extends TCPDF {
             // Número de posición (ancho fijo, alineado a derecha)
             $this->SetFont('dejavusans', 'B', 15);
             $this->SetTextColor($colores[$pos][0], $colores[$pos][1], $colores[$pos][2]);
-            $this->Cell(14, 9, $etiquetas[$pos], 0, 0, 'R');
+            $this->Cell(14, $this->_alto_linea(15), $etiquetas[$pos], 0, 0, 'R');
 
             // Nombre y referencia: lo MÁS grande del documento — es lo que
-            // el locutor tiene que leer en voz alta.
+            // el locutor tiene que leer en voz alta. MultiCell con alto
+            // calculado por la fuente: si el nombre es largo baja de renglón
+            // dentro de la hoja en vez de salirse del recuadro.
             $this->SetFont('dejavusans', 'B', 16);
             $this->SetTextColor(20, 33, 61);
 
@@ -230,7 +261,7 @@ class Rep_Locutor_PDF extends TCPDF {
                 $texto_completo .= '  (ref.: ' . $ref_mostrar . ')';
             }
 
-            $this->MultiCell(0, 9, $texto_completo, 0, 'L', 0, 1);
+            $this->MultiCell(0, $this->_alto_linea(16), $texto_completo, 0, 'L', 0, 1);
 
             // Equipos: listar los integrantes separados por " - " y entre
             // paréntesis, para que el locutor sepa QUIÉNES suben al escenario.
@@ -239,8 +270,8 @@ class Rep_Locutor_PDF extends TCPDF {
                 if (is_array($ints) && $ints) {
                     $this->SetFont('dejavusans', '', 11);
                     $this->SetTextColor(93, 102, 112);
-                    $this->Cell(14, 6, '', 0, 0, 'R'); // sangría: alineado bajo el nombre
-                    $this->MultiCell(0, 6, '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
+                    $this->Cell(14, $this->_alto_linea(11), '', 0, 0, 'R'); // sangría: alineado bajo el nombre
+                    $this->MultiCell(0, $this->_alto_linea(11), '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
                     $this->SetTextColor(20, 33, 61);
                 }
             }
@@ -249,8 +280,8 @@ class Rep_Locutor_PDF extends TCPDF {
             if (!empty($p['desempate'])) {
                 $this->SetFont('dejavusans', 'I', 10);
                 $this->SetTextColor(120, 90, 10);
-                $this->Cell(14, 6, '', 0, 0, 'R'); // Espacio para alinear
-                $this->MultiCell(0, 6, 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
+                $this->Cell(14, $this->_alto_linea(10), '', 0, 0, 'R'); // Espacio para alinear
+                $this->MultiCell(0, $this->_alto_linea(10), 'Definido por ' . strtoupper($p['desempate']), 0, 'L', 0, 1);
                 $this->SetTextColor(20, 33, 61);
             }
 
@@ -270,8 +301,8 @@ class Rep_Locutor_PDF extends TCPDF {
         if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
             $this->SetFont('dejavusans', 'I', 11);
             $this->SetTextColor(108, 117, 125);
-            $this->Cell(14, 7, '', 0, 0, 'R');
-            $this->MultiCell(0, 7, 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
+            $this->Cell(14, $this->_alto_linea(11), '', 0, 0, 'R');
+            $this->MultiCell(0, $this->_alto_linea(11), 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
         }
 
         $this->Ln(8); // Espacio final entre bloques
@@ -324,12 +355,18 @@ $pdf->SetSubject('Ceremonia de premiacion');
 $pdf->SetKeywords('LOCUTOR, PREMIACION, CEREMONIA');
 
 $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-$pdf->SetMargins(80, 100, 50);
+// Márgenes LATERALES chicos (15mm): con 80/50 el ancho útil quedaba en ~80mm,
+// los títulos de 14pt no entraban y las letras se salían de los recuadros.
+// Para que el logo del encabezado siga centrado-izquierdo como antes, el Header()
+// usa una coordenada absoluta (ver $x_logo), no depende del margen izquierdo.
+$pdf->SetMargins(15, 100, 15);
 $pdf->SetHeaderMargin(8);
 $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
 $pdf->setFontSubsetting(true);
 $pdf->SetFont('dejavusans', '', 11, '', true);
+// sangría izquierda para las celdas sin borde (nombres, integrantes, notas)
+$pdf->setCellPaddings(2, 1, 2, 1);
 
 $pdf->Body();
