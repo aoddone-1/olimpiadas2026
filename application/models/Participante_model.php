@@ -696,11 +696,34 @@ class Participante_model extends CI_Model {
                         $propios_cache = array_map('intval', array_column(
                             $this->db->get('inscripciones_deportivas')->result_array(), 'id_inscripcion'));
                     }
+                    // Traemos los nombres reales de las inscripciones involucradas
+                    // (usa la cache del modelo _nombres_individuales).
+                    $this->_cargar_nombres_individuales($ins_ids);
+                    // Nombre propio: buscamos por las inscripciones del participante
+                    // (la cache está indexada por id_inscripcion, no por id_participante).
+                    $nombre_propio = '';
+                    foreach ($propios_cache as $iid_propio) {
+                        if (isset($this->_nombres_individuales[$iid_propio])) {
+                            $nombre_propio = $this->_nombres_individuales[$iid_propio];
+                            break;
+                        }
+                    }
+                    if ($nombre_propio === '') {
+                        // Fallback: nombre completo del participante.
+                        $this->db->select('nombre_completo');
+                        $this->db->where('id_participante', (int) $id_participante);
+                        $p = $this->db->get('participantes')->row_array();
+                        $nombre_propio = trim((string) (isset($p['nombre_completo']) ? $p['nombre_completo'] : ''));
+                    }
+                    if ($nombre_propio === '') $nombre_propio = 'Competidor';
+
                     foreach ($det as &$d) {
                         $iid = isset($d['id_ute']) ? (int) $d['id_ute'] : 0;
                         if ($iid < 0 && in_array(-$iid, $propios_cache, true)) {
                             $d['nombre_libre'] = $nombre_propio;
                             $d['es_propio'] = true;
+                        } elseif ($iid < 0 && isset($this->_nombres_individuales[-$iid])) {
+                            $d['nombre_libre'] = $this->_nombres_individuales[-$iid];
                         }
                     }
                     unset($d);
