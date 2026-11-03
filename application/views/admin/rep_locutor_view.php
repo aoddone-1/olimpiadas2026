@@ -34,7 +34,7 @@ class Rep_Locutor_PDF extends TCPDF {
     const DORADO = array(241, 196, 15);
     const PLATA = array(192, 192, 192);
     const BRONCE = array(205, 127, 50);
-    const GRIS_SUAVE = array(240, 240, 245);
+    const GRIS_SUAVE = array(128, 128, 128);
     const GRIS_MEDIO = array(108, 117, 125);
 
     public function Header() {
@@ -168,18 +168,12 @@ class Rep_Locutor_PDF extends TCPDF {
         // Solo el NOMBRE de la categoría: se excluyen género, tipo de largada
         // y modalidad del título (el locutor ya los conoce por el deporte).
         $nombre_cat = self::_limpiar_nombre_categoria($b['categoria']);
-        $titulo = $num . '. ' . strtoupper($nombre_cat);
+        $titulo = strtoupper($nombre_cat);
         $this->Cell(0, 8, '  ' . $titulo, 0, 1, 'L', 1);
 
         $this->Ln(2);
         
-        // Nota de prueba individual si aplica
-        if (isset($b['anunciar']) && $b['anunciar'] === 'provincia') {
-            $this->SetFont('dejavusans', 'I', 9);
-            $this->SetTextColor(180, 120, 0);
-            $this->Cell(0, 5, '     PRUEBA INDIVIDUAL: Se anuncia la provincia ganadora', 0, 1, 'L');
-            $this->Ln(2);
-        }
+        
         
         // ========================================
         // LISTA DE GANADORES
@@ -274,12 +268,7 @@ class Rep_Locutor_PDF extends TCPDF {
                 $this->SetX($x_txt);
                 $this->MultiCell($this->w - $this->rMargin - $x_txt, 4.5,
                     implode(' - ', $integrantes), 0, 'L');
-            } else {
-                $this->SetFont('dejavusans', 'I', 8);
-                $this->SetTextColor(180, 180, 180);
-                $this->Cell(20, 5, '', 0, 0);
-                $this->Cell(0, 5, 'Notas: ___________________________________________', 0, 1, 'L');
-            }
+            } 
             
             // Línea separadora
             $this->Ln(3);
@@ -454,6 +443,6 @@ $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
 $pdf->setFontSubsetting(true);
-$pdf->SetFont('dejavusans', '', 11, '', true);
+$pdf->SetFont('dejavusans', '', 24, '', true);
 
 $pdf->Body();

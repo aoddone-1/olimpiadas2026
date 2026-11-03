@@ -477,8 +477,7 @@ $norm = function ($txt) {
   <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
     <button type="button" role="tab" id="button-fixture" class="tab-btn activo" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
     <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
-    <button type="button" role="tab" id="button-medallero" class="tab-btn" aria-controls="tab-medallero" aria-selected="false" data-tab="tab-medallero" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>Medallero</button>
-  </nav>
+    </nav>
 
 <?php
 /* Etiquetas legibles (mismo criterio que pase_valido.php): fases del fixture y
