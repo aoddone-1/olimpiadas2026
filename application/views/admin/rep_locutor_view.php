@@ -106,15 +106,12 @@ class Rep_Locutor_PDF extends TCPDF {
     }
 
     /**
-     * BLOQUE DE ENTREGA - Formato profesional de guion
+     * BLOQUE DE ENTREGA - Formato profesional de guion.
+     * UNA ENTREGA (deporte/categoría) POR PÁGINA: el salto de página lo
+     * hace Body() antes de cada bloque, así el locutor tiene una hoja
+     * limpia por premiación.
      */
     private function _bloque_entrega($b, $num) {
-        // Verificar espacio disponible
-        $alt_estimado = 50 + 25 * max(1, count($b['puestos']));
-        if ($this->getY() + $alt_estimado > $this->h - $this->bMargin - 30) {
-            $this->AddPage();
-        }
-        
         // ========================================
         // ENCABEZADO DEL BLOQUE
         // ========================================
@@ -228,9 +225,6 @@ class Rep_Locutor_PDF extends TCPDF {
             $this->SetTextColor(self::GRIS_MEDIO);
             $this->Cell(0, 8, 'SIN GALARDONADOS — No anunciar esta entrega', 0, 1, 'C');
         }
-        
-        // Espacio grande entre bloques
-        $this->Ln(10);
     }
 
     /**
@@ -238,12 +232,13 @@ class Rep_Locutor_PDF extends TCPDF {
      */
     public function Body() {
         
-        // Luego los bloques
+        // Luego los bloques: UN DEPORTE/CATEGORÍA POR PÁGINA
         if (!empty($this->guion['bloques'])) {
-            $this->AddPage();
             $num = 0;
             foreach ($this->guion['bloques'] as $b) {
                 $num++;
+                // Cada entrega empieza en una página nueva
+                $this->AddPage();
                 $this->_bloque_entrega($b, $num);
             }
         }
