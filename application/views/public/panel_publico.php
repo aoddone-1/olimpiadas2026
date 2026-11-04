@@ -17,7 +17,7 @@
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <!-- Diseño del panel publico: maqueta aprobada (Entrega-Fixture-Olimpiadas).
      Hoja exclusiva de esta vista: usa selectores globales (body, .container, svg). -->
-<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261030b">
+<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261104a">
 <style>
 /* Ajustes locales de la integración (solo esta vista). */
 .venue-name{display:inline}
@@ -30,6 +30,51 @@ button.reset-button{font:inherit;line-height:inherit}
 .day-group[hidden]{display:none}
 .discipline-group[hidden]{display:none}
 .mass-group[hidden],.partido[hidden]{display:none}
+
+/* ============================================================
+   NOMBRES DE DELEGACIÓN (deportes de equipo) en pantallas chicas
+   ------------------------------------------------------------
+   El tema (css/panel-publico-theme.css) usa overflow-wrap:anywhere en
+   .equipo / .nombre / .p-eq, y eso permite partir una palabra en CUALQUIER
+   letra: con la columna angosta del celular "Formosa" terminaba como
+   F / o / r / m / o / s / a (una letra abajo de la otra). Acá se corrige:
+   - word-break:keep-all  -> no parte palabras; corta solo en los espacios.
+   - overflow-wrap:break-word -> recién divide una palabra si es la única
+     forma de que entre (palabras larguísimas), nunca antes.
+   - hyphens:none -> sin guiones inventados a mitad del nombre.
+   Se aplica a fixture, resultados, podios y jornadas para que sea parejo.
+   ============================================================ */
+.equipo,
+.vs .equipo,
+.vs-res .nombre,
+.p-nombre,
+.p-eq,
+.p-j-nombre{
+  word-break:keep-all;
+  overflow-wrap:break-word;
+  hyphens:none;
+  -webkit-hyphens:none;
+}
+
+/* Además, en phones le saco aire al layout de la card para que cada columna
+   tenga más ancho útil: menos gap/padding, marcador más chico y tipografía
+   apenas menor. Así "General San Martín" baja de línea en el espacio y no a
+   mitad de palabra. */
+@media (max-width:680px){
+  .cards{gap:9px}
+  .partido{padding:13px 11px}
+  .vs{gap:5px}
+  .vs .equipo,.equipo{font-size:13.5px;line-height:1.32}
+  .marcador{font-size:19px;padding:0 2px}
+  /* Resultados por equipo: el marcador no compite con el nombre */
+  .vs-res{gap:6px}
+  .vs-res .lado{gap:5px}
+  .vs-res .tato{font-size:19px}
+  /* Podios y planillas */
+  .p-medalla{padding:.7rem .4rem}
+  .p-partido,.p-j-fila{gap:6px}
+  .p-fase{min-width:62px}
+}
 </style>
 <style disabled id="estilos-clasicos-panel">
 :root{
@@ -186,7 +231,13 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .fase-header.elim{background:linear-gradient(90deg, #4a3b18, rgba(74,59,24,.35));
                   color:#ffd76e;border-bottom-color:#8a6d2f}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
-.vs .equipo{flex:1;text-align:center;font-weight:600;line-height:1.25}
+/* Nombres de delegación/equipo: cortar SIEMPRE en espacios (nunca letra por
+   letra). overflow-wrap:anywhere reparte hasta palabras cortas como "Formosa"
+   ("For-mosa") cuando la columna es angosta, y eso se ve horrible en pantallas
+   chicas. word-break:keep-all + break-word obliga a buscar el espacio más
+   cercano antes de partir una palabra. */
+.vs .equipo{flex:1;min-width:0;text-align:center;font-weight:600;line-height:1.25;
+            word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
 .vs .vsx{color:var(--muted);font-size:12px}
 .ganador{color:var(--ok)}
@@ -216,7 +267,8 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .vs-res{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 2px}
 .vs-res .lado{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
 .vs-res .lado.derecho{justify-content:flex-end;text-align:right}
-.vs-res .nombre{font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+/* idem fixture: nunca partir el nombre letra por letra, cortar en espacios */
+.vs-res .nombre{font-weight:600;line-height:1.2;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .vs-res .tato{font-size:22px;font-weight:800;color:var(--acento);white-space:nowrap}
 .ganador-linea{margin-top:8px;font-size:13px;font-weight:700;color:var(--ok)}
 .empate-linea{margin-top:8px;font-size:13px;color:var(--muted);font-style:italic}
@@ -251,7 +303,7 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
   gap:.25rem;align-items:center;min-height:112px;justify-content:center}
 .p-disco{font-size:1.7rem;line-height:1}
 .p-label{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--muted)}
-.p-nombre{font-weight:800;overflow-wrap:anywhere}
+.p-nombre{font-weight:800;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .p-extra{font-size:.72rem;color:var(--muted)}
 .p-desemp{font-size:.72rem;color:var(--oro);font-weight:700}
 .p-oro{border-color:var(--oro);background:linear-gradient(180deg,rgba(217,249,157,.14),rgba(217,249,157,.05))}
@@ -268,7 +320,7 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-fase{flex-shrink:0;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
   color:var(--muted);background:var(--line);border-radius:.4rem;padding:.15rem .5rem;min-width:74px;text-align:center}
 .p-partido.def .p-fase{color:#111;background:var(--oro)}
-.p-eq{flex:1;min-width:0;overflow-wrap:anywhere}
+.p-eq{flex:1;min-width:0;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .p-eq.dch{text-align:right}
 .p-eq.ganador{font-weight:800}
 .p-tato{font-size:18px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 4px}
@@ -292,7 +344,7 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-j-fila{display:flex;align-items:center;gap:10px;padding:5px 8px;border-radius:8px;font-size:14px}
 .p-j-fila:nth-child(odd){background:rgba(255,255,255,.03)}
 .p-j-fila.podio{background:rgba(132,204,22,.08);border:1px solid rgba(132,204,22,.25)}
-.p-j-nombre{flex:1;min-width:0;overflow-wrap:anywhere}
+.p-j-nombre{flex:1;min-width:0;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .p-j-marca{font-family:Consolas,monospace;font-weight:700;color:var(--ok);white-space:nowrap}
 .p-j-puntos{font-weight:800;color:var(--acento);white-space:nowrap}
 /* Medallero */
