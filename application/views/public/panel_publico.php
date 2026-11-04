@@ -56,6 +56,30 @@ button.reset-button{font:inherit;line-height:inherit}
   -webkit-hyphens:none;
 }
 
+/* ============================================================
+   ABREVIAURA DE PROVINCIA — SOLO EN PANTALLAS CHICAS
+   ------------------------------------------------------------
+   PHP renderiza los nombres largos con DOS versiones dentro del mismo
+   elemento: <span class="eq-nom"><span class="nombre-larga">Tierra del Fuego</span>
+                                       <span class="abr-corta">TdF</span></span>
+   Acá el CSS decide cuál se muestra según el ancho:
+   - Pantalla grande (>680px): NO pasa nada, se ve siempre el nombre
+     completo (por eso la abreviatura "solo" afecta a los dispositivos
+     chicos).
+   - Pantalla chica: se oculta el nombre largo y se muestra la sigla, así
+     "Tierra del Fuego / Tucumán" entra en una sola línea angosta.
+   Los nombres cortos no llevan .abr-corta, entonces no cambian nunca.
+   ============================================================ */
+.eq-nom{display:inline}
+.abr-corta{display:none}
+@media (max-width:680px){
+  .nombre-larga{display:none}
+  .abr-corta{display:inline}
+  /* La sigla va un poco más grande: ocupa la línea que antes se partía. */
+  .vs .equipo .abr-corta,.p-eq .abr-corta,.p-nombre .abr-corta,
+  .vs-res .nombre .abr-corta{font-size:15px;letter-spacing:.2px}
+}
+
 /* Además, en phones le saco aire al layout de la card para que cada columna
    tenga más ancho útil: menos gap/padding, marcador más chico y tipografía
    apenas menor. Así "General San Martín" baja de línea en el espacio y no a
@@ -620,6 +644,69 @@ $rango_horas = function ($horas) {
     return count($hs) === 1 ? $hs[0] : $hs[0] . '–' . $hs[count($hs) - 1];
 };
 
+/* ===== ABREVIAURA DE PROVINCIA (SOLO PANTALLAS CHICAS) =====================
+   En los deportes de EQUIPO cada columna del "VS" es angostísima en el celular:
+   el nombre de la delegación bajaba de línea y las palabras compuestas ("Tierra
+   del Fuego", "Santiago del Estero") quedaban horribles. Para eso se renderiza
+   una abreviatura tradicional argentina JUNTO al nombre completo:
+     - 1 palabra  -> primeras 3 letras      : Tucumán -> "Tuc"
+     - varias      -> iniciales de cada una : Tierra del Fuego -> "TdF"
+                                              Buenos Aires -> "BAs"
+   El nombre COMPLETO nunca se borra: las dos versiones viven en el mismo <span>
+   y el CSS decide cuál se ve según el ancho de pantalla (ver .nombre-larga /
+   .abr-corta más arriba). En escritorio (>680px) se lee el nombre completo igual
+   que antes; la abreviatura aparece SOLO en pantallas chicas. */
+$ABR_DISPATADOS = array('de', 'del', 'la', 'las', 'el', 'los', 'y', 'e');
+$abrev_provincia = function ($txt) use ($ABR_DISPATADOS) {
+    $t = trim((string) preg_replace('/\s+/u', ' ', (string) $txt));
+    if ($t === '') return '';
+    $palabras = preg_split('/[\s\-\/]+/u', $t);
+    $palabras = is_array($palabras) ? array_values(array_filter($palabras, function ($w) {
+        return $w !== '' && $w !== null;
+    })) : array();
+    // Ya es una sigla o un nombre cortísimo: no hay nada que achicar.
+    if (!$palabras || mb_strlen($t, 'UTF-8') <= 4) return $t;
+    if (count($palabras) === 1) {
+        // Una sola palabra -> las 3 primeras letras. Ej: "Tucumán" -> "Tuc".
+        return mb_substr($t, 0, 3, 'UTF-8');
+    }
+    // Varias palabras -> iniciales. Los conectores ("de", "del", "la"…) cuentan
+    // en minúscula: Tierra del Fuego -> TdF, Santiago del Estero -> SdE.
+    $sigla = '';
+    foreach ($palabras as $i => $p) {
+        $letra = mb_substr($p, 0, 1, 'UTF-8');
+        $es_conector = in_array(mb_strtolower($p, 'UTF-8'), $ABR_DISPATADOS, true);
+        $sigla .= ($i > 0 && $es_conector) ? mb_strtolower($letra, 'UTF-8') : mb_strtoupper($letra, 'UTF-8');
+    }
+    return $sigla;
+};
+/* HTML del nombre de una delegación/equipo con su versión corta alternativa. */
+$eq_nombre_html = function ($full) use ($abrev_provincia) {
+    $f = trim(preg_replace('/\s+/u', ' ', (string) $full));
+    if ($f === '') return '';
+    // Nombres cortos (Formosa, Salta, Chaco…) entran bien en cualquier pantalla:
+    // llevan solo el nombre normal, sin abreviatura.
+    if (mb_strlen($f, 'UTF-8') <= 9) return htmlspecialchars($f);
+    $abr = $abrev_provincia($f);
+    // Un solo span con las DOS versiones dentro: así no se rompe el layout de los
+    // flex-contenedores (.p-eq, .lado…) cuando el CSS esconde una de las dos.
+    // title + data-full guardan el nombre completo: al tocar el texto en el
+    // celular aparece el tooltip del sistema con la provincia entera.
+    $attrs = ' class="eq-nom" data-full="' . htmlspecialchars($f, ENT_QUOTES) . '"'
+           . ' title="' . htmlspecialchars($f, ENT_QUOTES) . '"';
+    $corta = ($abr !== '' && strcasecmp($abr, $f) !== 0)
+        ? '<span class="abr-corta">' . htmlspecialchars($abr) . '</span>'
+        : '';
+    return '<span' . $attrs . '>'
+         . '<span class="nombre-larga">' . htmlspecialchars($f) . '</span>'
+         . $corta . '</span>';
+};
+/* Solo el nombre, sin HTML (para frases como "🏆 Ganó ..."). */
+$eq_nombre_txt = function ($full) {
+    $f = trim(preg_replace('/\s+/u', ' ', (string) $full));
+    return $f === '' ? 'Equipo' : htmlspecialchars($f);
+};
+
 // Icono genérico de disciplina (banderín, como en la maqueta).
 $svg_disciplina = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V5m0 0c5-4 9 4 14 0v9c-5 4-9-4-14 0"/></svg>';
 $svg_pin        = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>';
@@ -773,8 +860,10 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             <?php foreach ($items as $idx => $fx):
                 // Estado del marcador
                 $mar = $fx['marcador'];
-                $eq1_nombre = $fx['ute_1_nombre'] ?: '<span class="pendiente">Por definir</span>';
-                $eq2_nombre = $fx['ute_2_nombre'] ?: '<span class="pendiente">Por definir</span>';
+                /* Nombre del equipo/delegación con su abreviatura alternativa
+                   (solo se ve en pantallas chicas; ver .abr-corta en el CSS). */
+                $eq1_nombre = $fx['ute_1_nombre'] ? $eq_nombre_html($fx['ute_1_nombre']) : '<span class="pendiente">Por definir</span>';
+                $eq2_nombre = $fx['ute_2_nombre'] ? $eq_nombre_html($fx['ute_2_nombre']) : '<span class="pendiente">Por definir</span>';
                 $marcador_txt = '';
                 $g1 = false; $g2 = false;
                 if ($mar && count($mar['equipos']) >= 2) {
@@ -1063,7 +1152,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             <div class="p-medalla <?= $vacio ? 'p-vacio' : $clase_puesto((int) $pos) ?>">
               <span class="p-disco"><?= $ico ?></span>
               <span class="p-label"><?= $pu['etiqueta'] !== '' ? htmlspecialchars($pu['etiqueta']) : $pos . '° puesto' ?></span>
-              <span class="p-nombre"><?= $vacio ? '—' : htmlspecialchars((string) $pu['nombre']) ?></span>
+              <span class="p-nombre"><?= $vacio ? '—' : $eq_nombre_html((string) $pu['nombre']) ?></span>
               <?php if (!$vacio && !empty($pu['desempate'])): ?>
                 <span class="p-desemp">🏅 <?= htmlspecialchars((string) $pu['desempate']) ?></span>
               <?php elseif (!$vacio && !empty($pu['extra'])): ?>
@@ -1098,7 +1187,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             <?php foreach ($tabla_visible as $tv): $i = $tv['i']; $e = $tv['e']; ?>
               <div class="p-partido">
                 <span class="p-fase"><?= $i + 1 ?>°</span>
-                <span class="p-eq"><?= htmlspecialchars((string) $e['nombre']) ?></span>
+                <span class="p-eq"><?= $eq_nombre_html((string) $e['nombre']) ?></span>
                 <span class="p-tato"><?= (int) $e['puntos'] ?></span>
                 <span class="p-metas"><?= (int) $e['pj'] ?> PJ · <?= (int) $e['pg'] ?>G <?= (int) $e['pe'] ?>E <?= (int) $e['pp'] ?>P</span>
               </div>
@@ -1118,9 +1207,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             ?>
               <div class="p-partido<?= !empty($pt['decisivo']) ? ' def' : '' ?>">
                 <span class="p-fase"><?= !empty($pt['decisivo']) ? '⭐ ' : '' ?><?= htmlspecialchars($fase_txt_local) ?></span>
-                <span class="p-eq<?= $pt['gana1'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq1_nombre']))) ? ' ganador' : '' ?>"><?= htmlspecialchars($pt['eq1_nombre']) ?></span>
+                <span class="p-eq<?= $pt['gana1'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq1_nombre']))) ? ' ganador' : '' ?>"><?= $eq_nombre_html((string) $pt['eq1_nombre']) ?></span>
                 <span class="p-tato"><?= (int) $pt['eq1_tantos'] ?> : <?= (int) $pt['eq2_tantos'] ?></span>
-                <span class="p-eq dch<?= $pt['gana2'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq2_nombre']))) ? ' ganador' : '' ?>"><?= htmlspecialchars($pt['eq2_nombre']) ?></span>
+                <span class="p-eq dch<?= $pt['gana2'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq2_nombre']))) ? ' ganador' : '' ?>"><?= $eq_nombre_html((string) $pt['eq2_nombre']) ?></span>
                 <span class="p-metas"><?= htmlspecialchars(trim($fecha_p . ' ' . $hora_p)) ?><?= !empty($pt['hubo_desempate']) ? ' · 🏅' : '' ?></span>
               </div>
             <?php endforeach; ?>
@@ -1209,8 +1298,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           /* Enfrentamiento: cada equipo con SU puntaje (54 / 58), no "54:58".
              Abajo: quién ganó, o cómo se desempató el empate (idea de pase_valido.php). */
           $a = $res['detalle'][0]; $b = $res['detalle'][1];
-          $eq1_nombre = trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo 1';
-          $eq2_nombre = trim((string) $b['nombre_libre']) !== '' ? $b['nombre_libre'] : 'Equipo 2';
+          /* Nombres crudos (se comparan con el ganador del desempate y sirven
+             para la frase "🏆 Ganó …"); la vista usa $eq_nombre_html(). */
+          $eq1_nombre = trim(preg_replace('/\s+/u', ' ', (string) $a['nombre_libre']));
+          $eq2_nombre = trim(preg_replace('/\s+/u', ' ', (string) $b['nombre_libre']));
+          $eq1_visible = $eq1_nombre !== '' ? $eq1_nombre : 'Equipo 1';
+          $eq2_visible = $eq2_nombre !== '' ? $eq2_nombre : 'Equipo 2';
           /* Cada fila de `resultado_detalle` guarda el marcador DESDE SU PROPIA
              perspectiva: marcador_local = tantos del equipo de la fila,
              marcador_visita = tantos del rival (criterio idéntico a
@@ -1246,18 +1339,18 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       ?>
         <div class="vs-res">
           <div class="lado">
-            <span class="nombre <?= $gana1 ? 'ganador' : '' ?>"><?= htmlspecialchars($eq1_nombre) ?></span>
+            <span class="nombre <?= $gana1 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq1_visible) ?></span>
             <span class="tato"><?= $p1 ?></span>
           </div>
           <div class="lado derecho">
             <span class="tato"><?= $p2 ?></span>
-            <span class="nombre <?= $gana2 ? 'ganador' : '' ?>"><?= htmlspecialchars($eq2_nombre) ?></span>
+            <span class="nombre <?= $gana2 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq2_visible) ?></span>
           </div>
         </div>
         <?php if ($gana1): ?>
-          <div class="ganador-linea">🏆 Ganó <?= htmlspecialchars($eq1_nombre) ?></div>
+          <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq1_visible) ?></div>
         <?php elseif ($gana2): ?>
-          <div class="ganador-linea">🏆 Ganó <?= htmlspecialchars($eq2_nombre) ?></div>
+          <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq2_visible) ?></div>
         <?php elseif ($p1 === $p2 && $hubo_desempate): ?>
           <div class="ganador-linea">🏅 Empate en tiempo regular — <?= htmlspecialchars($ganador_desemp !== '' ? $ganador_desemp : 'Definido') ?>
             ganó en <?= htmlspecialchars(isset($metodos_txt[(string) $res['desempate_metodo']]) ? $metodos_txt[(string) $res['desempate_metodo']] : strtolower((string) $res['desempate_metodo'])) ?></div>
@@ -1268,7 +1361,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         <?php $a = $res['detalle'][0]; ?>
         <div class="vs-res">
           <div class="lado">
-            <span class="nombre"><?= htmlspecialchars(trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo') ?></span>
+            <span class="nombre"><?= $eq_nombre_html(trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo') ?></span>
             <span class="tato"><?= (int) $a['marcador_local'] ?> : <?= (int) $a['marcador_visita'] ?></span>
           </div>
         </div>
