@@ -1486,8 +1486,10 @@ class Premiacion_model extends CI_Model {
                 $idf = (int) ($r['id_fixture'] ?? 0);
                 $fxi = isset($fx_map[$idf]) ? $fx_map[$idf] : array();
                 $fase = strtoupper(trim((string) ($fxi['fase'] ?? '')));
-                // Decisivo si ES la fase del podio o si el resultado de ese
-                // partido es la referencia directa de algún puesto del podio.
+                // Define el podio si ES la fase del podio o si el resultado de
+                // ese partido es la referencia directa de algún puesto del
+                // podio. Estos partidos NO se listan abajo: sus protagonistas
+                // ya aparecen arriba, en las medallas del podio.
                 $es_final = in_array($fase, $fases_decisivas, true);
                 $decisivo = ($es_final || isset($ids_ref[$idr])) ? 1 : 0;
 
