@@ -17,7 +17,7 @@
 <link rel="icon" type="image/png" href="<?= base_url('assets/img/icon.png') ?>">
 <!-- Diseño del panel publico: maqueta aprobada (Entrega-Fixture-Olimpiadas).
      Hoja exclusiva de esta vista: usa selectores globales (body, .container, svg). -->
-<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261104a">
+<link rel="stylesheet" href="<?= base_url('css/panel-publico-theme.css') ?>?v=20261104b">
 <style>
 /* Ajustes locales de la integración (solo esta vista). */
 .venue-name{display:inline}
@@ -316,7 +316,9 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-vacio .p-nombre{color:var(--muted);font-weight:600;font-style:italic}
 /* Podio diferenciado de la lista: el bloque de medallas va "afuera" de la
    lista de partidos — fondo con degradado propio y una etiqueta encima — y
-   debajo, separado por un divisor, quedan TODOS los partidos anteriores. */
+   debajo, separado por un divisor, quedan solo los partidos ANTERIORES al
+   podio (la Final y el 3er puesto no se repiten: sus equipos ya están arriba
+   con las medallitas). */
 .p-podio-box{margin:10px 0 4px;padding:10px 10px 6px;border-radius:.9rem;
   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
   border:1px solid var(--line)}
@@ -1015,13 +1017,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
              ya en el podio (ej.: final empatada sin desempate cargado). */
           $lista_partidos = array();
           if (!empty($pd['masivo'])) {
-              /* Masivos: el podio se armó con posiciones de UNA planilla. Esa
-                 planilla oficial va plegada bajo "Resultados completos" para
-                 no repetir los premiados; las demás jornadas quedan abiertas
-                 igual que antes. */
+              /* Masivos: TODAS las planillas ("Largada General", jornadas,
+                 pruebas) quedan DESPLEGADAS por defecto al cargar el panel —
+                 así el público ve los resultados sin tener que hacer clic. */
               $jorns = array();
               foreach (isset($pd['jornadas']) && is_array($pd['jornadas']) ? $pd['jornadas'] : array() as $j_aux) {
-                  $j_aux['abierta'] = empty($j_aux['es_mejor']);
+                  $j_aux['abierta'] = true;
                   $jorns[] = $j_aux;
               }
               $pd['jornadas'] = $jorns;
@@ -1048,9 +1049,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                   partidos anteriores (el camino: grupos, semis...). */ ?>
         <div class="p-podio-box">
           <div class="p-podio-label">🏅 Podio — <?= count($puestos_pd) > 3 ? 'los ' . count($puestos_pd) . ' primeros' : 'medallistas' ?></div>
-          <?php /* En pantallas CHICAS el podio se ve como filas (banda de
-                    color + puesto + nombre): así el nombre de la delegación
-                    tiene todo el ancho y no se parte letra por letra. */ ?>
+          <?php /* El podio se ve UNA sola vez con las medallitas: en pantallas
+                    grandes como tarjetas (1º/2º/3º lado a lado) y en pantallas
+                    CHICAS como filas (banda de color + puesto + nombre), para
+                    que el nombre de la delegación tenga todo el ancho y no se
+                    parte letra por letra. No se repite abajo, en la lista de
+                    partidos: ahí quedan solo los anteriores al podio. */ ?>
           <div class="podio-puestos" data-p="<?= max(1, min(3, count($puestos_pd))) ?>" style="--puestos:<?= max(1, min(3, count($puestos_pd))) ?>">
             <?php foreach ($puestos_pd as $pos): $pu = $pd['podium'][$pos];
                 $vacio = ($pu['nombre'] === null || $pu['nombre'] === '');
@@ -1071,28 +1075,11 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             </div>
             <?php endforeach; ?>
           </div>
-          <div class="podio-lista">
-            <?php foreach ($puestos_pd as $pos): $pu = $pd['podium'][$pos];
-                $vacio = ($pu['nombre'] === null || $pu['nombre'] === '');
-                $ico = $disco_puesto((int) $pos, (string) $pu['icono']);
-            ?>
-            <div class="p-fila <?= $vacio ? 'vacio' : $clase_puesto((int) $pos) ?>">
-              <span class="p-disco"><?= $ico ?></span>
-              <span class="p-label"><?= $pu['etiqueta'] !== '' ? htmlspecialchars($pu['etiqueta']) : $pos . '° puesto' ?></span>
-              <span class="p-nombre"><?= $vacio ? '—' : htmlspecialchars((string) $pu['nombre']) ?></span>
-              <?php if (!$vacio && !empty($pu['desempate'])): ?>
-                <span class="p-desemp">🏅 <?= htmlspecialchars((string) $pu['desempate']) ?></span>
-              <?php elseif (!$vacio && !empty($pu['extra'])): ?>
-                <span class="p-extra"><?= htmlspecialchars((string) $pu['extra']) ?></span>
-              <?php endif; ?>
-              <?php if (!$vacio && $pu['premio'] !== ''): ?>
-                <span class="p-extra"><?= htmlspecialchars((string) $pu['premio']) ?></span>
-              <?php endif; ?>
-            </div>
-            <?php endforeach; ?>
-          </div>
         </div>
-        <?php if (!empty($pd['tabla_puntaje'])):
+        <?php if (!empty($pd['masivo']) && !empty($pd['jornadas'])):
+            /* Nada: en los masivos las planillas (Largada General / jornadas)
+               se despliegan completas abajo, todas abiertas por defecto. */
+        elseif (!empty($pd['tabla_puntaje'])):
             /* Tabla de puntos (enfrentamiento definido por puntaje): el podio
                son los 3 primeros, que ya se mostraron arriba con medallas; la
                tabla de abajo arranca desde el 4° para no repetirlos. */
@@ -1141,8 +1128,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         <?php endif; ?>
         <?php /* ---- Jornadas / planillas completas (deportes de tiempo/puntaje) ----
                   El podio resume, pero acá se ven TODOS los resultados cargados:
-                  cada prueba con su planilla de posiciones. La planilla oficial
-                  del podio va abierta por defecto; las anteriores, desplegables. */ ?>
+                  cada prueba con su planilla de posiciones. TODAS van abiertas
+                  por defecto al cargar el panel (incluida "Largada General");
+                  el público igual puede plegarlas haciendo clic en la cabecera. */ ?>
         <?php if (!empty($pd['jornadas'])): $n_j = 0; ?>
           <div class="p-partidos">
             <div class="p-partidos-titulo">📋 Resultados completos — <?= count($pd['jornadas']) ?> prueba<?= count($pd['jornadas']) !== 1 ? 's' : '' ?></div>
