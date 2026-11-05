@@ -1012,12 +1012,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           $mapa = array(
               'futbol' => '⚽', 'fútbol' => '⚽', 'handball' => '🤾', 'handbol' => '🤾',
               'basquet' => '🏀', 'basket' => '🏀', 'básquet' => '🏀', 'basquetbol' => '🏀',
-              'voley' => '🏐', 'vóley' => '🏐', 'voleibol' => '🏐',
-              'tenis' => '🎾', 'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓',
+              'voley' => '🏐', 'vóley' => '🏐', 'voleibol' => '🏐','newcom' => '🏐','pool' => '🎱',
+              'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓','tenis' => '🎾', 
               'rugby' => '🏉', 'hockey' => '🏑', 'beisbol' => '⚾', 'softbol' => '⚾',
               'atletismo' => '🏃', 'natacion' => '🏊', 'natación' => '🏊','running' => '🏃',
               'boxeo' => '🥊', 'lucha' => '🤼', 'judo' => '🥋', 'karate' => '🥋','carrera' => '🏃',
-              'escrime' => '🤺', 'ciclismo' => '🚴','MTB' => '🚴', 'patin' => '⛸️', 'truco'=> '🃏'
+              'escrime' => '🤺', 'ciclismo' => '🚴','MTB' => '🚴','mtb' => '🚴', 'patin' => '⛸️', 'truco'=> '🃏'
           );
           foreach ($mapa as $k => $ico) if (strpos($n, $k) !== false) return $ico;
           return '🏅';
