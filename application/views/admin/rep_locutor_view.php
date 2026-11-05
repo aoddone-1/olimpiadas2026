@@ -245,7 +245,7 @@ class Rep_Locutor_PDF extends TCPDF {
             }
 
             // Número de posición (ancho fijo, alineado a derecha)
-            $this->SetFont('dejavusans', 'B', 15);
+            $this->SetFont('dejavusans', 'B', 10);
             $this->SetTextColor($colores[$pos][0], $colores[$pos][1], $colores[$pos][2]);
             $this->Cell(14, $this->_alto_linea(15), $etiquetas[$pos], 0, 0, 'R');
 
@@ -253,7 +253,7 @@ class Rep_Locutor_PDF extends TCPDF {
             // el locutor tiene que leer en voz alta. MultiCell con alto
             // calculado por la fuente: si el nombre es largo baja de renglón
             // dentro de la hoja en vez de salirse del recuadro.
-            $this->SetFont('dejavusans', 'B', 16);
+            $this->SetFont('dejavusans', 'B', 10);
             $this->SetTextColor(20, 33, 61);
 
             $texto_completo = $nombre_mostrar;
@@ -268,7 +268,7 @@ class Rep_Locutor_PDF extends TCPDF {
             if ($es_equipo && !empty($p['id'])) {
                 $ints = isset($integrantes_map[(int) $p['id']]) ? $integrantes_map[(int) $p['id']] : array();
                 if (is_array($ints) && $ints) {
-                    $this->SetFont('dejavusans', '', 11);
+                    $this->SetFont('dejavusans', '', 10);
                     $this->SetTextColor(93, 102, 112);
                     $this->Cell(14, $this->_alto_linea(11), '', 0, 0, 'R'); // sangría: alineado bajo el nombre
                     $this->MultiCell(0, $this->_alto_linea(11), '(' . implode(' - ', $ints) . ')', 0, 'L', 0, 1);
@@ -299,7 +299,7 @@ class Rep_Locutor_PDF extends TCPDF {
 
         // Sin galardonados
         if (!isset($b['puestos'][1]) && !isset($b['puestos'][2]) && !isset($b['puestos'][3])) {
-            $this->SetFont('dejavusans', 'I', 11);
+            $this->SetFont('dejavusans', 'I', 10);
             $this->SetTextColor(108, 117, 125);
             $this->Cell(14, $this->_alto_linea(11), '', 0, 0, 'R');
             $this->MultiCell(0, $this->_alto_linea(11), 'Sin galardonados definidos: NO anunciar esta entrega.', 0, 'L', 0, 1);
@@ -323,7 +323,6 @@ class Rep_Locutor_PDF extends TCPDF {
                 // encabezado repetido (ver _bloque_entrega).
                 $deporte = trim((string) ($b['deporte'] ?? ''));
                 if ($deporte !== $deporte_actual) {
-                    $this->AddPage();
                     $deporte_actual = $deporte;
                     if ($deporte !== '') {
                         $this->_encabezado_deporte($deporte);
@@ -365,8 +364,8 @@ $pdf->SetFooterMargin(18);
 $pdf->SetAutoPageBreak(TRUE, 26);
 $pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
 $pdf->setFontSubsetting(true);
-$pdf->SetFont('dejavusans', '', 11, '', true);
+$pdf->SetFont('dejavusans', '', 10, '', true);
 // sangría izquierda para las celdas sin borde (nombres, integrantes, notas)
 $pdf->setCellPaddings(2, 1, 2, 1);
-
+$pdf->AddPage();
 $pdf->Body();

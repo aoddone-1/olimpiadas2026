@@ -50,7 +50,7 @@ class MYPDF extends TCPDF {
      * participantes) por si en la mesa de control hay que anotar cruces o
      * inscriptos de último momento. Solo afecta a formato='planilla'.
      */
-    public static $filas_vacias_planilla = 20;
+    public static $filas_vacias_planilla = 0;
 
     /** Divide una lista de nombres de participantes.
      *  El separador es " - ": en la BD los nombres se guardan como

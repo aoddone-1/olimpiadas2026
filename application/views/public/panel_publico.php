@@ -21,28 +21,39 @@
 <style>
 /* Ajustes locales de la integración (solo esta vista). */
 .venue-name{display:inline}
-/* "Limpiar filtros" es un <button> que envía el formulario por POST:
-   se ve igual que el enlace original de la maqueta. */
 button.reset-button{font:inherit;line-height:inherit}
 .discipline-group[open] .discipline-arrow svg{transform:rotate(180deg)}
 @media(max-width:680px){.bottom-note a{margin-left:0}}
-/* Filtros client-side (JS del panel): días y búsqueda ocultan, nunca borran. */
 .day-group[hidden]{display:none}
 .discipline-group[hidden]{display:none}
 .mass-group[hidden],.partido[hidden]{display:none}
 
+/* Estilos para que los resultados funcionen de forma idéntica al fixture (plegados por defecto) */
+.resultado-details {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.resultado-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  background: var(--card2);
+  transition: background 0.2s;
+}
+.resultado-summary::-webkit-details-marker { display: none; }
+.resultado-summary:hover { background: rgba(255,255,255,0.04); }
+.resultado-details[open] .resultado-summary { border-bottom: 1px solid var(--line); }
+.resultado-body { padding: 14px; }
+.resultado-details[open] .discipline-arrow svg{transform:rotate(180deg)}
+
 /* ============================================================
    NOMBRES DE DELEGACIÓN (deportes de equipo) en pantallas chicas
-   ------------------------------------------------------------
-   El tema (css/panel-publico-theme.css) usa overflow-wrap:anywhere en
-   .equipo / .nombre / .p-eq, y eso permite partir una palabra en CUALQUIER
-   letra: con la columna angosta del celular "Formosa" terminaba como
-   F / o / r / m / o / s / a (una letra abajo de la otra). Acá se corrige:
-   - word-break:keep-all  -> no parte palabras; corta solo en los espacios.
-   - overflow-wrap:break-word -> recién divide una palabra si es la única
-     forma de que entre (palabras larguísimas), nunca antes.
-   - hyphens:none -> sin guiones inventados a mitad del nombre.
-   Se aplica a fixture, resultados, podios y jornadas para que sea parejo.
    ============================================================ */
 .equipo,
 .vs .equipo,
@@ -56,58 +67,40 @@ button.reset-button{font:inherit;line-height:inherit}
   -webkit-hyphens:none;
 }
 
-/* ============================================================
-   ABREVIAURA DE PROVINCIA — SOLO EN PANTALLAS CHICAS
-   ------------------------------------------------------------
-   PHP renderiza los nombres largos con DOS versiones dentro del mismo
-   elemento: <span class="eq-nom"><span class="nombre-larga">Tierra del Fuego</span>
-                                       <span class="abr-corta">TdF</span></span>
-   Acá el CSS decide cuál se muestra según el ancho:
-   - Pantalla grande (>680px): NO pasa nada, se ve siempre el nombre
-     completo (por eso la abreviatura "solo" afecta a los dispositivos
-     chicos).
-   - Pantalla chica: se oculta el nombre largo y se muestra la sigla, así
-     "Tierra del Fuego / Tucumán" entra en una sola línea angosta.
-   Los nombres cortos no llevan .abr-corta, entonces no cambian nunca.
-   ============================================================ */
 .eq-nom{display:inline}
 .abr-corta{display:none}
 @media (max-width:680px){
   .nombre-larga{display:none}
   .abr-corta{display:inline}
-  /* La sigla va un poco más grande: ocupa la línea que antes se partía. */
   .vs .equipo .abr-corta,.p-eq .abr-corta,.p-nombre .abr-corta,
   .vs-res .nombre .abr-corta{font-size:15px;letter-spacing:.2px}
 }
 
-/* Además, en phones le saco aire al layout de la card para que cada columna
-   tenga más ancho útil: menos gap/padding, marcador más chico y tipografía
-   apenas menor. Así "General San Martín" baja de línea en el espacio y no a
-   mitad de palabra. */
 @media (max-width:680px){
   .cards{gap:9px}
   .partido{padding:13px 11px}
   .vs{gap:5px}
   .vs .equipo,.equipo{font-size:13.5px;line-height:1.32}
   .marcador{font-size:19px;padding:0 2px}
-  /* Resultados por equipo: el marcador no compite con el nombre */
   .vs-res{gap:6px}
   .vs-res .lado{gap:5px}
   .vs-res .tato{font-size:19px}
-  /* Podios y planillas */
   .p-medalla{padding:.7rem .4rem}
   .p-partido,.p-j-fila{gap:6px}
   .p-fase{min-width:62px}
+  
+  /* MODIFICACIÓN: Podio uno abajo del otro en pantallas pequeñas */
+  .podio-puestos {
+    grid-template-columns: 1fr !important;
+  }
 }
 </style>
 <style disabled id="estilos-clasicos-panel">
 :root{
   --bg:#0d1b2a; --card:#14263b; --card2:#1b3050; --line:#274066;
   --txt:#eaf1f9; --muted:#8fa8c4; --acento:#84cc16; --ok:#2dd4a7;
-  /* Gama del verde institucional (#84CC16, lime-500): claro → oscuro */
   --verde-100:#ecfccb; --verde-200:#d9f99d; --verde-300:#bef264; --verde-400:#a3e635;
   --verde-500:#84cc16; --verde-600:#65a30d; --verde-700:#4d7c0f; --verde-800:#3f6212;
-  /* "Oro" (1er puesto) en la gama del verde: #d9f99d sobre texto oscuro. */
   --oro:#d9f99d; --plata:#cfd8e3; --bronce:#d9915b;
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -115,28 +108,15 @@ body{background:linear-gradient(160deg,#0d1b2a 0%,#10233a 60%,#0d1b2a 100%);colo
      font-family:'Segoe UI',system-ui,-apple-system,sans-serif;min-height:100vh}
 .wrap{max-width:1200px;margin:0 auto;padding:16px}
 header{text-align:center;padding:22px 10px 10px}
-/* Logo oficial sin letras (logo_olimpiadas_2.png): al no tener texto negro,
-   puede ir directo sobre el fondo oscuro — va a la par del título. */
 .titulo-row{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap}
-/* Un poco más grande */
-.titulo-row .logo-evento{height:clamp(80px,11vw,120px);...}
-
-/* Bastante más grande */
-.titulo-row .logo-evento{height:clamp(96px,13vw,140px);...}
-
-/* Bien grande (tipo banner) */
-.titulo-row .logo-evento{height:clamp(110px,15vw,160px);...}
-header{ text-align:center; padding: 14px 10px 6px; }
 header h1{font-size:clamp(20px,3.6vw,32px);letter-spacing:1px;line-height:1.25;text-align:left}
 header p.sitio{color:var(--txt);margin-top:6px;font-size:14px;font-weight:600;opacity:.85}
 header p.lugar{display:inline-block;margin-top:8px;background:var(--card);border:1px solid var(--line);
                border-radius:20px;padding:4px 14px;color:var(--acento);font-size:13px;font-weight:700}
 header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
-/* Jornada masiva (todos contra todos): sin "rivales" */
 .partido.masivo{background:linear-gradient(150deg,var(--card) 0%,#173a5e 100%)}
 .masivo-aviso{margin-top:2px;text-align:center;font-size:13px;color:var(--muted);font-style:italic}
 .badge.MASIVA{background:#123c52;color:#7fd8ff;margin-left:6px}
-/* Barra de filtros */
 .filtros {
   display: flex;
   flex-wrap: wrap;
@@ -149,84 +129,27 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
   padding: 16px 20px;
   margin: 18px 0;
 }
-
 .filtro-grupo {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 180px;
 }
-
-.filtros label {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
+.filtros label { font-size: 13px; color: var(--muted); font-weight: 500; }
 .filtros select {
-  background: var(--card2);
-  color: var(--txt);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 15px;
-  width: 100%;
-  min-width: 180px;
-  cursor: pointer;
-  transition: border-color 0.2s;
+  background: var(--card2); color: var(--txt); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; font-size: 15px; width: 100%; min-width: 180px; cursor: pointer;
 }
-
-.filtros select:hover {
-  border-color: var(--acento);
-}
-
-.filtros select:focus {
-  outline: none;
-  border-color: var(--acento);
-  box-shadow: 0 0 0 3px rgba(var(--acento-rgb, 0, 123, 255), 0.1);
-}
-
 .filtros a.limpiar {
-  color: var(--acento);
-  text-decoration: none;
-  font-size: 14px;
-  padding: 8px 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  transition: all 0.2s;
-  align-self: flex-end;
-}
-
-.filtros a.limpiar:hover {
-  background: var(--card2);
-  border-color: var(--acento);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .filtros {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .filtro-grupo {
-    min-width: 100%;
-  }
-  
-  .filtros a.limpiar {
-    align-self: center;
-    width: 100%;
-    text-align: center;
-  }
+  color: var(--acento); text-decoration: none; font-size: 14px; padding: 8px 16px;
+  border: 1px solid var(--line); border-radius: 8px; align-self: flex-end;
 }
 .chip-delegacion{display:inline-block;background:var(--acento);color:#111;border-radius:20px;
                  padding:4px 14px;font-weight:700;font-size:14px}
-/* Cards resumen */
 .resumen{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center}
 .stat b{display:block;font-size:28px;color:var(--acento)}
 .stat span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-/* Tabs */
 .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}
 .tab-btn{background:var(--card);border:1px solid var(--line);color:var(--txt);padding:10px 22px;
          border-radius:30px;font-size:15px;cursor:pointer;transition:.15s}
@@ -234,7 +157,6 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .tab-btn.activo{background:var(--acento);color:#111;font-weight:700;border-color:var(--acento)}
 .panel-tab{display:none}
 .panel-tab.visible{display:block}
-/* Fixture: tarjetas de partido */
 .grupo-dia{margin-bottom:22px}
 .grupo-dia h3{color:var(--acento);font-size:16px;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:6px}
 .partidos{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
@@ -245,21 +167,12 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .badge.EN_CURSO{background:var(--verde-800);color:var(--verde-300)}
 .badge.FINALIZADO{background:#0f3d2e;color:var(--ok)}
 .badge.SUSPENDIDO{background:#421f1f;color:#ffab9e}
-/* Franja de fase como HEADER real de la card del fixture: "GRUPO A", "ELIMINATORIA"...
-   Banda ancha arriba de la tarjeta (sin hueco arriba) para que llame la atención. */
 .fase-header{margin:-12px -14px 10px;padding:6px 14px;font-size:12px;font-weight:800;
              letter-spacing:1.2px;text-transform:uppercase;text-align:center;
              background:linear-gradient(90deg, rgba(132,204,22,.35), rgba(132,204,22,.10));
              color:var(--acento);border-bottom:1px solid rgba(132,204,22,.45);
              border-radius:12px 12px 0 0}
-.fase-header.elim{background:linear-gradient(90deg, #4a3b18, rgba(74,59,24,.35));
-                  color:#ffd76e;border-bottom-color:#8a6d2f}
 .vs{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
-/* Nombres de delegación/equipo: cortar SIEMPRE en espacios (nunca letra por
-   letra). overflow-wrap:anywhere reparte hasta palabras cortas como "Formosa"
-   ("For-mosa") cuando la columna es angosta, y eso se ve horrible en pantallas
-   chicas. word-break:keep-all + break-word obliga a buscar el espacio más
-   cercano antes de partir una palabra. */
 .vs .equipo{flex:1;min-width:0;text-align:center;font-weight:600;line-height:1.25;
             word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .vs .marcador{font-size:20px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 6px}
@@ -267,13 +180,10 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .ganador{color:var(--ok)}
 .pendiente{color:var(--muted);font-style:italic;font-weight:400 !important}
 .categoria-linea{font-size:12px;color:var(--muted);margin-top:8px}
-/* Deporte destacado en la card del fixture (llama la atención); la categoría
-   va discreta abajo. */
 .deporte-chip{display:inline-block;background:rgba(132,204,22,.14);border:1px solid rgba(132,204,22,.45);
               color:var(--acento);font-weight:700;font-size:12px;letter-spacing:.5px;text-transform:uppercase;
               border-radius:8px;padding:2px 10px}
 .hora-inicio{color:var(--txt);font-weight:600}
-/* Resultados */
 .resultado-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
 .resultado-card h4{font-size:15px;margin-bottom:2px}
 .resultado-card .sub{font-size:12px;color:var(--muted);margin-bottom:10px}
@@ -283,23 +193,15 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
      font-weight:800;font-size:13px;background:var(--line);flex-shrink:0}
 .tiempo{margin-left:auto;font-family:Consolas,monospace;color:var(--ok);font-weight:700}
 .marcador-res{margin-left:auto;font-weight:800;color:var(--acento)}
-.desempate-tag{font-size:11px;color:#ffab9e;margin-left:8px}
-/* Encabezado de la card de resultado: DEPORTE destacado + categoría abajo */
 .res-header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .res-categoria{font-size:13px;color:var(--txt);opacity:.85;font-weight:600}
-/* Marcador "por equipo" (La Pampa 54 / Mendoza 58) + línea de quién ganó */
 .vs-res{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px 2px}
 .vs-res .lado{flex:1;display:flex;align-items:center;gap:8px;min-width:0}
 .vs-res .lado.derecho{justify-content:flex-end;text-align:right}
-/* idem fixture: nunca partir el nombre letra por letra, cortar en espacios */
 .vs-res .nombre{font-weight:600;line-height:1.2;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .vs-res .tato{font-size:22px;font-weight:800;color:var(--acento);white-space:nowrap}
 .ganador-linea{margin-top:8px;font-size:13px;font-weight:700;color:var(--ok)}
 .empate-linea{margin-top:8px;font-size:13px;color:var(--muted);font-style:italic}
-/* ---------- PODIOS (deportes de enfrentamiento) ----------
-   Agrupados por deporte, con la card de cada categoría adentro. El podio se ve
-   como en la Premiación (medallas 1º/2º/3º) y debajo los partidos cargados:
-   primero los DEFINITORIOS destacados, después el camino (grupos/semis). */
 .podio-grupo{margin-bottom:22px}
 .podio-dep-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   background:linear-gradient(135deg,#16324f 0%,#1d4b77 100%);
@@ -310,24 +212,16 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
   border:1px solid rgba(255,255,255,.2)}
 .podio-dep-nombre{font-size:1.15rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase}
 .podio-dep-meta{font-size:.78rem;color:var(--muted)}
-.podio-dep-chip{margin-left:auto;font-size:.75rem;font-weight:700;color:var(--acento);
-  background:rgba(132,204,22,.12);border:1px solid rgba(132,204,22,.4);
-  border-radius:2rem;padding:.25rem .8rem}
 .podio-cat{background:var(--card);border:1px solid var(--line);border-radius:12px;
   padding:14px;margin-bottom:12px}
 .podio-cat-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
 .podio-cat-nombre{font-size:15px;font-weight:800}
 .podio-cat-regla{font-size:12px;color:var(--muted)}
 .podio-cerrada-tag{margin-left:auto;font-size:11px;font-weight:700;color:var(--ok);
-  border:1px solid var(--ok);border-radius:.4rem;padding:.05rem .5rem;letter-spacing:.04em}
+  border:1px solid var(--ok);border-radius:.4rem;padding:.05rem .5rem}
 .podio-puestos{display:grid;grid-template-columns:repeat(var(--puestos,3),1fr);gap:.6rem;margin:12px 0 4px}
-@media (max-width:700px){.podio-puestos{grid-template-columns:1fr}}
-/* Podio con 2 puestos (ej.: solo oro/plata): que no sobre una columna vacía */
-.podio-puestos[data-p="2"]{grid-template-columns:repeat(2,1fr)}
-@media (max-width:700px){.podio-puestos[data-p="2"]{grid-template-columns:1fr}}
 .p-medalla{border-radius:.8rem;padding:.8rem .6rem;text-align:center;border:2px solid transparent;
-  background:var(--card2);box-shadow:0 2px 6px rgba(0,0,0,.18);display:flex;flex-direction:column;
-  gap:.25rem;align-items:center;min-height:112px;justify-content:center}
+  background:var(--card2);display:flex;flex-direction:column;gap:.25rem;align-items:center;min-height:112px;justify-content:center}
 .p-disco{font-size:1.7rem;line-height:1}
 .p-label{font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;color:var(--muted)}
 .p-nombre{font-weight:800;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
@@ -337,12 +231,6 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-plata{border-color:var(--plata);background:linear-gradient(180deg,rgba(207,216,227,.14),rgba(207,216,227,.05))}
 .p-bronce{border-color:var(--bronce);background:linear-gradient(180deg,rgba(217,145,91,.14),rgba(217,145,91,.05))}
 .p-vacio{border-style:dashed;border-color:var(--line)}
-.p-vacio .p-nombre{color:var(--muted);font-weight:600;font-style:italic}
-/* Podio diferenciado de la lista: el bloque de medallas va "afuera" de la
-   lista de partidos — fondo con degradado propio y una etiqueta encima — y
-   debajo, separado por un divisor, quedan solo los partidos ANTERIORES al
-   podio (la Final y el 3er puesto no se repiten: sus equipos ya están arriba
-   con las medallitas). */
 .p-podio-box{margin:10px 0 4px;padding:10px 10px 6px;border-radius:.9rem;
   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
   border:1px solid var(--line)}
@@ -356,18 +244,13 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-partido.def{border:1px solid rgba(132,204,22,.45);background:rgba(132,204,22,.08)}
 .p-fase{flex-shrink:0;font-size:.68rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase;
   color:var(--muted);background:var(--line);border-radius:.4rem;padding:.15rem .5rem;min-width:74px;text-align:center}
-.p-partido.def .p-fase{color:#111;background:var(--oro)}
 .p-eq{flex:1;min-width:0;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .p-eq.dch{text-align:right}
 .p-eq.ganador{font-weight:800}
 .p-tato{font-size:18px;font-weight:800;color:var(--acento);white-space:nowrap;padding:0 4px}
 .p-metas{font-size:.72rem;color:var(--muted);white-space:nowrap}
-/* ---------- JORNADAS / PLANILLAS completas (deportes de tiempo y puntaje) ----------
-   Dentro de la card de la categoría, debajo del podio: TODAS las pruebas
-   cargadas con su planilla de posiciones (cada uno puede buscar cómo le fue). */
 .p-jornada{border:1px solid var(--line);border-radius:10px;background:var(--card2);
   margin-top:8px;overflow:hidden}
-.p-jornada.mejor{border-color:rgba(132,204,22,.5)}
 .p-j-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;cursor:pointer;
   font-size:13px;font-weight:700}
 .p-j-head:hover{background:rgba(255,255,255,.04)}
@@ -384,7 +267,6 @@ header p.sub{color:var(--muted);margin-top:6px;font-size:14px}
 .p-j-nombre{flex:1;min-width:0;word-break:keep-all;overflow-wrap:break-word;hyphens:none}
 .p-j-marca{font-family:Consolas,monospace;font-weight:700;color:var(--ok);white-space:nowrap}
 .p-j-puntos{font-weight:800;color:var(--acento);white-space:nowrap}
-/* Medallero */
 table.medallero{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
 table.medallero th{background:var(--card2);color:var(--muted);font-size:12px;text-transform:uppercase;
                    padding:10px;border-bottom:1px solid var(--line)}
@@ -403,34 +285,12 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
                 filter:drop-shadow(0 3px 10px rgba(0,0,0,.4))}
 @media(max-width:600px){.partidos{grid-template-columns:1fr}}
 
-/* Logo + título en la misma línea */
 .titulo-row{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:16px;
-  flex-wrap:wrap;
-  max-width: 600px;          /* 👈 achica el bloque (ajustá a gusto) */
-  margin: 0 auto;            /* 👈 lo centra */
-  padding: 0 10px;
-}
-
-/* El título se adapta al espacio y se parte en líneas */
-.titulo-row h1{
-  font-size: clamp(20px, 3.6vw, 32px);
-  letter-spacing: 1px;
-  line-height: 1.25;
-  text-align: left;
-  margin: 0;
-  white-space: normal;       /* 👈 permite saltos de línea */
-  flex: 1 1 400px;           /* 👈 ocupa el espacio disponible, mínimo 400px */
-}
-.titulo-row{
-  display:flex;
-  align-items:center;
-  justify-content:center;   /* centrados juntos */
   gap:18px;
-  flex-wrap:nowrap;         /* 👈 clave: no se rompe la línea */
+  flex-wrap:nowrap;
 }
 .titulo-row .logo-evento{
   height:clamp(140px, 18vw, 220px);
@@ -439,7 +299,6 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
   flex-shrink:0;
   filter:drop-shadow(0 4px 14px rgba(0,0,0,.45));
 }
-/* Si la pantalla es muy chica, recién ahí se apilan */
 @media (max-width: 600px){
   .titulo-row{
     max-width: 100%;
@@ -451,18 +310,12 @@ footer .mascota{display:block;margin:0 auto 10px;height:72px;width:auto;object-f
     flex: 1 1 auto;
   }
 }
-
 </style>
 </head>
 <body>
 <a class="skip" href="#contenido">Ir al contenido</a>
 
 <?php
-/* ===== Diseño nuevo (Entrega-Fixture-Olimpiadas) =====
-   Claves de día y disciplina normalizadas, a la manera de la maqueta:
-   sin tildes, sin distinción de mayúsculas. Se usan como identificadores
-   data-day / data-discipline del fixture y para que el JS recuerde qué
-   días/disciplinas quedaron abiertos al filtrar o buscar. */
 $norm = function ($txt) {
     $txt = trim((string) $txt);
     if (function_exists('iconv')) {
@@ -499,15 +352,11 @@ $norm = function ($txt) {
       <p>Elegí una delegación, un deporte o una categoría.</p>
     </div>
     <?php if (!empty($delegacion) || !empty($id_deporte) || !empty($id_categoria)): ?>
-    <!-- "Limpiar filtros" también va por POST: la barra sigue siendo "/publico". -->
     <button type="submit" class="reset-button" form="filters-form" name="limpiar" value="1">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10a8 8 0 1 1 1.8 7.1M4 4v6h6"/></svg>Limpiar filtros
     </button>
     <?php endif; ?>
   </div>
-  <!-- Los filtros viajan por POST: la barra de direcciones NUNCA se ensucia
-       (ni "?delegacion=..." ni "/delegacion/formosa"). El servidor recibe los
-       valores en $_POST y renderiza la misma URL limpia. -->
   <form method="post" action="<?= site_url('publico') ?>" id="filters-form" class="filters-form">
     <div class="filter-field">
       <label for="filtroDelegacion">Delegación</label>
@@ -566,11 +415,9 @@ $norm = function ($txt) {
   <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
     <button type="button" role="tab" id="button-fixture" class="tab-btn activo" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
     <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
-    </nav>
+  </nav>
 
 <?php
-/* Etiquetas legibles (mismo criterio que pase_valido.php): fases del fixture y
-   métodos de desempate. El público no lee códigos como "SEMIFINAL" o "PENALES". */
 $fases_txt = array(
     'GRUPO' => 'Fase de grupos', '16AVOS' => '16avos. de final',
     'OCTAVOS' => 'Octavos de final', 'CUARTOS' => 'Cuartos de final',
@@ -583,17 +430,13 @@ $metodos_txt = array(
     'LANZAMIENTO_TIRLIBRE' => 'el lanzamiento tirlibre', 'OTRO' => 'el desempate',
 );
 
-/* "TRAMPITA DE LAS JORNADAS" (espejo de fixture.php / reporte_fixture.php):
-   numero_fecha se usa como divisor de grupos — Jornada 1 → Grupo A,
-   Jornada 2 → Grupo B, ... Para saber si una jornada es TODA de fase GRUPO
-   primero se indexan las filas por categoría + numero_fecha. */
 $letra_grupo = function ($n) {
     static $abecedario = array('A','B','C','D','E','F','G','H','I','J','K','L','M',
                                'N','O','P','Q','R','S','T','U','V','W','X','Y','Z');
     if ($n >= 1 && $n <= count($abecedario)) return $abecedario[$n - 1];
     return chr(64 + intdiv($n - 1, 26)) . '-' . $abecedario[($n - 1) % 26];
 };
-$grupos_idx = array(); // clave "categoria|numero_fecha" → ['hay_grupo'=>bool,'todas_grupo'=>bool]
+$grupos_idx = array();
 foreach ($fixture as $fxx) {
     $num_f = (int) (isset($fxx['numero_fecha']) ? $fxx['numero_fecha'] : 0);
     $clave = (int) (isset($fxx['id_categoria']) ? $fxx['id_categoria'] : 0) . '|' . $num_f;
@@ -606,9 +449,7 @@ foreach ($fixture as $fxx) {
         $grupos_idx[$clave]['todas_grupo'] = FALSE;
     }
 }
-// Solo las jornadas que son TODAS de fase GRUPO tienen letra de grupo:
-// Grupo A (fecha 1), Grupo B (fecha 2), ... (si se agota la Z, sigue AA...).
-$grupo_etiqueta = array(); // clave "categoria|numero_fecha" → 'Grupo A' | null
+$grupo_etiqueta = array();
 foreach ($grupos_idx as $clave => $g) {
     $num_f = (int) substr($clave, strpos($clave, '|') + 1);
     $grupo_etiqueta[$clave] = ($g['todas_grupo'] && $g['hay_grupo'] && $num_f > 0)
@@ -616,27 +457,21 @@ foreach ($grupos_idx as $clave => $g) {
         : null;
 }
 
-/* ===== Helpers de presentación (diseño de la maqueta) ===== */
 $dias_es = array(0=>'Domingo',1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado');
-// Abrevatura de 3 letras SIN tilde para el botonito del día ("Mier" arriba de 04/11).
-// date('w') = 0 (domingo) … 6 (sábado); antes se usaba date('l') —"Wednesday"— y,
-// como esa clave no existía en el mapa, PHP devolvía '' y el botón salía sin etiqueta.
 $dias_curtos = array(0=>'Dom',1=>'Lun',2=>'Mar',3=>'Mier',4=>'Jue',5=>'Vier',6=>'Sáb');
 
-// Nombre propio en minúsculas, excepto siglas como MTB / PÁDEL / PADI.
 $lower_name = function ($txt) {
     $t = trim((string) $txt);
     if ($t === '') return '';
     if (preg_match('/^(?!.*[a-záéíóúüñ])[A-ZÁÉÍÓÚÜÑ0-9&\/\x{b4}\s\.\-\(\)]+$/u', $t)) return $t;
     $out = preg_replace_callback('/[\p{L}\p{M}]+/u', function ($m) {
         $w = $m[0];
-        if (mb_strlen($w, 'UTF-8') <= 3) return $w; // "de", "3x3"... se respetan
+        if (mb_strlen($w, 'UTF-8') <= 3) return $w;
         return mb_strtolower(mb_substr($w, 0, 1, 'UTF-8'), 'UTF-8') . mb_substr($w, 1, null, 'UTF-8');
     }, $t);
     return trim($out);
 };
 
-// Horario de la disciplina: rango entre la primera y la última hora del día.
 $rango_horas = function ($horas) {
     $hs = array_values(array_unique(array_filter($horas)));
     sort($hs);
@@ -644,18 +479,6 @@ $rango_horas = function ($horas) {
     return count($hs) === 1 ? $hs[0] : $hs[0] . '–' . $hs[count($hs) - 1];
 };
 
-/* ===== ABREVIAURA DE PROVINCIA (SOLO PANTALLAS CHICAS) =====================
-   En los deportes de EQUIPO cada columna del "VS" es angostísima en el celular:
-   el nombre de la delegación bajaba de línea y las palabras compuestas ("Tierra
-   del Fuego", "Santiago del Estero") quedaban horribles. Para eso se renderiza
-   una abreviatura tradicional argentina JUNTO al nombre completo:
-     - 1 palabra  -> primeras 3 letras      : Tucumán -> "Tuc"
-     - varias      -> iniciales de cada una : Tierra del Fuego -> "TdF"
-                                              Buenos Aires -> "BAs"
-   El nombre COMPLETO nunca se borra: las dos versiones viven en el mismo <span>
-   y el CSS decide cuál se ve según el ancho de pantalla (ver .nombre-larga /
-   .abr-corta más arriba). En escritorio (>680px) se lee el nombre completo igual
-   que antes; la abreviatura aparece SOLO en pantallas chicas. */
 $ABR_DISPATADOS = array('de', 'del', 'la', 'las', 'el', 'los', 'y', 'e');
 $abrev_provincia = function ($txt) use ($ABR_DISPATADOS) {
     $t = trim((string) preg_replace('/\s+/u', ' ', (string) $txt));
@@ -664,14 +487,10 @@ $abrev_provincia = function ($txt) use ($ABR_DISPATADOS) {
     $palabras = is_array($palabras) ? array_values(array_filter($palabras, function ($w) {
         return $w !== '' && $w !== null;
     })) : array();
-    // Ya es una sigla o un nombre cortísimo: no hay nada que achicar.
     if (!$palabras || mb_strlen($t, 'UTF-8') <= 4) return $t;
     if (count($palabras) === 1) {
-        // Una sola palabra -> las 3 primeras letras. Ej: "Tucumán" -> "Tuc".
         return mb_substr($t, 0, 3, 'UTF-8');
     }
-    // Varias palabras -> iniciales. Los conectores ("de", "del", "la"…) cuentan
-    // en minúscula: Tierra del Fuego -> TdF, Santiago del Estero -> SdE.
     $sigla = '';
     foreach ($palabras as $i => $p) {
         $letra = mb_substr($p, 0, 1, 'UTF-8');
@@ -680,18 +499,11 @@ $abrev_provincia = function ($txt) use ($ABR_DISPATADOS) {
     }
     return $sigla;
 };
-/* HTML del nombre de una delegación/equipo con su versión corta alternativa. */
 $eq_nombre_html = function ($full) use ($abrev_provincia) {
     $f = trim(preg_replace('/\s+/u', ' ', (string) $full));
     if ($f === '') return '';
-    // Nombres cortos (Formosa, Salta, Chaco…) entran bien en cualquier pantalla:
-    // llevan solo el nombre normal, sin abreviatura.
     if (mb_strlen($f, 'UTF-8') <= 9) return htmlspecialchars($f);
     $abr = $abrev_provincia($f);
-    // Un solo span con las DOS versiones dentro: así no se rompe el layout de los
-    // flex-contenedores (.p-eq, .lado…) cuando el CSS esconde una de las dos.
-    // title + data-full guardan el nombre completo: al tocar el texto en el
-    // celular aparece el tooltip del sistema con la provincia entera.
     $attrs = ' class="eq-nom" data-full="' . htmlspecialchars($f, ENT_QUOTES) . '"'
            . ' title="' . htmlspecialchars($f, ENT_QUOTES) . '"';
     $corta = ($abr !== '' && strcasecmp($abr, $f) !== 0)
@@ -701,19 +513,15 @@ $eq_nombre_html = function ($full) use ($abrev_provincia) {
          . '<span class="nombre-larga">' . htmlspecialchars($f) . '</span>'
          . $corta . '</span>';
 };
-/* Solo el nombre, sin HTML (para frases como "🏆 Ganó ..."). */
 $eq_nombre_txt = function ($full) {
     $f = trim(preg_replace('/\s+/u', ' ', (string) $full));
     return $f === '' ? 'Equipo' : htmlspecialchars($f);
 };
 
-// Icono genérico de disciplina (banderín, como en la maqueta).
 $svg_disciplina = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V5m0 0c5-4 9 4 14 0v9c-5 4-9-4-14 0"/></svg>';
 $svg_pin        = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>';
 $svg_search     = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>';
 $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
-$svg_flag       = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>';
-$svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6 4-6M5 3h3m8 0h3"/><circle cx="12" cy="15" r="7"/><path d="m12 11 1.2 2.5 2.8.4-2 1.9.5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-1.9 2.8-.4Z"/></svg>';
 ?>
 <!-- ============ FIXTURE ============ -->
 <section class="panel" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
@@ -726,30 +534,21 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   </div>
 
   <?php
-  /* Días disponibles (con los filtros del servidor ya aplicados sobre $fixture),
-     en el orden de la consulta. */
-  $dias_disp = array();   // fecha → ['full' => "Miércoles 04/11", 'short' => 'Mier']
+  $dias_disp = array();
   foreach ($fixture as $fx0) {
       $f0 = (string) $fx0['fecha_competencia'];
       if ($f0 === '' || isset($dias_disp[$f0])) continue;
       $ts0 = strtotime($f0);
-      // date('w') = 0 (domingo) … 6 (sábado). Antes se usaba date('l') —"Wednesday"—
-      // y, como no existía esa clave en el mapa, PHP devolvía '' y el botón del
-      // 04/11 salía sin etiqueta arriba. Ahora: "Mier" + "04/11".
       $dias_disp[$f0] = $ts0
           ? array('full'  => $dias_es[(int) date('w', $ts0)] . ' ' . date('d/m', $ts0),
                   'short' => $dias_curtos[(int) date('w', $ts0)])
           : array('full' => $f0, 'short' => $f0);
   }
-  /* Día mostrado al cargar: SIEMPRE el primero del calendario. El cambio de
-     día es 100% en el cliente (JS), así que nunca aparece en la URL. Lo mismo
-     con la búsqueda (arranca vacía) y las disciplinas (todas cerradas). */
   $dia_sel = !empty($dias_disp) ? (string) array_key_first($dias_disp) : 'all';
   $q_uri = '';
   $disc_plana = '';
   $disc_fecha = '';
-
-?>
+  ?>
   <div class="schedule-tools">
     <nav class="day-nav" id="day-nav" aria-label="Filtrar por día">
       <?php foreach ($dias_disp as $fecha_d => $info_d):
@@ -781,9 +580,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     </div>
   <?php else: ?>
     <?php
-    /* Agrupación del fixture real: día → disciplina (deporte) → tarjetas.
-       Las pruebas masivas (todos contra todos) se agrupan por
-       hora + sede + estado dentro de su disciplina, como en la maqueta. */
     $por_dia = array();
     foreach ($fixture as $fx) {
         $fd = (string) $fx['fecha_competencia'];
@@ -797,8 +593,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     <div id="schedule">
     <?php
     foreach ($por_dia as $fecha_d => $disciplinas):
-        // Se renderizan TODOS los días (con el resto oculto), para que el filtro
-        // por día funcione del lado del cliente sin recargar la página.
         if (!isset($dias_disp[$fecha_d])) continue;
         $etiqueta_d = $dias_disp[$fecha_d]['full'];
         $clave_d = $norm($etiqueta_d);
@@ -819,9 +613,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
             $desc_d = $rango_horas($horas_d);
             $sedes_vals = array_values($sedes_d);
             $desc_d .= ' · ' . (count($sedes_vals) === 1 ? $lower_name($sedes_vals[0]) : (count($sedes_vals) > 1 ? count($sedes_vals) . ' sedes' : 'Sede a confirmar'));
-            /* La disciplina anclada por #disciplina-... entra abierta; las demás,
-               cerradas (como en la maqueta). El JS recuerda además las que el
-               usuario abra y cierre. */
             $abierta = FALSE;
             if ($disc_plana !== '') {
                 foreach ($disciplinas as $dk_plan => $_ig) {
@@ -841,7 +632,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           </summary>
           <div class="discipline-body">
             <?php
-            /* Masivas agrupadas por hora+sede+estado (aparecen en su primera posición). */
             $mass_groups = array(); $rendered_mass = array();
             foreach ($items as $idx_m => $it_m) {
                 $es_m = ((string) $it_m['fase'] === 'JORNADA_UNICA')
@@ -856,12 +646,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                 $mass_groups[$mg_key]['items'][] = $it_m;
             }
             ?>
-            <div class="cards<?= $n_items ? '' : '' ?>">
+            <div class="cards">
             <?php foreach ($items as $idx => $fx):
-                // Estado del marcador
                 $mar = $fx['marcador'];
-                /* Nombre del equipo/delegación con su abreviatura alternativa
-                   (solo se ve en pantallas chicas; ver .abr-corta en el CSS). */
                 $eq1_nombre = $fx['ute_1_nombre'] ? $eq_nombre_html($fx['ute_1_nombre']) : '<span class="pendiente">Por definir</span>';
                 $eq2_nombre = $fx['ute_2_nombre'] ? $eq_nombre_html($fx['ute_2_nombre']) : '<span class="pendiente">Por definir</span>';
                 $marcador_txt = '';
@@ -869,7 +656,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                 if ($mar && count($mar['equipos']) >= 2) {
                     $a = $mar['equipos'][0]; $b = $mar['equipos'][1];
                     $marcador_txt = $a['a_favor'] . ' – ' . $a['en_contra'];
-                    // Determinar ganador por goles a favor (y desempate si hubo)
                     if ((int)$a['a_favor'] > (int)$a['en_contra']) $g1 = true;
                     elseif ((int)$a['en_contra'] > (int)$a['a_favor']) $g2 = true;
                     if (!empty($mar['hubo_desempate'])) { $g1 = false; $g2 = false; }
@@ -877,26 +663,18 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                     $marcador_txt = 'Final';
                 }
 
-                // Deportes MASIVO_TIEMPO / jornadas JORNADA_UNICA: todos contra todos,
-                // NO llevan rivales ni marcador "VS". (modalidad_competencia es un dato
-                // interno: solo se usa acá, nunca se muestra.)
                 $es_masivo = ((string) $fx['fase'] === 'JORNADA_UNICA')
                           || ((string) (isset($fx['modalidad_competencia']) ? $fx['modalidad_competencia'] : '') === 'MASIVO_TIEMPO');
 
-                // Horario: lo importante es la HORA DE COMIENZO en hh:mm (los segundos
-                // y el horario de fin no interesan al público).
                 $hora_ts = strtotime('today ' . trim((string) $fx['hora_inicio']));
                 $hora_txt = $hora_ts !== false ? date('H:i', $hora_ts) : substr(trim((string) $fx['hora_inicio']), 0, 5);
 
-                // Chip de fase en el header de la card: "GRUPO A/B/..." (numero_fecha →
-                // letra, misma regla que fixture.php/reporte_fixture.php) o
-                // "ELIMINATORIA" para cualquier otra fase (SEMIFINAL, FINAL, OCTAVOS...).
                 $clave_fx = (int) (isset($fx['id_categoria']) ? $fx['id_categoria'] : 0) . '|'
                           . (int) (isset($fx['numero_fecha']) ? $fx['numero_fecha'] : 0);
                 $grupo_txt = isset($grupo_etiqueta[$clave_fx]) ? $grupo_etiqueta[$clave_fx] : null;
                 $fase_raw = strtoupper(trim((string) (isset($fx['fase']) ? $fx['fase'] : '')));
                 if ($grupo_txt !== null) {
-                    $chip_fase = 'Grupo ' . substr($grupo_txt, 6); // "Grupo A"
+                    $chip_fase = 'Grupo ' . substr($grupo_txt, 6);
                     $chip_elim = false;
                 } elseif ($fase_raw !== '' && $fase_raw !== 'JORNADA_UNICA') {
                     $chip_fase = 'Eliminatoria';
@@ -923,7 +701,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
                   </div>
                 </div>
                 <span class="badge <?= htmlspecialchars($mg['status']) ?>"><?= htmlspecialchars($mg['status']) ?></span>
-                <details open>
+                <details>
                   <summary>Categorías de la jornada</summary>
                   <div class="category-rows">
                     <?php foreach ($mg['items'] as $it_c):
@@ -969,7 +747,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       </div>
     </section>
     <?php endforeach; ?>
-    </div><!-- /#schedule -->
+    </div>
     <div id="search-empty" class="empty-state" hidden>
       <div class="empty-icon" aria-hidden="true">⌕</div>
       <h3>No encontramos competencias</h3>
@@ -979,35 +757,23 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
   <?php endif; ?>
 </section>
 
-<!-- ============ RESULTADOS ============ -->
+<!-- ============ RESULTADOS (AHORA PLEGADOS POR DEFECTO) ============ -->
 <section class="panel" id="tab-resultados" role="tabpanel" aria-labelledby="button-resultados" tabindex="0" hidden>
   <div class="section-heading">
     <div>
       <p class="eyebrow">CADA ENCUENTRO CUENTA</p>
       <h2>Resultados</h2>
-      <p>Marcadores y posiciones por competencia.</p>
+      <p>Marcadores y posiciones por competencia. Hacé clic en un deporte para desplegarlo.</p>
     </div>
   </div>
   <?php if (empty($resultados)): ?>
     <div class="vacio">Todavía no hay resultados cargados<?= $delegacion ? ' para esta delegación' : '' ?><?= !empty($id_categoria) ? ' en esta categoría' : '' ?>.</div>
   <?php else:
-      /* Los deportes de ENFRENTAMIENTO ($podios, resueltos por Premiacion_model)
-         se muestran como PODIO (medallas 1º/2º/3º, igual que en la Premiación),
-         agrupados por deporte y con cada categoría adentro. El podio va AFUERA
-         de la lista, en un bloque propio arriba; debajo quedan solo los
-         partidos ANTERIORES (el camino: grupos, semis...). La Final y el
-         partido por el 3er puesto NO se repiten en la lista: sus protagonistas
-         ya están en las medallas.
-         Las demás categorías (tiempo/puntaje masivo) conservan las cards simples
-         de siempre; si una categoría ya tiene podio, su card simple se omite
-         para no mostrar el mismo resultado dos veces. */
       $podios = isset($podios) && is_array($podios) ? $podios : array();
       $cats_en_podio = array();
       foreach ($podios as $pd) $cats_en_podio[(int) $pd['id_categoria']] = true;
 
       $icono_deporte = function ($nombre) {
-          // Sin depender de mb_* (la extensión multibyte no siempre está):
-          // strtolower + acentos clave en el mapa.
           $n = strtolower(trim((string) $nombre));
           $mapa = array(
               'futbol' => '⚽', 'fútbol' => '⚽', 'handball' => '🤾', 'handbol' => '🤾',
@@ -1029,9 +795,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       $clase_puesto = function ($puesto) {
           return array(1 => 'p-oro', 2 => 'p-plata', 3 => 'p-bronce')[$puesto] ?? '';
       };
-      /* Clave comparable de un nombre de equipo (minúsculas, sin acentos ni
-         espacios sobrantes): sirve para cruzar los nombres del PODIO con los
-         de la lista de partidos y saber cuáles ya "subieron" al podio. */
       $norm_eq = function ($s) {
           $s = strtolower(trim((string) $s));
           $map = array('á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n');
@@ -1040,19 +803,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           return $s;
       };
 
-      /* ---- 1) PODIOS AGRUPADOS POR DEPORTE ----
-         El orden de llegada de $podios ya es por DÍA DE PREMIACIÓN (lo más
-         reciente primero) y deporte: acá se conservan los bloques tal como
-         vinieron — NO se vuelve a ordenar alfabéticamente, porque si no
-         Fútbol premiado el 02/11 aparecería arriba de Fútbol premiado el 03/11.
-         Si un mismo deporte se premió en noches distintas, cada noche forma su
-         propio bloque (todas las categorías de esa noche siguen juntas). */
       $grupos_dep = array();
       foreach ($podios as $pd) {
           $dep_clave = $pd['deporte'] !== '' ? $pd['deporte'] : 'Otros';
-          // Día de premiación del bloque: fecha_entrega (día sugerido o día de
-          // la definición, según Premiación) o, si todavía no cerró, el último
-          // día que se jugó dentro de la categoría.
           $fecha_dia = !empty($pd['fecha_entrega']) ? substr((string) $pd['fecha_entrega'], 0, 10) : '';
           if ($fecha_dia === '') {
               $dias_int = array();
@@ -1070,215 +823,172 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
           }
           $grupos_dep[$clave]['items'][] = $pd;
       }
-      // SIN ksort: el orden de inserción refleja ya "día más nuevo primero".
+
       foreach ($grupos_dep as $grupo_dep):
           $dep_nombre = $grupo_dep['deporte'];
-          $items_dep = $grupo_dep['items']; ?>
-    <div class="podio-grupo">
-      <div class="podio-dep-head">
-        <span class="podio-dep-icon"><?= $icono_deporte($dep_nombre) ?></span>
-        <div>
-          <div class="podio-dep-nombre"><?= htmlspecialchars($dep_nombre) ?><?php if ($grupo_dep['fecha'] !== ''): ?> <span class="podio-dep-dia" style="font-size:.8rem;font-weight:600;opacity:.75;white-space:nowrap">🏆 Premiación <?= htmlspecialchars(date('d/m/Y', strtotime($grupo_dep['fecha']))) ?></span><?php endif; ?></div>
-          <div class="podio-dep-meta"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?> · <?php
-              $hay_masivo = false; $hay_enfrent = false;
-              foreach ($items_dep as $x) {
-                  if (!empty($x['masivo'])) $hay_masivo = true; else $hay_enfrent = true;
-              }
-              echo $hay_masivo && $hay_enfrent ? 'podios y planillas' : ($hay_masivo ? 'tiempo y puntaje' : 'enfrentamientos');
-          ?></div>
-        </div>
-      </div>
-      <?php foreach ($items_dep as $pd):
-          $puestos_pd = array_keys($pd['podium']);
-          sort($puestos_pd);
-          /* Equipos que ya están en el PODIO (nombres normalizados). Los
-             partidos definitorios (Final / 3er puesto) no se repiten abajo:
-             sus protagonistas quedan "afuera" de la lista, diferenciados. */
-          $en_podio = array();
-          if (empty($pd['masivo'])) {
-              foreach ($pd['podium'] as $pu) {
-                  $nnm = $norm_eq($pu['nombre'] ?? '');
-                  if ($nnm !== '') $en_podio[$nnm] = true;
-              }
-          }
-          /* Partidos que SÍ van en la lista de abajo: los NO definitorios y,
-             por seguridad, cualquier definitorio cuyos equipos no aparezcan
-             ya en el podio (ej.: final empatada sin desempate cargado). */
-          $lista_partidos = array();
-          if (!empty($pd['masivo'])) {
-              /* Masivos: TODAS las planillas ("Largada General", jornadas,
-                 pruebas) quedan DESPLEGADAS por defecto al cargar el panel —
-                 así el público ve los resultados sin tener que hacer clic. */
-              $jorns = array();
-              foreach (isset($pd['jornadas']) && is_array($pd['jornadas']) ? $pd['jornadas'] : array() as $j_aux) {
-                  $j_aux['abierta'] = true;
-                  $jorns[] = $j_aux;
-              }
-              $pd['jornadas'] = $jorns;
-          } elseif (!empty($pd['partidos'])) {
-              foreach ($pd['partidos'] as $pt_aux) {
-                  if (!empty($pt_aux['decisivo'])) {
-                      $n1 = $norm_eq($pt_aux['eq1_nombre'] ?? '');
-                      $n2 = $norm_eq($pt_aux['eq2_nombre'] ?? '');
-                      if ($n1 !== '' && isset($en_podio[$n1])
-                          && $n2 !== '' && isset($en_podio[$n2])) continue;
-                  }
-                  $lista_partidos[] = $pt_aux;
-              }
-          } ?>
-      <div class="podio-cat">
-        <div class="podio-cat-head">
-          <span class="podio-cat-nombre"><?= htmlspecialchars($pd['categoria']) ?><?= $pd['genero'] !== '' ? ' (' . htmlspecialchars($pd['genero']) . ')' : '' ?></span>
-          <span class="podio-cat-regla">⚙ <?= htmlspecialchars($pd['texto_regla']) ?></span>
-          <?php if (!empty($pd['cerrada'])): ?><span class="podio-cerrada-tag">FINALIZADO</span><?php endif; ?>
-        </div>
-        <?php /* ---- EL PODIO, AFUERA DE LA LISTA ----
-                  Medallas 1º/2º/3º en un bloque propio arriba; debajo,
-                  separada por un divisor, queda solo la lista de los
-                  partidos anteriores (el camino: grupos, semis...). */ ?>
-        <div class="p-podio-box">
-          <div class="p-podio-label">🏅 Podio — <?= count($puestos_pd) > 3 ? 'los ' . count($puestos_pd) . ' primeros' : 'medallistas' ?></div>
-          <?php /* El podio se ve UNA sola vez con las medallitas: en pantallas
-                    grandes como tarjetas (1º/2º/3º lado a lado) y en pantallas
-                    CHICAS como filas (banda de color + puesto + nombre), para
-                    que el nombre de la delegación tenga todo el ancho y no se
-                    parte letra por letra. No se repite abajo, en la lista de
-                    partidos: ahí quedan solo los anteriores al podio. */ ?>
-          <div class="podio-puestos" data-p="<?= max(1, min(3, count($puestos_pd))) ?>" style="--puestos:<?= max(1, min(3, count($puestos_pd))) ?>">
-            <?php foreach ($puestos_pd as $pos): $pu = $pd['podium'][$pos];
-                $vacio = ($pu['nombre'] === null || $pu['nombre'] === '');
-                $ico = $disco_puesto((int) $pos, (string) $pu['icono']);
-            ?>
-            <div class="p-medalla <?= $vacio ? 'p-vacio' : $clase_puesto((int) $pos) ?>">
-              <span class="p-disco"><?= $ico ?></span>
-              <span class="p-label"><?= $pu['etiqueta'] !== '' ? htmlspecialchars($pu['etiqueta']) : $pos . '° puesto' ?></span>
-              <span class="p-nombre"><?= $vacio ? '—' : $eq_nombre_html((string) $pu['nombre']) ?></span>
-              <?php if (!$vacio && !empty($pu['desempate'])): ?>
-                <span class="p-desemp">🏅 <?= htmlspecialchars((string) $pu['desempate']) ?></span>
-              <?php elseif (!$vacio && !empty($pu['extra'])): ?>
-                <span class="p-extra"><?= htmlspecialchars((string) $pu['extra']) ?></span>
-              <?php endif; ?>
-              <?php if (!$vacio && $pu['premio'] !== ''): ?>
-                <span class="p-extra"><?= htmlspecialchars((string) $pu['premio']) ?></span>
-              <?php endif; ?>
-            </div>
-            <?php endforeach; ?>
-          </div>
-        </div>
-        <?php if (!empty($pd['masivo']) && !empty($pd['jornadas'])):
-            /* Nada: en los masivos las planillas (Largada General / jornadas)
-               se despliegan completas abajo, todas abiertas por defecto. */
-        elseif (!empty($pd['tabla_puntaje'])):
-            /* Tabla de puntos (enfrentamiento definido por puntaje): el podio
-               son los 3 primeros, que ya se mostraron arriba con medallas; la
-               tabla de abajo arranca desde el 4° para no repetirlos. */
-            $tabla_visible = array();
-            foreach ($pd['tabla_puntaje'] as $i => $e) {
-                if ($i < 3) {
-                    $ntab = $norm_eq($e['nombre'] ?? '');
-                    if ($ntab !== '' && isset($en_podio[$ntab])) continue;
+          $items_dep = $grupo_dep['items']; 
+          $clave_disc_res = $norm($dep_nombre);
+  ?>
+    <!-- Cada grupo de deporte de podio ahora usa <details> y <summary> para aparecer plegado por defecto -->
+    <details class="resultado-details discipline-group" data-discipline="<?= htmlspecialchars($clave_disc_res) ?>">
+      <summary class="resultado-summary discipline-summary">
+        <span class="discipline-symbol" aria-hidden="true"><?= $icono_deporte($dep_nombre) ?></span>
+        <span class="discipline-label">
+          <span class="discipline-name"><?= htmlspecialchars($dep_nombre) ?></span>
+          <span class="discipline-description"><?= count($items_dep) ?> categoría<?= count($items_dep) !== 1 ? 's' : '' ?></span>
+        </span>
+        <span class="discipline-count"><?= count($items_dep) ?> competencias</span>
+        <span class="discipline-arrow" aria-hidden="true"><?= $svg_chevron ?></span>
+      </summary>
+      <div class="resultado-body">
+        <?php foreach ($items_dep as $pd):
+            $puestos_pd = array_keys($pd['podium']);
+            sort($puestos_pd);
+            $en_podio = array();
+            if (empty($pd['masivo'])) {
+                foreach ($pd['podium'] as $pu) {
+                    $nnm = $norm_eq($pu['nombre'] ?? '');
+                    if ($nnm !== '') $en_podio[$nnm] = true;
                 }
-                $tabla_visible[] = array('i' => $i, 'e' => $e);
             }
-        ?>
-          <?php if ($tabla_visible): ?>
-          <div class="p-partidos">
-            <div class="p-partidos-titulo">📋 Tabla de puntos<?= empty($pd['masivo']) ? ' — del 4° en adelante' : '' ?></div>
-            <?php foreach ($tabla_visible as $tv): $i = $tv['i']; $e = $tv['e']; ?>
-              <div class="p-partido">
-                <span class="p-fase"><?= $i + 1 ?>°</span>
-                <span class="p-eq"><?= $eq_nombre_html((string) $e['nombre']) ?></span>
-                <span class="p-tato"><?= (int) $e['puntos'] ?></span>
-                <span class="p-metas"><?= (int) $e['pj'] ?> PJ · <?= (int) $e['pg'] ?>G <?= (int) $e['pe'] ?>E <?= (int) $e['pp'] ?>P</span>
-              </div>
-            <?php endforeach; ?>
+            $lista_partidos = array();
+            if (!empty($pd['masivo'])) {
+                $jorns = array();
+                foreach (isset($pd['jornadas']) && is_array($pd['jornadas']) ? $pd['jornadas'] : array() as $j_aux) {
+                    $j_aux['abierta'] = false; // Jornadas internas también plegadas dentro del deporte
+                    $jorns[] = $j_aux;
+                }
+                $pd['jornadas'] = $jorns;
+            } elseif (!empty($pd['partidos'])) {
+                foreach ($pd['partidos'] as $pt_aux) {
+                    if (!empty($pt_aux['decisivo'])) {
+                        $n1 = $norm_eq($pt_aux['eq1_nombre'] ?? '');
+                        $n2 = $norm_eq($pt_aux['eq2_nombre'] ?? '');
+                        if ($n1 !== '' && isset($en_podio[$n1]) && $n2 !== '' && isset($en_podio[$n2])) continue;
+                    }
+                    $lista_partidos[] = $pt_aux;
+                }
+            } ?>
+        <div class="podio-cat">
+          <div class="podio-cat-head">
+            <span class="podio-cat-nombre"><?= htmlspecialchars($pd['categoria']) ?><?= $pd['genero'] !== '' ? ' (' . htmlspecialchars($pd['genero']) . ')' : '' ?></span>
+            <span class="podio-cat-regla">⚙ <?= htmlspecialchars($pd['texto_regla']) ?></span>
+            <?php if (!empty($pd['cerrada'])): ?><span class="podio-cerrada-tag">FINALIZADO</span><?php endif; ?>
           </div>
+          <div class="p-podio-box">
+            <div class="p-podio-label">🏅 Podio — <?= count($puestos_pd) > 3 ? 'los ' . count($puestos_pd) . ' primeros' : 'medallistas' ?></div>
+            <div class="podio-puestos" data-p="<?= max(1, min(3, count($puestos_pd))) ?>" style="--puestos:<?= max(1, min(3, count($puestos_pd))) ?>">
+              <?php foreach ($puestos_pd as $pos): $pu = $pd['podium'][$pos];
+                  $vacio = ($pu['nombre'] === null || $pu['nombre'] === '');
+                  $ico = $disco_puesto((int) $pos, (string) $pu['icono']);
+              ?>
+              <div class="p-medalla <?= $vacio ? 'p-vacio' : $clase_puesto((int) $pos) ?>">
+                <span class="p-disco"><?= $ico ?></span>
+                <span class="p-label"><?= $pu['etiqueta'] !== '' ? htmlspecialchars($pu['etiqueta']) : $pos . '° puesto' ?></span>
+                <span class="p-nombre"><?= $vacio ? '—' : $eq_nombre_html((string) $pu['nombre']) ?></span>
+                <?php if (!$vacio && !empty($pu['desempate'])): ?>
+                  <span class="p-desemp">🏅 <?= htmlspecialchars((string) $pu['desempate']) ?></span>
+                <?php elseif (!$vacio && !empty($pu['extra'])): ?>
+                  <span class="p-extra"><?= htmlspecialchars((string) $pu['extra']) ?></span>
+                <?php endif; ?>
+              </div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php if (!empty($pd['tabla_puntaje'])):
+              $tabla_visible = array();
+              foreach ($pd['tabla_puntaje'] as $i => $e) {
+                  if ($i < 3) {
+                      $ntab = $norm_eq($e['nombre'] ?? '');
+                      if ($ntab !== '' && isset($en_podio[$ntab])) continue;
+                  }
+                  $tabla_visible[] = array('i' => $i, 'e' => $e);
+              }
+          ?>
+            <?php if ($tabla_visible): ?>
+            <div class="p-partidos">
+              <div class="p-partidos-titulo">📋 Tabla de puntos</div>
+              <?php foreach ($tabla_visible as $tv): $i = $tv['i']; $e = $tv['e']; ?>
+                <div class="p-partido">
+                  <span class="p-fase"><?= $i + 1 ?>°</span>
+                  <span class="p-eq"><?= $eq_nombre_html((string) $e['nombre']) ?></span>
+                  <span class="p-tato"><?= (int) $e['puntos'] ?></span>
+                  <span class="p-metas"><?= (int) $e['pj'] ?> PJ · <?= (int) $e['pg'] ?>G <?= (int) $e['pe'] ?>E <?= (int) $e['pp'] ?>P</span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+          <?elseif ($lista_partidos): ?>
+            <div class="p-partidos">
+              <div class="p-partidos-titulo">📅 Partidos anteriores</div>
+              <?php foreach ($lista_partidos as $pt):
+                  $fase_txt_local = $pt['fase'] !== null ? (isset($fases_txt[$pt['fase']]) ? $fases_txt[$pt['fase']] : $pt['fase']) : 'Partido';
+                  $fecha_p = !empty($pt['fecha']) ? date('d/m', strtotime((string) $pt['fecha'])) : '';
+                  $hora_p = !empty($pt['hora']) ? date('H:i', strtotime('today ' . trim((string) $pt['hora']))) : '';
+                  $gano_desem_p = !empty($pt['hubo_desempate']) && !empty($pt['ganador_desempate']);
+              ?>
+                <div class="p-partido<?= !empty($pt['decisivo']) ? ' def' : '' ?>">
+                  <span class="p-fase"><?= !empty($pt['decisivo']) ? '⭐ ' : '' ?><?= htmlspecialchars($fase_txt_local) ?></span>
+                  <span class="p-eq"><?= $eq_nombre_html((string) $pt['eq1_nombre']) ?></span>
+                  <span class="p-tato"><?= (int) $pt['eq1_tantos'] ?> : <?= (int) $pt['eq2_tantos'] ?></span>
+                  <span class="p-eq dch"><?= $eq_nombre_html((string) $pt['eq2_nombre']) ?></span>
+                  <span class="p-metas"><?= htmlspecialchars(trim($fecha_p . ' ' . $hora_p)) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
           <?php endif; ?>
-        <?php elseif ($lista_partidos): ?>
-          <div class="p-partidos">
-            <div class="p-partidos-titulo">📅 Partidos anteriores — el camino al podio</div>
-            <?php foreach ($lista_partidos as $pt):
-                $fase_txt_local = $pt['fase'] !== null
-                  ? (isset($fases_txt[$pt['fase']]) ? $fases_txt[$pt['fase']] : $pt['fase'])
-                  : 'Partido';
-                $fecha_p = !empty($pt['fecha']) ? date('d/m', strtotime((string) $pt['fecha'])) : '';
-                $hora_p = !empty($pt['hora']) ? date('H:i', strtotime('today ' . trim((string) $pt['hora']))) : '';
-                $gano_desem_p = !empty($pt['hubo_desempate']) && !empty($pt['ganador_desempate']);
-            ?>
-              <div class="p-partido<?= !empty($pt['decisivo']) ? ' def' : '' ?>">
-                <span class="p-fase"><?= !empty($pt['decisivo']) ? '⭐ ' : '' ?><?= htmlspecialchars($fase_txt_local) ?></span>
-                <span class="p-eq<?= $pt['gana1'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq1_nombre']))) ? ' ganador' : '' ?>"><?= $eq_nombre_html((string) $pt['eq1_nombre']) ?></span>
-                <span class="p-tato"><?= (int) $pt['eq1_tantos'] ?> : <?= (int) $pt['eq2_tantos'] ?></span>
-                <span class="p-eq dch<?= $pt['gana2'] || ($pt['empate'] && $gano_desem_p && strtoupper(trim($pt['ganador_desempate'])) === strtoupper(trim($pt['eq2_nombre']))) ? ' ganador' : '' ?>"><?= $eq_nombre_html((string) $pt['eq2_nombre']) ?></span>
-                <span class="p-metas"><?= htmlspecialchars(trim($fecha_p . ' ' . $hora_p)) ?><?= !empty($pt['hubo_desempate']) ? ' · 🏅' : '' ?></span>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
-        <?php /* ---- Jornadas / planillas completas (deportes de tiempo/puntaje) ----
-                  El podio resume, pero acá se ven TODOS los resultados cargados:
-                  cada prueba con su planilla de posiciones. TODAS van abiertas
-                  por defecto al cargar el panel (incluida "Largada General");
-                  el público igual puede plegarlas haciendo clic en la cabecera. */ ?>
-        <?php if (!empty($pd['jornadas'])): $n_j = 0; ?>
-          <div class="p-partidos">
-            <div class="p-partidos-titulo">📋 Resultados completos — <?= count($pd['jornadas']) ?> prueba<?= count($pd['jornadas']) !== 1 ? 's' : '' ?></div>
-            <?php foreach ($pd['jornadas'] as $j):
-                $n_j++;
-                $fecha_j = !empty($j['fecha']) ? date('d/m', strtotime((string) $j['fecha'])) : '';
-                $hora_j  = !empty($j['hora']) ? date('H:i', strtotime('today ' . trim((string) $j['hora']))) : '';
-                $meta_j  = trim($fecha_j . ($hora_j !== '' ? ' · ' . $hora_j : '') . ($j['lugar'] !== '' ? ' · ' . $j['lugar'] : ''));
-                $titulo_j = $j['prueba'] !== '' ? $j['prueba'] : ('Prueba ' . $n_j);
-            ?>
-              <div class="p-jornada<?= !empty($j['abierta']) ? ' abierta' : '' ?>">
-                <div class="p-j-head" role="button" tabindex="0" aria-expanded="<?= !empty($j['abierta']) ? 'true' : 'false' ?>">
-                  <span class="p-j-flecha" aria-hidden="true">▶</span>
-                  <span><?= htmlspecialchars($titulo_j) ?></span>
-                  <?php if (!empty($j['es_mejor'])): ?><span class="p-j-official">Planilla del podio</span><?php endif; ?>
-                  <span class="p-j-meta"><?= htmlspecialchars($meta_j) ?> · <?= count($j['filas']) ?> inscriptos</span>
-                </div>
-                <div class="p-j-cuerpo">
-                  <?php foreach ($j['filas'] as $f): ?>
-                    <div class="p-j-fila<?= !empty($f['es_podio']) ? ' podio' : '' ?>">
-                      <span class="pos <?= (int) $f['posicion'] >= 1 && (int) $f['posicion'] <= 3 ? 'p' . (int) $f['posicion'] : '' ?>"><?= (int) $f['posicion'] ?></span>
-                      <span class="p-j-nombre"><?= htmlspecialchars((string) $f['nombre']) ?></span>
-                      <?php if (!empty($f['marca'])): ?>
-                        <?php if (!empty($f['es_puntos'])): ?>
-                          <span class="p-j-puntos"><?= htmlspecialchars((string) $f['marca']) ?> pts</span>
-                        <?php else: ?>
-                          <span class="p-j-marca"><?= htmlspecialchars((string) $f['marca']) ?></span>
+          <?php if (!empty($pd['jornadas'])): $n_j = 0; ?>
+            <div class="p-partidos">
+              <div class="p-partidos-titulo">📋 Resultados completos</div>
+              <?php foreach ($pd['jornadas'] as $j):
+                  $n_j++;
+                  $fecha_j = !empty($j['fecha']) ? date('d/m', strtotime((string) $j['fecha'])) : '';
+                  $hora_j  = !empty($j['hora']) ? date('H:i', strtotime('today ' . trim((string) $j['hora']))) : '';
+                  $meta_j  = trim($fecha_j . ($hora_j !== '' ? ' · ' . $hora_j : '') . ($j['lugar'] !== '' ? ' · ' . $j['lugar'] : ''));
+                  $titulo_j = $j['prueba'] !== '' ? $j['prueba'] : ('Prueba ' . $n_j);
+              ?>
+                <div class="p-jornada">
+                  <div class="p-j-head" role="button" tabindex="0" aria-expanded="false">
+                    <span class="p-j-flecha" aria-hidden="true">▶</span>
+                    <span><?= htmlspecialchars($titulo_j) ?></span>
+                    <span class="p-j-meta"><?= htmlspecialchars($meta_j) ?> · <?= count($j['filas']) ?> inscriptos</span>
+                  </div>
+                  <div class="p-j-cuerpo">
+                    <?php foreach ($j['filas'] as $f): ?>
+                      <div class="p-j-fila<?= !empty($f['es_podio']) ? ' podio' : '' ?>">
+                        <span class="pos <?= (int) $f['posicion'] >= 1 && (int) $f['posicion'] <= 3 ? 'p' . (int) $f['posicion'] : '' ?>"><?= (int) $f['posicion'] ?></span>
+                        <span class="p-j-nombre"><?= htmlspecialchars((string) $f['nombre']) ?></span>
+                        <?php if (!empty($f['marca'])): ?>
+                          <span class="<?= !empty($f['es_puntos']) ? 'p-j-puntos' : 'p-j-marca' ?>"><?= htmlspecialchars((string) $f['marca']) ?><?= !empty($f['es_puntos']) ? ' pts' : '' ?></span>
                         <?php endif; ?>
-                      <?php endif; ?>
-                    </div>
-                  <?php endforeach; ?>
+                      </div>
+                    <?php endforeach; ?>
+                  </div>
                 </div>
-              </div>
-            <?php endforeach; ?>
-          </div>
-        <?php endif; ?>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </div>
+        <?php endforeach; ?>
       </div>
-      <?php endforeach; ?>
-    </div>
+    </details>
     <?php endforeach; ?>
 
-    <?php /* ---- 2) RESTO: cards simples (deportes de tiempo/puntaje) ---- */
+    <?php 
           $otros = array_values(array_filter($resultados, function ($r) use ($cats_en_podio) {
               return !isset($cats_en_podio[(int) (isset($r['id_categoria']) ? $r['id_categoria'] : 0)]);
           }));
           if ($otros): ?>
-    <div class="section-heading" style="margin-top:8px">
+    <div class="section-heading" style="margin-top:16px">
       <div>
         <p class="eyebrow">TIEMPO Y PUNTAJE</p>
         <h2 style="font-size:1.1rem">Resultados Parciales</h2>
       </div>
     </div>
     <?php foreach ($otros as $res):
-      /* Encabezado: DEPORTE destacado y CATEGORÍA abajo (nunca el nombre del
-         partido, que es un dato interno tipo "Final - Partido 1"). */
       $dep_txt  = trim((string) (isset($res['nombre_deporte']) ? $res['nombre_deporte'] : ''));
       $cat_txt  = trim((string) (isset($res['nombre_categoria']) ? $res['nombre_categoria'] : ''));
       if ($dep_txt === '' && $cat_txt === '') $dep_txt = trim((string) (isset($res['nombre_evento']) ? $res['nombre_evento'] : ''));
-      // Fecha/hora: se prefiere cuándo se JUGÓ (fixture), no cuándo se cargó.
       $fecha_ts = strtotime(!empty($res['fixture_fecha']) ? $res['fixture_fecha'] : (string) $res['fecha_resultado']);
       $fecha_txt = $fecha_ts ? date('d/m/Y', $fecha_ts) : trim((string) $res['fecha_resultado']);
       $hora_ts   = !empty($res['fixture_hora']) ? strtotime('today ' . trim((string) $res['fixture_hora'])) : false;
@@ -1286,97 +996,64 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       $fase_raw  = isset($res['fase']) ? (string) $res['fase'] : '';
       $fase_txt  = $fase_raw !== '' ? (isset($fases_txt[$fase_raw]) ? $fases_txt[$fase_raw] : $fase_raw) : '';
   ?>
-    <div class="resultado-card">
-      <div class="res-header">
-        <?php if ($dep_txt !== ''): ?><span class="deporte-chip"><?= htmlspecialchars($dep_txt) ?></span><?php endif; ?>
-        <?php if ($cat_txt !== ''): ?><span class="res-categoria"><?= htmlspecialchars($cat_txt) ?></span><?php endif; ?>
+    <!-- Resultados parciales individuales también envueltos en details/summary para mantener uniformidad -->
+    <details class="resultado-details">
+      <summary class="resultado-summary">
+        <span class="discipline-symbol" aria-hidden="true"><?= $icono_deporte($dep_txt) ?></span>
+        <span class="discipline-label">
+          <span class="discipline-name"><?= htmlspecialchars($dep_txt !== '' ? $dep_txt : 'Resultado') ?></span>
+          <span class="discipline-description"><?= htmlspecialchars($cat_txt) ?><?= $fase_txt !== '' ? ' · ' . $fase_txt : '' ?></span>
+        </span>
+        <span class="discipline-arrow" aria-hidden="true"><?= $svg_chevron ?></span>
+      </summary>
+      <div class="resultado-body">
+        <div class="sub" style="margin-top:0">
+          <?= htmlspecialchars($fecha_txt) ?><?= $hora_txt !== '' ? ' · 🕐 ' . htmlspecialchars($hora_txt) : '' ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars((string) $res['lugar']) : '' ?>
+        </div>
+        <?php if ((string) $res['tipo_resultado'] === 'MARCADOR' && count($res['detalle']) >= 2):
+            $a = $res['detalle'][0]; $b = $res['detalle'][1];
+            $eq1_nombre = trim(preg_replace('/\s+/u', ' ', (string) $a['nombre_libre']));
+            $eq2_nombre = trim(preg_replace('/\s+/u', ' ', (string) $b['nombre_libre']));
+            $eq1_visible = $eq1_nombre !== '' ? $eq1_nombre : 'Equipo 1';
+            $eq2_visible = $eq2_nombre !== '' ? $eq2_nombre : 'Equipo 2';
+            $p1 = (int) $a['marcador_local'];
+            $r1 = (int) $a['marcador_visita'];
+            $p2 = (int) $b['marcador_local'];
+            $r2 = (int) $b['marcador_visita'];
+            if ($p2 === $p1 && $r2 === $r1) {
+                $tmp = $p2; $p2 = $r2; $r2 = $tmp;
+            }
+            $hubo_desempate = !empty($res['hubo_desempate']) && !empty($res['desempate_metodo']);
+            $ganador_desemp = isset($res['nombre_ganador_desempate']) ? trim((string) $res['nombre_ganador_desempate']) : '';
+            $gana1 = $p1 > $p2 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== '' && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq1_nombre)));
+            $gana2 = $p2 > $p1 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== '' && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq2_nombre)));
+        ?>
+          <div class="vs-res">
+            <div class="lado">
+              <span class="nombre <?= $gana1 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq1_visible) ?></span>
+              <span class="tato"><?= $p1 ?></span>
+            </div>
+            <div class="lado derecho">
+              <span class="tato"><?= $p2 ?></span>
+              <span class="nombre <?= $gana2 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq2_visible) ?></span>
+            </div>
+          </div>
+          <?php if ($gana1): ?>
+            <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq1_visible) ?></div>
+          <?php elseif ($gana2): ?>
+            <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq2_visible) ?></div>
+          <?php elseif ($p1 === $p2): ?>
+            <div class="empate-linea">Empate</div>
+          <?php endif; ?>
+        <?php else: foreach ($res['detalle'] as $d): $pos_n = (int)$d['posicion']; ?>
+          <div class="fila-pos">
+            <span class="pos <?= $pos_n >= 1 && $pos_n <= 3 ? 'p'.$pos_n : '' ?>"><?= $pos_n ?></span>
+            <span><?= htmlspecialchars((string) $d['nombre_libre']) ?></span>
+            <?php if (!empty($d['tiempo'])): ?><span class="tiempo"><?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
+          </div>
+        <?php endforeach; endif; ?>
       </div>
-      <div class="sub">
-        <?= $fase_txt !== '' ? htmlspecialchars($fase_txt) . ' · ' : '' ?><?= htmlspecialchars($fecha_txt) ?><?= $hora_txt !== '' ? ' · 🕐 ' . htmlspecialchars($hora_txt) : '' ?><?= !empty($res['lugar']) ? ' · ' . htmlspecialchars((string) $res['lugar']) : '' ?><?= !empty($res['nombre_prueba']) ? ' · ' . htmlspecialchars((string) $res['nombre_prueba']) : '' ?>
-      </div>
-      <?php if ((string) $res['tipo_resultado'] === 'MARCADOR' && count($res['detalle']) >= 2):
-          /* Enfrentamiento: cada equipo con SU puntaje (54 / 58), no "54:58".
-             Abajo: quién ganó, o cómo se desempató el empate (idea de pase_valido.php). */
-          $a = $res['detalle'][0]; $b = $res['detalle'][1];
-          /* Nombres crudos (se comparan con el ganador del desempate y sirven
-             para la frase "🏆 Ganó …"); la vista usa $eq_nombre_html(). */
-          $eq1_nombre = trim(preg_replace('/\s+/u', ' ', (string) $a['nombre_libre']));
-          $eq2_nombre = trim(preg_replace('/\s+/u', ' ', (string) $b['nombre_libre']));
-          $eq1_visible = $eq1_nombre !== '' ? $eq1_nombre : 'Equipo 1';
-          $eq2_visible = $eq2_nombre !== '' ? $eq2_nombre : 'Equipo 2';
-          /* Cada fila de `resultado_detalle` guarda el marcador DESDE SU PROPIA
-             perspectiva: marcador_local = tantos del equipo de la fila,
-             marcador_visita = tantos del rival (criterio idéntico a
-             pase_valido.php). ANTES se leía el local de una fila y la VISITA de
-             la otra, lo que con datos espejados mostraba un empate falso
-             (ej. 105 / 105 en vez de 105 : 45). */
-          $p1 = (int) $a['marcador_local'];
-          $r1 = (int) $a['marcador_visita'];
-          $p2 = (int) $b['marcador_local'];
-          $r2 = (int) $b['marcador_visita'];
-          if ($p2 === $p1 && $r2 === $r1) {
-              /* Datos históricos "espejados": ambas filas guardaron el mismo par
-                 (goles_1:goles_2). La segunda fila debía estar invertida, así
-                 que se invierte SU par (tantos = rival, rival = tantos), igual
-                 que Premiacion_model::_parsear_marcador(). Con nombres/UTE
-                 idénticos podría ser un empate real cargado duplicado: solo
-                 normalizamos si los equipos son distintos (mismo criterio de
-                 Resultado_model::_reparar_marcador_espejado). */
-              $equipos_distintos = trim((string) $a['nombre_libre']) !== trim((string) $b['nombre_libre'])
-                  || ((isset($a['id_ute']) ? (int) $a['id_ute'] : 0) > 0
-                      && (isset($b['id_ute']) ? (int) $b['id_ute'] : 0) > 0
-                      && (int) $a['id_ute'] !== (int) $b['id_ute']);
-              if ($equipos_distintos) {
-                  $tmp = $p2; $p2 = $r2; $r2 = $tmp;
-              }
-          }
-          $hubo_desempate = !empty($res['hubo_desempate']) && !empty($res['desempate_metodo']);
-          $ganador_desemp = isset($res['nombre_ganador_desempate']) ? trim((string) $res['nombre_ganador_desempate']) : '';
-          $gana1 = $p1 > $p2 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== ''
-                    && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq1_nombre)));
-          $gana2 = $p2 > $p1 || ($p1 === $p2 && $hubo_desempate && $ganador_desemp !== ''
-                    && strtoupper(trim($ganador_desemp)) === strtoupper(trim((string) $eq2_nombre)));
-      ?>
-        <div class="vs-res">
-          <div class="lado">
-            <span class="nombre <?= $gana1 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq1_visible) ?></span>
-            <span class="tato"><?= $p1 ?></span>
-          </div>
-          <div class="lado derecho">
-            <span class="tato"><?= $p2 ?></span>
-            <span class="nombre <?= $gana2 ? 'ganador' : '' ?>"><?= $eq_nombre_html($eq2_visible) ?></span>
-          </div>
-        </div>
-        <?php if ($gana1): ?>
-          <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq1_visible) ?></div>
-        <?php elseif ($gana2): ?>
-          <div class="ganador-linea">🏆 Ganó <?= $eq_nombre_txt($eq2_visible) ?></div>
-        <?php elseif ($p1 === $p2 && $hubo_desempate): ?>
-          <div class="ganador-linea">🏅 Empate en tiempo regular — <?= htmlspecialchars($ganador_desemp !== '' ? $ganador_desemp : 'Definido') ?>
-            ganó en <?= htmlspecialchars(isset($metodos_txt[(string) $res['desempate_metodo']]) ? $metodos_txt[(string) $res['desempate_metodo']] : strtolower((string) $res['desempate_metodo'])) ?></div>
-        <?php elseif ($p1 === $p2): ?>
-          <div class="empate-linea">Empate</div>
-        <?php endif; ?>
-      <?php elseif ((string) $res['tipo_resultado'] === 'MARCADOR'): ?>
-        <?php $a = $res['detalle'][0]; ?>
-        <div class="vs-res">
-          <div class="lado">
-            <span class="nombre"><?= $eq_nombre_html(trim((string) $a['nombre_libre']) !== '' ? $a['nombre_libre'] : 'Equipo') ?></span>
-            <span class="tato"><?= (int) $a['marcador_local'] ?> : <?= (int) $a['marcador_visita'] ?></span>
-          </div>
-        </div>
-      <?php else: foreach ($res['detalle'] as $d):
-          $pos_n = (int)$d['posicion']; ?>
-        <div class="fila-pos">
-          <span class="pos <?= $pos_n >= 1 && $pos_n <= 3 ? 'p'.$pos_n : '' ?>"><?= $pos_n ?></span>
-          <span><?= htmlspecialchars((string) $d['nombre_libre']) ?></span>
-          <?php if (!empty($d['tiempo'])): ?><span class="tiempo"><?= htmlspecialchars($d['tiempo']) ?></span><?php endif; ?>
-        </div>
-      <?php endforeach; endif; ?>
-      <?php if (!empty($res['observaciones'])): ?>
-        <div class="empate-linea">📝 <?= htmlspecialchars((string) $res['observaciones']) ?></div>
-      <?php endif; ?>
-    </div>
+    </details>
   <?php endforeach; endif; ?>
   <?php endif; ?>
 </section>
@@ -1408,16 +1085,10 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         <?php endforeach; ?>
       </tbody>
     </table>
-    <?php if (!$delegacion): ?>
-      <p style="color:var(--muted);font-size:12px;margin-top:10px;text-align:center">
-        Seleccioná una delegación arriba para ver solo su información.
-      </p>
-    <?php endif; ?>
   <?php endif; ?>
 </section>
 
-
-  </div><!-- /.workspace -->
+</div>
   <div class="workspace-bottom">
   <footer>
     <img class="mascota" src="<?= base_url('assets/img/logo_olimpiadas.png') ?>" alt="Pampito, la mascota de las olimpiadas">
@@ -1427,7 +1098,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
 </main>
 
 <script>
-// ===== Panel público (maqueta Entrega-Fixture-Olimpiadas): comportamiento =====
 (function () {
   'use strict';
 
@@ -1436,7 +1106,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   };
 
-  /* ---------- Tabs (ARIA, como en la maqueta) ---------- */
   var tabButtons = Array.prototype.slice.call(document.querySelectorAll('.primary-tabs [role="tab"]'));
   function setTab(id, focus) {
     tabButtons.forEach(function (button) {
@@ -1449,9 +1118,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     Array.prototype.forEach.call(document.querySelectorAll('main .panel'), function (panel) {
       panel.hidden = panel.id !== id;
     });
-    /* La barra NO cambia al navegar entre pestañas: nada de "#tab-fixture"
-       (las versiones anteriores acumulaban hashes o escribían filtros en la
-       URL). Acá solo se borra cualquier resto heredado de URL sucia. */
     if (history.replaceState && (location.search || location.hash)) {
       try { history.replaceState(null, '', location.pathname); } catch (e) {}
     }
@@ -1469,10 +1135,9 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       setTab(tabButtons[next].dataset.tab, true);
     });
   });
-  // Sin hash en la barra: siempre se abre Fixture (la URL queda limpia).
   setTab('tab-fixture');
 
-  /* ---------- Resultados: planillas desplegables (jornadas de tiempo/puntaje) */
+  /* ---------- Resultados: planillas desplegables internas ---------- */
   Array.prototype.forEach.call(document.querySelectorAll('.p-j-head'), function (head) {
     var toggle = function () {
       var jornada = head.parentElement;
@@ -1485,7 +1150,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     });
   });
 
-  /* ---------- Fixture: filtro por día y búsqueda (sin recargar) ---------- */
   var schedule = document.getElementById('schedule');
   var dayNav = document.querySelector('.day-nav');
   var searchBox = document.getElementById('search');
@@ -1501,7 +1165,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     selectedDay = pressed ? pressed.dataset.date : 'all';
   })();
 
-  // Clave normalizada de cada disciplina para el ancla #disciplina-...
   Array.prototype.forEach.call(schedule.querySelectorAll('.discipline-group'), function (d) {
     d.dataset.discipline = norm(d.dataset.discipline || '');
   });
@@ -1531,8 +1194,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         details.hidden = matched === 0;
         if (matched > 0) {
           groupCards += matched; groupDisciplines++;
-          // Con búsqueda activa todo se despliega (como en la maqueta); al limpiar,
-          // se cierra salvo la disciplina que el usuario había abierto.
           if (query) details.open = true;
           else if (!keepOpen) details.open = details.classList.contains('user-open') || details.classList.contains('abierta-inicial');
         }
@@ -1549,23 +1210,11 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       counter.textContent = scope + ' · ' + totalDisciplines + ' ' + (totalDisciplines === 1 ? 'disciplina' : 'disciplinas')
         + ' · ' + totalCards + ' ' + (totalCards === 1 ? 'competencia' : 'competencias');
     }
-    syncExpandButton();
   }
 
-  function syncExpandButton() {
-    if (!expandBtn) return;
-    var disclosures = Array.prototype.slice.call(schedule.querySelectorAll('.discipline-group:not([hidden])'));
-    var allOpen = disclosures.length > 0 && disclosures.every(function (d) { return d.open; });
-    expandBtn.innerHTML = allOpen
-      ? 'Plegar disciplinas <span aria-hidden="true">↑</span>'
-      : 'Desplegar disciplinas <span aria-hidden="true">↓</span>';
-  }
-
-  // Recordar qué disciplinas abrió/cerró el usuario (persiste al cambiar de día).
   Array.prototype.forEach.call(schedule.querySelectorAll('.discipline-group'), function (details) {
     details.addEventListener('toggle', function () {
       details.classList.toggle('user-open', details.open);
-      syncExpandButton();
     });
   });
 
@@ -1577,7 +1226,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
         b.setAttribute('aria-pressed', String(b === button));
       });
       selectedDay = button.dataset.date;
-      applyFilters(true);   // solo en memoria: la URL no cambia
+      applyFilters(true);
     });
   }
 
@@ -1589,31 +1238,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     });
   }
 
-  var clearBtn = document.getElementById('clear-search');
-  if (clearBtn) {
-    clearBtn.addEventListener('click', function () {
-      if (searchBox) searchBox.value = '';
-      if (dayNav) {
-        var all = dayNav.querySelector('.all-days');
-        if (all) all.click();
-      }
-    });
-  }
-
-  if (expandBtn) {
-    expandBtn.addEventListener('click', function () {
-      var disclosures = Array.prototype.slice.call(schedule.querySelectorAll('.discipline-group:not([hidden])'));
-      var openAll = !disclosures.every(function (d) { return d.open; });
-      disclosures.forEach(function (d) { d.open = openAll; d.classList.toggle('user-open', openAll); });
-      syncExpandButton();
-    });
-  }
-
-  /* ---------- Filtros del servidor: POST, sin tocar la barra ----------
-     Delegación / Deporte / Categoría cambian datos del servidor. El formulario
-     los envía por POST a la misma ruta (/publico), así que la URL NUNCA lleva
-     parámetros: queda solo "…/publico". Día y búsqueda no se envían: ya se
-     aplican en cliente con applyFilters(). */
   var selDep = document.getElementById('filtroDeporte');
   var selCat = document.getElementById('filtroCategoria');
   var selDel = document.getElementById('filtroDelegacion');
@@ -1623,13 +1247,6 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
     if (filtersForm) filtersForm.submit();
   }
 
-  // "Limpiar filtros" es un <button type=submit> asociado al formulario con el
-  // atributo form="filters-form". El navegador, antes de enviar, pondría los
-  // selects en su primera opción (reset automático); no importa: el controlador
-  // ve limpiar=1 en el POST e ignora todos los filtros del lado del servidor.
-
-  // Al enviar por POST, el navegador mostraría un aviso raro si se recarga;
-  // además, para mantener la barra idéntica, normalizamos el path al cargar.
   if (history.replaceState && (location.search || location.hash)) {
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
   }
@@ -1642,7 +1259,7 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       var dep = selDep.value;
       var visibleSel = false;
       Array.prototype.forEach.call(selCat.options, function (o) {
-        if (o.value === '') return; // "Todas" siempre visible
+        if (o.value === '') return;
         var ok = (dep === '' || o.dataset.deporte === dep);
         o.hidden = !ok;
         o.disabled = !ok;
@@ -1656,22 +1273,12 @@ $svg_medal      = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 4 6
       if (selCat.value !== '' && !visibleSel) selCat.value = '';
       if (enviar) submitFilters();
     };
-    window.onFiltroDeporte = function () { aplicarCascada(true); };
-    aplicarCascada(false);
     selDep.addEventListener('change', function () { aplicarCascada(true); });
     selCat.addEventListener('change', submitFilters);
   }
   if (selDel) selDel.addEventListener('change', submitFilters);
 
   applyFilters(false);
-
-  /* ---------- Al cargar: borrar cualquier resto de URL sucia ----------
-     Enlaces guardados o versiones anteriores pueden traer ?dia=…&q=… o
-     #tab-… en la barra. Se limpia con replaceState (sin recargar), dejando
-     solo la ruta base: "…/publico". */
-  if (history.replaceState && (location.search || location.hash)) {
-    try { history.replaceState(null, '', location.pathname); } catch (e) {}
-  }
 })();
 </script>
 </body>
