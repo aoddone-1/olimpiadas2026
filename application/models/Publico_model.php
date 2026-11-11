@@ -928,153 +928,78 @@ class Publico_model extends CI_Model {
      *  MEDALLERO PÚBLICO
      * ============================================================ */
 
-    /**
-     * Medallero: oro/plata/bronce por delegación, calculado sobre las
-     * premiaciones ENTREGADAS. El premiado es el nombre del equipo/prueba
-     * (snapshot), nunca un dato personal sensible.
-     *
-     * IMPORTANTE: el campo `premiaciones.nombre` SIEMPRE trae el nombre de
-     * la delegación premiada. Por eso el camino PRINCIPAL de resolución es
-     * comparar ese `nombre` (normalizado) contra la lista de delegaciones
-     * reales con inscriptos. Los otros caminos (id_ute, inscripciones,
-     * match por UTE/equipo) quedan como fallbacks por si algún premio viene
-     * cargado de otra forma.
-     */
 /**
- * Medallero: oro/plata/bronce por delegación, calculado sobre las
- * premiaciones ENTREGADAS. El premiado es el nombre del equipo/prueba
- * (snapshot), nunca un dato personal sensible.
+ * Medallero: oro/plata/bronce por delegación.
+ * REPLICA EXACTA de: SELECT PUESTO, COUNT(*) FROM premiaciones WHERE NOMBRE LIKE '%DELEGACION%' GROUP BY PUESTO
  */
 public function obtener_medallero() {
     try {
-        if (!$this->_tabla_existe('premiaciones')) {
-            log_message('error', 'Publico_model::obtener_medallero — la tabla `premiaciones` no existe.');
+        if (!$this->_tabla_existe('premiaciones') || !$this->_tabla_existe('participantes')) {
             return array();
         }
 
-        // BLINDAJE: raw SQL, sin Query Builder compartida.
-        $cols_p = $this->_columnas_tabla('premiaciones');
-        $campos_p = array('id_categoria', 'puesto', 'nombre');
-        foreach (array('id_ute', 'fecha_entrega', 'entregado') as $col) {
-            if (isset($cols_p[$col])) $campos_p[] = $col;
-        }
-        $sql = 'SELECT `' . implode('`, `', $campos_p) . '` FROM `premiaciones`';
-        if (isset($cols_p['entregado'])) {
-            $sql .= ' WHERE `entregado` = 1';
-        }
-        $orden = isset($cols_p['fecha_entrega']) ? '`fecha_entrega` ASC, ' : '';
-        $sql .= ' ORDER BY ' . $orden . '`puesto` ASC';
+        // 1. Obtener la lista de delegaciones únicas (solo para saber a cuáles buscarles el LIKE)
+        $this->db->select('delegacion');
+        $this->db->where('delegacion IS NOT NULL');
+        $this->db->where('delegacion !=', '');
+        $this->db->group_by('delegacion');
+        $delegaciones_rows = $this->db->get('participantes')->result_array();
         
-        $query = $this->db->query($sql);
-        $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
-        if (!$rows) {
-            log_message('error', 'Publico_model::obtener_medallero — sin filas. SQL: ' . $sql);
-            return array();
-        }
-
-        // Mapas auxiliares para nombres de deporte/categoría
-        $cats     = $this->_mapa('categorias', 'id_categoria', array('nombre_categoria', 'genero', 'id_deporte'));
-        $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
-
-        // Fallbacks por id_ute o nombre exacto de equipo
-        $deleg_por_ute     = $this->_delegacion_por_ute();
-        if (!$deleg_por_ute) {
-            $deleg_por_ute = $this->_delegacion_por_ute_desde_inscripciones();
-        }
-        $ute_por_nombre    = $this->_ute_por_nombre_normalizado();
-        $equipo_por_nombre = $this->_equipo_por_nombre_normalizado();
-
-        // CAMINO PRINCIPAL: Lista de delegaciones reales ordenadas por longitud descendente.
-        // Esto permite que "Escuela 10" tenga prioridad de match sobre "Escuela 1".
-        $delegaciones_lista = $this->_delegaciones_validas_lista();
-
         $medallero = array();
-        foreach ($rows as $r) {
-            $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
-            $dep = isset($cats[$idc]['id_deporte']) ? (int) $cats[$idc]['id_deporte'] : 0;
 
-            $deleg = null;
-            $idl   = isset($r['id_ute']) ? (int) $r['id_ute'] : 0;
+        // 2. Por cada delegación, ejecutar EXACTAMENTE tu consulta:
+        foreach ($delegaciones_rows as $row) {
+            $delegacion = trim((string) $row['delegacion']);
+            if ($delegacion === '') continue;
 
-            // 1. CAMINO PRINCIPAL: Buscar si el nombre de la delegación está CONTENIDO
-            // en `premiaciones.nombre` (equivalente a un LIKE '%delegacion%').
-            if (!empty($r['nombre']) && !empty($delegaciones_lista)) {
-                $n_premio = $this->normalizar_nombre((string) $r['nombre']);
-                if ($n_premio !== '') {
-                    foreach ($delegaciones_lista as $nom_deleg) {
-                        $n_deleg = $this->normalizar_nombre($nom_deleg);
-                        // Si el nombre normalizado de la delegación está contenido en el premio
-                        if ($n_deleg !== '' && strpos($n_premio, $n_deleg) !== false) {
-                            $deleg = $nom_deleg;
-                            break; // Match encontrado, salimos del bucle (el más largo gana)
-                        }
-                    }
-                }
+            // ESTA ES LA CONSULTA QUE PEDISTE, adaptada con binding (?) por seguridad
+            $sql = "
+                SELECT puesto, COUNT(*) as cantidad 
+                FROM premiaciones 
+                WHERE nombre LIKE ? 
+                  AND entregado = 1
+                GROUP BY puesto
+            ";
+            
+            $query = $this->db->query($sql, array('%' . $delegacion . '%'));
+            $resultados = ($query === false || !is_object($query)) ? array() : $query->result_array();
+
+            $oro = 0; 
+            $plata = 0; 
+            $bronce = 0; 
+            $total = 0;
+            
+            foreach ($resultados as $res) {
+                $p = (int) $res['puesto'];
+                $c = (int) $res['cantidad'];
+                $total += $c;
+                
+                if ($p === 1)      $oro = $c;
+                elseif ($p === 2)  $plata = $c;
+                elseif ($p === 3)  $bronce = $c;
             }
 
-            // 2. FALLBACK 1: id_ute positivo → delegación dominante de esa UTE.
-            if ($deleg === null && $idl > 0 && isset($deleg_por_ute[$idl])) {
-                $deleg = $deleg_por_ute[$idl];
-            }
-
-            // 3. FALLBACK 2: id_ute negativo → delegación del inscripto individual.
-            if ($deleg === null) {
-                $ins_map = $this->_delegacion_por_inscripcion();
-                if ($idl < 0 && isset($ins_map[abs($idl)])) {
-                    $deleg = $ins_map[abs($idl)];
-                }
-            }
-
-            // 4. FALLBACK 3: Match exacto por nombre contra UTEs o equipos inscriptos.
-            if ($deleg === null && !empty($r['nombre'])) {
-                $n = $this->normalizar_nombre((string) $r['nombre']);
-                if ($n !== '' && isset($ute_por_nombre[$n]) && isset($deleg_por_ute[(int) $ute_por_nombre[$n]])) {
-                    $deleg = $deleg_por_ute[(int) $ute_por_nombre[$n]];
-                } elseif ($n !== '' && isset($equipo_por_nombre[$n])) {
-                    $deleg = $equipo_por_nombre[$n];
-                }
-            }
-
-            if ($deleg === null) {
-                continue; // premio sin delegación identificable
-            }
-
-            // Inicializar estructura de la delegación si no existe
-            if (!isset($medallero[$deleg])) {
-                $medallero[$deleg] = array(
-                    'delegacion' => $deleg,
-                    'oro'        => 0,
-                    'plata'      => 0,
-                    'bronce'     => 0,
-                    'total'      => 0,
-                    'podios'     => array(),
+            // Solo agregar al medallero si tiene al menos un podio
+            if ($total > 0) {
+                $medallero[] = array(
+                    'delegacion' => $delegacion,
+                    'oro'        => $oro,
+                    'plata'      => $plata,
+                    'bronce'     => $bronce,
+                    'total'      => $total,
+                    'podios'     => array() // Estructura mínima por si tu vista la necesita
                 );
             }
-
-            // Contar medallas
-            $puesto = (int) $r['puesto'];
-            if ($puesto === 1)      $medallero[$deleg]['oro']++;
-            elseif ($puesto === 2)  $medallero[$deleg]['plata']++;
-            elseif ($puesto === 3)  $medallero[$deleg]['bronce']++;
-            $medallero[$deleg]['total']++;
-
-            $medallero[$deleg]['podios'][] = array(
-                'puesto'    => $puesto,
-                'deporte'   => isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null,
-                'categoria' => isset($cats[$idc]['nombre_categoria']) ? $cats[$idc]['nombre_categoria'] : null,
-                'nombre'    => $r['nombre'],
-            );
         }
 
-        // Ordenar la lista final: más oros, luego más platas, luego más bronces
-        $lista = array_values($medallero);
-        usort($lista, function ($a, $b) {
+        // 3. Ordenar el medallero: más oros, luego más platas, luego más bronces
+        usort($medallero, function ($a, $b) {
             if ($b['oro'] !== $a['oro']) return $b['oro'] - $a['oro'];
             if ($b['plata'] !== $a['plata']) return $b['plata'] - $a['plata'];
             return $b['bronce'] - $a['bronce'];
         });
-        
-        return $lista;
+
+        return $medallero;
     } catch (Throwable $e) {
         log_message('error', 'Publico_model::obtener_medallero: ' . $e->getMessage());
         return array();
@@ -1084,7 +1009,7 @@ public function obtener_medallero() {
 /**
  * Lista de nombres de delegaciones que tienen participantes inscriptos.
  * Se ordena por longitud descendente para priorizar coincidencias más 
- * específicas al buscar con "contiene" (ej: "Escuela 10" antes que "Escuela 1").
+ * específicas al buscar con "contiene" (ej: "Santa Fe Oeste" antes que "Santa Fe").
  */
 private function _delegaciones_validas_lista() {
     static $cache = null;
