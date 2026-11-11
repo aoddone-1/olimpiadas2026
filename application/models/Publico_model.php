@@ -932,112 +932,189 @@ class Publico_model extends CI_Model {
      * Medallero: oro/plata/bronce por delegación, calculado sobre las
      * premiaciones ENTREGADAS. El premiado es el nombre del equipo/prueba
      * (snapshot), nunca un dato personal sensible.
+     *
+     * IMPORTANTE: el campo `premiaciones.nombre` SIEMPRE trae el nombre de
+     * la delegación premiada. Por eso el camino PRINCIPAL de resolución es
+     * comparar ese `nombre` (normalizado) contra la lista de delegaciones
+     * reales con inscriptos. Los otros caminos (id_ute, inscripciones,
+     * match por UTE/equipo) quedan como fallbacks por si algún premio viene
+     * cargado de otra forma.
      */
-    public function obtener_medallero() {
-        try {
-            if (!$this->_tabla_existe('premiaciones')) {
-                log_message('error', 'Publico_model::obtener_medallero — la tabla `premiaciones` no existe.');
-                return array();
-            }
+/**
+ * Medallero: oro/plata/bronce por delegación, calculado sobre las
+ * premiaciones ENTREGADAS. El premiado es el nombre del equipo/prueba
+ * (snapshot), nunca un dato personal sensible.
+ */
+public function obtener_medallero() {
+    try {
+        if (!$this->_tabla_existe('premiaciones')) {
+            log_message('error', 'Publico_model::obtener_medallero — la tabla `premiaciones` no existe.');
+            return array();
+        }
 
-            // BLINDAJE IGUAL QUE FIXTURE/RESULTADOS: raw SQL, sin Query Builder
-            // compartida y sin `field_exists()` (usa la QB y puede fallar).
-            $cols_p = $this->_columnas_tabla('premiaciones');
-            $campos_p = array('id_categoria', 'puesto', 'nombre');
-            foreach (array('id_ute', 'fecha_entrega', 'entregado') as $col) {
-                if (isset($cols_p[$col])) $campos_p[] = $col;
-            }
-            $sql = 'SELECT `' . implode('`, `', $campos_p) . '` FROM `premiaciones`';
-            if (isset($cols_p['entregado'])) {
-                $sql .= ' WHERE `entregado` = 1';
-            }
-            $orden = isset($cols_p['fecha_entrega']) ? '`fecha_entrega` ASC, ' : '';
-            $sql .= ' ORDER BY ' . $orden . '`puesto` ASC';
+        // BLINDAJE: raw SQL, sin Query Builder compartida.
+        $cols_p = $this->_columnas_tabla('premiaciones');
+        $campos_p = array('id_categoria', 'puesto', 'nombre');
+        foreach (array('id_ute', 'fecha_entrega', 'entregado') as $col) {
+            if (isset($cols_p[$col])) $campos_p[] = $col;
+        }
+        $sql = 'SELECT `' . implode('`, `', $campos_p) . '` FROM `premiaciones`';
+        if (isset($cols_p['entregado'])) {
+            $sql .= ' WHERE `entregado` = 1';
+        }
+        $orden = isset($cols_p['fecha_entrega']) ? '`fecha_entrega` ASC, ' : '';
+        $sql .= ' ORDER BY ' . $orden . '`puesto` ASC';
+        
+        $query = $this->db->query($sql);
+        $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
+        if (!$rows) {
+            log_message('error', 'Publico_model::obtener_medallero — sin filas. SQL: ' . $sql);
+            return array();
+        }
 
-            $query = $this->db->query($sql);
-            $rows = ($query === false || !is_object($query)) ? array() : $query->result_array();
-            if (!$rows) {
-                log_message('error', 'Publico_model::obtener_medallero — sin filas. SQL: ' . $sql);
-                return array();
-            }
+        // Mapas auxiliares para nombres de deporte/categoría
+        $cats     = $this->_mapa('categorias', 'id_categoria', array('nombre_categoria', 'genero', 'id_deporte'));
+        $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
 
-            // Nombres de deporte/categoría resueltos en PHP (mapas auxiliares).
-            $cats = $this->_mapa('categorias', 'id_categoria', array('nombre_categoria', 'genero', 'id_deporte'));
-            $deportes = $this->_mapa('deportes', 'id_deporte', array('nombre_deporte', 'modalidad_competencia'));
+        // Fallbacks por id_ute o nombre exacto de equipo
+        $deleg_por_ute     = $this->_delegacion_por_ute();
+        if (!$deleg_por_ute) {
+            $deleg_por_ute = $this->_delegacion_por_ute_desde_inscripciones();
+        }
+        $ute_por_nombre    = $this->_ute_por_nombre_normalizado();
+        $equipo_por_nombre = $this->_equipo_por_nombre_normalizado();
 
-            // Mapa id_ute -> delegación (mayoría de integrantes). Si la tabla
-            // participantes_utes está vacía (equipos armados por nombre en la
-            // inscripción), se completa con inscripciones_deportivas.
-            $deleg_por_ute = $this->_delegacion_por_ute();
-            if (!$deleg_por_ute) {
-                $deleg_por_ute = $this->_delegacion_por_ute_desde_inscripciones();
-            }
+        // CAMINO PRINCIPAL: Lista de delegaciones reales ordenadas por longitud descendente.
+        // Esto permite que "Escuela 10" tenga prioridad de match sobre "Escuela 1".
+        $delegaciones_lista = $this->_delegaciones_validas_lista();
 
-            // Fallback por NOMBRE del premiado: si el id_ute no está registrado
-            // (podios cargados "libres" o equipos armados por nombre), la
-            // delegación se reconoce porque el snapshot `nombre` coincide con
-            // el nombre de una UTE o de un equipo inscripto.
-            $ute_por_nombre   = $this->_ute_por_nombre_normalizado();
-            $equipo_por_nombre = $this->_equipo_por_nombre_normalizado();
+        $medallero = array();
+        foreach ($rows as $r) {
+            $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
+            $dep = isset($cats[$idc]['id_deporte']) ? (int) $cats[$idc]['id_deporte'] : 0;
 
-            $medallero = array();
-            foreach ($rows as $r) {
-                $idc = isset($r['id_categoria']) ? (int) $r['id_categoria'] : 0;
-                $dep = isset($cats[$idc]['id_deporte']) ? (int) $cats[$idc]['id_deporte'] : 0;
-                $deleg = null;
-                $idl = isset($r['id_ute']) ? (int) $r['id_ute'] : 0;
-                if ($idl > 0 && isset($deleg_por_ute[$idl])) {
-                    $deleg = $deleg_por_ute[$idl];
-                }
-                if ($deleg === null) {
-                    // Individuales (id_ute NULL o negativo): la delegación del
-                    // inscripto dueño de -id_inscripcion.
-                    $ins_map = $this->_delegacion_por_inscripcion();
-                    if ($idl < 0 && isset($ins_map[abs($idl)])) {
-                        $deleg = $ins_map[abs($idl)];
+            $deleg = null;
+            $idl   = isset($r['id_ute']) ? (int) $r['id_ute'] : 0;
+
+            // 1. CAMINO PRINCIPAL: Buscar si el nombre de la delegación está CONTENIDO
+            // en `premiaciones.nombre` (equivalente a un LIKE '%delegacion%').
+            if (!empty($r['nombre']) && !empty($delegaciones_lista)) {
+                $n_premio = $this->normalizar_nombre((string) $r['nombre']);
+                if ($n_premio !== '') {
+                    foreach ($delegaciones_lista as $nom_deleg) {
+                        $n_deleg = $this->normalizar_nombre($nom_deleg);
+                        // Si el nombre normalizado de la delegación está contenido en el premio
+                        if ($n_deleg !== '' && strpos($n_premio, $n_deleg) !== false) {
+                            $deleg = $nom_deleg;
+                            break; // Match encontrado, salimos del bucle (el más largo gana)
+                        }
                     }
                 }
-                if ($deleg === null && !empty($r['nombre'])) {
-                    // Camino por nombre (sin DNI ni datos personales).
-                    $n = $this->normalizar_nombre((string) $r['nombre']);
-                    if ($n !== '' && isset($ute_por_nombre[$n])
-                        && isset($deleg_por_ute[(int) $ute_por_nombre[$n]])) {
-                        $deleg = $deleg_por_ute[(int) $ute_por_nombre[$n]];
-                    } elseif ($n !== '' && isset($equipo_por_nombre[$n])) {
-                        $deleg = $equipo_por_nombre[$n];
-                    }
+            }
+
+            // 2. FALLBACK 1: id_ute positivo → delegación dominante de esa UTE.
+            if ($deleg === null && $idl > 0 && isset($deleg_por_ute[$idl])) {
+                $deleg = $deleg_por_ute[$idl];
+            }
+
+            // 3. FALLBACK 2: id_ute negativo → delegación del inscripto individual.
+            if ($deleg === null) {
+                $ins_map = $this->_delegacion_por_inscripcion();
+                if ($idl < 0 && isset($ins_map[abs($idl)])) {
+                    $deleg = $ins_map[abs($idl)];
                 }
-                if ($deleg === null) {
-                    continue; // premio sin delegación identificable
+            }
+
+            // 4. FALLBACK 3: Match exacto por nombre contra UTEs o equipos inscriptos.
+            if ($deleg === null && !empty($r['nombre'])) {
+                $n = $this->normalizar_nombre((string) $r['nombre']);
+                if ($n !== '' && isset($ute_por_nombre[$n]) && isset($deleg_por_ute[(int) $ute_por_nombre[$n]])) {
+                    $deleg = $deleg_por_ute[(int) $ute_por_nombre[$n]];
+                } elseif ($n !== '' && isset($equipo_por_nombre[$n])) {
+                    $deleg = $equipo_por_nombre[$n];
                 }
-                if (!isset($medallero[$deleg])) {
-                    $medallero[$deleg] = array('delegacion' => $deleg, 'oro' => 0, 'plata' => 0, 'bronce' => 0, 'total' => 0, 'podios' => array());
-                }
-                $puesto = (int) $r['puesto'];
-                if ($puesto === 1)      $medallero[$deleg]['oro']++;
-                elseif ($puesto === 2) $medallero[$deleg]['plata']++;
-                elseif ($puesto === 3) $medallero[$deleg]['bronce']++;
-                $medallero[$deleg]['total']++;
-                $medallero[$deleg]['podios'][] = array(
-                    'puesto' => $puesto,
-                    'deporte' => isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null,
-                    'categoria' => isset($cats[$idc]['nombre_categoria']) ? $cats[$idc]['nombre_categoria'] : null,
-                    'nombre' => $r['nombre'],
+            }
+
+            if ($deleg === null) {
+                continue; // premio sin delegación identificable
+            }
+
+            // Inicializar estructura de la delegación si no existe
+            if (!isset($medallero[$deleg])) {
+                $medallero[$deleg] = array(
+                    'delegacion' => $deleg,
+                    'oro'        => 0,
+                    'plata'      => 0,
+                    'bronce'     => 0,
+                    'total'      => 0,
+                    'podios'     => array(),
                 );
             }
 
-            $lista = array_values($medallero);
-            usort($lista, function ($a, $b) {
-                if ($b['oro'] !== $a['oro']) return $b['oro'] - $a['oro'];
-                if ($b['plata'] !== $a['plata']) return $b['plata'] - $a['plata'];
-                return $b['bronce'] - $a['bronce'];
-            });
-            return $lista;
-        } catch (Throwable $e) {
-            log_message('error', 'Publico_model::obtener_medallero: ' . $e->getMessage());
-            return array();
+            // Contar medallas
+            $puesto = (int) $r['puesto'];
+            if ($puesto === 1)      $medallero[$deleg]['oro']++;
+            elseif ($puesto === 2)  $medallero[$deleg]['plata']++;
+            elseif ($puesto === 3)  $medallero[$deleg]['bronce']++;
+            $medallero[$deleg]['total']++;
+
+            $medallero[$deleg]['podios'][] = array(
+                'puesto'    => $puesto,
+                'deporte'   => isset($deportes[$dep]['nombre_deporte']) ? $deportes[$dep]['nombre_deporte'] : null,
+                'categoria' => isset($cats[$idc]['nombre_categoria']) ? $cats[$idc]['nombre_categoria'] : null,
+                'nombre'    => $r['nombre'],
+            );
         }
+
+        // Ordenar la lista final: más oros, luego más platas, luego más bronces
+        $lista = array_values($medallero);
+        usort($lista, function ($a, $b) {
+            if ($b['oro'] !== $a['oro']) return $b['oro'] - $a['oro'];
+            if ($b['plata'] !== $a['plata']) return $b['plata'] - $a['plata'];
+            return $b['bronce'] - $a['bronce'];
+        });
+        
+        return $lista;
+    } catch (Throwable $e) {
+        log_message('error', 'Publico_model::obtener_medallero: ' . $e->getMessage());
+        return array();
     }
+}
+
+/**
+ * Lista de nombres de delegaciones que tienen participantes inscriptos.
+ * Se ordena por longitud descendente para priorizar coincidencias más 
+ * específicas al buscar con "contiene" (ej: "Escuela 10" antes que "Escuela 1").
+ */
+private function _delegaciones_validas_lista() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    $cache = array();
+    try {
+        if (!$this->_tabla_existe('participantes')
+            || !$this->_columna_existe('participantes', 'delegacion')) {
+            return $cache;
+        }
+        $q = $this->db->query(
+            "SELECT DISTINCT `delegacion` FROM `participantes`"
+            . " WHERE `delegacion` IS NOT NULL AND `delegacion` != ''"
+        );
+        $rows = ($q === false || !is_object($q)) ? array() : $q->result_array();
+        foreach ($rows as $r) {
+            $nom = trim((string) $r['delegacion']);
+            if ($nom !== '') {
+                $cache[] = $nom;
+            }
+        }
+        // Ordenar por longitud de string descendente (la más larga primero)
+        usort($cache, function($a, $b) {
+            return strlen($b) <=> strlen($a);
+        });
+    } catch (Throwable $e) {
+        log_message('error', 'Publico_model::_delegaciones_validas_lista: ' . $e->getMessage());
+    }
+    return $cache;
+}
 
     /** Mapa id_inscripcion -> delegación (para podios individuales, id_ute < 0). */
     private function _delegacion_por_inscripcion() {

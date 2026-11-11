@@ -415,6 +415,13 @@ $norm = function ($txt) {
   <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
     <button type="button" role="tab" id="button-fixture" class="tab-btn activo" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
     <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
+    <button type="button" role="tab" id="button-medallero" class="tab-btn" aria-controls="tab-medallero" aria-selected="false" data-tab="tab-medallero" tabindex="-1">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-award" viewBox="0 0 16 16">
+        <path d="M9.669.864 8 0 6.331.864l-1.858.282-.842 1.68-1.337 1.32L2.6 6l-.306 1.854 1.337 1.32.842 1.68 1.858.282L8 12l1.669-.864 1.858-.282.842-1.68 1.337-1.32L13.4 6l.306-1.854-1.337-1.32-.842-1.68zm1.196 1.193.684 1.365 1.086 1.072L12.387 6l.248 1.506-1.086 1.072-.684 1.365-1.51.229L8 10.874l-1.355-.702-1.51-.229-.684-1.365-1.086-1.072L3.614 6l-.25-1.506 1.087-1.072.684-1.365 1.51-.229L8 1.126l1.356.702z"/>
+        <path d="M4 11.794V16l4-1 4 1v-4.206l-2.018.306L8 13.126 6.018 12.1z"/>
+      </svg>
+      Medallero
+    </button>
   </nav>
 
 <?php
@@ -779,8 +786,8 @@ $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6
               'futbol' => '⚽', 'fútbol' => '⚽', 'handball' => '🤾', 'handbol' => '🤾',
               'basquet' => '🏀', 'basket' => '🏀', 'básquet' => '🏀', 'basquetbol' => '🏀',
               'voley' => '🏐', 'vóley' => '🏐', 'voleibol' => '🏐','newcom' => '🏐','pool' => '🎱',
-              'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓','tenis' => '🎾', 
-              'rugby' => '🏉', 'hockey' => '🏑', 'beisbol' => '⚾', 'softbol' => '⚾',
+              'padel' => '🎾', 'ping pong' => '🏓', 'mesa' => '🏓','tenis' => '🎾', 'tejo' => '🥏','bochas'=> '⚫',
+              'rugby' => '🏉', 'hockey' => '🏑', 'beisbol' => '⚾', 'softbol' => '⚾','pesca' => '🎣',
               'atletismo' => '🏃', 'natacion' => '🏊', 'natación' => '🏊','running' => '🏃',
               'boxeo' => '🥊', 'lucha' => '🤼', 'judo' => '🥋', 'karate' => '🥋','carrera' => '🏃',
               'escrime' => '🤺', 'ciclismo' => '🚴','MTB' => '🚴','mtb' => '🚴', 'patin' => '⛸️', 'truco'=> '🃏'
