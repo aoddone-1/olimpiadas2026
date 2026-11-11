@@ -84,7 +84,7 @@
                    target="_blank"
                    rel="noopener"
                    class="btn btn-outline-danger rounded-pill btn-sm px-4 disabled">
-                    <i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde
+                    <i class="bi bi-file-earmark-pdf me-1"></i>Descargar Certificado
                 </a>
                 <button type="button" class="btn btn-secondary rounded-pill btn-sm px-4" data-bs-dismiss="modal">Cerrar Detalle</button>
             </div>

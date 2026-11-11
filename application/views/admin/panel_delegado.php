@@ -154,59 +154,17 @@
         <div class="col-6 col-md-3">
             <div class="card card-indicador shadow-sm" style="border-left-color: #6f42c1;">
                 <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Deslindes</h6>
+                    <h6 class="text-muted small text-uppercase mb-1">Certificados</h6>
                     <a href="<?= base_url('Inscripciones/descargar_deslindes_delegacion') ?>" class="btn btn-sm w-100 mt-1"
                         style="background-color: #6f42c1; color: #fff;"
                         title="PDF con TODOS los deslindes de responsabilidad de tu delegación (uno por hoja)">
-                        <i class="bi bi-file-earmark-text me-1"></i>Descargar Deslindes
+                        <i class="bi bi-file-earmark-text me-1"></i>Certificados
                     </a>
                 </div>
             </div>
         </div>
 
-        <!-- Fixture de la delegación: PDF estático por deporte (assets/docs/,
-             nombre en deportes.documento_fixture). Ya no se genera un reporte
-             dinámico: el selector elegía deportes de TU delegación, pero ahora
-             se listan TODOS los deportes con fixture subido — el documento es
-             público y le sirve igual al delegado. -->
-        <div class="col-12 col-md-6 col-lg-3">
-            <div class="card card-indicador shadow-sm" style="border-left-color: #dc3545;">
-                <div class="card-body p-3">
-                    <h6 class="text-muted small text-uppercase mb-1">Fixture</h6>
-                    <div class="d-flex flex-wrap gap-2 align-items-center mt-1">
-                        <?php
-                        // Deportes de la delegación que tienen PDF de fixture subido.
-                        $fixtures_deportes_disponibles = array();
-                        foreach (($deportes_delegacion ?? array()) as $dep) {
-                            if (!empty($dep['documento_fixture'])) {
-                                $fixtures_deportes_disponibles[] = $dep;
-                            }
-                        }
-                        ?>
-                        <?php if (!empty($fixtures_deportes_disponibles)): ?>
-                            <select id="fx_deporte_reporte" class="form-select form-select-sm" style="max-width: 220px;"
-                                title="Elegí un deporte para abrir su fixture en PDF">
-                                <option value="">— Elegí un deporte —</option>
-                                <?php foreach ($fixtures_deportes_disponibles as $dep): ?>
-                                    <option value="<?= $dep['id_deporte'] ?>">
-                                        <?= htmlspecialchars($dep['nombre_deporte']) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <a id="fx_btn_pdf" href="#" target="_blank" rel="noopener" aria-disabled="true"
-                                class="btn btn-danger disabled" title="Elegí un deporte para abrir su fixture en PDF">
-                                <i class="bi bi-file-earmark-pdf me-1"></i>
-                                <span id="fx_btn_pdf_txt">Ver fixture (PDF)</span>
-                            </a>
-                        <?php else: ?>
-                            <p class="small text-muted mb-0">
-                                <i class="bi bi-info-circle me-1"></i>Tu delegación todavía no tiene fixtures publicados.
-                            </p>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
+        
 
     </div>
 
@@ -796,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         btnDeslinde.className = 'btn btn-outline-danger btn-sm rounded-pill px-3';
                         btnDeslinde.target = '_blank';
                         btnDeslinde.rel = 'noopener';
-                        btnDeslinde.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>Descargar Deslinde';
+                        btnDeslinde.innerHTML = '<i class="bi bi-file-earmark-pdf me-1"></i>Descargar Certificado Asistencia';
                     }
 
                     if (data.token_qr) {

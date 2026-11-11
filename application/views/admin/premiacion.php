@@ -357,10 +357,10 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
     /* ---------- Render ---------- */
     /* Icono/emoji representativo del deporte para las cabeceras de grupo. */
     const ICONOS_DEPORTE = [
-        ['caminata', '🚶'], ['running', '🏃'], ['atletismo', '🏃'], ['corredor', '🏃'],
-        ['bici', '🚴'], ['ciclism', '🚴'], ['mountain', '🚵'], ['pedal', '🚴'],
+        ['caminata', '🚶'], ['running', '🏃'], ['atletismo', '🏃'], ['corredor', '🏃'],['carrera', '🏃'],
+        ['mtb', '🚴'],['MTB', '🚴'],['bici', '🚴'], ['ciclism', '🚴'], ['mountain', '🚵'], ['pedal', '🚴'],
         ['nataci', '🏊'], ['piscina', '🏊'], ['acuatic', '🏊'], ['kayak', '🛶'],
-        ['pesca', '🎣'], ['remero', '🚣'], ['remo', '🚣'],
+        ['mesa', '🏓'],['pesca', '🎣'], ['remero', '🚣'], ['remo', '🚣'],
         ['futbol', '⚽'], ['futsal', '⚽'], ['fulbito', '⚽'], ['penal', '⚽'],
         ['basquet', '🏀'], ['handball', '🤾'], ['handbol', '🤾'],
         ['volei', '🏐'], ['voley', '🏐'], ['pingpong', '🏓'], ['ping-pong', '🏓'],
@@ -368,11 +368,11 @@ $solo_lectura = ($this->session->userdata('user_rol') === 'solo_lectura');
         ['ajedrez', '♟️'], ['domino', '🁣'], ['bocha', '🎳'], ['bolos', '🎳'],
         ['billar', '🎱'], ['sapito', '🃏'], ['truco', '🃏'], ['carta', '🃏'],
         ['box', '🥊'], ['art marcial', '🥋'], ['judo', '🥋'], ['karate', '🥋'],
-        ['taekwondo', '🥋'], ['lucha', '🤼'], ['escrima', '🤺'],
+        ['taekwondo', '🥋'], ['lucha', '🤼'], ['escrima', '🤺'],['pool', '🎱'],
         ['levantamiento', '🏋️'], ['pesas', '🏋️'], ['crossfit', '🏋️'],
         ['patin', '⛸️'], ['esqui', '⛷️'], ['skate', '🛹'], ['ecuest', '🏇'],
         ['hipic', '🏇'], ['tiro', '🎯'], ['arquera', '🏹'], ['danza', '💃'],
-        ['baile', '💃'], ['rugby', '🏉'], ['beisbol', '⚾'], ['softbol', '🥎'],
+        ['baile', '💃'], ['rugby', '🏉'], ['beisbol', '⚾'], ['softbol', '🥎'],['truco', '🃏'],
     ];
     function iconoDeporte(nombre) {
         const n = (nombre || '').toLowerCase()
