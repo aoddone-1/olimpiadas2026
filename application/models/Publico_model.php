@@ -947,6 +947,30 @@ public function obtener_medallero() {
         
         $medallero = array();
 
+        // Nombres de deporte/categoría para el detalle del medallero. Si las
+        // tablas no existen, simplemente no se muestra el detalle.
+        $nombres_cat = array();
+        try {
+            if ($this->_tabla_existe('categorias')) {
+                $con_deporte = $this->_tabla_existe('deportes');
+                $sql_cats = $con_deporte
+                    ? "SELECT c.id_categoria AS id, c.nombre_categoria AS categoria, d.nombre_deporte AS deporte
+                       FROM categorias c LEFT JOIN deportes d ON d.id_deporte = c.id_deporte"
+                    : "SELECT id_categoria AS id, nombre_categoria AS categoria, NULL AS deporte FROM categorias";
+                $q_cats = $this->db->query($sql_cats);
+                $rows_cats = ($q_cats === false || !is_object($q_cats)) ? array() : $q_cats->result_array();
+                foreach ($rows_cats as $rc) {
+                    $nombres_cat[(int) $rc['id']] = array(
+                        'deporte'   => trim((string) $rc['deporte']),
+                        'categoria' => trim((string) $rc['categoria']),
+                    );
+                }
+            }
+        } catch (Throwable $e) {
+            log_message('error', 'Publico_model::obtener_medallero (detalle): ' . $e->getMessage());
+            $nombres_cat = array();
+        }
+
         // 2. Por cada delegación, ejecutar EXACTAMENTE tu consulta:
         foreach ($delegaciones_rows as $row) {
             $delegacion = trim((string) $row['delegacion']);
@@ -979,6 +1003,31 @@ public function obtener_medallero() {
                 elseif ($p === 3)  $bronce = $c;
             }
 
+            // Detalle: en qué deporte/categoría se ganó cada medalla (mismo
+            // criterio LIKE para que los contejos coincidan con la tabla).
+            $podios = array();
+            if ($total > 0 && !empty($nombres_cat)) {
+                $sql_det = "
+                    SELECT p.id_categoria, p.puesto, p.nombre, p.fecha_entrega
+                    FROM premiaciones p
+                    WHERE p.nombre LIKE ?
+                      AND p.entregado = 1
+                    ORDER BY p.puesto ASC, p.fecha_entrega ASC
+                ";
+                $q_det = $this->db->query($sql_det, array('%' . $delegacion . '%'));
+                $rows_det = ($q_det === false || !is_object($q_det)) ? array() : $q_det->result_array();
+                foreach ($rows_det as $rd) {
+                    $id_cat = (int) $rd['id_categoria'];
+                    $podios[] = array(
+                        'deporte'   => isset($nombres_cat[$id_cat]) ? $nombres_cat[$id_cat]['deporte'] : '',
+                        'categoria' => isset($nombres_cat[$id_cat]) ? $nombres_cat[$id_cat]['categoria'] : '',
+                        'puesto'    => (int) $rd['puesto'],
+                        'nombre'    => trim((string) $rd['nombre']),
+                        'fecha'     => trim((string) $rd['fecha_entrega']),
+                    );
+                }
+            }
+
             // Solo agregar al medallero si tiene al menos un podio
             if ($total > 0) {
                 $medallero[] = array(
@@ -987,7 +1036,7 @@ public function obtener_medallero() {
                     'plata'      => $plata,
                     'bronce'     => $bronce,
                     'total'      => $total,
-                    'podios'     => array() // Estructura mínima por si tu vista la necesita
+                    'podios'     => $podios // Detalle por deporte (desplegable en el panel)
                 );
             }
         }

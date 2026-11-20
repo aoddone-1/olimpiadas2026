@@ -276,6 +276,28 @@ table.medallero tr:hover td{background:rgba(132,204,22,.06)}
 table.medallero td.oro{color:var(--oro);font-weight:800}
 table.medallero td.plata{color:var(--plata);font-weight:800}
 table.medallero td.bronce{color:var(--bronce);font-weight:800}
+/* Delegación desplegable: detalle de medallas por deporte */
+td.med-nombre{padding:0!important;text-align:left}
+button.med-toggle{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;
+  color:inherit;font:inherit;font-weight:600;padding:10px;cursor:pointer;text-align:left;border-radius:8px}
+button.med-toggle:hover{background:rgba(132,204,22,.08)}
+button.med-toggle:focus-visible{outline:2px solid var(--lime,#a3e635);outline-offset:-2px}
+button.med-toggle .chev{margin-left:auto;flex:none;width:18px;height:18px;color:var(--muted);
+  transition:transform .2s ease}
+tr.abierta button.med-toggle .chev{transform:rotate(180deg)}
+tr.detalle-row > td{padding:0!important;border-bottom:1px solid var(--line)}
+tr.detalle-row[hidden]{display:none}
+.med-detalle{list-style:none;margin:0;padding:8px 14px 12px;display:grid;gap:6px;
+  background:rgba(0,0,0,.12)}
+@media (min-width:760px){.med-detalle{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}}
+.med-detalle li{display:flex;align-items:center;gap:8px;background:var(--card2);border:1px solid var(--line);
+  border-radius:8px;padding:8px 10px;font-size:13.5px;text-align:left}
+.med-detalle .m-medalla{font-size:17px;flex:none;line-height:1}
+.med-detalle .m-info{display:flex;flex-direction:column;gap:1px;min-width:0}
+.med-detalle .m-deporte{font-weight:700}
+.med-detalle .m-cat{color:var(--muted);font-size:12.5px}
+.med-detalle .m-fecha{margin-left:auto;color:var(--muted);font-size:11.5px;white-space:nowrap;flex:none}
+.med-detalle .sin-det{color:var(--muted);font-style:italic;background:none;border:0}
 .rank-num{display:inline-flex;width:24px;height:24px;border-radius:50%;background:var(--line);
           align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px}
 tr.top1 .rank-num{background:var(--oro);color:#111}
@@ -413,15 +435,15 @@ $norm = function ($txt) {
 <div class="workspace">
   <!-- Tabs -->
   <nav class="primary-tabs" role="tablist" aria-label="Información de la competencia">
-    <button type="button" role="tab" id="button-fixture" class="tab-btn activo" aria-controls="tab-fixture" aria-selected="true" data-tab="tab-fixture" tabindex="0"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
-    <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
-    <button type="button" role="tab" id="button-medallero" class="tab-btn" aria-controls="tab-medallero" aria-selected="false" data-tab="tab-medallero" tabindex="-1">
+    <button type="button" role="tab" id="button-medallero" class="tab-btn activo" aria-controls="tab-medallero" aria-selected="true" data-tab="tab-medallero" tabindex="0">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-award" viewBox="0 0 16 16">
         <path d="M9.669.864 8 0 6.331.864l-1.858.282-.842 1.68-1.337 1.32L2.6 6l-.306 1.854 1.337 1.32.842 1.68 1.858.282L8 12l1.669-.864 1.858-.282.842-1.68 1.337-1.32L13.4 6l.306-1.854-1.337-1.32-.842-1.68zm1.196 1.193.684 1.365 1.086 1.072L12.387 6l.248 1.506-1.086 1.072-.684 1.365-1.51.229L8 10.874l-1.355-.702-1.51-.229-.684-1.365-1.086-1.072L3.614 6l-.25-1.506 1.087-1.072.684-1.365 1.51-.229L8 1.126l1.356.702z"/>
         <path d="M4 11.794V16l4-1 4 1v-4.206l-2.018.306L8 13.126 6.018 12.1z"/>
       </svg>
       Medallero
     </button>
+    <button type="button" role="tab" id="button-resultados" class="tab-btn" aria-controls="tab-resultados" aria-selected="false" data-tab="tab-resultados" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4m0 0c5-5 9 5 14 0v10c-5 5-9-5-14 0"/></svg>Resultados</button>
+    <button type="button" role="tab" id="button-fixture" class="tab-btn" aria-controls="tab-fixture" aria-selected="false" data-tab="tab-fixture" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 3v4m8-4v4M4 11h16M8 15h2m4 0h2"/></svg>Fixture</button>
   </nav>
 
 <?php
@@ -531,7 +553,7 @@ $svg_search     = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5"
 $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 ?>
 <!-- ============ FIXTURE ============ -->
-<section class="panel" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0">
+<section class="panel" id="tab-fixture" role="tabpanel" aria-labelledby="button-fixture" tabindex="0" hidden>
   <div class="section-heading">
     <div>
       <p class="eyebrow">LA AGENDA</p>
@@ -1066,7 +1088,7 @@ $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6
 </section>
 
 <!-- ============ MEDALLERO ============ -->
-<section class="panel" id="tab-medallero" role="tabpanel" aria-labelledby="button-medallero" tabindex="0" hidden>
+<section class="panel" id="tab-medallero" role="tabpanel" aria-labelledby="button-medallero" tabindex="0">
   <div class="section-heading">
     <div>
       <p class="eyebrow">LO MAS ALTO DEL PODIO</p>
@@ -1078,17 +1100,62 @@ $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6
   <?php if (empty($med)): ?>
     <div class="vacio">Aún no se entregaron medallas<?= $delegacion ? ' que correspondan a esta delegación' : '' ?>. ¡Volvé más tarde! 🏅</div>
   <?php else: ?>
+  <?php
+$med_detalle_txt = array(1 => '🥇 Oro', 2 => '🥈 Plata', 3 => '🥉 Bronce');
+$med_emblema_txt = array(1 => '🥇', 2 => '🥈', 3 => '🥉');
+$med_fecha_fmt = function ($fecha) {
+    $ts = strtotime((string) $fecha);
+    return $ts ? date('d/m/Y', $ts) : '';
+};
+?>
     <table class="medallero">
       <thead><tr><th>Delegación</th><th>🥇 Oro</th><th>🥈 Plata</th><th>🥉 Bronce</th><th>Total</th></tr></thead>
       <tbody>
         <?php foreach ($med as $idx => $m): ?>
+        <?php $podios = !empty($m['podios']) && is_array($m['podios']) ? $m['podios'] : array(); ?>
         <tr class="<?= $idx === 0 ? 'top1' : '' ?>">
-          <td><span class="rank-num"><?= $idx + 1 ?></span><?= htmlspecialchars($m['delegacion']) ?></td>
+          <td class="med-nombre">
+            <?php if ($podios): ?>
+            <button type="button" class="med-toggle" aria-expanded="false" aria-controls="med-det-<?= $idx ?>"
+                    title="Ver en qué deportes se ganó cada medalla">
+              <span class="rank-num"><?= $idx + 1 ?></span><?= htmlspecialchars($m['delegacion']) ?>
+              <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <?php else: ?>
+            <span style="display:flex;align-items:center;padding:10px"><span class="rank-num"><?= $idx + 1 ?></span><?= htmlspecialchars($m['delegacion']) ?></span>
+            <?php endif; ?>
+          </td>
           <td class="oro"><?= (int)$m['oro'] ?></td>
           <td class="plata"><?= (int)$m['plata'] ?></td>
           <td class="bronce"><?= (int)$m['bronce'] ?></td>
           <td><b><?= (int)$m['total'] ?></b></td>
         </tr>
+        <?php if ($podios): ?>
+        <tr class="detalle-row" id="med-det-<?= $idx ?>" hidden>
+          <td colspan="5">
+            <ul class="med-detalle">
+              <?php foreach ($podios as $pd): ?>
+              <?php
+                $etiqueta = isset($med_detalle_txt[$pd['puesto']]) ? $med_detalle_txt[$pd['puesto']] : ('Puesto ' . (int)$pd['puesto']);
+                $dep_txt = trim((string)$pd['deporte']);
+                $cat_txt = trim((string)$pd['categoria']);
+                $titulo = $dep_txt !== '' ? $dep_txt : ($cat_txt !== '' ? $cat_txt : htmlspecialchars($pd['nombre']));
+                $sub = $dep_txt !== '' && $cat_txt !== '' ? $cat_txt : ($dep_txt === '' && $cat_txt === '' ? $pd['nombre'] : '');
+                $f_txt = $med_fecha_fmt($pd['fecha']);
+              ?>
+              <li>
+                <span class="m-medalla" aria-hidden="true"><?= isset($med_emblema_txt[$pd['puesto']]) ? $med_emblema_txt[$pd['puesto']] : '🏅' ?></span>
+                <span class="m-info">
+                  <span class="m-deporte"><?= htmlspecialchars($titulo) ?> <small>(<?= htmlspecialchars($etiqueta) ?>)</small></span>
+                  <?php if ($sub !== ''): ?><span class="m-cat"><?= htmlspecialchars($sub) ?></span><?php endif; ?>
+                </span>
+                <?php if ($f_txt !== ''): ?><span class="m-fecha">Entrega: <?= htmlspecialchars($f_txt) ?></span><?php endif; ?>
+              </li>
+              <?php endforeach; ?>
+            </ul>
+          </td>
+        </tr>
+        <?php endif; ?>
         <?php endforeach; ?>
       </tbody>
     </table>
@@ -1142,7 +1209,7 @@ $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6
       setTab(tabButtons[next].dataset.tab, true);
     });
   });
-  setTab('tab-fixture');
+  setTab('tab-medallero');
 
   /* ---------- Resultados: planillas desplegables internas ---------- */
   Array.prototype.forEach.call(document.querySelectorAll('.p-j-head'), function (head) {
@@ -1154,6 +1221,19 @@ $svg_chevron    = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6
     head.addEventListener('click', toggle);
     head.addEventListener('keydown', function (event) {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+    });
+  });
+
+  /* ---------- Medallero: detalle de medallas por delegación ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.medallero .med-toggle'), function (btn) {
+    btn.addEventListener('click', function () {
+      var fila = document.getElementById(btn.getAttribute('aria-controls'));
+      if (!fila) return;
+      var abierta = !fila.hidden;
+      fila.hidden = abierta;
+      btn.setAttribute('aria-expanded', String(!abierta));
+      var tr = btn.closest('tr');
+      if (tr) tr.classList.toggle('abierta', !abierta);
     });
   });
 
